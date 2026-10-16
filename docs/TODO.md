@@ -55,9 +55,23 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ---
 
+### [ ] 4. `yt-dlp` Stream & Transcript Harvester (`harvest_media`)
+- **Priority:** P2.5 (Rich Media & Video Understanding)
+- **Why:** Pages with rich media (YouTube, Twitter/X video, Reddit clips, Vimeo, TikTok, podcasts) cannot be understood through DOM scraping alone. `yt-dlp` allows the agent to extract full transcripts, subtitles, metadata, or audio for local AI comprehension.
+- **Implementation:**
+  - Wrap `yt-dlp` via local process bridge.
+  - Fast transcript extraction: `--write-auto-sub --sub-lang en --skip-download --dump-json` to extract full spoken text into a clean timestamped markdown construct without downloading heavy video files.
+  - Audio extraction: `--extract-audio --audio-format mp3` into `data/media/` for downstream local Whisper speech-to-text processing.
+  - Ingest extracted video transcripts directly into **LanceDB Cortex** so the agent can recall spoken facts from videos watched in the browser.
+  - MCP Tools:
+    - `get_video_transcript(url?)`: fetches subtitles/transcript and video metadata.
+    - `download_media(url?, format?)`: downloads media stream to local workspace.
+
+---
+
 ## ⚡ Phase 2: Session & Network Intelligence (Intermediate)
 
-### [ ] 4. Session & Cookie Jar Vault (`save_session` / `restore_session`)
+### [ ] 5. Session & Cookie Jar Vault (`save_session` / `restore_session`)
 - **Priority:** P3 (Persistence & Bypass)
 - **Why:** Enables agents to resume authenticated sessions (e.g. GitHub, Google, airlines) without triggering 2FA or CAPTCHAs on every run.
 - **Implementation:**
@@ -70,7 +84,7 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ---
 
-### [ ] 5. Live Network & XHR/Fetch Stream Interceptor (`read_api_traffic`)
+### [ ] 6. Live Network & XHR/Fetch Stream Interceptor (`read_api_traffic`)
 - **Priority:** P4 (High Bandwidth / Superpower)
 - **Why:** Modern Single-Page Applications (Skyscanner, Twitter, FlightRadar, Reddit) fetch pure JSON via background APIs. Scraping rendered HTML is 10x slower and loses structured data.
 - **Implementation:**
@@ -85,7 +99,7 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ## 🎯 Phase 3: Advanced Cognitive Grounding (Most Exciting)
 
-### [ ] 6. Set-of-Marks (Numbered Visual Grounding Badges)
+### [ ] 7. Set-of-Marks (Numbered Visual Grounding Badges)
 - **Priority:** P5 (Peak Agent Ergonomics)
 - **Why:** Eliminates hallucinated pixel coordinates and broken CSS selectors by giving the agent a numbered visual overlay.
 - **Implementation:**
