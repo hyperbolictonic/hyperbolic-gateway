@@ -10,6 +10,15 @@
     "start": "electron .",
     "build": "tsc && vite build && npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=bin/mcp-server.cjs",
     "build:mcp": "npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=bin/mcp-server.cjs",
+    "build:pack": "npm run build && electron-builder --dir",
+    "build:win": "npm run build && electron-builder --win nsis --x64",
+    "build:win:portable": "npm run build && electron-builder --win portable --x64",
+    "build:win:all": "npm run build && electron-builder --win",
+    "build:linux": "npm run build && electron-builder --linux",
+    "build:linux:appimage": "npm run build && electron-builder --linux AppImage --x64",
+    "build:linux:deb": "npm run build && electron-builder --linux deb --x64",
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:dist:all": "npm run build && electron-builder -mwl",
     "test:mcp": "node scripts/test-client.js",
     "test:mcp:all": "node scripts/test-all-mcp-tools.js",
     "preview": "vite preview"
@@ -39,6 +48,7 @@
     "@types/turndown": "^5.0.6",
     "daisyui": "^5.7.50",
     "electron": "^44.7.2",
+    "electron-builder": "^26.15.3",
     "jpeg-js": "^0.4.4",
     "pngjs": "^7.0.0",
     "tailwindcss": "^4.3.3",
@@ -51,7 +61,8 @@
     "onlyBuiltDependencies": [
       "onnxruntime-node",
       "protobufjs",
-      "sharp"
+      "sharp",
+      "electron-winstaller"
     ]
   }
 }

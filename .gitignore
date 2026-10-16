@@ -20,6 +20,8 @@ node_modules/
 # Production build outputs
 dist/
 dist-electron/
+release/
+dist-release/
 
 # Local Environment Variables
 .env
