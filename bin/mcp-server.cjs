@@ -30246,7 +30246,7 @@ function duration2(params) {
 }
 
 // node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/from-json-schema.js
-var z = {
+var z2 = {
   ...schemas_exports2,
   ...checks_exports2,
   iso: iso_exports2
@@ -30360,7 +30360,7 @@ function resolveRef(ref, ctx) {
   throw new Error(`Reference not found: ${ref}`);
 }
 function checkObjectGuards(objectSchema, guards) {
-  const guard = z.transform((value) => value).check((payload) => {
+  const guard = z2.transform((value) => value).check((payload) => {
     const value = payload.value;
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return;
@@ -30489,7 +30489,7 @@ function plural(n) {
   return n === 1 ? "element" : "elements";
 }
 function checkArrayGuards(arraySchema, guards) {
-  const guard = z.transform((value) => value).check((payload) => {
+  const guard = z2.transform((value) => value).check((payload) => {
     const items = payload.value;
     if (!Array.isArray(items))
       return;
@@ -30546,7 +30546,7 @@ function getTupleRest(restSchema, ctx) {
     return void 0;
   }
   if (restSchema === void 0 || restSchema === true) {
-    return z.any();
+    return z2.any();
   }
   return convertSchema(restSchema, ctx);
 }
@@ -30554,7 +30554,7 @@ var fullTime = /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2
 function convertBaseSchema(schema, ctx) {
   if (schema.not !== void 0) {
     if (typeof schema.not === "object" && Object.keys(schema.not).length === 0) {
-      return z.never();
+      return z2.never();
     }
     throw new Error("not is not supported in Zod (except { not: {} } for never)");
   }
@@ -30576,7 +30576,7 @@ function convertBaseSchema(schema, ctx) {
       return ctx.refs.get(refPath);
     }
     if (ctx.processing.has(refPath)) {
-      return z.lazy(() => {
+      return z2.lazy(() => {
         if (!ctx.refs.has(refPath)) {
           throw new Error(`Circular reference not resolved: ${refPath}`);
         }
@@ -30593,25 +30593,25 @@ function convertBaseSchema(schema, ctx) {
   if (schema.enum !== void 0) {
     const enumValues = schema.enum;
     if (ctx.version === "openapi-3.0" && schema.nullable === true && enumValues.length === 1 && enumValues[0] === null) {
-      return z.null();
+      return z2.null();
     }
     if (enumValues.length === 0) {
-      return z.never();
+      return z2.never();
     }
     if (enumValues.length === 1) {
-      return z.literal(enumValues[0]);
+      return z2.literal(enumValues[0]);
     }
     if (enumValues.every((v) => typeof v === "string")) {
-      return z.enum(enumValues);
+      return z2.enum(enumValues);
     }
-    const literalSchemas = enumValues.map((v) => z.literal(v));
+    const literalSchemas = enumValues.map((v) => z2.literal(v));
     if (literalSchemas.length < 2) {
       return literalSchemas[0];
     }
-    return z.union([literalSchemas[0], literalSchemas[1], ...literalSchemas.slice(2)]);
+    return z2.union([literalSchemas[0], literalSchemas[1], ...literalSchemas.slice(2)]);
   }
   if (schema.const !== void 0) {
-    return z.literal(schema.const);
+    return z2.literal(schema.const);
   }
   const type = schema.type;
   if (Array.isArray(type)) {
@@ -30620,74 +30620,74 @@ function convertBaseSchema(schema, ctx) {
       return convertBaseSchema(typeSchema, ctx);
     });
     if (typeSchemas.length === 0) {
-      return z.never();
+      return z2.never();
     }
     if (typeSchemas.length === 1) {
       return typeSchemas[0];
     }
-    return z.union(typeSchemas);
+    return z2.union(typeSchemas);
   }
   if (!type) {
-    return z.any();
+    return z2.any();
   }
   let zodSchema;
   switch (type) {
     case "string": {
-      let stringSchema = z.string();
+      let stringSchema = z2.string();
       if (schema.format) {
         const format = schema.format;
         if (format === "email") {
-          stringSchema = stringSchema.check(z.email());
+          stringSchema = stringSchema.check(z2.email());
         } else if (format === "uri" || format === "uri-reference") {
-          stringSchema = stringSchema.check(z.url());
+          stringSchema = stringSchema.check(z2.url());
         } else if (format === "uuid" || format === "guid") {
-          stringSchema = stringSchema.check(z.uuid());
+          stringSchema = stringSchema.check(z2.uuid());
         } else if (format === "date-time") {
-          stringSchema = stringSchema.check(z.iso.datetime({ offset: true }));
+          stringSchema = stringSchema.check(z2.iso.datetime({ offset: true }));
         } else if (format === "date") {
-          stringSchema = stringSchema.check(z.iso.date());
+          stringSchema = stringSchema.check(z2.iso.date());
         } else if (format === "time") {
-          stringSchema = stringSchema.check(z.regex(fullTime));
+          stringSchema = stringSchema.check(z2.regex(fullTime));
         } else if (format === "duration") {
-          stringSchema = stringSchema.check(z.iso.duration());
+          stringSchema = stringSchema.check(z2.iso.duration());
         } else if (format === "hostname") {
-          stringSchema = stringSchema.check(z.hostname());
+          stringSchema = stringSchema.check(z2.hostname());
         } else if (format === "ipv4") {
-          stringSchema = stringSchema.check(z.ipv4());
+          stringSchema = stringSchema.check(z2.ipv4());
         } else if (format === "ipv6") {
-          stringSchema = stringSchema.check(z.ipv6());
+          stringSchema = stringSchema.check(z2.ipv6());
         } else if (format === "mac") {
-          stringSchema = stringSchema.check(z.mac());
+          stringSchema = stringSchema.check(z2.mac());
         } else if (format === "cidr") {
-          stringSchema = stringSchema.check(z.cidrv4());
+          stringSchema = stringSchema.check(z2.cidrv4());
         } else if (format === "cidr-v6") {
-          stringSchema = stringSchema.check(z.cidrv6());
+          stringSchema = stringSchema.check(z2.cidrv6());
         } else if (format === "base64") {
-          stringSchema = stringSchema.check(z.base64());
+          stringSchema = stringSchema.check(z2.base64());
         } else if (format === "base64url") {
-          stringSchema = stringSchema.check(z.base64url());
+          stringSchema = stringSchema.check(z2.base64url());
         } else if (format === "e164") {
-          stringSchema = stringSchema.check(z.e164());
+          stringSchema = stringSchema.check(z2.e164());
         } else if (format === "credit_card") {
-          stringSchema = stringSchema.check(z.creditCard());
+          stringSchema = stringSchema.check(z2.creditCard());
         } else if (format === "iban") {
-          stringSchema = stringSchema.check(z.iban());
+          stringSchema = stringSchema.check(z2.iban());
         } else if (format === "jwt") {
-          stringSchema = stringSchema.check(z.jwt());
+          stringSchema = stringSchema.check(z2.jwt());
         } else if (format === "emoji") {
-          stringSchema = stringSchema.check(z.emoji());
+          stringSchema = stringSchema.check(z2.emoji());
         } else if (format === "nanoid") {
-          stringSchema = stringSchema.check(z.nanoid());
+          stringSchema = stringSchema.check(z2.nanoid());
         } else if (format === "cuid") {
-          stringSchema = stringSchema.check(z.cuid());
+          stringSchema = stringSchema.check(z2.cuid());
         } else if (format === "cuid2") {
-          stringSchema = stringSchema.check(z.cuid2());
+          stringSchema = stringSchema.check(z2.cuid2());
         } else if (format === "ulid") {
-          stringSchema = stringSchema.check(z.ulid());
+          stringSchema = stringSchema.check(z2.ulid());
         } else if (format === "xid") {
-          stringSchema = stringSchema.check(z.xid());
+          stringSchema = stringSchema.check(z2.xid());
         } else if (format === "ksuid") {
-          stringSchema = stringSchema.check(z.ksuid());
+          stringSchema = stringSchema.check(z2.ksuid());
         }
       }
       if (typeof schema.minLength === "number") {
@@ -30704,7 +30704,7 @@ function convertBaseSchema(schema, ctx) {
     }
     case "number":
     case "integer": {
-      let numberSchema = type === "integer" ? z.number().int() : z.number();
+      let numberSchema = type === "integer" ? z2.number().int() : z2.number();
       if (typeof schema.minimum === "number" && schema.exclusiveMinimum !== true) {
         numberSchema = numberSchema.min(schema.minimum);
       }
@@ -30728,11 +30728,11 @@ function convertBaseSchema(schema, ctx) {
       break;
     }
     case "boolean": {
-      zodSchema = z.boolean();
+      zodSchema = z2.boolean();
       break;
     }
     case "null": {
-      zodSchema = z.null();
+      zodSchema = z2.null();
       break;
     }
     case "object": {
@@ -30750,22 +30750,22 @@ function convertBaseSchema(schema, ctx) {
         const looseRecords = [];
         for (const pattern of patternKeys) {
           const patternValue = convertSchema(patternProps[pattern], ctx);
-          const keySchema = z.string().regex(new RegExp(pattern));
-          looseRecords.push(z.looseRecord(keySchema, patternValue));
+          const keySchema = z2.string().regex(new RegExp(pattern));
+          looseRecords.push(z2.looseRecord(keySchema, patternValue));
         }
         const schemasToIntersect = [];
         if (Object.keys(shape).length > 0) {
-          schemasToIntersect.push(z.object(shape).passthrough());
+          schemasToIntersect.push(z2.object(shape).passthrough());
         }
         schemasToIntersect.push(...looseRecords);
         if (schemasToIntersect.length === 0) {
-          zodSchema = z.object({}).passthrough();
+          zodSchema = z2.object({}).passthrough();
         } else if (schemasToIntersect.length === 1) {
           zodSchema = schemasToIntersect[0];
         } else {
-          let result = z.intersection(schemasToIntersect[0], schemasToIntersect[1]);
+          let result = z2.intersection(schemasToIntersect[0], schemasToIntersect[1]);
           for (let i = 2; i < schemasToIntersect.length; i++) {
-            result = z.intersection(result, schemasToIntersect[i]);
+            result = z2.intersection(result, schemasToIntersect[i]);
           }
           zodSchema = result;
         }
@@ -30795,7 +30795,7 @@ function convertBaseSchema(schema, ctx) {
           });
         }
       } else {
-        const objectSchema = z.object(shape);
+        const objectSchema = z2.object(shape);
         if (schema.additionalProperties === false) {
           zodSchema = objectSchema.strict();
         } else if (additionalSchema) {
@@ -30825,30 +30825,30 @@ function convertBaseSchema(schema, ctx) {
         const tupleItems = prefixItems.map((item) => convertSchema(item, ctx));
         const positionalItems = applyMinItems(tupleItems, minItems);
         const rest = !Array.isArray(items) ? getTupleRest(items, ctx) : void 0;
-        const tupleSchema = z.tuple(positionalItems);
+        const tupleSchema = z2.tuple(positionalItems);
         zodSchema = rest ? tupleSchema.rest(rest) : tupleSchema;
         if (typeof schema.minItems === "number") {
-          zodSchema = zodSchema.check(z.minLength(schema.minItems));
+          zodSchema = zodSchema.check(z2.minLength(schema.minItems));
         }
         if (typeof schema.maxItems === "number") {
-          zodSchema = zodSchema.check(z.maxLength(schema.maxItems));
+          zodSchema = zodSchema.check(z2.maxLength(schema.maxItems));
         }
       } else if (Array.isArray(items)) {
         const minItems = typeof schema.minItems === "number" ? schema.minItems : 0;
         const tupleItems = items.map((item) => convertSchema(item, ctx));
         const positionalItems = applyMinItems(tupleItems, minItems);
         const rest = getTupleRest(schema.additionalItems, ctx);
-        const tupleSchema = z.tuple(positionalItems);
+        const tupleSchema = z2.tuple(positionalItems);
         zodSchema = rest ? tupleSchema.rest(rest) : tupleSchema;
         if (typeof schema.minItems === "number") {
-          zodSchema = zodSchema.check(z.minLength(schema.minItems));
+          zodSchema = zodSchema.check(z2.minLength(schema.minItems));
         }
         if (typeof schema.maxItems === "number") {
-          zodSchema = zodSchema.check(z.maxLength(schema.maxItems));
+          zodSchema = zodSchema.check(z2.maxLength(schema.maxItems));
         }
       } else if (items !== void 0) {
         const element = convertSchema(items, ctx);
-        let arraySchema = z.array(element);
+        let arraySchema = z2.array(element);
         if (typeof schema.minItems === "number") {
           arraySchema = arraySchema.min(schema.minItems);
         }
@@ -30857,7 +30857,7 @@ function convertBaseSchema(schema, ctx) {
         }
         zodSchema = arraySchema;
       } else {
-        zodSchema = z.array(z.any());
+        zodSchema = z2.array(z2.any());
       }
       if (schema.uniqueItems === true || schema.contains !== void 0) {
         zodSchema = checkArrayGuards(zodSchema, {
@@ -30876,37 +30876,37 @@ function convertBaseSchema(schema, ctx) {
 }
 function convertSchema(schema, ctx) {
   if (typeof schema === "boolean") {
-    return schema ? z.any() : z.never();
+    return schema ? z2.any() : z2.never();
   }
   let baseSchema = convertBaseSchema(schema, ctx);
   const hasExplicitType = schema.type || schema.enum !== void 0 || schema.const !== void 0;
   if (schema.anyOf && Array.isArray(schema.anyOf)) {
     const options = schema.anyOf.map((s) => convertSchema(s, ctx));
-    const anyOfUnion = z.union(options);
-    baseSchema = hasExplicitType ? z.intersection(baseSchema, anyOfUnion) : anyOfUnion;
+    const anyOfUnion = z2.union(options);
+    baseSchema = hasExplicitType ? z2.intersection(baseSchema, anyOfUnion) : anyOfUnion;
   }
   if (schema.oneOf && Array.isArray(schema.oneOf)) {
     const options = schema.oneOf.map((s) => convertSchema(s, ctx));
-    const oneOfUnion = z.xor(options);
-    baseSchema = hasExplicitType ? z.intersection(baseSchema, oneOfUnion) : oneOfUnion;
+    const oneOfUnion = z2.xor(options);
+    baseSchema = hasExplicitType ? z2.intersection(baseSchema, oneOfUnion) : oneOfUnion;
   }
   if (schema.allOf && Array.isArray(schema.allOf)) {
     if (schema.allOf.length === 0) {
-      baseSchema = hasExplicitType ? baseSchema : z.any();
+      baseSchema = hasExplicitType ? baseSchema : z2.any();
     } else {
       let result = hasExplicitType ? baseSchema : convertSchema(schema.allOf[0], ctx);
       const startIdx = hasExplicitType ? 0 : 1;
       for (let i = startIdx; i < schema.allOf.length; i++) {
-        result = z.intersection(result, convertSchema(schema.allOf[i], ctx));
+        result = z2.intersection(result, convertSchema(schema.allOf[i], ctx));
       }
       baseSchema = result;
     }
   }
   if (schema.nullable === true && ctx.version === "openapi-3.0") {
-    baseSchema = z.nullable(baseSchema);
+    baseSchema = z2.nullable(baseSchema);
   }
   if (schema.readOnly === true) {
-    baseSchema = z.readonly(baseSchema);
+    baseSchema = z2.readonly(baseSchema);
   }
   if (schema.default !== void 0) {
     baseSchema = baseSchema.default(schema.default);
@@ -30957,7 +30957,7 @@ function convertSchema(schema, ctx) {
 }
 function fromJSONSchema(schema, params) {
   if (typeof schema === "boolean") {
-    return schema ? z.any() : z.never();
+    return schema ? z2.any() : z2.never();
   }
   let normalized;
   try {
@@ -37178,6 +37178,86 @@ function createBridgeMcpServer() {
       }
     });
   }
+  server.tool(
+    "help",
+    "Returns a categorized guide, cheatsheet, and workflow tips for all available Mark Eleven MCP tools.",
+    {
+      category: z.enum([
+        "all",
+        "navigation",
+        "interaction",
+        "inspection",
+        "tabs",
+        "memory",
+        "macros",
+        "network",
+        "system"
+      ]).optional().default("all").describe("Optional category to filter help")
+    },
+    async ({ category }) => {
+      const docs = {
+        navigation: `### Navigation Tools
+- navigate_to(url, auto_dismiss_consent?): Navigates active browser window to URL and auto-clears cookie overlays.
+- navigate_history(direction: "back" | "forward"): Moves back or forward in history.`,
+        interaction: `### Interaction & Telemetry Tools
+- click_element(selector?, x?, y?): Performs organic Bio-Kinematic Chaos mouse movement and switch clicks with visual pointer.
+- type_text(text, selector?): Types with realistic human Gaussian cadence (60-240ms).
+- press_key(key): Dispatches single hardware keys ('Enter', 'Tab', 'Escape', 'Backspace').
+- scroll_page(direction?, amount?): Simulates organic inertial wheel scrolling.
+- fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
+        inspection: `### Visual & Content Inspection
+- get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.
+- take_screenshot(): Captures full viewport image.
+- evaluate_javascript(script): Evaluates arbitrary JS in the active tab.
+- get_page_info(): Returns active URL, title, tab ID, loading status.
+- get_console_logs(limit?): Returns live browser console logs.
+- take_annotated_screenshot(): Set-of-Marks visual badges overlay.
+- click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
+        tabs: `### Multi-Tab Orchestration
+- new_tab(url?): Opens a new tab.
+- switch_tab(tab_id): Focuses a specific tab.
+- close_tab(tab_id?): Closes a tab.
+- list_tabs(): Returns all open tabs.`,
+        memory: `### LanceDB Cortex & Bookmarks
+- recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously browsed pages.
+- add_bookmark(url, title, notes?, tags?): Saves a research bookmark to LanceDB.
+- list_bookmarks(query?, tag?, limit?): Searches or lists saved bookmarks.
+- delete_bookmark(url_or_id): Removes a bookmark.
+- get_history(limit?, domain?): Chronological browsing history.`,
+        macros: `### Script Vault & Macro Engine
+- save_script(name, description, code, parameters?): Vaults a reusable DOM script into LanceDB.
+- recall_script(query, limit?): Semantically searches for vaulted automation scripts.
+- run_script(name, args?): Executes vaulted script inside the live tab.
+- list_scripts() / delete_script(name): Manages vaulted scripts.`,
+        network: `### Network & Stream Interception
+- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses.
+- get_api_payload(request_id): Retrieves raw JSON response payload from intercepted API calls.
+- list_realtime_streams(type?, active_only?): Lists active wss:// WebSockets and SSE streams.
+- get_stream_messages(stream_id?, type?, direction?, limit?): Inspects real-time streaming frames.`,
+        system: `### System Tray & Human-In-The-Loop
+- set_window_visibility(visible): Minimizes Cyberdeck to system tray or restores to screen.
+- configure_system_tray(close_to_tray?): Configures close-to-tray background mode.
+- request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.
+- send_notification(title, message, urgency?, sound?): Sends native OS notification.`
+      };
+      if (category && category !== "all" && docs[category]) {
+        return { content: [{ type: "text", text: docs[category] }] };
+      }
+      const allDocs = Object.values(docs).join("\n\n");
+      return {
+        content: [
+          {
+            type: "text",
+            text: `# \u{1F9ED} Kuang Grade Mark Eleven \u2014 MCP Help & Cheatsheet
+
+Total Tools: ${TOOLS_CATALOG.length + 1}
+
+${allDocs}`
+          }
+        ]
+      };
+    }
+  );
   return server;
 }
 async function start() {
