@@ -31,13 +31,14 @@ const server = new McpServer({
 // Tool 1: navigate_to
 server.tool(
   'navigate_to',
-  'Navigates the real, visible Chromium browser window to a destination URL.',
+  'Navigates the real, visible Chromium browser window to a destination URL. Automatically dismisses GDPR/cookie consent overlays by default.',
   {
     url: z.string().describe('The destination URL (e.g. "https://news.ycombinator.com" or "https://reddit.com")'),
+    auto_dismiss_consent: z.boolean().optional().default(true).describe('Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)'),
   },
-  async ({ url }) => {
+  async ({ url, auto_dismiss_consent }) => {
     try {
-      const data = await callBridge('/navigate', 'POST', { url });
+      const data = await callBridge('/navigate', 'POST', { url, autoDismissConsent: auto_dismiss_consent });
       return { content: [{ type: 'text', text: data.result }] };
     } catch (err) {
       return { isError: true, content: [{ type: 'text', text: err.message }] };
@@ -452,6 +453,18 @@ server.tool(
     try {
       const data = await callBridge('/bookmarks/delete', 'POST', { urlOrId: url_or_id });
       return { content: [{ type: 'text', text: data.deleted ? `Bookmark deleted: ${url_or_id}` : `Bookmark not found: ${url_or_id}` }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+// Tool 23: dismiss_consent (Autonomous Shield Breaker)
+server.tool(
+  'dismiss_consent',
+  'Autonomously scans the active web page for cookie consent banners, GDPR dialogs, or blocking overlays (OneTrust, Cookiebot, Google, etc.) and physically clicks Accept/Dismiss using the Bézier cursor.',
+  {},
+  async () => {
+    try {
+      const data = await callBridge('/shield/dismiss', 'POST');
+      return { content: [{ type: 'text', text: JSON.stringify(data.result, null, 2) }] };
     } catch (err) {
       return { isError: true, content: [{ type: 'text', text: err.message }] };
     }

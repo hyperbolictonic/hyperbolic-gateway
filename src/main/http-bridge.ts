@@ -46,7 +46,14 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'POST' && pathname === '/navigate') {
         const body = await readBody();
-        const result = await chassis.navigateTo(body.url);
+        const autoDismiss = body.autoDismissConsent !== undefined ? Boolean(body.autoDismissConsent) : true;
+        const result = await chassis.navigateTo(body.url, autoDismiss);
+        sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/shield/dismiss') {
+        const result = await chassis.dismissConsent();
         sendJson({ success: true, result });
         return;
       }

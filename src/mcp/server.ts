@@ -12,13 +12,14 @@ export function createMcpServer(chassis: BrowserChassis) {
   // Tool 1: navigate_to (primary semantic navigation tool)
   server.tool(
     'navigate_to',
-    'Navigates the real, visible Chromium browser window to a destination URL.',
+    'Navigates the real, visible Chromium browser window to a destination URL. Automatically dismisses GDPR/cookie consent overlays by default.',
     {
       url: z.string().describe('The destination URL (e.g. "https://news.ycombinator.com" or "https://wikipedia.org")'),
+      auto_dismiss_consent: z.boolean().optional().default(true).describe('Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)'),
     },
-    async ({ url }) => {
+    async ({ url, auto_dismiss_consent }) => {
       try {
-        const result = await chassis.navigateTo(url);
+        const result = await chassis.navigateTo(url, auto_dismiss_consent);
         return { content: [{ type: 'text', text: result }] };
       } catch (error: any) {
         return { isError: true, content: [{ type: 'text', text: `Navigation failed: ${error?.message || error}` }] };
@@ -255,6 +256,21 @@ export function createMcpServer(chassis: BrowserChassis) {
         return { content: [{ type: 'text', text: JSON.stringify(profile, null, 2) }] };
       } catch (error: any) {
         return { isError: true, content: [{ type: 'text', text: `Failed to get fingerprint profile: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 13: dismiss_consent (Shield Breaker)
+  server.tool(
+    'dismiss_consent',
+    'Autonomously scans the active web page for cookie consent banners, GDPR dialogs, or blocking overlays (OneTrust, Cookiebot, Google, etc.) and physically clicks Accept/Dismiss using the Bézier cursor.',
+    {},
+    async () => {
+      try {
+        const result = await chassis.dismissConsent();
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to dismiss consent banner: ${error?.message || error}` }] };
       }
     }
   );

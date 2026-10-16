@@ -108,13 +108,14 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (24 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (25 Tools Total)
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
-| **Navigation** | `navigate_to` | `url: string` | Navigates the active tab to destination URL. *(alias: `go_to_url`)* |
+| **Navigation** | `navigate_to` | `url: string`, `auto_dismiss_consent?: boolean` | Navigates active tab to URL. Auto-dismisses GDPR/cookie overlays by default. *(alias: `go_to_url`)* |
 | | `navigate_history` | `action: 'back' \| 'forward' \| 'reload'` | Browser history navigation and reload controls. |
 | | `get_page_info` | _none_ | Returns current URL, title, and load state without full extraction. |
+| **Shield & Defense** | `dismiss_consent` | _none_ | Autonomously detects and dismisses GDPR/cookie banners via Bézier mouse click. |
 | **Interaction** | `click_element` | `selector?: string`, `x?: number`, `y?: number` | Clicks element by CSS selector or direct viewport (x, y) coordinates. |
 | | `type_text` | `text: string`, `selector?: string` | Types text with human Gaussian cadence variance (60–240ms). |
 | | `press_key` | `key: string` | Presses specific key (e.g. `Enter`, `Tab`, `Escape`, `Backspace`). |
@@ -151,6 +152,7 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`src/main/`** | [src/main/README.md](./src/main/README.md) | Electron main process, `BrowserChassis` coordinator, and HTTP bridge (`:4111`). |
 | **`src/main/cortex/`** | [src/main/cortex/README.md](./src/main/cortex/README.md) | Embedded LanceDB vector database, 128-d embedder, chunker, and hybrid semantic recall. |
 | **`src/main/tabs/`** | [src/main/tabs/README.md](./src/main/tabs/README.md) | Hardware-accelerated `WebContentsView` multi-tab pooling and popup trapping. |
+| **`src/main/shield/`** | [src/main/shield/README.md](./src/main/shield/README.md) | Autonomous Shield Breaker engine auto-dismissing cookie banners and GDPR modals. |
 | **`src/main/telemetry/`** | [src/main/telemetry/README.md](./src/main/telemetry/README.md) | Organic cubic Bézier mouse kinematics, Gaussian typing cadence, and stealth fingerprinting. |
 | **`src/main/harvester/`** | [src/main/harvester/README.md](./src/main/harvester/README.md) | Mozilla Readability & Turndown token-efficient markdown distillation. |
 | **`src/preload/`** | [src/preload/README.md](./src/preload/README.md) | Sandboxed ContextBridge IPC exposing typed `window.electronAPI` to the DOM. |

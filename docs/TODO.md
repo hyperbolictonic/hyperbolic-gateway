@@ -6,7 +6,7 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ## 🛠️ Phase 1: Foundational Utilities (Least Exciting, Most Functional)
 
-### [ ] 1. Autonomous Shield-Breaker (Auto Cookie & Modal Dismissal)
+### [x] 1. Autonomous Shield-Breaker (Auto Cookie & Modal Dismissal) — ✅ *[COMPLETED]*
 - **Priority:** P0 (Essential Baseline)
 - **Why:** Saves 1–2 LLM tool calls on almost every new domain by clearing blocking overlays before the agent turn begins.
 - **Implementation:**

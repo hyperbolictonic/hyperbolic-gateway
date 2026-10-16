@@ -5,12 +5,14 @@ import { ConstructHarvester } from './harvester/markdown.js';
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
+import { ShieldBreaker, type ShieldDismissResult } from './shield/shield-breaker.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
   private tabManager: TabManager | null = null;
   private simulator: HumanizedInputSimulator;
   private harvester: ConstructHarvester;
+  private shieldBreaker: ShieldBreaker;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
 
   private state: ChassisState = {
@@ -74,6 +76,8 @@ export class BrowserChassis {
         });
       },
     });
+
+    this.shieldBreaker = new ShieldBreaker(this.simulator);
 
     setInterval(() => {
       this.state.stats.uptimeSeconds++;
@@ -287,7 +291,7 @@ export class BrowserChassis {
   }
 
   // MCP Operations on Active Tab
-  public async navigateTo(url: string): Promise<string> {
+  public async navigateTo(url: string, autoDismissConsent: boolean = true): Promise<string> {
     const wc = this.getActiveWebContents();
     this.state.agentStatus = 'TRAVERSING';
     this.broadcastState();
@@ -306,8 +310,33 @@ export class BrowserChassis {
       : `https://${url}`;
 
     this.addLog('action', `MCP Directive: navigate_to(${formattedUrl})`);
-    await wc.loadURL(formattedUrl);
+    const navPromise = wc.loadURL(formattedUrl);
+
+    if (autoDismissConsent) {
+      setTimeout(() => {
+        this.dismissConsent().catch(() => {});
+      }, 1800);
+    }
+
+    await navPromise;
     return `Navigated to ${formattedUrl}`;
+  }
+
+  public async dismissConsent(): Promise<ShieldDismissResult> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', 'Shield Directive: dismiss_consent()');
+    const result = await this.shieldBreaker.dismissConsent(wc);
+    if (result.dismissed) {
+      this.addLog('info', `Shield Breaker: ${result.message}`);
+      this.emitTelemetry({
+        type: 'click',
+        x: result.coordinates?.x,
+        y: result.coordinates?.y,
+        timestamp: Date.now(),
+        details: `Shield Breaker: Dismissed ${result.framework} consent banner`,
+      });
+    }
+    return result;
   }
 
   public async clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string> {
