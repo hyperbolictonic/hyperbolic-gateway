@@ -35,3 +35,33 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `add_bookmark({ url, title, notes, tags })` to persist important research links with semantic tags.
    - Call `list_bookmarks({ query, tag })` to retrieve or semantically search saved bookmarks.
    - Call `delete_bookmark({ url_or_id })` to remove a bookmark.
+8. **Visual Grounding with Set-of-Marks (SoM):**
+   - Call `take_annotated_screenshot()` to render high-contrast neon badges over all interactable elements and return a lookup table.
+   - Call `click_mark({ mark_id })` to perform human Bézier clicks directly on a visual badge number.
+   - Call `type_mark({ mark_id, text, clear_first })` to type directly into an annotated input badge.
+9. **Single-Turn Batch Form Filler:**
+   - Call `fill_form({ fields, submit_selector })` to populate multiple inputs, selects, radios, and checkboxes in a single turn with human typing cadence.
+10. **Autonomous Shield-Breaker:**
+   - Cookie consent dialogs (OneTrust, Cookiebot, Google GDPR, TrustArc) are auto-dismissed on navigation.
+   - Call `dismiss_cookie_dialogs()` to manually force-dismiss any remaining consent banners.
+11. **Download Manager & Harvester:**
+   - Files are automatically routed to `data/downloads/` and indexed into Cortex.
+   - Call `list_downloads()` to inspect completed downloads.
+   - Call `read_download({ filename })` to read parsed markdown text (PDFs, CSVs, JSON).
+12. **Session & Cookie Jar Vault:**
+   - Call `save_session({ name })` to snapshot cookies, localStorage, and sessionStorage.
+   - Call `restore_session({ name })` to rehydrate authenticated sessions.
+   - Call `list_sessions()` to view saved sessions.
+13. **Live Network & API Interception:**
+   - Call `get_network_traffic({ url_pattern, method, resource_type, limit })` to inspect captured XHR/Fetch/document HTTP requests.
+   - Call `get_api_payload({ request_id })` to fetch JSON or structured responses directly from the API layer.
+   - Call `clear_network_traffic()` to reset the network request ring buffer.
+14. **Script Vault & Semantic Macro Engine:**
+   - Call `save_script({ name, description, code, parameters })` to persist DOM scripts and vector-embed them in LanceDB.
+   - Call `recall_script({ query, limit })` to semantically search for reusable scripts using natural language.
+   - Call `run_script({ name, args })` to execute a vaulted script in the active tab with dynamic arguments.
+   - Call `list_scripts()` or `delete_script({ name })` to manage scripts.
+15. **Real-Time WebSocket & SSE Interception:**
+   - Call `list_realtime_streams({ type, active_only })` to inspect active and recent `wss://` WebSockets and SSE streams.
+   - Call `get_stream_messages({ stream_id, type, direction, limit })` to inspect streaming frames and auto-parsed JSON payloads.
+   - Call `clear_stream_messages({ stream_id })` to clear streaming frame buffers.
