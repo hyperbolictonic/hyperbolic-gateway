@@ -14,7 +14,7 @@ export class TrayManager {
   private tray: Tray | null = null;
   private mainWindow: BrowserWindow;
   private isQuitting: boolean = false;
-  private closeToTray: boolean = true;
+  private closeToTray: boolean = false;
   private agentStatus: string = 'IDLE';
   private tabCount: number = 0;
   private hilPending: boolean = false;

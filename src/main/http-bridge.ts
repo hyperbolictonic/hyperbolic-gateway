@@ -482,6 +482,10 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
     }
   });
 
+  server.on('error', (err: any) => {
+    chassis.addLog('warn', `HTTP Bridge server error on port ${port}: ${err?.message || err}`);
+  });
+
   server.listen(port, '127.0.0.1', () => {
     chassis.addLog('info', `Autonomous Bridge active at http://127.0.0.1:${port}`);
   });

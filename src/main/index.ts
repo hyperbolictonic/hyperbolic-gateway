@@ -19,7 +19,12 @@ const chassis = new BrowserChassis();
 
 app.on('second-instance', () => {
   if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
     mainWindow.focus();
   }
 });

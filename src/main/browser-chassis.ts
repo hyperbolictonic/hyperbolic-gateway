@@ -142,7 +142,7 @@ export class BrowserChassis {
     this.hilManager.setWindow(win);
     this.trayManager = new TrayManager({
       mainWindow: win,
-      closeToTrayDefault: true,
+      closeToTrayDefault: false,
     });
     this.downloadManager.attachToSession(win.webContents.session);
     this.downloadManager.onDownloadComplete((record) => {
