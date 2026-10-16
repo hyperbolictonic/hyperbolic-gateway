@@ -74,16 +74,16 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ## ⚡ Phase 2: Session & Network Intelligence (Intermediate)
 
-### [ ] 5. Session & Cookie Jar Vault (`save_session` / `restore_session`)
+### [x] 5. Session & Cookie Jar Vault (`save_session` / `restore_session`) — ✅ *[COMPLETED]*
 - **Priority:** P3 (Persistence & Bypass)
 - **Why:** Enables agents to resume authenticated sessions (e.g. GitHub, Google, airlines) without triggering 2FA or CAPTCHAs on every run.
 - **Implementation:**
-  - Extract session cookies, `localStorage`, and `sessionStorage` via `session.defaultSession.cookies.get({})`.
-  - Store encrypted session snapshots in `data/sessions/<domain>.json`.
+  - Extract session cookies, `localStorage`, and `sessionStorage` via `session.cookies.get({})`.
+  - Store encrypted session snapshots in `data/sessions/<name>.json`.
   - MCP Tools:
-    - `save_session(domain)`: captures active session.
-    - `restore_session(domain)`: injects cookies before navigation.
-    - `list_saved_sessions()`: lists available credentials.
+    - `save_session(name?)`: captures active session and cookies.
+    - `restore_session(name)`: injects cookies and rehydrates localStorage.
+    - `list_sessions()`: lists available credentials and metadata.
 
 ---
 

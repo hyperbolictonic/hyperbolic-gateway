@@ -7,6 +7,7 @@ import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
 import { ShieldBreaker, type ShieldDismissResult } from './shield/shield-breaker.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
+import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -15,6 +16,7 @@ export class BrowserChassis {
   private harvester: ConstructHarvester;
   private shieldBreaker: ShieldBreaker;
   private downloadManager: DownloadManager;
+  private sessionVault: SessionVault;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
 
   private state: ChassisState = {
@@ -81,6 +83,7 @@ export class BrowserChassis {
 
     this.shieldBreaker = new ShieldBreaker(this.simulator);
     this.downloadManager = new DownloadManager();
+    this.sessionVault = new SessionVault();
 
     setInterval(() => {
       this.state.stats.uptimeSeconds++;
@@ -656,5 +659,38 @@ export class BrowserChassis {
   public async readDownloadedDocument(filenameOrId: string) {
     this.addLog('action', `MCP Directive: read_download("${filenameOrId}")`);
     return await this.downloadManager.readDocumentContent(filenameOrId);
+  }
+
+  public async saveSession(name?: string) {
+    this.addLog('action', `MCP Directive: save_session("${name || 'auto'}")`);
+    const wc = this.getActiveWebContents();
+    const result = await this.sessionVault.saveSession(wc.session, wc, name);
+    this.emitTelemetry({
+      type: 'harvest',
+      timestamp: Date.now(),
+      details: `Saved session "${result.name}" with ${result.cookiesCount} cookies`,
+    });
+    return result;
+  }
+
+  public async restoreSession(name: string) {
+    this.addLog('action', `MCP Directive: restore_session("${name}")`);
+    const wc = this.getActiveWebContents();
+    const result = await this.sessionVault.restoreSession(wc.session, wc, name);
+    this.emitTelemetry({
+      type: 'harvest',
+      timestamp: Date.now(),
+      details: `Restored session "${result.name}" (${result.cookiesRestored} cookies)`,
+    });
+    return result;
+  }
+
+  public listSessions() {
+    return this.sessionVault.listSessions();
+  }
+
+  public deleteSession(name: string) {
+    this.addLog('action', `MCP Directive: delete_session("${name}")`);
+    return this.sessionVault.deleteSession(name);
   }
 }

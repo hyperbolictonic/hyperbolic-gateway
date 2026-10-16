@@ -325,6 +325,55 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 17: save_session
+  server.tool(
+    'save_session',
+    'Saves the current session cookies and local storage state into a persistent named JSON vault snapshot.',
+    {
+      name: z.string().optional().describe('Optional custom snapshot identifier. If omitted, uses current domain hostname.'),
+    },
+    async ({ name }) => {
+      try {
+        const res = await chassis.saveSession(name);
+        return { content: [{ type: 'text', text: `Saved session "${res.name}" with ${res.cookiesCount} cookies to ${res.filePath}` }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to save session: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 18: restore_session
+  server.tool(
+    'restore_session',
+    'Restores cookies and local storage state from a named vault snapshot into the active browser session.',
+    {
+      name: z.string().describe('The snapshot name or domain identifier to restore.'),
+    },
+    async ({ name }) => {
+      try {
+        const res = await chassis.restoreSession(name);
+        return { content: [{ type: 'text', text: `Restored session "${res.name}": successfully rehydrated ${res.cookiesRestored} cookies.` }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to restore session: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 19: list_sessions
+  server.tool(
+    'list_sessions',
+    'Returns a structured list of all saved session snapshots in the vault with metadata and cookie counts.',
+    {},
+    async () => {
+      try {
+        const sessions = chassis.listSessions();
+        return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to list sessions: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   return {
     startStdio: async () => {
       const transport = new StdioServerTransport();

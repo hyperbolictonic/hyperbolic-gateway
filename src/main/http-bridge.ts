@@ -138,6 +138,33 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/session/save') {
+        const body = await readBody();
+        const result = await chassis.saveSession(body.name);
+        sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/session/restore') {
+        const body = await readBody();
+        const result = await chassis.restoreSession(body.name);
+        sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/session/list') {
+        const sessions = chassis.listSessions();
+        sendJson({ success: true, sessions });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/session/delete') {
+        const body = await readBody();
+        const deleted = chassis.deleteSession(body.name);
+        sendJson({ success: true, deleted });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/history') {
         const body = await readBody();
         let result = '';

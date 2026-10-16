@@ -517,6 +517,55 @@ server.tool(
   }
 );
 
+// Tool 27: save_session
+server.tool(
+  'save_session',
+  'Saves the current session cookies and local storage state into a persistent named JSON vault snapshot.',
+  {
+    name: z.string().optional().describe('Optional custom snapshot identifier. If omitted, uses current domain hostname.'),
+  },
+  async ({ name }) => {
+    try {
+      const data = await callBridge('/session/save', 'POST', { name });
+      return { content: [{ type: 'text', text: `Saved session "${data.result.name}" with ${data.result.cookiesCount} cookies to ${data.result.filePath}` }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 28: restore_session
+server.tool(
+  'restore_session',
+  'Restores cookies and local storage state from a named vault snapshot into the active browser session.',
+  {
+    name: z.string().describe('The snapshot name or domain identifier to restore.'),
+  },
+  async ({ name }) => {
+    try {
+      const data = await callBridge('/session/restore', 'POST', { name });
+      return { content: [{ type: 'text', text: `Restored session "${data.result.name}": successfully rehydrated ${data.result.cookiesRestored} cookies.` }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 29: list_sessions
+server.tool(
+  'list_sessions',
+  'Returns a structured list of all saved session snapshots in the vault with metadata and cookie counts.',
+  {},
+  async () => {
+    try {
+      const data = await callBridge('/session/list', 'GET');
+      return { content: [{ type: 'text', text: JSON.stringify(data.sessions, null, 2) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
 async function start() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

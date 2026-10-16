@@ -138,6 +138,9 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `delete_bookmark` | `url_or_id: string` | Deletes bookmark by URL or unique ID. |
 | **Downloads & Docs** | `list_downloads` | _none_ | Lists all files downloaded into `data/downloads/` with sizes, state, and timestamps. |
 | | `read_download` | `filename_or_id: string` | Parses downloaded file (PDF, CSV, JSON, text) into token-efficient markdown. |
+| **Session Vault** | `save_session` | `name?: string` | Captures active cookies and localStorage state into persistent JSON vault. |
+| | `restore_session` | `name: string` | Rehydrates cookies and localStorage state into browser session. |
+| | `list_sessions` | _none_ | Lists all stored session snapshots with timestamps and cookie counts. |
 
 ---
 
@@ -157,6 +160,7 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`src/main/tabs/`** | [src/main/tabs/README.md](./src/main/tabs/README.md) | Hardware-accelerated `WebContentsView` multi-tab pooling and popup trapping. |
 | **`src/main/shield/`** | [src/main/shield/README.md](./src/main/shield/README.md) | Autonomous Shield Breaker engine auto-dismissing cookie banners and GDPR modals. |
 | **`src/main/downloads/`** | [src/main/downloads/README.md](./src/main/downloads/README.md) | Deterministic workspace file download routing and automatic document-to-Cortex ingestion. |
+| **`src/main/session/`** | [src/main/session/README.md](./src/main/session/README.md) | Persistent cookie jar and session snapshot vault for cross-run auth persistence. |
 | **`src/main/telemetry/`** | [src/main/telemetry/README.md](./src/main/telemetry/README.md) | Organic cubic Bézier mouse kinematics, Gaussian typing cadence, and stealth fingerprinting. |
 | **`src/main/harvester/`** | [src/main/harvester/README.md](./src/main/harvester/README.md) | Mozilla Readability & Turndown token-efficient markdown distillation. |
 | **`src/preload/`** | [src/preload/README.md](./src/preload/README.md) | Sandboxed ContextBridge IPC exposing typed `window.electronAPI` to the DOM. |
