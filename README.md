@@ -108,6 +108,98 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
+## 🛡️ Autonomous Shield-Breaker (Cookie & GDPR Destroyer)
+
+- **Zero-Token Modal Clearance:** Saves 1–2 LLM tool calls on almost every new domain.
+- **Preload Framework Detection:** Detects OneTrust, Cookiebot, Google GDPR (`#L2AGLb`), TrustArc, and generic consent frameworks.
+- **Bézier Dismissal:** Dispatches authentic Bézier cursor movement and hardware clicks to "Accept All" or "Agree" before notifying the agent that the page is ready.
+- **Manual Directive:** Agents can also manually call `dismiss_consent` whenever unexpected overlays block the viewport.
+
+---
+
+## 🎯 Set-of-Marks (SoM) Visual Grounding
+
+- **Zero Coordinate Hallucination:** Completely eliminates hallucinated pixel coordinates or fragile CSS selectors.
+- **High-Contrast Neon Badges:** Ephemerally injects high-contrast amber neon numbered badges (`[1]`, `[2]`, `[3]`, etc.) over every visible, interactable DOM element (`<a>`, `<button>`, `<input>`, `select`, `[role="button"]`).
+- **Precision Multimodal Actuation:**
+  1. `take_annotated_screenshot()` captures the badge overlay and returns an element lookup table (`{ id: 1, tag: "BUTTON", text: "Submit", bbox: [...] }`).
+  2. `click_mark(1)` moves the Bézier ghost cursor to the element's centroid with sub-pixel accuracy and clicks.
+  3. `type_mark(2, "cyberdeck")` focuses the input and types text with human cadence.
+
+---
+
+## 📝 Single-Turn Batch Form Filler
+
+- **Instantaneous Multi-Input Population:** Fills complex checkout forms, flight booking screens, or multi-field search bars in a single turn without round-trip LLM latency.
+- **Human Typing Cadence:** Simulates variable human inter-key delays (60–240ms) with Gaussian jitter between fields.
+- **Flexible Field Types:** Supports text inputs, password fields, dropdown `<select>` menus, checkboxes, and radio buttons with optional automatic form submission (`submit_selector`).
+
+---
+
+## 📥 Download Manager & Cortex Harvester
+
+- **Workspace-Local Routing:** Intercepts Chromium's `will-download` session events, routing all files into `./data/downloads/` rather than the OS user folder.
+- **Automated Text Extraction:** Automatically extracts clean Markdown text from downloaded **PDFs** (`pdf-parse`), **CSVs**, and **JSON** files.
+- **LanceDB Vector Ingestion:** Automatically ingests downloaded document text into the **LanceDB Cortex** vector store for instant conversational recall.
+- **MCP Inspection:** `list_downloads` and `read_download(filename)` allow agents to inspect and read downloaded files on demand.
+
+---
+
+## 🔐 Session & Cookie Jar Vault
+
+- **Stateful Auth Persistence:** Captures and restores active session cookies, `localStorage`, and `sessionStorage` into encrypted/structured snapshots under `./data/sessions/<name>.json`.
+- **Bypass 2FA & Logins:** Resume authenticated states on GitHub, airline portals, news sites, or internal dashboards across agent sessions without triggering repetitive logins or CAPTCHAs.
+- **MCP Tools:** `save_session(name)`, `restore_session(name)`, and `list_sessions()`.
+
+---
+
+## 📡 Live Network & API Stream Interceptor
+
+- **Direct Chrome DevTools Protocol Wire:** Attaches directly via CDP (`Network.enable`) to monitor all incoming and outgoing network traffic.
+- **Direct JSON Extraction:** Bypasses DOM scraping entirely for modern Single-Page Applications (SPAs like Twitter, Reddit, Skyscanner). Captures completed XHR/Fetch response bodies (`Network.getResponseBody`).
+- **MCP Inspection:** `get_network_traffic` filters requests by URL pattern or method, and `get_api_payload(request_id)` returns parsed JSON directly into the LLM context.
+
+---
+
+## ⚡ Real-Time WebSocket & SSE Interceptor
+
+- **Duplex Stream Surveillance:** Captures duplex frames across persistent `wss://` WebSockets and Server-Sent Events (`text/event-stream`).
+- **Auto-Parsed Payloads:** Automatically detects and parses JSON streaming frames from live crypto tickers, chat platforms, financial feeds, and streaming LLM APIs.
+- **In-Memory Ring Buffer:** Rolling buffer of 500 frames with filtering by stream ID, direction (`sent` / `received`), and message limit.
+- **MCP Tools:** `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
+
+---
+
+## 💾 Script Vault & LanceDB Semantic Macro Engine
+
+- **Reusable Automation Macros:** Store, recall, and execute custom JavaScript DOM extraction and automation scripts under `./data/scripts/<name>.json`.
+- **Vector-Indexed Semantic Recall:** Every vaulted script is automatically embedded into the LanceDB `scripts` table. Models can recall scripts using conversational natural language queries (`recall_script("extract table rows as json")`).
+- **Parameter Injection:** `run_script(name, args)` executes vaulted scripts inside the active tab with dynamic runtime arguments and closure isolation.
+
+---
+
+## 🗔 System Tray & Background Minimization ("Out of the Way")
+
+- **Unobtrusive Background Operation:** Keeps the Cyberdeck running completely out of the way in the Windows notification tray during long-running automated tasks, batch scrapes, and research pipelines.
+- **Single-Click Summon:** Left-clicking or double-clicking the system tray icon toggles window visibility instantly.
+- **Close-to-Tray Protection:** Closing the window (`X`) minimizes to the system tray rather than killing active background tasks and MCP sessions.
+- **MCP Tools:** `set_window_visibility({ visible })` and `configure_system_tray({ close_to_tray })`.
+
+---
+
+## 🚨 Human-In-The-Loop (HIL) Intervention Protocol
+
+- **Graceful Human Collaboration:** When the agent hits Cloudflare Turnstile, CAPTCHAs, 2FA/SMS OTPs, or payment confirmations, it invokes `request_human_intervention`.
+- **Multi-Channel Alerting:**
+  1. **OS Native Desktop Notification:** Fires an urgent desktop notification banner with sound.
+  2. **Window Summon & Taskbar Flash:** Automatically restores the window from the tray, brings it to the front, and flashes the Windows taskbar amber (`flashFrame(true)`).
+  3. **Interactive In-Page Cyberdeck Banner:** Injects an amber neon cyberdeck banner (`#__kuang_hil_banner`) directly into the active webpage with a **"RESUME AGENT (DONE)"** button.
+  4. **HUD Action Indicator:** Changes the status badge to `AWAITING_INPUT` with live prompt text.
+- **Instant Unpause:** When the user completes the action and clicks "DONE", the agent immediately resumes its autonomous turn.
+- **MCP Tools:** `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, and non-blocking `send_notification`.
+
+---
+
 ## 🔌 Standardized Semantic MCP Tools (49 Tools Total)
 
 | Category | Tool | Parameters | Description |
@@ -184,6 +276,8 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`src/main/network/`** | [src/main/network/README.md](./src/main/network/README.md) | Chrome DevTools Protocol wire interceptor capturing background XHR/Fetch JSON streams. |
 | **`src/main/marks/`** | [src/main/marks/README.md](./src/main/marks/README.md) | Set-of-Marks visual grounding engine injecting numbered neon badges for zero-ambiguity LLM actuation. |
 | **`src/main/scripts/`** | [src/main/scripts/README.md](./src/main/scripts/README.md) | Persistent script vault and LanceDB semantic macro recall engine with parameter injection. |
+| **`src/main/tray/`** | [src/main/tray/README.md](./src/main/tray/README.md) | Windows System Tray integration and close-to-tray background minimization. |
+| **`src/main/hil/`** | [src/main/hil/README.md](./src/main/hil/README.md) | Human-In-The-Loop cooperative intervention protocol, OS notifications, and in-page alert banners. |
 | **`src/main/telemetry/`** | [src/main/telemetry/README.md](./src/main/telemetry/README.md) | Organic cubic Bézier mouse kinematics, Gaussian typing cadence, and stealth fingerprinting. |
 | **`src/main/harvester/`** | [src/main/harvester/README.md](./src/main/harvester/README.md) | Mozilla Readability & Turndown token-efficient markdown distillation. |
 | **`src/preload/`** | [src/preload/README.md](./src/preload/README.md) | Sandboxed ContextBridge IPC exposing typed `window.electronAPI` to the DOM. |
