@@ -60,15 +60,24 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'POST' && pathname === '/click') {
         const body = await readBody();
-        const coords = body.x !== undefined && body.y !== undefined ? { x: body.x, y: body.y } : undefined;
-        const result = await chassis.clickElement(body.selector, coords);
+        const selector = body.selector || body.element || body.target || body.css;
+        const x = body.x !== undefined ? Number(body.x) : undefined;
+        const y = body.y !== undefined ? Number(body.y) : undefined;
+        const coords = x !== undefined && !isNaN(x) && y !== undefined && !isNaN(y) ? { x, y } : undefined;
+        if (!selector && !coords) {
+          sendJson({ success: false, error: 'Must provide either "selector" or coordinates (x, y)' }, 400);
+          return;
+        }
+        const result = await chassis.clickElement(selector, coords);
         sendJson({ success: true, result });
         return;
       }
 
       if (req.method === 'POST' && pathname === '/type') {
         const body = await readBody();
-        const result = await chassis.typeText(body.text, body.selector);
+        const selector = body.selector || body.element || body.target;
+        const text = body.text ?? body.value ?? '';
+        const result = await chassis.typeText(String(text), selector);
         sendJson({ success: true, result });
         return;
       }
@@ -214,14 +223,25 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'POST' && pathname === '/marks/click') {
         const body = await readBody();
-        const result = await chassis.clickMark(Number(body.markId));
+        const rawId = body.markId ?? body.mark_id ?? body.mark ?? body.id;
+        if (rawId === undefined || isNaN(Number(rawId))) {
+          sendJson({ success: false, error: 'Must provide valid numeric markId (or mark_id)' }, 400);
+          return;
+        }
+        const result = await chassis.clickMark(Number(rawId));
         sendJson({ success: true, result });
         return;
       }
 
       if (req.method === 'POST' && pathname === '/marks/type') {
         const body = await readBody();
-        const result = await chassis.typeMark(Number(body.markId), String(body.text));
+        const rawId = body.markId ?? body.mark_id ?? body.mark ?? body.id;
+        const text = body.text ?? body.value ?? '';
+        if (rawId === undefined || isNaN(Number(rawId))) {
+          sendJson({ success: false, error: 'Must provide valid numeric markId (or mark_id)' }, 400);
+          return;
+        }
+        const result = await chassis.typeMark(Number(rawId), String(text));
         sendJson({ success: true, result });
         return;
       }

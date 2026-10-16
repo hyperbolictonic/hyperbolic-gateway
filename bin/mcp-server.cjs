@@ -7203,7 +7203,8 @@ var require_dist = __commonJS({
 // src/mcp/bridge-server.ts
 var bridge_server_exports = {};
 __export(bridge_server_exports, {
-  createBridgeMcpServer: () => createBridgeMcpServer
+  createBridgeMcpServer: () => createBridgeMcpServer,
+  normalizeIncomingParams: () => normalizeIncomingParams
 });
 module.exports = __toCommonJS(bridge_server_exports);
 
@@ -36608,7 +36609,7 @@ var TOOLS_CATALOG = [
       auto_dismiss_consent: external_exports.boolean().optional().default(true).describe("Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)")
     },
     endpoint: "/navigate",
-    payload: (args) => { let u = args.url || args.destination || args.target || args.link || ""; if (u && !/^https?:\/\//i.test(u) && !/^about:/i.test(u) && !/^mark-eleven:/i.test(u)) u = "https://" + u; return { url: u, autoDismissConsent: args.auto_dismiss_consent }; },
+    payload: (args) => ({ url: args.url, autoDismissConsent: args.auto_dismiss_consent }),
     format: (data) => data.result || "Navigation complete"
   },
   {
@@ -36618,7 +36619,7 @@ var TOOLS_CATALOG = [
       url: external_exports.string().describe("The destination URL")
     },
     endpoint: "/navigate",
-    payload: (args) => { let u = args.url || args.destination || args.target || args.link || ""; if (u && !/^https?:\/\//i.test(u) && !/^about:/i.test(u) && !/^mark-eleven:/i.test(u)) u = "https://" + u; return { url: u }; },
+    payload: (args) => ({ url: args.url }),
     format: (data) => data.result || "Navigation complete"
   },
   // 2. Interaction
@@ -36627,14 +36628,14 @@ var TOOLS_CATALOG = [
     description: "Clicks an element on the active web page using a CSS selector or direct viewport coordinates (x, y). Simulates realistic human pointer movement and switch actuation.",
     parameters: {
       selector: external_exports.string().optional().describe("CSS selector of the element to click"),
-      x: external_exports.number().optional().describe("Direct X coordinate on the viewport in pixels"),
-      y: external_exports.number().optional().describe("Direct Y coordinate on the viewport in pixels")
+      x: external_exports.coerce.number().optional().describe("Direct X coordinate on the viewport in pixels"),
+      y: external_exports.coerce.number().optional().describe("Direct Y coordinate on the viewport in pixels")
     },
     endpoint: "/click",
     payload: (args) => ({
-      selector: args.selector,
-      x: args.x,
-      y: args.y
+      selector: args.selector || args.element || args.target || args.css,
+      x: args.x !== void 0 ? Number(args.x) : void 0,
+      y: args.y !== void 0 ? Number(args.y) : void 0
     }),
     format: (data) => data.result || "Click executed"
   },
@@ -36685,7 +36686,10 @@ var TOOLS_CATALOG = [
     parameters: {},
     endpoint: "/markdown",
     method: "GET",
-    format: (data) => { const md = data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; }
+    format: (data) => {
+      const md = data.construct?.markdown || JSON.stringify(data, null, 2);
+      return md.length > 25e3 ? md.slice(0, 25e3) + "\n\n... [Output truncated to 25000 chars]" : md;
+    }
   },
   {
     name: "harvest_markdown",
@@ -36693,7 +36697,10 @@ var TOOLS_CATALOG = [
     parameters: {},
     endpoint: "/markdown",
     method: "GET",
-    format: (data) => { const md = data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; }
+    format: (data) => {
+      const md = data.construct?.markdown || JSON.stringify(data, null, 2);
+      return md.length > 25e3 ? md.slice(0, 25e3) + "\n\n... [Output truncated to 25000 chars]" : md;
+    }
   },
   {
     name: "evaluate_javascript",
@@ -36962,22 +36969,26 @@ var TOOLS_CATALOG = [
     name: "click_mark",
     description: "Clicks an annotated element using its Set-of-Marks badge index from take_annotated_screenshot.",
     parameters: {
-      mark_id: external_exports.number().describe("The numeric ID of the mark badge to click")
+      mark_id: external_exports.coerce.number().describe("The numeric ID of the mark badge to click")
     },
     endpoint: "/marks/click",
-    payload: (args) => ({ markId: args.mark_id }),
+    payload: (args) => ({ markId: Number(args.mark_id ?? args.markId ?? args.mark ?? args.id) }),
     format: (data, args) => `Clicked mark #${args.mark_id}`
   },
   {
     name: "type_mark",
     description: "Types text into an annotated input element using its Set-of-Marks badge index.",
     parameters: {
-      mark_id: external_exports.number().describe("The numeric ID of the mark badge to type into"),
-      text: external_exports.string().describe("Text to type"),
-      clear_first: external_exports.boolean().optional().default(false).describe("Whether to clear existing text before typing")
+      mark_id: external_exports.coerce.number().describe("The numeric ID of the mark badge to type into"),
+      text: external_exports.coerce.string().describe("Text to type"),
+      clear_first: external_exports.coerce.boolean().optional().default(false).describe("Whether to clear existing text before typing")
     },
     endpoint: "/marks/type",
-    payload: (args) => ({ markId: args.mark_id, text: args.text, clearFirst: args.clear_first }),
+    payload: (args) => ({
+      markId: Number(args.mark_id ?? args.markId ?? args.mark ?? args.id),
+      text: String(args.text ?? args.value ?? ""),
+      clearFirst: args.clear_first ?? args.clearFirst ?? false
+    }),
     format: (data, args) => `Typed into mark #${args.mark_id}`
   },
   // 11. Script Vault & Macro Engine
@@ -37149,7 +37160,9 @@ async function callBridge(endpoint, method = "GET", body = null) {
   }
   const res = await fetch(`${BRIDGE_URL}${endpoint}`, options);
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const errorData = await res.json().catch(() => null);
+    const detail = errorData?.error || errorData?.message || res.statusText;
+    throw new Error(`HTTP ${res.status}: ${detail}`);
   }
   return await res.json();
 }
@@ -37260,10 +37273,63 @@ ${allDocs}`
   );
   return server;
 }
+function normalizeIncomingParams(params) {
+  if (!params) return {};
+  let args = params.arguments;
+  if (args === void 0) {
+    if (params.args !== void 0) args = params.args;
+    else if (params.input !== void 0) args = params.input;
+    else if (params.parameters !== void 0) args = params.parameters;
+    else if (params.properties !== void 0) args = params.properties;
+  }
+  if (typeof args === "string") {
+    try {
+      args = JSON.parse(args);
+    } catch {
+    }
+  }
+  if (args && typeof args === "object") {
+    if (args.arguments && typeof args.arguments === "object" && Object.keys(args).length === 1) {
+      args = args.arguments;
+    } else if (args.input && typeof args.input === "object" && Object.keys(args).length === 1) {
+      args = args.input;
+    }
+  }
+  if (!args || typeof args !== "object") {
+    args = {};
+  }
+  const normalized = {};
+  for (const [k, v] of Object.entries(args)) {
+    normalized[k] = v;
+    const snakeKey = k.replace(/([A-Z])/g, "_$1").toLowerCase();
+    if (snakeKey !== k && normalized[snakeKey] === void 0) {
+      normalized[snakeKey] = v;
+    }
+  }
+  if (normalized.mark !== void 0 && normalized.mark_id === void 0) normalized.mark_id = normalized.mark;
+  if (normalized.id !== void 0 && normalized.mark_id === void 0) normalized.mark_id = normalized.id;
+  if (normalized.element !== void 0 && normalized.selector === void 0) normalized.selector = normalized.element;
+  if (normalized.target !== void 0 && normalized.selector === void 0) normalized.selector = normalized.target;
+  if (normalized.css !== void 0 && normalized.selector === void 0) normalized.selector = normalized.css;
+  if (normalized.link !== void 0 && normalized.url === void 0) normalized.url = normalized.link;
+  if (normalized.href !== void 0 && normalized.url === void 0) normalized.url = normalized.href;
+  if (normalized.code !== void 0 && normalized.script === void 0) normalized.script = normalized.code;
+  if (normalized.js !== void 0 && normalized.script === void 0) normalized.script = normalized.js;
+  return normalized;
+}
 async function start() {
   const server = createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  const prevOnMessage = transport.onmessage;
+  if (typeof prevOnMessage === "function") {
+    transport.onmessage = (msg, extra) => {
+      if (msg && msg.method === "tools/call" && msg.params) {
+        msg.params.arguments = normalizeIncomingParams(msg.params);
+      }
+      return prevOnMessage.call(transport, msg, extra);
+    };
+  }
 }
 start().catch((err) => {
   console.error("Fatal Mark Eleven MCP Server Error:", err);
@@ -37271,5 +37337,6 @@ start().catch((err) => {
 });
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  createBridgeMcpServer
+  createBridgeMcpServer,
+  normalizeIncomingParams
 });

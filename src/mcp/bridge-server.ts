@@ -15,7 +15,9 @@ async function callBridge(endpoint: string, method: string = 'GET', body: any = 
   }
   const res = await fetch(`${BRIDGE_URL}${endpoint}`, options);
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const errorData = await res.json().catch(() => null);
+    const detail = errorData?.error || errorData?.message || res.statusText;
+    throw new Error(`HTTP ${res.status}: ${detail}`);
   }
   return await res.json();
 }
@@ -134,10 +136,78 @@ export function createBridgeMcpServer() {
   return server;
 }
 
+export function normalizeIncomingParams(params: any): Record<string, any> {
+  if (!params) return {};
+  let args = params.arguments;
+  // If arguments is missing but args, input, parameters, or properties is present
+  if (args === undefined) {
+    if (params.args !== undefined) args = params.args;
+    else if (params.input !== undefined) args = params.input;
+    else if (params.parameters !== undefined) args = params.parameters;
+    else if (params.properties !== undefined) args = params.properties;
+  }
+  // If args is a JSON string (e.g. OpenAI function calling format)
+  if (typeof args === 'string') {
+    try {
+      args = JSON.parse(args);
+    } catch {
+      // keep as string
+    }
+  }
+  // If nested under { arguments: ... } or { input: ... }
+  if (args && typeof args === 'object') {
+    if (args.arguments && typeof args.arguments === 'object' && Object.keys(args).length === 1) {
+      args = args.arguments;
+    } else if (args.input && typeof args.input === 'object' && Object.keys(args).length === 1) {
+      args = args.input;
+    }
+  }
+  if (!args || typeof args !== 'object') {
+    args = {};
+  }
+
+  const normalized: Record<string, any> = {};
+  // 1. Copy and convert camelCase to snake_case
+  for (const [k, v] of Object.entries(args)) {
+    normalized[k] = v;
+    const snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase();
+    if (snakeKey !== k && normalized[snakeKey] === undefined) {
+      normalized[snakeKey] = v;
+    }
+  }
+
+  // 2. Common aliases
+  if (normalized.mark !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.mark;
+  if (normalized.id !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.id;
+
+  if (normalized.element !== undefined && normalized.selector === undefined) normalized.selector = normalized.element;
+  if (normalized.target !== undefined && normalized.selector === undefined) normalized.selector = normalized.target;
+  if (normalized.css !== undefined && normalized.selector === undefined) normalized.selector = normalized.css;
+
+  if (normalized.link !== undefined && normalized.url === undefined) normalized.url = normalized.link;
+  if (normalized.href !== undefined && normalized.url === undefined) normalized.url = normalized.href;
+
+  if (normalized.code !== undefined && normalized.script === undefined) normalized.script = normalized.code;
+  if (normalized.js !== undefined && normalized.script === undefined) normalized.script = normalized.js;
+
+  return normalized;
+}
+
 async function start() {
   const server = createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // Install robust argument normalizer interceptor to protect against any client transport/casing quirks
+  const prevOnMessage = (transport as any).onmessage;
+  if (typeof prevOnMessage === 'function') {
+    (transport as any).onmessage = (msg: any, extra: any) => {
+      if (msg && msg.method === 'tools/call' && msg.params) {
+        msg.params.arguments = normalizeIncomingParams(msg.params);
+      }
+      return prevOnMessage.call(transport, msg, extra);
+    };
+  }
 }
 
 start().catch((err) => {
