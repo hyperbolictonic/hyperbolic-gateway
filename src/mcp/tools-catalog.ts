@@ -20,7 +20,13 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       auto_dismiss_consent: z.boolean().optional().default(true).describe('Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)'),
     },
     endpoint: '/navigate',
-    payload: (args) => ({ url: args.url, autoDismissConsent: args.auto_dismiss_consent }),
+    payload: (args) => {
+      let targetUrl = args.url || args.destination || args.target || args.link || args.href || '';
+      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
+        targetUrl = 'https://' + targetUrl;
+      }
+      return { url: targetUrl, autoDismissConsent: args.auto_dismiss_consent ?? true };
+    },
     format: (data) => data.result || 'Navigation complete',
   },
   {
@@ -30,7 +36,13 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       url: z.string().describe('The destination URL'),
     },
     endpoint: '/navigate',
-    payload: (args) => ({ url: args.url }),
+    payload: (args) => {
+      let targetUrl = args.url || args.destination || args.target || args.link || args.href || '';
+      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
+        targetUrl = 'https://' + targetUrl;
+      }
+      return { url: targetUrl };
+    },
     format: (data) => data.result || 'Navigation complete',
   },
 
@@ -164,28 +176,34 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       url: z.string().optional().describe('Initial URL to load'),
     },
     endpoint: '/tabs/new',
-    payload: (args) => ({ url: args.url }),
-    format: (data) => `Tab opened: ${data.tabId} (${data.url || 'about:blank'})`,
+    payload: (args) => {
+      let targetUrl = args.url || args.destination || args.target || args.link || args.href || '';
+      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl)) {
+        targetUrl = 'https://' + targetUrl;
+      }
+      return { url: targetUrl };
+    },
+    format: (data) => `Tab opened: ${data.tab?.id || data.tabId} (${data.tab?.url || data.url || 'about:blank'})`,
   },
   {
     name: 'switch_tab',
     description: 'Switches focus to an existing browser tab by its unique tab ID.',
     parameters: {
-      tab_id: z.string().describe('ID of the tab to switch to (e.g. "tab_1")'),
+      tab_id: z.union([z.string(), z.coerce.number().transform(n => 'tab_' + n)]).describe('ID of the tab to switch to (e.g. "tab_1" or 1)'),
     },
     endpoint: '/tabs/switch',
-    payload: (args) => ({ tabId: args.tab_id }),
-    format: (data) => `Switched to tab: ${data.tabId}`,
+    payload: (args) => ({ tabId: typeof args.tab_id === 'number' ? 'tab_' + args.tab_id : args.tab_id }),
+    format: (data, args) => data.message || `Switched to tab: ${args.tab_id || data.tabId}`,
   },
   {
     name: 'close_tab',
     description: 'Closes a browser tab by its tab ID (or active tab if omitted).',
     parameters: {
-      tab_id: z.string().optional().describe('ID of tab to close (optional)'),
+      tab_id: z.union([z.string(), z.coerce.number().transform(n => 'tab_' + n)]).optional().describe('ID of tab to close (optional)'),
     },
     endpoint: '/tabs/close',
-    payload: (args) => ({ tabId: args.tab_id }),
-    format: (data) => `Closed tab: ${data.tabId}`,
+    payload: (args) => ({ tabId: typeof args.tab_id === 'number' ? 'tab_' + args.tab_id : args.tab_id }),
+    format: (data, args) => data.message || `Closed tab: ${args.tab_id || data.tabId || 'active'}`,
   },
   {
     name: 'list_tabs',

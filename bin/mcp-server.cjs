@@ -36609,7 +36609,13 @@ var TOOLS_CATALOG = [
       auto_dismiss_consent: external_exports.boolean().optional().default(true).describe("Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)")
     },
     endpoint: "/navigate",
-    payload: (args) => ({ url: args.url, autoDismissConsent: args.auto_dismiss_consent }),
+    payload: (args) => {
+      let targetUrl = args.url || args.destination || args.target || args.link || args.href || "";
+      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
+        targetUrl = "https://" + targetUrl;
+      }
+      return { url: targetUrl, autoDismissConsent: args.auto_dismiss_consent ?? true };
+    },
     format: (data) => data.result || "Navigation complete"
   },
   {
@@ -36619,7 +36625,13 @@ var TOOLS_CATALOG = [
       url: external_exports.string().describe("The destination URL")
     },
     endpoint: "/navigate",
-    payload: (args) => ({ url: args.url }),
+    payload: (args) => {
+      let targetUrl = args.url || args.destination || args.target || args.link || args.href || "";
+      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
+        targetUrl = "https://" + targetUrl;
+      }
+      return { url: targetUrl };
+    },
     format: (data) => data.result || "Navigation complete"
   },
   // 2. Interaction
@@ -36756,28 +36768,34 @@ var TOOLS_CATALOG = [
       url: external_exports.string().optional().describe("Initial URL to load")
     },
     endpoint: "/tabs/new",
-    payload: (args) => ({ url: args.url }),
-    format: (data) => `Tab opened: ${data.tabId} (${data.url || "about:blank"})`
+    payload: (args) => {
+      let targetUrl = args.url || args.destination || args.target || args.link || args.href || "";
+      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl)) {
+        targetUrl = "https://" + targetUrl;
+      }
+      return { url: targetUrl };
+    },
+    format: (data) => `Tab opened: ${data.tab?.id || data.tabId} (${data.tab?.url || data.url || "about:blank"})`
   },
   {
     name: "switch_tab",
     description: "Switches focus to an existing browser tab by its unique tab ID.",
     parameters: {
-      tab_id: external_exports.string().describe('ID of the tab to switch to (e.g. "tab_1")')
+      tab_id: external_exports.union([external_exports.string(), external_exports.coerce.number().transform((n) => "tab_" + n)]).describe('ID of the tab to switch to (e.g. "tab_1" or 1)')
     },
     endpoint: "/tabs/switch",
-    payload: (args) => ({ tabId: args.tab_id }),
-    format: (data) => `Switched to tab: ${data.tabId}`
+    payload: (args) => ({ tabId: typeof args.tab_id === "number" ? "tab_" + args.tab_id : args.tab_id }),
+    format: (data, args) => data.message || `Switched to tab: ${args.tab_id || data.tabId}`
   },
   {
     name: "close_tab",
     description: "Closes a browser tab by its tab ID (or active tab if omitted).",
     parameters: {
-      tab_id: external_exports.string().optional().describe("ID of tab to close (optional)")
+      tab_id: external_exports.union([external_exports.string(), external_exports.coerce.number().transform((n) => "tab_" + n)]).optional().describe("ID of tab to close (optional)")
     },
     endpoint: "/tabs/close",
-    payload: (args) => ({ tabId: args.tab_id }),
-    format: (data) => `Closed tab: ${data.tabId}`
+    payload: (args) => ({ tabId: typeof args.tab_id === "number" ? "tab_" + args.tab_id : args.tab_id }),
+    format: (data, args) => data.message || `Closed tab: ${args.tab_id || data.tabId || "active"}`
   },
   {
     name: "list_tabs",
@@ -37274,32 +37292,37 @@ ${allDocs}`
   return server;
 }
 function normalizeIncomingParams(params) {
-  if (!params) return {};
-  let args = params.arguments;
-  if (args === void 0) {
-    if (params.args !== void 0) args = params.args;
-    else if (params.input !== void 0) args = params.input;
-    else if (params.parameters !== void 0) args = params.parameters;
-    else if (params.properties !== void 0) args = params.properties;
+  if (!params || typeof params !== "object") return {};
+  const protocolKeys = /* @__PURE__ */ new Set(["name", "arguments", "args", "input", "parameters", "properties", "_meta", "task", "method", "id", "jsonrpc"]);
+  const topLevelArgs = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (!protocolKeys.has(k) && v !== void 0) {
+      topLevelArgs[k] = v;
+    }
   }
-  if (typeof args === "string") {
+  let container = params.arguments;
+  if (container === void 0 || container === null || typeof container === "object" && Object.keys(container).length === 0) {
+    if (params.args !== void 0) container = params.args;
+    else if (params.input !== void 0) container = params.input;
+    else if (params.parameters !== void 0) container = params.parameters;
+    else if (params.properties !== void 0) container = params.properties;
+  }
+  if (typeof container === "string") {
     try {
-      args = JSON.parse(args);
+      container = JSON.parse(container);
     } catch {
     }
   }
-  if (args && typeof args === "object") {
-    if (args.arguments && typeof args.arguments === "object" && Object.keys(args).length === 1) {
-      args = args.arguments;
-    } else if (args.input && typeof args.input === "object" && Object.keys(args).length === 1) {
-      args = args.input;
+  if (container && typeof container === "object") {
+    if (container.arguments && typeof container.arguments === "object") {
+      container = container.arguments;
+    } else if (container.input && typeof container.input === "object") {
+      container = container.input;
     }
   }
-  if (!args || typeof args !== "object") {
-    args = {};
-  }
+  const rawArgs = { ...topLevelArgs, ...typeof container === "object" && container !== null ? container : {} };
   const normalized = {};
-  for (const [k, v] of Object.entries(args)) {
+  for (const [k, v] of Object.entries(rawArgs)) {
     normalized[k] = v;
     const snakeKey = k.replace(/([A-Z])/g, "_$1").toLowerCase();
     if (snakeKey !== k && normalized[snakeKey] === void 0) {
@@ -37313,8 +37336,14 @@ function normalizeIncomingParams(params) {
   if (normalized.css !== void 0 && normalized.selector === void 0) normalized.selector = normalized.css;
   if (normalized.link !== void 0 && normalized.url === void 0) normalized.url = normalized.link;
   if (normalized.href !== void 0 && normalized.url === void 0) normalized.url = normalized.href;
+  if (normalized.destination !== void 0 && normalized.url === void 0) normalized.url = normalized.destination;
+  if (normalized.address !== void 0 && normalized.url === void 0) normalized.url = normalized.address;
   if (normalized.code !== void 0 && normalized.script === void 0) normalized.script = normalized.code;
   if (normalized.js !== void 0 && normalized.script === void 0) normalized.script = normalized.js;
+  if (normalized.expression !== void 0 && normalized.script === void 0) normalized.script = normalized.expression;
+  if (normalized.tabId !== void 0 && normalized.tab_id === void 0) normalized.tab_id = normalized.tabId;
+  if (normalized.tab !== void 0 && normalized.tab_id === void 0) normalized.tab_id = normalized.tab;
+  if (typeof normalized.tab_id === "number") normalized.tab_id = "tab_" + normalized.tab_id;
   return normalized;
 }
 async function start() {

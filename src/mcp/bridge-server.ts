@@ -137,38 +137,50 @@ export function createBridgeMcpServer() {
 }
 
 export function normalizeIncomingParams(params: any): Record<string, any> {
-  if (!params) return {};
-  let args = params.arguments;
-  // If arguments is missing but args, input, parameters, or properties is present
-  if (args === undefined) {
-    if (params.args !== undefined) args = params.args;
-    else if (params.input !== undefined) args = params.input;
-    else if (params.parameters !== undefined) args = params.parameters;
-    else if (params.properties !== undefined) args = params.properties;
+  if (!params || typeof params !== 'object') return {};
+
+  // 1. Gather all non-protocol top-level keys in params (e.g. if caller passed { name: 'go_to_url', url: '...' })
+  const protocolKeys = new Set(['name', 'arguments', 'args', 'input', 'parameters', 'properties', '_meta', 'task', 'method', 'id', 'jsonrpc']);
+  const topLevelArgs: Record<string, any> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (!protocolKeys.has(k) && v !== undefined) {
+      topLevelArgs[k] = v;
+    }
   }
-  // If args is a JSON string (e.g. OpenAI function calling format)
-  if (typeof args === 'string') {
+
+  // 2. Identify structured argument container if provided
+  let container = params.arguments;
+  if (container === undefined || container === null || (typeof container === 'object' && Object.keys(container).length === 0)) {
+    if (params.args !== undefined) container = params.args;
+    else if (params.input !== undefined) container = params.input;
+    else if (params.parameters !== undefined) container = params.parameters;
+    else if (params.properties !== undefined) container = params.properties;
+  }
+
+  // 3. Parse JSON string if needed
+  if (typeof container === 'string') {
     try {
-      args = JSON.parse(args);
+      container = JSON.parse(container);
     } catch {
       // keep as string
     }
   }
-  // If nested under { arguments: ... } or { input: ... }
-  if (args && typeof args === 'object') {
-    if (args.arguments && typeof args.arguments === 'object' && Object.keys(args).length === 1) {
-      args = args.arguments;
-    } else if (args.input && typeof args.input === 'object' && Object.keys(args).length === 1) {
-      args = args.input;
+
+  // 4. Unwrap nested argument layers
+  if (container && typeof container === 'object') {
+    if (container.arguments && typeof container.arguments === 'object') {
+      container = container.arguments;
+    } else if (container.input && typeof container.input === 'object') {
+      container = container.input;
     }
   }
-  if (!args || typeof args !== 'object') {
-    args = {};
-  }
+
+  // 5. Merge top-level and container args
+  const rawArgs = { ...topLevelArgs, ...(typeof container === 'object' && container !== null ? container : {}) };
 
   const normalized: Record<string, any> = {};
-  // 1. Copy and convert camelCase to snake_case
-  for (const [k, v] of Object.entries(args)) {
+  // 6. Copy and convert camelCase to snake_case
+  for (const [k, v] of Object.entries(rawArgs)) {
     normalized[k] = v;
     const snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase();
     if (snakeKey !== k && normalized[snakeKey] === undefined) {
@@ -176,7 +188,7 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
     }
   }
 
-  // 2. Common aliases
+  // 7. Common aliases
   if (normalized.mark !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.mark;
   if (normalized.id !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.id;
 
@@ -186,9 +198,16 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
 
   if (normalized.link !== undefined && normalized.url === undefined) normalized.url = normalized.link;
   if (normalized.href !== undefined && normalized.url === undefined) normalized.url = normalized.href;
+  if (normalized.destination !== undefined && normalized.url === undefined) normalized.url = normalized.destination;
+  if (normalized.address !== undefined && normalized.url === undefined) normalized.url = normalized.address;
 
   if (normalized.code !== undefined && normalized.script === undefined) normalized.script = normalized.code;
   if (normalized.js !== undefined && normalized.script === undefined) normalized.script = normalized.js;
+  if (normalized.expression !== undefined && normalized.script === undefined) normalized.script = normalized.expression;
+
+  if (normalized.tabId !== undefined && normalized.tab_id === undefined) normalized.tab_id = normalized.tabId;
+  if (normalized.tab !== undefined && normalized.tab_id === undefined) normalized.tab_id = normalized.tab;
+  if (typeof normalized.tab_id === 'number') normalized.tab_id = 'tab_' + normalized.tab_id;
 
   return normalized;
 }
