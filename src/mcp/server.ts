@@ -293,6 +293,38 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 15: list_downloads
+  server.tool(
+    'list_downloads',
+    'Returns a structured list of all files downloaded by the browser session into the workspace data/downloads folder, including size, status, and timestamps.',
+    {},
+    async () => {
+      try {
+        const downloads = chassis.getDownloads();
+        return { content: [{ type: 'text', text: JSON.stringify(downloads, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to list downloads: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 16: read_download
+  server.tool(
+    'read_download',
+    'Reads and parses a downloaded file (PDF, CSV, JSON, text) into a token-efficient markdown representation for LLM analysis.',
+    {
+      filename_or_id: z.string().describe('The filename or unique download ID of the file to inspect.'),
+    },
+    async ({ filename_or_id }) => {
+      try {
+        const doc = await chassis.readDownloadedDocument(filename_or_id);
+        return { content: [{ type: 'text', text: `Document: ${doc.filename} (${doc.estimatedTokens} tokens)\n\n${doc.content}` }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to read download: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   return {
     startStdio: async () => {
       const transport = new StdioServerTransport();

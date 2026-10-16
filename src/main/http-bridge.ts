@@ -125,6 +125,19 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'GET' && pathname === '/downloads') {
+        const downloads = chassis.getDownloads();
+        sendJson({ success: true, downloads });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/downloads/read') {
+        const body = await readBody();
+        const document = await chassis.readDownloadedDocument(body.filename || body.id);
+        sendJson({ success: true, document });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/history') {
         const body = await readBody();
         let result = '';

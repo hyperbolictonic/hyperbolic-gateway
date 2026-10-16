@@ -6,6 +6,7 @@ import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/h
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
 import { ShieldBreaker, type ShieldDismissResult } from './shield/shield-breaker.js';
+import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -13,6 +14,7 @@ export class BrowserChassis {
   private simulator: HumanizedInputSimulator;
   private harvester: ConstructHarvester;
   private shieldBreaker: ShieldBreaker;
+  private downloadManager: DownloadManager;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
 
   private state: ChassisState = {
@@ -78,6 +80,7 @@ export class BrowserChassis {
     });
 
     this.shieldBreaker = new ShieldBreaker(this.simulator);
+    this.downloadManager = new DownloadManager();
 
     setInterval(() => {
       this.state.stats.uptimeSeconds++;
@@ -87,6 +90,15 @@ export class BrowserChassis {
 
   public setWindow(win: BrowserWindow) {
     this.mainWindow = win;
+    this.downloadManager.attachToSession(win.webContents.session);
+    this.downloadManager.onDownloadComplete((record) => {
+      this.addLog('info', `Download Complete: "${record.filename}" (${record.totalBytes} bytes) saved to data/downloads/`);
+      this.emitTelemetry({
+        type: 'harvest',
+        timestamp: Date.now(),
+        details: `File Download Complete: ${record.filename}`,
+      });
+    });
     this.setupTabManager();
     this.registerIpcHandlers();
   }
@@ -635,5 +647,14 @@ export class BrowserChassis {
 
   public getFingerprintProfile(): HostBrowserProfile {
     return this.hostProfile;
+  }
+
+  public getDownloads(): DownloadRecord[] {
+    return this.downloadManager.getDownloads();
+  }
+
+  public async readDownloadedDocument(filenameOrId: string) {
+    this.addLog('action', `MCP Directive: read_download("${filenameOrId}")`);
+    return await this.downloadManager.readDocumentContent(filenameOrId);
   }
 }

@@ -19,6 +19,7 @@ Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade 
 - [LanceDB Cortex Persistent Memory (src/main/cortex)](../src/main/cortex/README.md)
 - [Multi-Tab Orchestration (src/main/tabs)](../src/main/tabs/README.md)
 - [Autonomous Shield Breaker & Consent Dismissal (src/main/shield)](../src/main/shield/README.md)
+- [Download Manager & Document Harvester (src/main/downloads)](../src/main/downloads/README.md)
 - [Ghost Cursor Telemetry & Stealth (src/main/telemetry)](../src/main/telemetry/README.md)
 - [Construct Harvester & Markdown (src/main/harvester)](../src/main/harvester/README.md)
 - [Renderer & DaisyUI 5 Cyberdeck HUD (src/renderer)](../src/renderer/README.md)

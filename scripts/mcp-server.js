@@ -485,6 +485,35 @@ server.tool(
     } catch (err) {
       return { isError: true, content: [{ type: 'text', text: err.message }] };
     }
+// Tool 25: list_downloads
+server.tool(
+  'list_downloads',
+  'Returns a structured list of all files downloaded by the browser session into the workspace data/downloads folder, including size, status, and timestamps.',
+  {},
+  async () => {
+    try {
+      const data = await callBridge('/downloads', 'GET');
+      return { content: [{ type: 'text', text: JSON.stringify(data.downloads, null, 2) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 26: read_download
+server.tool(
+  'read_download',
+  'Reads and parses a downloaded file (PDF, CSV, JSON, text) into a token-efficient markdown representation for LLM analysis.',
+  {
+    filename_or_id: z.string().describe('The filename or unique download ID of the file to inspect.'),
+  },
+  async ({ filename_or_id }) => {
+    try {
+      const data = await callBridge('/downloads/read', 'POST', { filename: filename_or_id });
+      return { content: [{ type: 'text', text: `Document: ${data.document.filename} (${data.document.estimatedTokens} tokens)\n\n${data.document.content}` }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
   }
 );
 

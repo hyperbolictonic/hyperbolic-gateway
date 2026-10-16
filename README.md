@@ -108,7 +108,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (26 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (28 Tools Total)
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
@@ -136,6 +136,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `add_bookmark` | `url?: string`, `title?: string`, `notes?: string`, `tags?: string[]` | Saves active or specified page with tags and notes in LanceDB. |
 | | `list_bookmarks` | `query?: string`, `tag?: string`, `limit?: number` | Retrieves or semantically filters saved bookmarks. |
 | | `delete_bookmark` | `url_or_id: string` | Deletes bookmark by URL or unique ID. |
+| **Downloads & Docs** | `list_downloads` | _none_ | Lists all files downloaded into `data/downloads/` with sizes, state, and timestamps. |
+| | `read_download` | `filename_or_id: string` | Parses downloaded file (PDF, CSV, JSON, text) into token-efficient markdown. |
 
 ---
 
@@ -154,6 +156,7 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`src/main/cortex/`** | [src/main/cortex/README.md](./src/main/cortex/README.md) | Embedded LanceDB vector database, 128-d embedder, chunker, and hybrid semantic recall. |
 | **`src/main/tabs/`** | [src/main/tabs/README.md](./src/main/tabs/README.md) | Hardware-accelerated `WebContentsView` multi-tab pooling and popup trapping. |
 | **`src/main/shield/`** | [src/main/shield/README.md](./src/main/shield/README.md) | Autonomous Shield Breaker engine auto-dismissing cookie banners and GDPR modals. |
+| **`src/main/downloads/`** | [src/main/downloads/README.md](./src/main/downloads/README.md) | Deterministic workspace file download routing and automatic document-to-Cortex ingestion. |
 | **`src/main/telemetry/`** | [src/main/telemetry/README.md](./src/main/telemetry/README.md) | Organic cubic Bézier mouse kinematics, Gaussian typing cadence, and stealth fingerprinting. |
 | **`src/main/harvester/`** | [src/main/harvester/README.md](./src/main/harvester/README.md) | Mozilla Readability & Turndown token-efficient markdown distillation. |
 | **`src/preload/`** | [src/preload/README.md](./src/preload/README.md) | Sandboxed ContextBridge IPC exposing typed `window.electronAPI` to the DOM. |

@@ -41,7 +41,7 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ---
 
-### [ ] 3. Download Manager & Document Harvester
+### [x] 3. Download Manager & Document Harvester — ✅ *[COMPLETED]*
 - **Priority:** P2 (Functional Pipeline)
 - **Why:** Headless/automated browsers often drop downloaded files into the OS user folder or hang on download prompts.
 - **Implementation:**
