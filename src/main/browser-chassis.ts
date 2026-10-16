@@ -9,6 +9,7 @@ import { ShieldBreaker, type ShieldDismissResult } from './shield/shield-breaker
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
 import { NetworkInterceptor, type CapturedNetworkRequest, type NetworkFilter } from './network/network-interceptor.js';
+import { MarksOverlay, type MarkItem } from './marks/marks-overlay.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -19,6 +20,7 @@ export class BrowserChassis {
   private downloadManager: DownloadManager;
   private sessionVault: SessionVault;
   private networkInterceptor: NetworkInterceptor;
+  private marksOverlay: MarksOverlay;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
 
   private state: ChassisState = {
@@ -87,6 +89,7 @@ export class BrowserChassis {
     this.downloadManager = new DownloadManager();
     this.sessionVault = new SessionVault();
     this.networkInterceptor = new NetworkInterceptor();
+    this.marksOverlay = new MarksOverlay();
 
     setInterval(() => {
       this.state.stats.uptimeSeconds++;
@@ -714,5 +717,100 @@ export class BrowserChassis {
   public clearNetworkTraffic(): void {
     this.addLog('action', 'MCP Directive: clear_network_traffic()');
     this.networkInterceptor.clear();
+  }
+
+  public async takeAnnotatedScreenshot(): Promise<{
+    screenshot: { base64Image: string; width: number; height: number };
+    marks: MarkItem[];
+  }> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', 'MCP Directive: take_annotated_screenshot()');
+
+    // 1. Inject visual badges into DOM
+    const marks = await this.marksOverlay.injectMarks(wc);
+
+    // Wait a brief tick for render paint
+    await new Promise((r) => setTimeout(r, 80));
+
+    // 2. Capture annotated screenshot
+    const bounds = this.getViewportBounds();
+    const image = await wc.capturePage({
+      x: 0,
+      y: 0,
+      width: Math.max(1, bounds.width),
+      height: Math.max(1, bounds.height),
+    });
+    const size = image.getSize();
+    const base64Image = image.toDataURL();
+
+    // 3. Immediately clean up marks from DOM
+    await this.marksOverlay.removeMarks(wc);
+
+    this.emitTelemetry({
+      type: 'harvest',
+      timestamp: Date.now(),
+      details: `Set-of-Marks: Tagged ${marks.length} interactive targets`,
+    });
+
+    return {
+      screenshot: {
+        base64Image,
+        width: size.width,
+        height: size.height,
+      },
+      marks,
+    };
+  }
+
+  public async clickMark(markId: number): Promise<string> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: click_mark(#${markId})`);
+    const target = await this.marksOverlay.getMarkTarget(wc, markId);
+    if (!target) {
+      throw new Error(`Mark #${markId} not found. Call take_annotated_screenshot() to refresh interactive marks.`);
+    }
+
+    this.state.agentStatus = 'SIMULATING_INPUT';
+    this.broadcastState();
+
+    await this.simulator.clickAt(wc, target.currentCenter);
+
+    this.state.agentStatus = 'IDLE';
+    this.broadcastState();
+
+    this.emitTelemetry({
+      type: 'click',
+      x: target.currentCenter.x,
+      y: target.currentCenter.y,
+      timestamp: Date.now(),
+      details: `Set-of-Marks: Clicked mark #${markId} [${target.mark.tag}: "${target.mark.text}"]`,
+    });
+
+    return `Clicked mark #${markId} (${target.mark.tag}: "${target.mark.text}")`;
+  }
+
+  public async typeMark(markId: number, text: string): Promise<string> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: type_mark(#${markId}, "${text}")`);
+    const target = await this.marksOverlay.getMarkTarget(wc, markId);
+    if (!target) {
+      throw new Error(`Mark #${markId} not found. Call take_annotated_screenshot() to refresh interactive marks.`);
+    }
+
+    this.state.agentStatus = 'SIMULATING_INPUT';
+    this.broadcastState();
+
+    await this.simulator.clickAt(wc, target.currentCenter);
+    await new Promise((r) => setTimeout(r, 100));
+    await this.simulator.typeText(wc, text);
+
+    this.state.agentStatus = 'IDLE';
+    this.broadcastState();
+
+    return `Focused mark #${markId} and typed "${text}"`;
+  }
+
+  public getActiveMarks(): MarkItem[] {
+    return this.marksOverlay.getActiveMarks();
   }
 }

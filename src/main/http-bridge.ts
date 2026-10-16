@@ -185,6 +185,32 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'GET' && pathname === '/marks/screenshot') {
+        const result = await chassis.takeAnnotatedScreenshot();
+        sendJson({ success: true, ...result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/marks/click') {
+        const body = await readBody();
+        const result = await chassis.clickMark(Number(body.markId));
+        sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/marks/type') {
+        const body = await readBody();
+        const result = await chassis.typeMark(Number(body.markId), String(body.text));
+        sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/marks/list') {
+        const marks = chassis.getActiveMarks();
+        sendJson({ success: true, marks });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/history') {
         const body = await readBody();
         let result = '';

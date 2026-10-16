@@ -144,6 +144,9 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | **Network Intelligence** | `get_network_traffic` | `url_pattern?: string`, `method?: string`, `resource_type?: string`, `limit?: number` | Inspects live HTTP/XHR/Fetch requests captured via Chrome DevTools Protocol. |
 | | `get_api_payload` | `request_id: string` | Retrieves and parses the full raw JSON or text response body for an intercepted request. |
 | | `clear_network_traffic` | _none_ | Resets and clears the in-memory network traffic ring buffer. |
+| **Visual Grounding** | `take_annotated_screenshot` | _none_ | Tags all visible interactive elements with numbered neon badges (`[1]`, `[2]`, etc.) and returns image + lookup table. |
+| | `click_mark` | `mark_id: number` | Moves humanized Bézier ghost cursor to mark #ID and clicks with 100% accuracy. |
+| | `type_mark` | `mark_id: number`, `text: string` | Focuses mark #ID and types text with variable human typing cadence. |
 
 ---
 
@@ -165,6 +168,7 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`src/main/downloads/`** | [src/main/downloads/README.md](./src/main/downloads/README.md) | Deterministic workspace file download routing and automatic document-to-Cortex ingestion. |
 | **`src/main/session/`** | [src/main/session/README.md](./src/main/session/README.md) | Persistent cookie jar and session snapshot vault for cross-run auth persistence. |
 | **`src/main/network/`** | [src/main/network/README.md](./src/main/network/README.md) | Chrome DevTools Protocol wire interceptor capturing background XHR/Fetch JSON streams. |
+| **`src/main/marks/`** | [src/main/marks/README.md](./src/main/marks/README.md) | Set-of-Marks visual grounding engine injecting numbered neon badges for zero-ambiguity LLM actuation. |
 | **`src/main/telemetry/`** | [src/main/telemetry/README.md](./src/main/telemetry/README.md) | Organic cubic Bézier mouse kinematics, Gaussian typing cadence, and stealth fingerprinting. |
 | **`src/main/harvester/`** | [src/main/harvester/README.md](./src/main/harvester/README.md) | Mozilla Readability & Turndown token-efficient markdown distillation. |
 | **`src/preload/`** | [src/preload/README.md](./src/preload/README.md) | Sandboxed ContextBridge IPC exposing typed `window.electronAPI` to the DOM. |

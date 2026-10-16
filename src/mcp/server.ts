@@ -441,6 +441,70 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 23: take_annotated_screenshot
+  server.tool(
+    'take_annotated_screenshot',
+    'Captures an annotated screenshot tagged with high-contrast, numbered neon badges over all visible interactive elements, returning the image and marks lookup table for 100% click precision.',
+    {},
+    async () => {
+      try {
+        const res = await chassis.takeAnnotatedScreenshot();
+        const base64Data = res.screenshot.base64Image.replace(/^data:image\/png;base64,/, '');
+        const marksTable = res.marks.map((m) => `[#${m.id}] <${m.tag}${m.type ? ` type="${m.type}"` : ''}> "${m.text}"`).join('\n');
+        return {
+          content: [
+            {
+              type: 'image',
+              data: base64Data,
+              mimeType: 'image/png',
+            },
+            {
+              type: 'text',
+              text: `Interactive Elements (${res.marks.length} detected):\n\n${marksTable}\n\nUse click_mark(id) or type_mark(id, text) to interact.`,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Annotated screenshot failed: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 24: click_mark
+  server.tool(
+    'click_mark',
+    'Drives the humanized Bézier ghost cursor to the element corresponding to a numbered visual mark ID and clicks it.',
+    {
+      mark_id: z.number().describe('The numbered visual badge ID (e.g. 1, 2, 3...) to click.'),
+    },
+    async ({ mark_id }) => {
+      try {
+        const result = await chassis.clickMark(mark_id);
+        return { content: [{ type: 'text', text: result }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Click mark failed: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 25: type_mark
+  server.tool(
+    'type_mark',
+    'Clicks the element corresponding to a numbered visual mark ID to focus it, then types text with realistic human typing cadence.',
+    {
+      mark_id: z.number().describe('The numbered visual badge ID to focus and type into.'),
+      text: z.string().describe('The text string to type into the marked element.'),
+    },
+    async ({ mark_id, text }) => {
+      try {
+        const result = await chassis.typeMark(mark_id, text);
+        return { content: [{ type: 'text', text: result }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Type mark failed: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   return {
     startStdio: async () => {
       const transport = new StdioServerTransport();

@@ -103,7 +103,7 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ## 🎯 Phase 3: Advanced Cognitive Grounding (Most Exciting)
 
-### [ ] 7. Set-of-Marks (Numbered Visual Grounding Badges)
+### [x] 7. Set-of-Marks (Numbered Visual Grounding Badges) — ✅ *[COMPLETED]*
 - **Priority:** P5 (Peak Agent Ergonomics)
 - **Why:** Eliminates hallucinated pixel coordinates and broken CSS selectors by giving the agent a numbered visual overlay.
 - **Implementation:**
@@ -116,5 +116,5 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
       { "id": 2, "tag": "INPUT", "text": "Destination", "bbox": [230, 340, 200, 32] }
     ]
     ```
-  - MCP Tool: `take_annotated_screenshot()`, `click_mark(id)`, `type_mark(id, text)`.
+  - MCP Tools: `take_annotated_screenshot()`, `click_mark(mark_id)`, `type_mark(mark_id, text)`.
   - Guarantees 100% click accuracy with zero ambiguity.
