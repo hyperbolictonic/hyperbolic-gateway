@@ -17,11 +17,27 @@ data/cortex/
 # Dependency directories
 node_modules/
 
-# Production build outputs
+# Production build & packaging outputs
 dist/
 dist-electron/
 release/
 dist-release/
+out/
+build/
+*.tsbuildinfo
+.vite/
+
+# Compiled installer binaries & packages
+*.exe
+*.blockmap
+*.AppImage
+*.deb
+*.dmg
+*.rpm
+*.snap
+*.zip
+*.tar.gz
+*.tmp
 
 # Local Environment Variables
 .env
