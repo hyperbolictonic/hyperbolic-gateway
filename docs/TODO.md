@@ -159,3 +159,26 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
   - `HilManager` with OS native desktop notifications (`Notification`), taskbar amber flashing (`flashFrame(true)`), and auto-window restoration.
   - Interactive floating neon HUD banner injected into the active webpage and cyberdeck renderer with "Resume Agent (Done)" button.
   - MCP Tools: `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, `send_notification`.
+
+---
+
+## 🧬 Phase 4: Biomechanical Kinematics & Chaos Mathematics (Next-Gen Stealth)
+
+### [ ] 12. Bio-Kinematic Chaos & Neuromotor Mouse Engine (`bio_bezier`) — ⏳ *[QUEUED / ROADMAP]*
+- **Priority:** P6.5 (State-of-the-Art Anti-Bot Immunity)
+- **Why:** Sophisticated behavioral anti-bot sensors (Cloudflare Turnstile, Datadome, Akamai, Kasada, PerimeterX) execute Fast Fourier Transforms (FFT), autocorrelation, and jerk derivatives on pointer telemetry. Standard Bézier curves and uniform random noise (`Math.random()`) are mathematically recognizable as synthetic. Real biological motion requires chaos math and neuromuscular physics.
+- **Implementation:**
+  1. **$1/f$ Pink Noise / Fractional Brownian Motion (fBm):**
+     - Replace uncorrelated uniform white noise with an **Ornstein-Uhlenbeck stochastic drift process** (mean-reverting pink noise).
+     - Successive tremor offsets correlate with previous steps, perfectly simulating physiological muscle tremors, tendon elasticity, and mousepad micro-friction.
+  2. **Asymmetric Log-Normal Velocity & Minimum Jerk Model (Flash & Hogan):**
+     - Replace symmetric sine pacing (`sin(t * π)`) with a biologically authentic **asymmetric log-normal velocity profile**.
+     - **Ballistic Phase:** Rapid, explosive acceleration covering the first 30–35% of the trajectory.
+     - **Sensory Feedback Phase:** Progressive deceleration with fine visual feedback braking over the remaining 65–70%.
+  3. **Target Overshoot & Saccadic Micro-Corrections:**
+     - Fast pointer sweeps dynamically overshoot the target centroid by 2–8 pixels in the vector of momentum.
+     - A 40–90ms saccadic reaction correction loop dampens momentum and pulls the cursor smoothly back into the clickable bounding box before actuating `mouseDown`.
+  4. **The Two-Thirds Power Law ($v(t) \propto r(t)^{1/3}$):**
+     - Biomechanically couples trajectory curvature to velocity: pointer speed automatically decelerates when traversing tight turns or sharp corners and accelerates along straighter segments.
+  5. **Deterministic Chaotic Perturbations (Duffing / Strange Attractor Drift):**
+     - Superimposes low-amplitude chaotic attractor equations (or Simplex noise fields) across the Bézier control vectors, producing non-repeating, infinitely organic micro-curvature that defeats machine learning classifiers.
