@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="mark-eleven" class="h-full bg-base-200 text-base-content select-none">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KUANG GRADE MARK ELEVEN // Visual Matrix Navigator</title>
+    <link rel="stylesheet" href="./src/renderer/index.css" />
+  </head>
+  <body class="h-full flex flex-col overflow-hidden bg-base-200 font-sans">
+    <!-- Top Cyberdeck Navbar -->
+    <header class="navbar bg-base-300 border-b border-base-100 px-4 h-16 min-h-16 flex items-center justify-between z-30 shadow-md">
+      <!-- Deck Branding & Status -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 font-mono font-bold tracking-wider text-base-content">
+          <img src="/assets/mark-eleven.png" class="w-6 h-6 object-contain drop-shadow" alt="Mark Eleven Logo" />
+          <span class="text-sm tracking-widest uppercase">MARK ELEVEN</span>
+        </div>
+        <div class="badge badge-neutral text-xs font-mono">CHASSIS v1.0</div>
+        <div class="flex items-center gap-2 pl-2 border-l border-base-100">
+          <span id="connection-status-dot" class="status status-success status-xs"></span>
+          <span id="agent-status-badge" class="badge badge-accent badge-sm font-mono tracking-tight">IDLE</span>
+        </div>
+      </div>
+
+      <!-- Center URL Navigator (Mockup Browser Bar) -->
+      <div class="flex-1 max-w-2xl mx-4">
+        <form id="url-form" class="join w-full">
+          <div class="join-item bg-base-100 flex items-center px-3 border border-base-100 text-xs font-mono opacity-70">
+            HTTPS://
+          </div>
+          <input
+            id="url-input"
+            type="text"
+            placeholder="Enter Matrix node URL (e.g. news.ycombinator.com)..."
+            class="input input-sm join-item flex-1 bg-base-100 border border-base-100 focus:outline-none font-mono text-xs text-base-content"
+          />
+          <button id="bookmark-toggle-btn" type="button" class="btn btn-sm btn-ghost join-item px-2.5 text-base-content/60 hover:text-warning" title="Bookmark current page (☆/★)">
+            <span id="bookmark-star-icon" class="text-sm">☆</span>
+          </button>
+          <button id="navigate-btn" type="submit" class="btn btn-sm btn-primary join-item font-mono text-xs">
+            ENGAGE
+          </button>
+        </form>
+      </div>
+
+      <!-- Action Utilities -->
+      <div class="flex items-center gap-2">
+        <button id="cortex-btn" class="btn btn-sm btn-outline btn-secondary font-mono text-xs gap-1.5" title="LanceDB Semantic Cortex & Bookmarks">
+          <span>🧠</span>
+          <span>CORTEX</span>
+        </button>
+        <button id="harvest-btn" class="btn btn-sm btn-outline btn-accent font-mono text-xs gap-1.5" title="Extract clean markdown construct">
+          <span>📄</span>
+          <span>HARVEST</span>
+        </button>
+        <button id="about-btn" class="btn btn-sm btn-ghost font-mono text-xs gap-1 border border-base-100" title="System Specifications & About">
+          <span>ℹ️</span>
+          <span>ABOUT</span>
+        </button>
+        <div class="tooltip tooltip-bottom font-mono text-xs" data-tip="Active Session Persistence">
+          <span class="badge badge-outline text-xs">STATEFUL</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Cyberdeck Browser Tab Bar (DaisyUI 5) -->
+    <div id="tab-bar-container" class="bg-base-300 border-b border-base-100 px-3 h-9 min-h-9 flex items-center justify-between z-30 overflow-hidden select-none">
+      <div id="tab-list" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 flex-1">
+        <!-- Tab pills dynamically populated by renderer -->
+      </div>
+      <button id="new-tab-btn" class="btn btn-ghost btn-xs btn-square text-base-content/70 hover:text-accent hover:bg-base-100 font-mono text-base font-bold ml-2" title="Open new browsing tab (+)">
+        +
+      </button>
+    </div>
+
+    <!-- Main Workspace Split -->
+    <div class="flex-1 flex overflow-hidden relative">
+      <!-- Left Area: Browser Viewport Placeholder / Canvas Overlay -->
+      <div id="viewport-container" class="flex-1 relative bg-base-100 flex flex-col justify-between overflow-hidden">
+        <!-- Floating HUD Header inside Viewport area -->
+        <div class="absolute top-2 left-3 z-10 pointer-events-none flex items-center gap-2 bg-base-300/80 backdrop-blur px-3 py-1.5 rounded border border-base-200 text-xs font-mono text-base-content/80 shadow">
+          <span class="opacity-60">TARGET:</span>
+          <span id="viewport-url-display" class="text-accent truncate max-w-md">about:blank</span>
+          <span id="viewport-loading-spinner" class="loading loading-spinner loading-xs text-accent hidden"></span>
+        </div>
+
+        <!-- Ghost Cursor Telemetry Trail Canvas (Visualizing humanized movement) -->
+        <canvas id="radar-canvas" class="absolute inset-0 pointer-events-none z-20"></canvas>
+
+        <!-- Sub-Footer inside Viewport container for live action text -->
+        <div class="absolute bottom-2 left-3 z-10 pointer-events-none bg-base-300/80 backdrop-blur px-3 py-1.5 rounded border border-base-200 text-xs font-mono text-base-content/70 shadow flex items-center gap-2">
+          <span class="text-info">ACTION:</span>
+          <span id="active-action-text" class="text-base-content">Standby - Awaiting MCP Uplink</span>
+        </div>
+      </div>
+
+      <!-- Right Cyberdeck Telemetry & Tactical Panel (420px fixed) -->
+      <aside class="w-[420px] bg-base-200 border-l border-base-300 flex flex-col z-30 shadow-xl overflow-hidden">
+        <!-- Telemetry Stats Strip -->
+        <div class="p-3 border-b border-base-300 bg-base-300/50">
+          <div class="grid grid-cols-2 gap-2">
+            <!-- Stat 1: Ghost Cursor Coordinates -->
+            <div class="stats bg-base-100 shadow border border-base-300/40 p-1">
+              <div class="stat p-2">
+                <div class="stat-title text-[10px] uppercase font-mono text-base-content/60">Ghost Pointer</div>
+                <div id="stat-coords" class="stat-value text-sm font-mono text-accent">X: 100 Y: 100</div>
+                <div id="stat-velocity" class="stat-desc text-[10px] font-mono text-base-content/50">0.00 px/ms</div>
+              </div>
+            </div>
+
+            <!-- Stat 2: Tokens Harvested -->
+            <div class="stats bg-base-100 shadow border border-base-300/40 p-1">
+              <div class="stat p-2">
+                <div class="stat-title text-[10px] uppercase font-mono text-base-content/60">Tokens Downsampled</div>
+                <div id="stat-tokens" class="stat-value text-sm font-mono text-info">0 tkn</div>
+                <div id="stat-interactions" class="stat-desc text-[10px] font-mono text-base-content/50">0 interactions</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div role="tablist" class="tabs tabs-border bg-base-300 px-3 pt-2 border-b border-base-300">
+          <button id="tab-btn-telemetry" role="tab" class="tab tab-active font-mono text-xs">
+            TELEMETRY
+          </button>
+          <button id="tab-btn-construct" role="tab" class="tab font-mono text-xs">
+            CONSTRUCT
+          </button>
+          <button id="tab-btn-logs" role="tab" class="tab font-mono text-xs">
+            MATRIX LOGS
+          </button>
+        </div>
+
+        <!-- Tab 1: Telemetry View -->
+        <div id="tab-content-telemetry" class="flex-1 p-3 overflow-y-auto space-y-3 font-mono text-xs">
+          <div class="card bg-base-100 border border-base-300 p-3 shadow-sm">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-accent mb-2 flex items-center justify-between">
+              <span>Bézier Kinematics Engine</span>
+              <span class="badge badge-xs badge-neutral">Active</span>
+            </div>
+            <p class="text-[11px] text-base-content/70 leading-relaxed mb-2">
+              Bypasses behavioral anti-bot profiling via cubic Bézier curve smoothing, variable acceleration, micro-jitter, and realistic contact dwell times.
+            </p>
+            <div class="bg-base-200 rounded p-2 text-[10px] space-y-1 border border-base-300">
+              <div class="flex justify-between"><span class="text-base-content/60">Interpolation:</span><span>Cubic Spline + EaseInOut</span></div>
+              <div class="flex justify-between"><span class="text-base-content/60">Typing Profile:</span><span>Human Gaussian (60-240ms)</span></div>
+              <div class="flex justify-between"><span class="text-base-content/60">Scroll Inertia:</span><span>Momentum Chunks (8-step)</span></div>
+            </div>
+          </div>
+
+          <div class="card bg-base-100 border border-base-300 p-3 shadow-sm">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-info mb-2 flex items-center justify-between">
+              <span>Recent Telemetry Pulses</span>
+              <span id="telemetry-count" class="badge badge-xs badge-info">0</span>
+            </div>
+            <div id="telemetry-feed" class="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+              <div class="text-base-content/40 italic text-center py-4">No input telemetry recorded yet</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Harvested Construct Terminal -->
+        <div id="tab-content-construct" class="flex-1 p-3 overflow-hidden flex-col hidden font-mono text-xs">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-accent text-[11px]">LATEST CONSTRUCT</span>
+              <span id="construct-token-badge" class="badge badge-xs badge-neutral">-- tokens</span>
+            </div>
+            <button id="copy-construct-btn" class="btn btn-xs btn-outline font-mono">
+              COPY MARKDOWN
+            </button>
+          </div>
+          <div class="mockup-code flex-1 bg-base-100 border border-base-300 overflow-y-auto text-[11px] p-3 text-base-content">
+            <pre><code id="construct-code-block">// Awaiting harvest directive...
+// Call harvest_markdown() or click HARVEST in the toolbar.</code></pre>
+          </div>
+        </div>
+
+        <!-- Tab 3: Matrix Logs -->
+        <div id="tab-content-logs" class="flex-1 p-3 overflow-hidden flex-col hidden font-mono text-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-base-content text-[11px]">MCP DIRECTIVE STREAM</span>
+            <span id="log-count" class="badge badge-xs badge-neutral">0 events</span>
+          </div>
+          <div id="logs-container" class="flex-1 bg-base-100 border border-base-300 rounded p-2 overflow-y-auto space-y-1.5 text-[11px]">
+            <div class="text-base-content/40 italic text-center py-4">Listening on MCP Stdio transport...</div>
+          </div>
+        </div>
+
+        <!-- Cyberdeck Status Footer -->
+        <footer class="p-2.5 bg-base-300 border-t border-base-300 flex items-center justify-between text-[10px] font-mono text-base-content/60">
+          <div class="flex items-center gap-1.5">
+            <span class="text-success">●</span>
+            <span>ICEBREAKER READY</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <kbd class="kbd kbd-xs">Ctrl+H</kbd>
+            <span>HARVEST</span>
+          </div>
+        </footer>
+      </aside>
+    </div>
+
+    <!-- Help & About Modal -->
+    <dialog id="about_modal" class="modal">
+      <div class="modal-box bg-base-300 border border-base-100 max-w-4xl p-6 shadow-2xl space-y-6">
+        <!-- Modal Header -->
+        <div class="flex items-start justify-between border-b border-base-100 pb-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-accent text-xl">⚡</span>
+              <h3 class="font-mono font-bold text-base tracking-wider uppercase text-base-content">
+                KUANG GRADE MARK ELEVEN // ARCHIVE
+              </h3>
+            </div>
+            <p class="text-xs font-mono text-base-content/60 mt-1">
+              Stateful Visual Matrix Navigator • Ono-Sendai Cyberdeck Construct
+            </p>
+          </div>
+          <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost font-mono">✕</button>
+          </form>
+        </div>
+
+        <!-- 3 Synthesized Logos Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Card 1: Ono-Sendai -->
+          <div class="card bg-base-100 border border-base-200 shadow-sm overflow-hidden flex flex-col hover:border-primary/40 transition-colors">
+            <figure class="p-6 bg-gradient-to-b from-base-200/60 to-base-100 flex items-center justify-center border-b border-base-200">
+              <img
+                src="/assets/ono-sendai.png"
+                alt="Ono-Sendai Cyberspace 7 Logo"
+                class="w-32 h-32 object-contain drop-shadow-[0_0_16px_rgba(0,210,255,0.45)]"
+              />
+            </figure>
+            <div class="card-body p-4 flex-1 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-1.5 mb-1.5">
+                  <span class="badge badge-primary badge-xs font-mono">CHASSIS</span>
+                  <span class="badge badge-neutral badge-xs font-mono">CHIBA CITY</span>
+                </div>
+                <h4 class="font-mono font-bold text-xs text-base-content">ONO-SENDAI 7</h4>
+                <p class="text-[11px] font-mono text-base-content/70 mt-1 leading-relaxed">
+                  The quintessential cyberdeck frame. Hosts the visible, stateful Chromium viewport with authentic session persistence.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Kuang Grade -->
+          <div class="card bg-base-100 border border-base-200 shadow-sm overflow-hidden flex flex-col hover:border-secondary/40 transition-colors">
+            <figure class="p-6 bg-gradient-to-b from-base-200/60 to-base-100 flex items-center justify-center border-b border-base-200">
+              <img
+                src="/assets/kuang-grade.png"
+                alt="Kuang Grade Icebreaker Logo"
+                class="w-32 h-32 object-contain drop-shadow-[0_0_16px_rgba(192,132,252,0.45)]"
+              />
+            </figure>
+            <div class="card-body p-4 flex-1 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-1.5 mb-1.5">
+                  <span class="badge badge-secondary badge-xs font-mono">ICEBREAKER</span>
+                  <span class="badge badge-neutral badge-xs font-mono">MIL-SPEC</span>
+                </div>
+                <h4 class="font-mono font-bold text-xs text-base-content">KUANG GRADE</h4>
+                <p class="text-[11px] font-mono text-base-content/70 mt-1 leading-relaxed">
+                  Legendary intrusion software. Drives the Ghost Cursor with cubic Bézier curve smoothing and humanized typing telemetry.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Mark Eleven -->
+          <div class="card bg-base-100 border border-base-200 shadow-sm overflow-hidden flex flex-col hover:border-accent/40 transition-colors">
+            <figure class="p-6 bg-gradient-to-b from-base-200/60 to-base-100 flex items-center justify-center border-b border-base-200">
+              <img
+                src="/assets/mark-eleven.png"
+                alt="Mark Eleven Tactical Logo"
+                class="w-32 h-32 object-contain drop-shadow-[0_0_16px_rgba(45,212,191,0.45)]"
+              />
+            </figure>
+            <div class="card-body p-4 flex-1 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-1.5 mb-1.5">
+                  <span class="badge badge-accent badge-xs font-mono">TACTICAL</span>
+                  <span class="badge badge-neutral badge-xs font-mono">XI CORE</span>
+                </div>
+                <h4 class="font-mono font-bold text-xs text-base-content">MARK ELEVEN</h4>
+                <p class="text-[11px] font-mono text-base-content/70 mt-1 leading-relaxed">
+                  Construct compilation engine. Downsamples complex web pages into token-efficient Markdown with YAML front-matter envelopes.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Technical Specifications Table / Readout -->
+        <div class="bg-base-100 border border-base-200 rounded-lg p-3 font-mono text-xs space-y-2">
+          <div class="text-[11px] font-bold text-accent uppercase tracking-wider">
+            System Designation Matrix
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
+            <div><span class="text-base-content/50 block">PROTOCOL:</span><span>Model Context Protocol</span></div>
+            <div><span class="text-base-content/50 block">CHASSIS:</span><span>Electron 44 + Chromium</span></div>
+            <div><span class="text-base-content/50 block">TELEMETRY:</span><span>Bézier Gaussian Kinematics</span></div>
+            <div><span class="text-base-content/50 block">UI THEME:</span><span>DaisyUI 5 (Dark Mode)</span></div>
+          </div>
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div class="modal-action flex items-center justify-between pt-2 border-t border-base-100">
+          <div class="flex items-center gap-2 text-xs font-mono text-base-content/50">
+            <kbd class="kbd kbd-xs">ESC</kbd>
+            <span>Close Archive</span>
+          </div>
+          <form method="dialog">
+            <button class="btn btn-sm btn-primary font-mono text-xs px-5">DISMISS</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Backdrop for Click-to-Close -->
+      <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+      </form>
+    </dialog>
+
+    <!-- Cortex LanceDB Semantic Memory & Bookmarks Modal -->
+    <dialog id="cortex-modal" class="modal modal-bottom sm:modal-middle">
+      <div class="modal-box bg-base-300 border border-secondary/40 shadow-2xl max-w-4xl p-6 font-sans">
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-3 border-b border-base-100">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🧠</span>
+            <div>
+              <h3 class="font-mono font-bold text-sm text-base-content tracking-wider uppercase flex items-center gap-2">
+                <span>CORTEX PERSISTENT MEMORY</span>
+                <span class="badge badge-secondary badge-xs font-mono">LANCEDB VECTOR + BM25</span>
+              </h3>
+              <p class="text-xs font-mono text-base-content/60">
+                Hybrid semantic search across past visits, extracted markdown, and bookmarks.
+              </p>
+            </div>
+          </div>
+          <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost text-base-content/60 hover:text-base-content">✕</button>
+          </form>
+        </div>
+
+        <!-- Cortex Tabs -->
+        <div class="tabs tabs-border mt-4 mb-3 font-mono text-xs">
+          <button id="tab-cortex-recall" class="tab tab-active">
+            🔍 SEMANTIC RECALL & HISTORY
+          </button>
+          <button id="tab-cortex-bookmarks" class="tab">
+            ⭐ SAVED BOOKMARKS
+          </button>
+        </div>
+
+        <!-- Panel 1: Recall & History -->
+        <div id="panel-cortex-recall" class="space-y-4">
+          <div class="join w-full">
+            <input
+              id="cortex-search-input"
+              type="text"
+              placeholder="Search concepts or keywords (e.g. 'path of exile monk', 'quantum circuits', 'manual')..."
+              class="input input-sm join-item flex-1 bg-base-100 border border-base-200 focus:outline-none font-mono text-xs"
+            />
+            <button id="cortex-search-btn" class="btn btn-sm btn-secondary join-item font-mono text-xs">
+              SEARCH
+            </button>
+            <button id="cortex-clear-history-btn" class="btn btn-sm btn-ghost join-item font-mono text-xs text-error/80 hover:text-error" title="Clear all history">
+              CLEAR
+            </button>
+          </div>
+
+          <div id="cortex-results-container" class="space-y-2 max-h-96 overflow-y-auto pr-1">
+            <div class="text-center py-8 text-xs font-mono text-base-content/50">
+              Type a search query or inspect recent browsing history below.
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Bookmarks -->
+        <div id="panel-cortex-bookmarks" class="space-y-4 hidden">
+          <!-- Add bookmark inline -->
+          <div class="bg-base-100 p-3 rounded-lg border border-base-200 space-y-2">
+            <div class="font-mono text-xs font-bold text-accent">SAVE NEW BOOKMARK</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input id="bkmk-input-url" type="text" placeholder="URL (defaults to active tab)..." class="input input-xs bg-base-200 font-mono text-xs" />
+              <input id="bkmk-input-title" type="text" placeholder="Title..." class="input input-xs bg-base-200 font-mono text-xs" />
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input id="bkmk-input-notes" type="text" placeholder="Notes / Research summary..." class="input input-xs bg-base-200 font-mono text-xs" />
+              <input id="bkmk-input-tags" type="text" placeholder="Tags (comma separated: docs, guide)..." class="input input-xs bg-base-200 font-mono text-xs" />
+            </div>
+            <div class="flex justify-end">
+              <button id="bkmk-save-btn" class="btn btn-xs btn-primary font-mono">SAVE BOOKMARK</button>
+            </div>
+          </div>
+
+          <!-- Bookmarks List -->
+          <div id="cortex-bookmarks-container" class="space-y-2 max-h-80 overflow-y-auto pr-1">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-action flex items-center justify-between pt-3 border-t border-base-100 mt-4">
+          <div class="flex items-center gap-2 text-xs font-mono text-base-content/50">
+            <kbd class="kbd kbd-xs">ESC</kbd>
+            <span>Close Cortex</span>
+          </div>
+          <form method="dialog">
+            <button class="btn btn-sm btn-ghost font-mono text-xs px-5">CLOSE</button>
+          </form>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="./src/renderer/main.ts"></script>
+  </body>
+</html>

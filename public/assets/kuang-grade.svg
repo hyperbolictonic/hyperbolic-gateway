@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <filter id="glow-purple" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <linearGradient id="kuang-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc" />
+      <stop offset="50%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <linearGradient id="kuang-accent" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+  </defs>
+
+  <!-- Aggressive Diamond Icebreaker Shield -->
+  <path d="M100 12 L178 54 L148 148 L100 188 L52 148 L22 54 Z" 
+        stroke="url(#kuang-grad)" stroke-width="2.5" fill="none" opacity="0.85" />
+
+  <!-- Secondary Military Stealth Facets -->
+  <path d="M100 22 L164 58 L138 140 L100 174 L62 140 L36 58 Z" 
+        stroke="#a855f7" stroke-width="1.2" stroke-dasharray="6 3" fill="none" opacity="0.4" />
+  
+  <!-- Stealth Chevron Wings -->
+  <path d="M22 54 L60 80 L36 105" stroke="#c084fc" stroke-width="1.8" fill="none" opacity="0.6" />
+  <path d="M178 54 L140 80 L164 105" stroke="#c084fc" stroke-width="1.8" fill="none" opacity="0.6" />
+
+  <!-- Penetration Vector / Central Icebreaker Blade -->
+  <path d="M100 14 V48" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" filter="url(#glow-purple)" />
+  <circle cx="100" cy="14" r="3" fill="#38bdf8" />
+
+  <!-- Stylized Cybernetic 狂 (Kuang) Glyph -->
+  <g filter="url(#glow-purple)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left Radical: 犭 (Dog/Beast Radical - stylized as aggressive cybernetic arcs) -->
+    <path d="M68 62 Q58 84 52 110" stroke="url(#kuang-grad)" stroke-width="4.5" fill="none" />
+    <path d="M54 78 Q72 88 74 98" stroke="url(#kuang-grad)" stroke-width="4" fill="none" />
+    <path d="M74 60 L62 124" stroke="url(#kuang-grad)" stroke-width="4.5" fill="none" />
+
+    <!-- Right Character: 王 (King - stylized as high-voltage busbars) -->
+    <!-- Top Horizontal -->
+    <line x1="88" y1="68" x2="142" y2="68" stroke="url(#kuang-grad)" stroke-width="4.5" />
+    <!-- Center Horizontal -->
+    <line x1="94" y1="92" x2="136" y2="92" stroke="url(#kuang-grad)" stroke-width="4" />
+    <!-- Bottom Horizontal (Foundation) -->
+    <line x1="84" y1="120" x2="146" y2="120" stroke="url(#kuang-grad)" stroke-width="4.5" />
+    <!-- Vertical Spine -->
+    <line x1="115" y1="68" x2="115" y2="120" stroke="url(#kuang-grad)" stroke-width="4.5" />
+  </g>
+
+  <!-- Icebreaker Data Nodes -->
+  <circle cx="88" cy="68" r="2" fill="#38bdf8" />
+  <circle cx="142" cy="68" r="2" fill="#38bdf8" />
+  <circle cx="84" cy="120" r="2" fill="#38bdf8" />
+  <circle cx="146" cy="120" r="2" fill="#38bdf8" />
+
+  <!-- Typography: KUANG GRADE -->
+  <text x="100" y="152" text-anchor="middle" font-family="'JetBrains Mono', 'Fira Code', monospace" 
+        font-size="10.5" font-weight="800" fill="#f3e8ff" letter-spacing="3.5">
+    KUANG GRADE
+  </text>
+  
+  <text x="100" y="166" text-anchor="middle" font-family="'JetBrains Mono', 'Fira Code', monospace" 
+        font-size="6.5" font-weight="600" fill="#c084fc" letter-spacing="2" opacity="0.85">
+    MIL-SPEC ICEBREAKER
+  </text>
+</svg>

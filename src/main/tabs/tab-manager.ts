@@ -1,0 +1,260 @@
+import { BrowserWindow, WebContentsView } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import type { HostBrowserProfile } from '../telemetry/host-fingerprint.js';
+import type { TabSummary } from '../../shared/types.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export interface TabInstance {
+  id: string;
+  title: string;
+  url: string;
+  isLoading: boolean;
+  view: WebContentsView;
+  createdAt: number;
+}
+
+export interface TabManagerOptions {
+  mainWindow: BrowserWindow;
+  hostProfile: HostBrowserProfile;
+  getViewportBounds: () => { x: number; y: number; width: number; height: number };
+  onTabUpdated?: (tab: TabInstance) => void;
+  onTabsChanged?: (tabs: TabSummary[]) => void;
+  onLog?: (level: 'info' | 'warn' | 'action', message: string) => void;
+  onConsoleLog?: (log: { level: string; message: string; line: number; sourceId: string; timestamp: number }) => void;
+}
+
+export class TabManager {
+  private tabs: Map<string, TabInstance> = new Map();
+  private activeTabId: string = '';
+  private counter: number = 0;
+
+  constructor(private options: TabManagerOptions) {}
+
+  public getWelcomePagePath(): string {
+    const candidates = [
+      path.join(__dirname, '../../public/welcome.html'),
+      path.join(__dirname, '../../dist/welcome.html'),
+      path.join(process.cwd(), 'public/welcome.html'),
+      path.join(process.cwd(), 'dist/welcome.html'),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p;
+    }
+    return candidates[0];
+  }
+
+  public getActiveTab(): TabInstance {
+    const active = this.tabs.get(this.activeTabId);
+    if (!active) {
+      throw new Error('No active tab available in Cyberdeck');
+    }
+    return active;
+  }
+
+  public getActiveTabId(): string {
+    return this.activeTabId;
+  }
+
+  public createTab(initialUrl: string = 'about:blank'): TabInstance {
+    this.counter++;
+    const id = `tab_${this.counter}`;
+
+    const view = new WebContentsView({
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+      },
+    });
+
+    // Soft matte light zinc gray (#f4f4f5): prevents harsh white glare while making black typography 100% legible
+    view.setBackgroundColor('#f4f4f5');
+    this.options.mainWindow.contentView.addChildView(view);
+
+    const wc = view.webContents;
+
+    // Apply Host Browser Stealth Profile
+    wc.setUserAgent(this.options.hostProfile.userAgent);
+    wc.session.webRequest.onBeforeSendHeaders((details, callback) => {
+      details.requestHeaders['User-Agent'] = this.options.hostProfile.userAgent;
+      details.requestHeaders['sec-ch-ua'] = this.options.hostProfile.secChUa;
+      details.requestHeaders['sec-ch-ua-mobile'] = '?0';
+      details.requestHeaders['sec-ch-ua-platform'] = this.options.hostProfile.secChUaPlatform;
+      callback({ requestHeaders: details.requestHeaders });
+    });
+
+    // Auto-spawn new tabs for target="_blank" and window.open
+    wc.setWindowOpenHandler((details) => {
+      this.options.onLog?.('action', `Intercepted popup/external link: opening new Cyberdeck tab -> ${details.url}`);
+      this.createTab(details.url);
+      return { action: 'deny' };
+    });
+
+    const tab: TabInstance = {
+      id,
+      title: 'New Tab',
+      url: initialUrl,
+      isLoading: false,
+      view,
+      createdAt: Date.now(),
+    };
+
+    // Navigation and status listeners
+    wc.on('did-start-loading', () => {
+      tab.isLoading = true;
+      this.options.onTabUpdated?.(tab);
+      this.notifyTabsChanged();
+    });
+
+    wc.on('did-finish-load', () => {
+      tab.isLoading = false;
+      const rawUrl = wc.getURL();
+      if (rawUrl.includes('welcome.html')) {
+        tab.url = 'mark-eleven://manual';
+        tab.title = 'Kuang Grade // Manual';
+      } else {
+        tab.url = rawUrl;
+        tab.title = wc.getTitle() || tab.url;
+      }
+      this.options.onLog?.('info', `[${tab.id}] Loaded: ${tab.title} (${tab.url})`);
+      this.options.onTabUpdated?.(tab);
+      this.notifyTabsChanged();
+    });
+
+    wc.on('page-title-updated', (_, title) => {
+      if (!wc.getURL().includes('welcome.html')) {
+        tab.title = title;
+        this.options.onTabUpdated?.(tab);
+        this.notifyTabsChanged();
+      }
+    });
+
+    wc.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
+      tab.isLoading = false;
+      this.options.onLog?.('warn', `[${tab.id}] Barrier [${errorCode}]: ${errorDescription} (${validatedURL})`);
+      this.options.onTabUpdated?.(tab);
+      this.notifyTabsChanged();
+    });
+
+    wc.on('console-message', (event: any, ...legacyArgs: any[]) => {
+      const level = typeof event?.level === 'number' ? event.level : (legacyArgs[0] ?? 0);
+      const message = event?.message ?? legacyArgs[1] ?? String(event ?? '');
+      const line = event?.lineNumber ?? legacyArgs[2] ?? 0;
+      const sourceId = event?.sourceId ?? legacyArgs[3] ?? '';
+      const levelStr = level === 0 ? 'info' : level === 1 ? 'warn' : 'error';
+
+      this.options.onConsoleLog?.({
+        level: levelStr,
+        message,
+        line,
+        sourceId,
+        timestamp: Date.now(),
+      });
+    });
+
+    this.tabs.set(id, tab);
+
+    // Navigate to initial URL or Cyberdeck Manual
+    if (initialUrl && initialUrl !== 'about:blank' && initialUrl !== 'mark-eleven://manual') {
+      const formatted = initialUrl.startsWith('http://') || initialUrl.startsWith('https://')
+        ? initialUrl
+        : `https://${initialUrl}`;
+      wc.loadURL(formatted);
+    } else {
+      wc.loadFile(this.getWelcomePagePath());
+    }
+
+    // Switch focus to new tab
+    this.switchTab(id);
+    return tab;
+  }
+
+  public switchTab(tabId: string): void {
+    if (!this.tabs.has(tabId)) {
+      throw new Error(`Tab ${tabId} does not exist`);
+    }
+
+    // Hide previous active tab view by tucking its bounds away
+    if (this.activeTabId && this.tabs.has(this.activeTabId) && this.activeTabId !== tabId) {
+      const prev = this.tabs.get(this.activeTabId)!;
+      prev.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    }
+
+    this.activeTabId = tabId;
+    const current = this.tabs.get(tabId)!;
+
+    // Expand current active tab to viewport container
+    const bounds = this.options.getViewportBounds();
+    current.view.setBounds(bounds);
+
+    this.options.onLog?.('info', `Switched active browsing node to [${current.id}] "${current.title}"`);
+    this.options.onTabUpdated?.(current);
+    this.notifyTabsChanged();
+  }
+
+  public closeTab(tabId?: string): void {
+    const targetId = tabId || this.activeTabId;
+    if (!this.tabs.has(targetId)) return;
+
+    const tabToClose = this.tabs.get(targetId)!;
+
+    // If only 1 tab remaining, reset it to Cyberdeck manual rather than closing window
+    if (this.tabs.size <= 1) {
+      tabToClose.view.webContents.loadFile(this.getWelcomePagePath());
+      tabToClose.title = 'Kuang Grade // Manual';
+      tabToClose.url = 'mark-eleven://manual';
+      this.options.onTabUpdated?.(tabToClose);
+      this.notifyTabsChanged();
+      return;
+    }
+
+    // Remove view from window and close webContents
+    this.options.mainWindow.contentView.removeChildView(tabToClose.view);
+    tabToClose.view.webContents.close();
+    this.tabs.delete(targetId);
+
+    // If closed the active tab, switch to adjacent tab
+    if (this.activeTabId === targetId) {
+      const remaining = Array.from(this.tabs.keys());
+      const nextId = remaining[remaining.length - 1];
+      this.switchTab(nextId);
+    } else {
+      this.notifyTabsChanged();
+    }
+
+    this.options.onLog?.('info', `Closed tab [${targetId}]`);
+  }
+
+  public updateActiveTabBounds(): void {
+    if (!this.activeTabId || !this.tabs.has(this.activeTabId)) return;
+    const active = this.tabs.get(this.activeTabId)!;
+    active.view.setBounds(this.options.getViewportBounds());
+  }
+
+  public setViewportVisibility(visible: boolean): void {
+    if (!this.activeTabId || !this.tabs.has(this.activeTabId)) return;
+    const active = this.tabs.get(this.activeTabId)!;
+    if (visible) {
+      active.view.setBounds(this.options.getViewportBounds());
+    } else {
+      active.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    }
+  }
+
+  public getTabsSummary(): TabSummary[] {
+    return Array.from(this.tabs.values()).map((t) => ({
+      id: t.id,
+      title: t.title || 'New Tab',
+      url: t.url || 'about:blank',
+      isLoading: t.isLoading,
+      isActive: t.id === this.activeTabId,
+    }));
+  }
+
+  private notifyTabsChanged(): void {
+    this.options.onTabsChanged?.(this.getTabsSummary());
+  }
+}

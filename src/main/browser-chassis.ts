@@ -1,0 +1,504 @@
+import { BrowserWindow, nativeImage, ipcMain } from 'electron';
+import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
+import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
+import { ConstructHarvester } from './harvester/markdown.js';
+import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
+import { TabManager, type TabInstance } from './tabs/tab-manager.js';
+import { cortex, CortexDB } from './cortex/cortex-db.js';
+
+export class BrowserChassis {
+  private mainWindow: BrowserWindow | null = null;
+  private tabManager: TabManager | null = null;
+  private simulator: HumanizedInputSimulator;
+  private harvester: ConstructHarvester;
+  private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
+
+  private state: ChassisState = {
+    currentUrl: 'about:blank',
+    pageTitle: 'Mark Eleven Chassis Offline',
+    isLoading: false,
+    agentStatus: 'IDLE',
+    activeAction: 'Standby - Awaiting MCP Uplink',
+    cursor: { x: 100, y: 100 },
+    tabs: [],
+    stats: {
+      totalInteractions: 0,
+      tokensHarvested: 0,
+      avgLatencyMs: 42,
+      uptimeSeconds: 0,
+    },
+  };
+
+  private latestConstruct: HarvestedConstruct | null = null;
+  private logs: Array<{ id: string; time: string; level: 'info' | 'warn' | 'action'; message: string }> = [];
+  private targetConsoleLogs: Array<{ level: string; message: string; line: number; sourceId: string; timestamp: number }> = [];
+
+  constructor() {
+    this.harvester = new ConstructHarvester();
+    this.simulator = new HumanizedInputSimulator({
+      onMouseMove: (point, velocity) => {
+        this.state.cursor = point;
+        this.emitTelemetry({
+          type: 'mouse_move',
+          x: point.x,
+          y: point.y,
+          timestamp: Date.now(),
+          details: `Velocity: ${velocity.toFixed(2)} px/ms`,
+        });
+      },
+      onClick: (point) => {
+        this.state.stats.totalInteractions++;
+        this.emitTelemetry({
+          type: 'click',
+          x: point.x,
+          y: point.y,
+          timestamp: Date.now(),
+          details: 'Physical mouse switch actuated',
+        });
+      },
+      onKey: (char, delay) => {
+        this.state.stats.totalInteractions++;
+        this.emitTelemetry({
+          type: 'keystroke',
+          key: char === ' ' ? 'SPACE' : char,
+          durationMs: delay,
+          timestamp: Date.now(),
+          details: `Cadence variance: ${delay}ms`,
+        });
+      },
+      onScroll: (deltaY) => {
+        this.emitTelemetry({
+          type: 'scroll',
+          timestamp: Date.now(),
+          details: `Mousewheel impulse: ${deltaY}px`,
+        });
+      },
+    });
+
+    setInterval(() => {
+      this.state.stats.uptimeSeconds++;
+      this.broadcastState();
+    }, 1000);
+  }
+
+  public setWindow(win: BrowserWindow) {
+    this.mainWindow = win;
+    this.setupTabManager();
+    this.registerIpcHandlers();
+  }
+
+  private setupTabManager() {
+    if (!this.mainWindow) return;
+
+    this.tabManager = new TabManager({
+      mainWindow: this.mainWindow,
+      hostProfile: this.hostProfile,
+      getViewportBounds: () => this.getViewportBounds(),
+      onTabUpdated: (tab: TabInstance) => {
+        if (tab.id === this.tabManager?.getActiveTabId()) {
+          this.state.currentUrl = tab.url;
+          this.state.pageTitle = tab.title;
+          this.state.isLoading = tab.isLoading;
+          this.state.activeTabId = tab.id;
+          this.broadcastState();
+
+          if (!tab.isLoading && tab.url && !tab.url.startsWith('mark-eleven:') && tab.url !== 'about:blank') {
+            this.indexTabQuietly(tab);
+          }
+        }
+      },
+      onTabsChanged: (tabs: TabSummary[]) => {
+        this.state.tabs = tabs;
+        this.broadcastState();
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('chassis:tabs-updated', tabs);
+        }
+      },
+      onLog: (level, msg) => this.addLog(level, msg),
+      onConsoleLog: (log) => {
+        this.targetConsoleLogs.push(log);
+        if (this.targetConsoleLogs.length > 200) this.targetConsoleLogs.shift();
+      },
+    });
+
+    this.addLog('info', `Stealth Profile Active: Spoofing host ${this.hostProfile.name} v${this.hostProfile.version}`);
+
+    // Create initial default tab
+    this.tabManager.createTab('about:blank');
+
+    this.mainWindow.on('resize', () => {
+      this.tabManager?.updateActiveTabBounds();
+    });
+  }
+
+  public getViewportBounds(): { x: number; y: number; width: number; height: number } {
+    if (!this.mainWindow) return { x: 0, y: 0, width: 0, height: 0 };
+    const [winWidth, winHeight] = this.mainWindow.getSize();
+    const rightPanelWidth = 420;
+    // With tab bar, top bar height is 100px (64px navbar + 36px tab bar)
+    const topBarHeight = 100;
+
+    const viewportWidth = Math.max(400, winWidth - rightPanelWidth);
+    const viewportHeight = Math.max(300, winHeight - topBarHeight);
+
+    return {
+      x: 0,
+      y: topBarHeight,
+      width: viewportWidth,
+      height: viewportHeight,
+    };
+  }
+
+  public getActiveWebContents(): Electron.WebContents {
+    if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
+    return this.tabManager.getActiveTab().view.webContents;
+  }
+
+  // Tab Operations
+  public createTab(url?: string): TabSummary {
+    if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
+    this.addLog('action', `MCP Directive: new_tab(${url || 'about:blank'})`);
+    const tab = this.tabManager.createTab(url);
+    return {
+      id: tab.id,
+      title: tab.title,
+      url: tab.url,
+      isLoading: tab.isLoading,
+      isActive: true,
+    };
+  }
+
+  public switchTab(tabId: string): void {
+    if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
+    this.addLog('action', `MCP Directive: switch_tab(${tabId})`);
+    this.tabManager.switchTab(tabId);
+  }
+
+  public closeTab(tabId?: string): void {
+    if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
+    this.addLog('action', `MCP Directive: close_tab(${tabId || 'active'})`);
+    this.tabManager.closeTab(tabId);
+  }
+
+  public getTabsSummary(): TabSummary[] {
+    if (!this.tabManager) return [];
+    return this.tabManager.getTabsSummary();
+  }
+
+  private registerIpcHandlers() {
+    ipcMain.handle('chassis:get-state', () => this.state);
+    ipcMain.handle('chassis:get-latest-construct', () => this.latestConstruct);
+    ipcMain.handle('chassis:get-logs', () => this.logs);
+
+    ipcMain.handle('chassis:navigate', async (_, url: string) => {
+      await this.navigateTo(url);
+      return { success: true };
+    });
+
+    ipcMain.handle('chassis:harvest', async () => {
+      return await this.harvestMarkdown();
+    });
+
+    // Tab IPC Handlers
+    ipcMain.handle('chassis:get-tabs', () => this.getTabsSummary());
+    ipcMain.handle('chassis:create-tab', (_, url?: string) => this.createTab(url));
+    ipcMain.handle('chassis:switch-tab', (_, tabId: string) => this.switchTab(tabId));
+    ipcMain.handle('chassis:close-tab', (_, tabId?: string) => this.closeTab(tabId));
+
+    const setVisibility = (_: any, visible: boolean) => {
+      this.tabManager?.setViewportVisibility(visible);
+    };
+
+    ipcMain.handle('chassis:set-viewport-visibility', setVisibility);
+    ipcMain.on('chassis:set-viewport-visibility', setVisibility);
+
+    // Cortex & Bookmarks IPC Handlers
+    ipcMain.handle('cortex:recall', async (_, query: string, options?: any) => {
+      return await cortex.recall(query, options);
+    });
+    ipcMain.handle('cortex:get-history', async (_, options?: any) => {
+      return await cortex.getHistory(options);
+    });
+    ipcMain.handle('cortex:clear-history', async (_, olderThan?: string) => {
+      await cortex.clearHistory(olderThan);
+      return { success: true };
+    });
+    ipcMain.handle('cortex:add-bookmark', async (_, bookmark: any) => {
+      return await cortex.addBookmark(bookmark);
+    });
+    ipcMain.handle('cortex:list-bookmarks', async (_, options?: any) => {
+      return await cortex.listBookmarks(options);
+    });
+    ipcMain.handle('cortex:delete-bookmark', async (_, urlOrId: string) => {
+      return await cortex.deleteBookmark(urlOrId);
+    });
+    ipcMain.handle('cortex:is-bookmarked', async (_, url: string) => {
+      return await cortex.isBookmarked(url);
+    });
+  }
+
+  public getCortex(): CortexDB {
+    return cortex;
+  }
+
+  private async indexTabQuietly(tab: TabInstance) {
+    try {
+      const url = tab.url;
+      const title = tab.title;
+      if (!url || url === 'about:blank' || url.startsWith('mark-eleven:') || url.startsWith('file:')) return;
+      
+      const wc = tab.view.webContents;
+      const rawHtml = await wc.executeJavaScript('document.documentElement.outerHTML');
+      const construct = this.harvester.harvest(rawHtml, url, title);
+      const indexedCount = await cortex.indexPage(url, construct.title, construct.content);
+      if (indexedCount > 0) {
+        this.addLog('info', `Cortex indexed: ${construct.title} (${indexedCount} semantic chunks)`);
+      }
+    } catch {
+      // Background indexing failure is non-fatal
+    }
+  }
+
+  private broadcastState() {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('chassis:state-updated', this.state);
+    }
+  }
+
+  private emitTelemetry(event: TelemetryEvent) {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('chassis:telemetry', event);
+    }
+  }
+
+  public addLog(level: 'info' | 'warn' | 'action', message: string) {
+    const entry = {
+      id: Math.random().toString(36).substring(2, 9),
+      time: new Date().toLocaleTimeString(),
+      level,
+      message,
+    };
+    this.logs.unshift(entry);
+    if (this.logs.length > 100) this.logs.pop();
+
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('chassis:log', entry);
+    }
+  }
+
+  // MCP Operations on Active Tab
+  public async navigateTo(url: string): Promise<string> {
+    const wc = this.getActiveWebContents();
+    this.state.agentStatus = 'TRAVERSING';
+    this.broadcastState();
+
+    if (url === 'about:blank' || url === 'mark-eleven://manual' || url === 'mark-eleven://welcome') {
+      const manualPath = this.tabManager?.getWelcomePagePath();
+      if (manualPath) {
+        this.addLog('action', 'MCP Directive: navigate_to(mark-eleven://manual)');
+        await wc.loadFile(manualPath);
+        return 'Loaded Kuang Grade Mark Eleven Manual';
+      }
+    }
+
+    const formattedUrl = url.startsWith('http://') || url.startsWith('https://')
+      ? url
+      : `https://${url}`;
+
+    this.addLog('action', `MCP Directive: navigate_to(${formattedUrl})`);
+    await wc.loadURL(formattedUrl);
+    return `Navigated to ${formattedUrl}`;
+  }
+
+  public async clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string> {
+    const wc = this.getActiveWebContents();
+    this.state.agentStatus = 'SIMULATING_INPUT';
+
+    let targetX = coordinates?.x;
+    let targetY = coordinates?.y;
+
+    if (selector) {
+      this.addLog('action', `MCP Directive: click_element(selector="${selector}")`);
+      const box = await wc.executeJavaScript(`
+        (() => {
+          const el = document.querySelector(${JSON.stringify(selector)});
+          if (!el) return null;
+          el.scrollIntoView({ behavior: 'auto', block: 'center' });
+          const rect = el.getBoundingClientRect();
+          return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+        })()
+      `);
+
+      if (!box) {
+        this.state.agentStatus = 'ERROR';
+        this.broadcastState();
+        throw new Error(`Target element not found: ${selector}`);
+      }
+
+      targetX = box.x;
+      targetY = box.y;
+    } else if (targetX !== undefined && targetY !== undefined) {
+      this.addLog('action', `MCP Directive: click_element(x=${targetX}, y=${targetY})`);
+    } else {
+      throw new Error('Must provide either selector or coordinates');
+    }
+
+    await this.simulator.clickAt(wc, { x: targetX!, y: targetY! });
+
+    if (selector) {
+      await wc.executeJavaScript(`
+        (() => {
+          const el = document.querySelector(${JSON.stringify(selector)});
+          if (el) {
+            if (typeof el.focus === 'function') el.focus();
+            if (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button') {
+              el.click();
+            }
+          }
+        })()
+      `).catch(() => {});
+    }
+
+    this.state.agentStatus = 'IDLE';
+    this.broadcastState();
+    return `Clicked element at (${targetX}, ${targetY})`;
+  }
+
+  public async typeText(text: string, selector?: string): Promise<string> {
+    const wc = this.getActiveWebContents();
+    this.state.agentStatus = 'SIMULATING_INPUT';
+    this.addLog('action', `MCP Directive: type_text("${text.substring(0, 15)}..."${selector ? ` on ${selector}` : ''})`);
+
+    if (selector) {
+      await this.clickElement(selector);
+    }
+
+    await this.simulator.typeText(wc, text);
+    this.state.agentStatus = 'IDLE';
+    this.broadcastState();
+    return `Typed text (${text.length} chars) with variable human cadence`;
+  }
+
+  public async scrollPage(direction: 'up' | 'down', amount: number = 400): Promise<string> {
+    const wc = this.getActiveWebContents();
+    this.state.agentStatus = 'SIMULATING_INPUT';
+    this.addLog('action', `MCP Directive: scroll_page(${direction}, ${amount}px)`);
+
+    const deltaY = direction === 'down' ? amount : -amount;
+    await this.simulator.scrollPage(wc, deltaY);
+
+    this.state.agentStatus = 'IDLE';
+    this.broadcastState();
+    return `Scrolled ${direction} by ${amount}px`;
+  }
+
+  public async takeScreenshot(): Promise<{ base64Image: string; width: number; height: number }> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', 'MCP Directive: take_screenshot()');
+
+    const bounds = this.getViewportBounds();
+    const image = await wc.capturePage({
+      x: 0,
+      y: 0,
+      width: Math.max(1, bounds.width),
+      height: Math.max(1, bounds.height),
+    });
+    const size = image.getSize();
+    const base64Image = image.toDataURL();
+
+    this.emitTelemetry({
+      type: 'harvest',
+      timestamp: Date.now(),
+      details: `Captured live viewport screenshot: ${size.width}x${size.height}px`,
+    });
+
+    return {
+      base64Image,
+      width: size.width,
+      height: size.height,
+    };
+  }
+
+  public async harvestMarkdown(): Promise<HarvestedConstruct> {
+    const wc = this.getActiveWebContents();
+    this.state.agentStatus = 'HARVESTING';
+    this.broadcastState();
+    this.addLog('action', 'MCP Directive: get_page_markdown()');
+
+    const rawHtml = await wc.executeJavaScript('document.documentElement.outerHTML');
+    const url = wc.getURL();
+    const title = wc.getTitle();
+
+    const construct = this.harvester.harvest(rawHtml, url, title);
+    this.latestConstruct = construct;
+
+    this.state.stats.tokensHarvested += construct.estimatedTokens;
+    this.state.agentStatus = 'IDLE';
+    this.broadcastState();
+
+    this.emitTelemetry({
+      type: 'harvest',
+      timestamp: Date.now(),
+      details: `Construct extracted: ${construct.estimatedTokens} tokens (${construct.markdownLength} bytes)`,
+    });
+
+    this.addLog('info', `Construct harvested: ${construct.title} (~${construct.estimatedTokens} tokens)`);
+    cortex.indexPage(url, construct.title, construct.content).catch(() => {});
+    return construct;
+  }
+
+  public async pressKey(key: string): Promise<string> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: press_key("${key}")`);
+    await this.simulator.pressKey(wc, key);
+    return `Pressed key: ${key}`;
+  }
+
+  public async evaluateJavaScript(script: string): Promise<any> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: evaluate_javascript("${script.substring(0, 30)}...")`);
+    const result = await wc.executeJavaScript(script);
+    return result;
+  }
+
+  public async goBack(): Promise<string> {
+    const wc = this.getActiveWebContents();
+    if (wc.navigationHistory.canGoBack()) {
+      wc.navigationHistory.goBack();
+      return 'Navigated back in history';
+    }
+    return 'Cannot navigate back; at start of history';
+  }
+
+  public async goForward(): Promise<string> {
+    const wc = this.getActiveWebContents();
+    if (wc.navigationHistory.canGoForward()) {
+      wc.navigationHistory.goForward();
+      return 'Navigated forward in history';
+    }
+    return 'Cannot navigate forward; at end of history';
+  }
+
+  public async reload(): Promise<string> {
+    const wc = this.getActiveWebContents();
+    wc.reload();
+    return 'Reloaded active web page';
+  }
+
+  public getPageInfo(): { url: string; title: string; isLoading: boolean; activeTabId?: string } {
+    return {
+      url: this.state.currentUrl,
+      title: this.state.pageTitle,
+      isLoading: this.state.isLoading,
+      activeTabId: this.state.activeTabId,
+    };
+  }
+
+  public getTargetConsoleLogs(limit: number = 50) {
+    return this.targetConsoleLogs.slice(-limit);
+  }
+
+  public getFingerprintProfile(): HostBrowserProfile {
+    return this.hostProfile;
+  }
+}

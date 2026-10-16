@@ -1,0 +1,55 @@
+{
+  "name": "kuang-grade-mark-eleven",
+  "version": "1.0.0",
+  "description": "Stateful Visual Matrix Navigator (Electron Chassis + Pure Node.js Telemetry Engine)",
+  "main": "dist-electron/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "electron .",
+    "build": "tsc && vite build",
+    "test:mcp": "node scripts/test-client.js",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "mcp",
+    "electron",
+    "browser",
+    "multimodal",
+    "ai-agent",
+    "cyberpunk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@lancedb/lancedb": "^0.40.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@mozilla/readability": "^0.6.0",
+    "jsdom": "^30.1.2",
+    "turndown": "^7.2.4",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.6.5",
+    "@types/pngjs": "^6.0.5",
+    "@types/turndown": "^5.0.6",
+    "daisyui": "^5.7.50",
+    "electron": "^44.7.2",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vite-plugin-electron": "^1.1.2",
+    "vite-plugin-electron-renderer": "^1.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "onnxruntime-node",
+      "protobufjs",
+      "sharp"
+    ]
+  }
+}

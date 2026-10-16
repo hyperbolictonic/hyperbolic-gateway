@@ -1,0 +1,81 @@
+import { contextBridge, ipcRenderer } from 'electron';
+import type { ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
+
+export interface ElectronAPI {
+  getState: () => Promise<ChassisState>;
+  getLatestConstruct: () => Promise<HarvestedConstruct | null>;
+  getLogs: () => Promise<any[]>;
+  navigate: (url: string) => Promise<{ success: boolean }>;
+  harvest: () => Promise<HarvestedConstruct>;
+  setViewportVisibility: (visible: boolean) => void;
+  getTabs: () => Promise<TabSummary[]>;
+  createTab: (url?: string) => Promise<TabSummary>;
+  switchTab: (tabId: string) => Promise<void>;
+  closeTab: (tabId?: string) => Promise<void>;
+  recallMemory: (query: string, options?: any) => Promise<any[]>;
+  getHistory: (options?: any) => Promise<any[]>;
+  clearHistory: (olderThan?: string) => Promise<{ success: boolean }>;
+  addBookmark: (bookmark: any) => Promise<any>;
+  listBookmarks: (options?: any) => Promise<any[]>;
+  deleteBookmark: (urlOrId: string) => Promise<boolean>;
+  isBookmarked: (url: string) => Promise<boolean>;
+  onTabsUpdated: (callback: (tabs: TabSummary[]) => void) => () => void;
+  onStateUpdated: (callback: (state: ChassisState) => void) => () => void;
+  onTelemetry: (callback: (event: TelemetryEvent) => void) => () => void;
+  onConstructHarvested: (callback: (construct: HarvestedConstruct) => void) => () => void;
+  onLog: (callback: (log: any) => void) => () => void;
+}
+
+const api: ElectronAPI = {
+  getState: () => ipcRenderer.invoke('chassis:get-state'),
+  getLatestConstruct: () => ipcRenderer.invoke('chassis:get-latest-construct'),
+  getLogs: () => ipcRenderer.invoke('chassis:get-logs'),
+  navigate: (url: string) => ipcRenderer.invoke('chassis:navigate', url),
+  harvest: () => ipcRenderer.invoke('chassis:harvest'),
+  setViewportVisibility: (visible: boolean) => ipcRenderer.send('chassis:set-viewport-visibility', visible),
+
+  getTabs: () => ipcRenderer.invoke('chassis:get-tabs'),
+  createTab: (url?: string) => ipcRenderer.invoke('chassis:create-tab', url),
+  switchTab: (tabId: string) => ipcRenderer.invoke('chassis:switch-tab', tabId),
+  closeTab: (tabId?: string) => ipcRenderer.invoke('chassis:close-tab', tabId),
+
+  recallMemory: (query: string, options?: any) => ipcRenderer.invoke('cortex:recall', query, options),
+  getHistory: (options?: any) => ipcRenderer.invoke('cortex:get-history', options),
+  clearHistory: (olderThan?: string) => ipcRenderer.invoke('cortex:clear-history', olderThan),
+  addBookmark: (bookmark: any) => ipcRenderer.invoke('cortex:add-bookmark', bookmark),
+  listBookmarks: (options?: any) => ipcRenderer.invoke('cortex:list-bookmarks', options),
+  deleteBookmark: (urlOrId: string) => ipcRenderer.invoke('cortex:delete-bookmark', urlOrId),
+  isBookmarked: (url: string) => ipcRenderer.invoke('cortex:is-bookmarked', url),
+
+  onTabsUpdated: (callback) => {
+    const handler = (_: any, tabs: TabSummary[]) => callback(tabs);
+    ipcRenderer.on('chassis:tabs-updated', handler);
+    return () => ipcRenderer.removeListener('chassis:tabs-updated', handler);
+  },
+
+  onStateUpdated: (callback) => {
+    const handler = (_: any, state: ChassisState) => callback(state);
+    ipcRenderer.on('chassis:state-updated', handler);
+    return () => ipcRenderer.removeListener('chassis:state-updated', handler);
+  },
+
+  onTelemetry: (callback) => {
+    const handler = (_: any, event: TelemetryEvent) => callback(event);
+    ipcRenderer.on('chassis:telemetry', handler);
+    return () => ipcRenderer.removeListener('chassis:telemetry', handler);
+  },
+
+  onConstructHarvested: (callback) => {
+    const handler = (_: any, construct: HarvestedConstruct) => callback(construct);
+    ipcRenderer.on('chassis:construct-harvested', handler);
+    return () => ipcRenderer.removeListener('chassis:construct-harvested', handler);
+  },
+
+  onLog: (callback) => {
+    const handler = (_: any, log: any) => callback(log);
+    ipcRenderer.on('chassis:log', handler);
+    return () => ipcRenderer.removeListener('chassis:log', handler);
+  },
+};
+
+contextBridge.exposeInMainWorld('electronAPI', api);

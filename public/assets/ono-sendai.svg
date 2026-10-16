@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <linearGradient id="cyan-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#00d2ff" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Cyber Shield Frame -->
+  <path d="M100 14 L175 42 L160 144 L100 186 L40 144 L25 42 Z" 
+        stroke="url(#cyan-grad)" stroke-width="2.5" fill="none" opacity="0.8" />
+  
+  <!-- Inner Segmented Precision Border -->
+  <path d="M100 24 L165 48 L152 138 L100 174 L48 138 L35 48 Z" 
+        stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="8 4" fill="none" opacity="0.4" />
+
+  <!-- Corner Tech Accents -->
+  <line x1="25" y1="42" x2="45" y2="42" stroke="#00d2ff" stroke-width="2" />
+  <line x1="175" y1="42" x2="155" y2="42" stroke="#00d2ff" stroke-width="2" />
+  <circle cx="100" cy="186" r="3" fill="#00d2ff" filter="url(#glow-cyan)" />
+
+  <!-- Circuit Trace Top Left -->
+  <path d="M52 64 H68 L80 76 V92" stroke="#38bdf8" stroke-width="1.5" fill="none" opacity="0.7" />
+  <circle cx="52" cy="64" r="2.5" fill="#38bdf8" />
+
+  <!-- Circuit Trace Top Right -->
+  <path d="M148 64 H132 L120 76 V92" stroke="#38bdf8" stroke-width="1.5" fill="none" opacity="0.7" />
+  <circle cx="148" cy="64" r="2.5" fill="#38bdf8" />
+
+  <!-- Stylized "7" (Cyberspace 7) Core Emblem -->
+  <g filter="url(#glow-cyan)">
+    <!-- Main Angular 7 -->
+    <path d="M68 62 H134 L92 142 H76 L112 76 H68 Z" fill="url(#cyan-grad)" />
+    <!-- Secondary Inner Cutout / Echo Line -->
+    <path d="M80 84 H118 L94 130" stroke="#0ea5e9" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.9" />
+  </g>
+
+  <!-- Typography: ONO-SENDAI -->
+  <text x="100" y="156" text-anchor="middle" font-family="'JetBrains Mono', 'Fira Code', monospace" 
+        font-size="10.5" font-weight="800" fill="#e0f2fe" letter-spacing="3.5">
+    ONO-SENDAI
+  </text>
+  
+  <text x="100" y="168" text-anchor="middle" font-family="'JetBrains Mono', 'Fira Code', monospace" 
+        font-size="7" font-weight="600" fill="#38bdf8" letter-spacing="2" opacity="0.8">
+    CYBERSPACE 7
+  </text>
+</svg>

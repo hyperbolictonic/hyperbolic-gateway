@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "mark-eleven": {
+      "command": "node",
+      "args": [
+        "./scripts/mcp-server.js"
+      ]
+    }
+  }
+}

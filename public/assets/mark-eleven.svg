@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <filter id="glow-teal" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <linearGradient id="mark-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2dd4bf" />
+      <stop offset="50%" stop-color="#00d2ff" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer HUD Targeting Ring -->
+  <circle cx="100" cy="100" r="86" stroke="url(#mark-grad)" stroke-width="2" opacity="0.8" />
+  
+  <!-- Segmented Reticle Ring -->
+  <circle cx="100" cy="100" r="76" stroke="#2dd4bf" stroke-width="1.2" stroke-dasharray="14 8" opacity="0.4" />
+  <circle cx="100" cy="100" r="66" stroke="#00d2ff" stroke-width="0.8" opacity="0.25" />
+
+  <!-- Quadrant Compass Crosshairs -->
+  <line x1="100" y1="8" x2="100" y2="22" stroke="#2dd4bf" stroke-width="2.5" />
+  <line x1="100" y1="178" x2="100" y2="192" stroke="#2dd4bf" stroke-width="2.5" />
+  <line x1="8" y1="100" x2="22" y2="100" stroke="#2dd4bf" stroke-width="2.5" />
+  <line x1="178" y1="100" x2="192" y2="100" stroke="#2dd4bf" stroke-width="2.5" />
+
+  <!-- Diagonal Calibration Corner Ticks -->
+  <circle cx="42" cy="42" r="2.5" fill="#00d2ff" opacity="0.7" />
+  <circle cx="158" cy="42" r="2.5" fill="#00d2ff" opacity="0.7" />
+  <circle cx="42" cy="158" r="2.5" fill="#00d2ff" opacity="0.7" />
+  <circle cx="158" cy="158" r="2.5" fill="#00d2ff" opacity="0.7" />
+
+  <!-- Central "XI" (Roman 11) Monogram with Neon Glow -->
+  <g filter="url(#glow-teal)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Roman 'X' -->
+    <path d="M62 64 L96 124" stroke="url(#mark-grad)" stroke-width="7" />
+    <path d="M96 64 L62 124" stroke="url(#mark-grad)" stroke-width="7" />
+    
+    <!-- Top & Bottom Serifs for X -->
+    <line x1="56" y1="64" x2="68" y2="64" stroke="url(#mark-grad)" stroke-width="4" />
+    <line x1="90" y1="64" x2="102" y2="64" stroke="url(#mark-grad)" stroke-width="4" />
+    <line x1="56" y1="124" x2="68" y2="124" stroke="url(#mark-grad)" stroke-width="4" />
+    <line x1="90" y1="124" x2="102" y2="124" stroke="url(#mark-grad)" stroke-width="4" />
+
+    <!-- Roman 'I' -->
+    <line x1="126" y1="64" x2="126" y2="124" stroke="url(#mark-grad)" stroke-width="7" />
+    <!-- Serifs for I -->
+    <line x1="116" y1="64" x2="136" y2="64" stroke="url(#mark-grad)" stroke-width="4" />
+    <line x1="116" y1="124" x2="136" y2="124" stroke="url(#mark-grad)" stroke-width="4" />
+  </g>
+
+  <!-- Typography Arc / Pill -->
+  <text x="100" y="148" text-anchor="middle" font-family="'JetBrains Mono', 'Fira Code', monospace" 
+        font-size="10" font-weight="800" fill="#ccfbf1" letter-spacing="3.5">
+    MARK ELEVEN
+  </text>
+
+  <text x="100" y="162" text-anchor="middle" font-family="'JetBrains Mono', 'Fira Code', monospace" 
+        font-size="6.5" font-weight="600" fill="#2dd4bf" letter-spacing="2" opacity="0.85">
+    MATRIX NAVIGATOR
+  </text>
+</svg>
