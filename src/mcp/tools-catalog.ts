@@ -99,7 +99,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {},
     endpoint: '/markdown',
     method: 'GET',
-    format: (data) => data.construct?.markdown || JSON.stringify(data, null, 2),
+    format: (data) => { const md = data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; },
   },
   {
     name: 'harvest_markdown',
@@ -107,7 +107,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {},
     endpoint: '/markdown',
     method: 'GET',
-    format: (data) => data.construct?.markdown || JSON.stringify(data, null, 2),
+    format: (data) => { const md = data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; },
   },
   {
     name: 'evaluate_javascript',

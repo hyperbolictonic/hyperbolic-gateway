@@ -44,13 +44,24 @@ export class ConstructHarvester {
     const parsed = reader.parse();
 
     const title = parsed?.title || doc.title || fallbackTitle || 'Untitled Matrix Node';
+
+    // Strip heavy non-content tags before converting to markdown
+    const tagsToRemove = ['script', 'style', 'svg', 'noscript', 'iframe', 'canvas', 'template'];
+    tagsToRemove.forEach(tag => {
+      doc.querySelectorAll(tag).forEach(el => el.remove());
+    });
+
     const htmlToConvert = parsed?.content || doc.body?.innerHTML || rawHtml;
 
     // Downsample HTML to clean GFM Markdown
     const rawMarkdown = this.turndown.turndown(htmlToConvert);
 
     // Clean multiple consecutive blank lines
-    const compactedMarkdown = rawMarkdown.replace(/\n{3,}/g, '\n\n').trim();
+    let compactedMarkdown = rawMarkdown.replace(/\n{3,}/g, '\n\n').trim();
+    const MAX_CONSTRUCT_CHARS = 25000;
+    if (compactedMarkdown.length > MAX_CONSTRUCT_CHARS) {
+      compactedMarkdown = compactedMarkdown.slice(0, MAX_CONSTRUCT_CHARS) + '\n\n... [Construct downsampled: showing first 25000 characters to preserve context]';
+    }
 
     // Approximate token count (~4 characters per token heuristic)
     const estimatedTokens = Math.ceil(compactedMarkdown.length / 4);
