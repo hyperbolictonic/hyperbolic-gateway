@@ -8,7 +8,13 @@ import { cortex, CortexDB } from './cortex/cortex-db.js';
 import { ShieldBreaker, type ShieldDismissResult } from './shield/shield-breaker.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
-import { NetworkInterceptor, type CapturedNetworkRequest, type NetworkFilter } from './network/network-interceptor.js';
+import {
+  NetworkInterceptor,
+  type CapturedNetworkRequest,
+  type NetworkFilter,
+  type RealtimeStream,
+  type StreamMessage,
+} from './network/network-interceptor.js';
 import { MarksOverlay, type MarkItem } from './marks/marks-overlay.js';
 import { ScriptVault } from './scripts/script-vault.js';
 import type { ScriptItem } from './cortex/cortex-db.js';
@@ -721,6 +727,25 @@ export class BrowserChassis {
   public clearNetworkTraffic(): void {
     this.addLog('action', 'MCP Directive: clear_network_traffic()');
     this.networkInterceptor.clear();
+  }
+
+  public getRealtimeStreams(options?: { type?: 'websocket' | 'sse'; activeOnly?: boolean }): RealtimeStream[] {
+    return this.networkInterceptor.getStreams(options);
+  }
+
+  public getStreamMessages(options?: {
+    streamId?: string;
+    type?: 'websocket' | 'sse';
+    direction?: 'sent' | 'received';
+    limit?: number;
+  }): StreamMessage[] {
+    this.addLog('action', `MCP Directive: get_stream_messages(${options?.type || 'all'})`);
+    return this.networkInterceptor.getStreamMessages(options);
+  }
+
+  public clearStreamMessages(streamId?: string): void {
+    this.addLog('action', 'MCP Directive: clear_stream_messages()');
+    this.networkInterceptor.clearStreamMessages(streamId);
   }
 
   public async takeAnnotatedScreenshot(): Promise<{

@@ -185,6 +185,27 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if ((req.method === 'GET' || req.method === 'POST') && pathname === '/streams/list') {
+        const body = req.method === 'POST' ? await readBody() : {};
+        const streams = chassis.getRealtimeStreams(body);
+        sendJson({ success: true, streams });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/streams/messages') {
+        const body = await readBody();
+        const messages = chassis.getStreamMessages(body);
+        sendJson({ success: true, messages });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/streams/clear') {
+        const body = await readBody();
+        chassis.clearStreamMessages(body.streamId);
+        sendJson({ success: true, message: 'Stream message buffer cleared' });
+        return;
+      }
+
       if (req.method === 'GET' && pathname === '/marks/screenshot') {
         const result = await chassis.takeAnnotatedScreenshot();
         sendJson({ success: true, ...result });

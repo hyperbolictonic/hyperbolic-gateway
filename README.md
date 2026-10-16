@@ -144,6 +144,9 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | **Network Intelligence** | `get_network_traffic` | `url_pattern?: string`, `method?: string`, `resource_type?: string`, `limit?: number` | Inspects live HTTP/XHR/Fetch requests captured via Chrome DevTools Protocol. |
 | | `get_api_payload` | `request_id: string` | Retrieves and parses the full raw JSON or text response body for an intercepted request. |
 | | `clear_network_traffic` | _none_ | Resets and clears the in-memory network traffic ring buffer. |
+| | `list_realtime_streams` | `type?: 'websocket' \| 'sse'`, `active_only?: boolean` | Lists active WebSocket connections and open SSE channels. |
+| | `get_stream_messages` | `stream_id?: string`, `type?: string`, `direction?: string`, `limit?: number` | Inspects captured incoming/outgoing frames from WebSockets and SSE token streams. |
+| | `clear_stream_messages` | `stream_id?: string` | Clears the in-memory WebSocket and SSE message frame buffer. |
 | **Visual Grounding** | `take_annotated_screenshot` | _none_ | Tags all visible interactive elements with numbered neon badges (`[1]`, `[2]`, etc.) and returns image + lookup table. |
 | | `click_mark` | `mark_id: number` | Moves humanized Bézier ghost cursor to mark #ID and clicks with 100% accuracy. |
 | | `type_mark` | `mark_id: number`, `text: string` | Focuses mark #ID and types text with variable human typing cadence. |

@@ -606,6 +606,61 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 31: list_realtime_streams
+  server.tool(
+    'list_realtime_streams',
+    'Returns all active and recent WebSockets (wss://) and Server-Sent Events (SSE / text/event-stream) connections intercepted via Chrome DevTools Protocol.',
+    {
+      type: z.enum(['websocket', 'sse']).optional().describe('Filter by stream protocol ("websocket" or "sse").'),
+      active_only: z.boolean().optional().describe('Filter for currently open streams only (default: false).'),
+    },
+    async ({ type, active_only }) => {
+      try {
+        const streams = chassis.getRealtimeStreams({ type, activeOnly: active_only });
+        return { content: [{ type: 'text', text: JSON.stringify(streams, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to list streams: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 32: get_stream_messages
+  server.tool(
+    'get_stream_messages',
+    'Inspects captured incoming and outgoing real-time messages / frames from WebSockets or Server-Sent Events (SSE).',
+    {
+      stream_id: z.string().optional().describe('Filter by specific streamId from list_realtime_streams.'),
+      type: z.enum(['websocket', 'sse']).optional().describe('Filter by stream protocol.'),
+      direction: z.enum(['sent', 'received']).optional().describe('Filter by frame direction ("sent" or "received").'),
+      limit: z.number().optional().describe('Maximum number of frames to return (default: 50).'),
+    },
+    async ({ stream_id, type, direction, limit }) => {
+      try {
+        const messages = chassis.getStreamMessages({ streamId: stream_id, type, direction, limit });
+        return { content: [{ type: 'text', text: JSON.stringify(messages, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to get stream messages: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 33: clear_stream_messages
+  server.tool(
+    'clear_stream_messages',
+    'Clears the in-memory WebSocket and SSE stream message frame buffer.',
+    {
+      stream_id: z.string().optional().describe('Optional streamId to clear specifically. If omitted, clears all stream messages.'),
+    },
+    async ({ stream_id }) => {
+      try {
+        chassis.clearStreamMessages(stream_id);
+        return { content: [{ type: 'text', text: 'Stream message buffer cleared.' }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to clear stream messages: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   return {
     startStdio: async () => {
       const transport = new StdioServerTransport();

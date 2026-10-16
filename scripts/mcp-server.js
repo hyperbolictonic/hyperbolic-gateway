@@ -798,6 +798,61 @@ server.tool(
   }
 );
 
+// Tool 41: list_realtime_streams
+server.tool(
+  'list_realtime_streams',
+  'Returns all active and recent WebSockets (wss://) and Server-Sent Events (SSE / text/event-stream) connections intercepted via Chrome DevTools Protocol.',
+  {
+    type: z.enum(['websocket', 'sse']).optional().describe('Filter by stream protocol ("websocket" or "sse").'),
+    active_only: z.boolean().optional().describe('Filter for currently open streams only (default: false).'),
+  },
+  async ({ type, active_only }) => {
+    try {
+      const data = await callBridge('/streams/list', 'POST', { type, activeOnly: active_only });
+      return { content: [{ type: 'text', text: JSON.stringify(data.streams, null, 2) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 42: get_stream_messages
+server.tool(
+  'get_stream_messages',
+  'Inspects captured incoming and outgoing real-time messages / frames from WebSockets or Server-Sent Events (SSE).',
+  {
+    stream_id: z.string().optional().describe('Filter by specific streamId from list_realtime_streams.'),
+    type: z.enum(['websocket', 'sse']).optional().describe('Filter by stream protocol.'),
+    direction: z.enum(['sent', 'received']).optional().describe('Filter by frame direction ("sent" or "received").'),
+    limit: z.number().optional().describe('Maximum number of frames to return (default: 50).'),
+  },
+  async ({ stream_id, type, direction, limit }) => {
+    try {
+      const data = await callBridge('/streams/messages', 'POST', { streamId: stream_id, type, direction, limit });
+      return { content: [{ type: 'text', text: JSON.stringify(data.messages, null, 2) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 43: clear_stream_messages
+server.tool(
+  'clear_stream_messages',
+  'Clears the in-memory WebSocket and SSE stream message frame buffer.',
+  {
+    stream_id: z.string().optional().describe('Optional streamId to clear specifically. If omitted, clears all stream messages.'),
+  },
+  async ({ stream_id }) => {
+    try {
+      const data = await callBridge('/streams/clear', 'POST', { streamId: stream_id });
+      return { content: [{ type: 'text', text: data.message }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
 async function start() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

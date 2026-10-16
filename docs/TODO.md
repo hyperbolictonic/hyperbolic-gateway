@@ -129,3 +129,13 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
   - Embedded vector indexing into LanceDB `scripts` table for conversational recall.
   - Runtime execution via `runScript(wc, name, args)` with closure isolation.
   - MCP Tools: `save_script`, `recall_script`, `run_script`, `list_scripts`, `delete_script`.
+
+---
+
+### [x] 9. WebSocket & Server-Sent Events (SSE) Stream Interceptor — ✅ *[COMPLETED]*
+- **Priority:** P5.8 (Real-Time Duplex Intelligence)
+- **Why:** Modern real-time platforms (crypto tickers, chats, live trading, streaming LLMs) transfer data across persistent WebSocket channels (`wss://`) and Server-Sent Events (`text/event-stream`). Normal scrapers miss this completely.
+- **Implementation:**
+  - Hook into Chrome DevTools Protocol `Network.webSocketFrameSent`, `Network.webSocketFrameReceived`, and `Network.eventSourceMessageReceived`.
+  - Maintain an in-memory ring buffer of real-time streams and JSON/text payload frames.
+  - MCP Tools: `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
