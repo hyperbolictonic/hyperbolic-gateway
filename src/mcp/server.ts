@@ -275,6 +275,24 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 14: fill_form (Single-Turn Batch Form Filler)
+  server.tool(
+    'fill_form',
+    'Fills multiple form fields (inputs, textareas, dropdown selects, checkboxes, radios) in a single turn with human-like typing cadence and micro-pauses. Optionally submits the form.',
+    {
+      fields: z.record(z.string(), z.union([z.string(), z.boolean(), z.number()])).describe('Map of CSS selectors to their values. e.g. {"#name": "Dade", "input[name=\'email\']": "dade@gibson.net", "#agree": true}'),
+      submit_selector: z.string().optional().describe('Optional CSS selector of the submit button to click after all fields are filled.'),
+    },
+    async ({ fields, submit_selector }) => {
+      try {
+        const result = await chassis.fillForm(fields as Record<string, string | boolean | number>, submit_selector);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Form fill failed: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   return {
     startStdio: async () => {
       const transport = new StdioServerTransport();

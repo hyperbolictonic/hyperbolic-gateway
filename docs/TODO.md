@@ -20,7 +20,7 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ---
 
-### [ ] 2. Single-Turn Batch Form Filler (`fill_form`)
+### [x] 2. Single-Turn Batch Form Filler (`fill_form`) — ✅ *[COMPLETED]*
 - **Priority:** P1 (High Utility)
 - **Why:** Eliminates the latency of sequential tool calls when filling out flight passenger info, checkout screens, or search filters.
 - **Implementation:**

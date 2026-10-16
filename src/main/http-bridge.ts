@@ -73,6 +73,13 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/form/fill') {
+        const body = await readBody();
+        const result = await chassis.fillForm(body.fields || {}, body.submitSelector);
+        sendJson({ success: true, result });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/press-key') {
         const body = await readBody();
         const result = await chassis.pressKey(body.key);

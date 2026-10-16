@@ -108,7 +108,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (25 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (26 Tools Total)
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
@@ -118,6 +118,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | **Shield & Defense** | `dismiss_consent` | _none_ | Autonomously detects and dismisses GDPR/cookie banners via Bézier mouse click. |
 | **Interaction** | `click_element` | `selector?: string`, `x?: number`, `y?: number` | Clicks element by CSS selector or direct viewport (x, y) coordinates. |
 | | `type_text` | `text: string`, `selector?: string` | Types text with human Gaussian cadence variance (60–240ms). |
+| | `fill_form` | `fields: Record<string, string \| boolean \| number>`, `submit_selector?: string` | Fills multiple form inputs, selects, and checkboxes in a single turn. |
 | | `press_key` | `key: string` | Presses specific key (e.g. `Enter`, `Tab`, `Escape`, `Backspace`). |
 | | `scroll_page` | `direction: 'up' \| 'down'`, `amount?: number` | Incremental momentum wheel scrolling. |
 | **Observation** | `take_screenshot` | _none_ | High-res PNG image capture for multimodal visual inspection. |

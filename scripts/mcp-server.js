@@ -455,7 +455,6 @@ server.tool(
       return { content: [{ type: 'text', text: data.deleted ? `Bookmark deleted: ${url_or_id}` : `Bookmark not found: ${url_or_id}` }] };
     } catch (err) {
       return { isError: true, content: [{ type: 'text', text: err.message }] };
-    }
 // Tool 23: dismiss_consent (Autonomous Shield Breaker)
 server.tool(
   'dismiss_consent',
@@ -464,6 +463,24 @@ server.tool(
   async () => {
     try {
       const data = await callBridge('/shield/dismiss', 'POST');
+      return { content: [{ type: 'text', text: JSON.stringify(data.result, null, 2) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 24: fill_form (Single-Turn Batch Form Filler)
+server.tool(
+  'fill_form',
+  'Fills multiple form fields (inputs, textareas, dropdown selects, checkboxes, radios) in a single turn with human-like typing cadence and micro-pauses. Optionally submits the form.',
+  {
+    fields: z.record(z.string(), z.union([z.string(), z.boolean(), z.number()])).describe('Map of CSS selectors to their values. e.g. {"#name": "Dade", "input[name=\'email\']": "dade@gibson.net", "#agree": true}'),
+    submit_selector: z.string().optional().describe('Optional CSS selector of the submit button to click after all fields are filled.'),
+  },
+  async ({ fields, submit_selector }) => {
+    try {
+      const data = await callBridge('/form/fill', 'POST', { fields, submitSelector: submit_selector });
       return { content: [{ type: 'text', text: JSON.stringify(data.result, null, 2) }] };
     } catch (err) {
       return { isError: true, content: [{ type: 'text', text: err.message }] };
