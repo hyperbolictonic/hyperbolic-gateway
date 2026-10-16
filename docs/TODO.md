@@ -55,7 +55,10 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ---
 
-### [ ] 4. `yt-dlp` Stream & Transcript Harvester (`harvest_media`)
+### [ ] 4. `yt-dlp` Stream & Transcript Harvester (`harvest_media`) — ⏸️ *[ON HOLD]*
+> [!NOTE]
+> **ON HOLD:** Do NOT implement until user explicitly requests it. Awaiting user custom specifications and integration with their parallel video MCP server system.
+
 - **Priority:** P2.5 (Rich Media & Video Understanding)
 - **Why:** Pages with rich media (YouTube, Twitter/X video, Reddit clips, Vimeo, TikTok, podcasts) cannot be understood through DOM scraping alone. `yt-dlp` allows the agent to extract full transcripts, subtitles, metadata, or audio for local AI comprehension.
 - **Implementation:**
