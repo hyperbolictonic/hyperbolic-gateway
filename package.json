@@ -1,6 +1,7 @@
 {
   "name": "kuang-grade-mark-eleven",
   "version": "1.0.0",
+  "license": "MIT",
   "description": "Stateful Visual Matrix Navigator (Electron Chassis + Pure Node.js Telemetry Engine)",
   "main": "dist-electron/main/index.js",
   "type": "module",

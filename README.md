@@ -188,3 +188,9 @@ Add this to your MCP configuration (`claude_desktop_config.json` / `mcp_config.j
   }
 }
 ```
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE) © 2026 hyperbolictonic.
