@@ -8,6 +8,7 @@ import { cortex, CortexDB } from './cortex/cortex-db.js';
 import { ShieldBreaker, type ShieldDismissResult } from './shield/shield-breaker.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
+import { NetworkInterceptor, type CapturedNetworkRequest, type NetworkFilter } from './network/network-interceptor.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -17,6 +18,7 @@ export class BrowserChassis {
   private shieldBreaker: ShieldBreaker;
   private downloadManager: DownloadManager;
   private sessionVault: SessionVault;
+  private networkInterceptor: NetworkInterceptor;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
 
   private state: ChassisState = {
@@ -84,6 +86,7 @@ export class BrowserChassis {
     this.shieldBreaker = new ShieldBreaker(this.simulator);
     this.downloadManager = new DownloadManager();
     this.sessionVault = new SessionVault();
+    this.networkInterceptor = new NetworkInterceptor();
 
     setInterval(() => {
       this.state.stats.uptimeSeconds++;
@@ -133,6 +136,9 @@ export class BrowserChassis {
           this.mainWindow.webContents.send('chassis:tabs-updated', tabs);
         }
       },
+      onTabCreated: (tab: TabInstance) => {
+        this.networkInterceptor.attach(tab.view.webContents);
+      },
       onLog: (level, msg) => this.addLog(level, msg),
       onConsoleLog: (log) => {
         this.targetConsoleLogs.push(log);
@@ -170,7 +176,9 @@ export class BrowserChassis {
 
   public getActiveWebContents(): Electron.WebContents {
     if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
-    return this.tabManager.getActiveTab().view.webContents;
+    const wc = this.tabManager.getActiveTab().view.webContents;
+    this.networkInterceptor.attach(wc);
+    return wc;
   }
 
   // Tab Operations
@@ -692,5 +700,19 @@ export class BrowserChassis {
   public deleteSession(name: string) {
     this.addLog('action', `MCP Directive: delete_session("${name}")`);
     return this.sessionVault.deleteSession(name);
+  }
+
+  public getNetworkTraffic(filter?: NetworkFilter): CapturedNetworkRequest[] {
+    return this.networkInterceptor.getTraffic(filter);
+  }
+
+  public getApiPayload(requestId: string) {
+    this.addLog('action', `MCP Directive: get_api_payload("${requestId}")`);
+    return this.networkInterceptor.getPayload(requestId);
+  }
+
+  public clearNetworkTraffic(): void {
+    this.addLog('action', 'MCP Directive: clear_network_traffic()');
+    this.networkInterceptor.clear();
   }
 }

@@ -87,16 +87,17 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 
 ---
 
-### [ ] 6. Live Network & XHR/Fetch Stream Interceptor (`read_api_traffic`)
+### [x] 6. Live Network & XHR/Fetch Stream Interceptor (`read_api_traffic`) — ✅ *[COMPLETED]*
 - **Priority:** P4 (High Bandwidth / Superpower)
 - **Why:** Modern Single-Page Applications (Skyscanner, Twitter, FlightRadar, Reddit) fetch pure JSON via background APIs. Scraping rendered HTML is 10x slower and loses structured data.
 - **Implementation:**
   - Attach to Chrome DevTools Protocol (`webContents.debugger.attach('1.3')`).
-  - Enable `Network.enable` and monitor `Network.responseReceived`.
-  - Capture and buffer completed XHR/Fetch JSON response bodies.
-  - MCP Tool:
-    - `get_network_traffic({ urlPattern?: string, method?: string, limit?: number })`
-    - `get_api_payload(requestId)`: returns formatted JSON directly to the LLM.
+  - Enable `Network.enable` and monitor `Network.requestWillBeSent`, `Network.responseReceived`, and `Network.loadingFinished`.
+  - Capture and buffer completed XHR/Fetch JSON and document response bodies via `Network.getResponseBody`.
+  - MCP Tools:
+    - `get_network_traffic({ url_pattern?: string, method?: string, resource_type?: string, limit?: number })`
+    - `get_api_payload(request_id)`: returns parsed JSON / formatted text directly to the LLM.
+    - `clear_network_traffic()`: resets in-memory request ring buffer.
 
 ---
 

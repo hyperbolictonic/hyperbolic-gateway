@@ -22,6 +22,7 @@ export interface TabManagerOptions {
   getViewportBounds: () => { x: number; y: number; width: number; height: number };
   onTabUpdated?: (tab: TabInstance) => void;
   onTabsChanged?: (tabs: TabSummary[]) => void;
+  onTabCreated?: (tab: TabInstance) => void;
   onLog?: (level: 'info' | 'warn' | 'action', message: string) => void;
   onConsoleLog?: (log: { level: string; message: string; line: number; sourceId: string; timestamp: number }) => void;
 }
@@ -101,6 +102,8 @@ export class TabManager {
       view,
       createdAt: Date.now(),
     };
+
+    this.options.onTabCreated?.(tab);
 
     // Navigation and status listeners
     wc.on('did-start-loading', () => {

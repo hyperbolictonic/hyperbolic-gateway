@@ -165,6 +165,26 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if ((req.method === 'GET' || req.method === 'POST') && pathname === '/network/traffic') {
+        const filter = req.method === 'POST' ? await readBody() : undefined;
+        const traffic = chassis.getNetworkTraffic(filter);
+        sendJson({ success: true, traffic });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/network/payload') {
+        const body = await readBody();
+        const payload = chassis.getApiPayload(body.requestId);
+        sendJson({ success: true, payload });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/network/clear') {
+        chassis.clearNetworkTraffic();
+        sendJson({ success: true, message: 'Network traffic buffer cleared' });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/history') {
         const body = await readBody();
         let result = '';

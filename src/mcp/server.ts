@@ -374,6 +374,73 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 20: get_network_traffic
+  server.tool(
+    'get_network_traffic',
+    'Inspects live HTTP/XHR/Fetch network traffic intercepted via Chrome DevTools Protocol, returning status, timing, and body previews.',
+    {
+      url_pattern: z.string().optional().describe('Optional URL pattern filter (e.g. "api", "graphql", "v1").'),
+      method: z.string().optional().describe('Optional HTTP method filter ("GET", "POST", etc.).'),
+      resource_type: z.string().optional().describe('Optional resource type filter ("XHR", "Fetch", "Document", etc.).'),
+      limit: z.number().optional().describe('Maximum number of network events to return (default: 50).'),
+    },
+    async ({ url_pattern, method, resource_type, limit }) => {
+      try {
+        const traffic = chassis.getNetworkTraffic({
+          urlPattern: url_pattern,
+          method,
+          resourceType: resource_type,
+          limit,
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(traffic, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to get network traffic: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 21: get_api_payload
+  server.tool(
+    'get_api_payload',
+    'Retrieves the full decoded JSON or text response body for a specific network request ID captured by the interceptor.',
+    {
+      request_id: z.string().describe('The unique requestId from get_network_traffic to inspect.'),
+    },
+    async ({ request_id }) => {
+      try {
+        const payload = chassis.getApiPayload(request_id);
+        const bodyText = typeof payload.data === 'object'
+          ? JSON.stringify(payload.data, null, 2)
+          : String(payload.data);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `API Response [${payload.status || 'OK'}] ${payload.url} (${payload.mimeType || 'unknown'}):\n\n${bodyText}`,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to get API payload: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 22: clear_network_traffic
+  server.tool(
+    'clear_network_traffic',
+    'Clears the in-memory Chrome DevTools Protocol network request and payload buffer.',
+    {},
+    async () => {
+      try {
+        chassis.clearNetworkTraffic();
+        return { content: [{ type: 'text', text: 'Network traffic buffer cleared.' }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to clear traffic: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   return {
     startStdio: async () => {
       const transport = new StdioServerTransport();
