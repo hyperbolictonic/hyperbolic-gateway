@@ -853,6 +853,155 @@ server.tool(
   }
 );
 
+// Tool 44: request_human_intervention
+server.tool(
+  'request_human_intervention',
+  'Halts the agent and requests human-in-the-loop (HIL) assistance when credentials, 2FA, OTP, CAPTCHA, or manual human approval are required. Unhides/restores the cyberdeck window from the tray, flashes the taskbar, triggers an OS native desktop notification, and injects an interactive action banner into the active page. Blocks until the user confirms completion or timeout occurs.',
+  {
+    reason: z.string().describe('Clear explanation of what human action is needed (e.g. "Please solve the Cloudflare Turnstile challenge and log into your account").'),
+    timeout_seconds: z.number().optional().describe('Max seconds to wait for human intervention before timing out (default: 180).'),
+    bring_to_front: z.boolean().optional().describe('Whether to unhide and restore the browser window from system tray (default: true).'),
+  },
+  async ({ reason, timeout_seconds, bring_to_front }) => {
+    try {
+      const data = await callBridge('/hil/request', 'POST', {
+        reason,
+        timeoutSeconds: timeout_seconds,
+        bringToFront: bring_to_front,
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(data.result, null, 2) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 45: resolve_human_intervention
+server.tool(
+  'resolve_human_intervention',
+  'Resolves an active human intervention request, unpausing the agent.',
+  {
+    id: z.string().optional().describe('Specific intervention ID (resolves current active request if omitted).'),
+    notes: z.string().optional().describe('Optional confirmation notes or summary of action taken.'),
+  },
+  async ({ id, notes }) => {
+    try {
+      const data = await callBridge('/hil/resolve', 'POST', { id, notes });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: data.resolved
+              ? `Intervention resolved successfully: ${notes || 'User confirmed.'}`
+              : 'No pending intervention request matching that ID was found.',
+          },
+        ],
+      };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 46: get_human_intervention_status
+server.tool(
+  'get_human_intervention_status',
+  'Inspects the current human intervention state and request history.',
+  {},
+  async () => {
+    try {
+      const activeData = await callBridge('/hil/active', 'GET');
+      const histData = await callBridge('/hil/history', 'GET');
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                active_request: activeData.active,
+                history_count: (histData.history || []).length,
+                recent_history: (histData.history || []).slice(-5),
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 47: send_notification
+server.tool(
+  'send_notification',
+  'Dispatches an OS native desktop notification to alert the user without blocking agent execution (e.g. when a scraping run finishes or an important event occurs).',
+  {
+    title: z.string().describe('Notification title.'),
+    message: z.string().describe('Notification body message.'),
+    urgency: z.enum(['normal', 'critical', 'low']).optional().describe('Urgency level (default: normal).'),
+    sound: z.boolean().optional().describe('Whether to play notification alert sound (default: true).'),
+  },
+  async ({ title, message, urgency, sound }) => {
+    try {
+      const data = await callBridge('/notify', 'POST', { title, message, urgency, sound });
+      return { content: [{ type: 'text', text: JSON.stringify({ success: data.sent, title, message }) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 48: set_window_visibility
+server.tool(
+  'set_window_visibility',
+  'Controls the cyberdeck desktop window visibility (e.g. minimize to system tray to stay out of the user\'s way, or restore to screen).',
+  {
+    visible: z.boolean().describe('true to restore and focus window; false to minimize/hide to the system tray.'),
+  },
+  async ({ visible }) => {
+    try {
+      const data = await callBridge('/window/visibility', 'POST', { visible });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ success: true, visible: data.visible, state: visible ? 'WINDOW_RESTORED' : 'MINIMIZED_TO_TRAY' }),
+          },
+        ],
+      };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 49: configure_system_tray
+server.tool(
+  'configure_system_tray',
+  'Inspects or configures system tray behavior (such as enabling/disabling close-to-tray).',
+  {
+    close_to_tray: z.boolean().optional().describe('If specified, enables (true) or disables (false) minimize-to-tray when user clicks the window close button.'),
+  },
+  async ({ close_to_tray }) => {
+    try {
+      const data = await callBridge('/window/tray', typeof close_to_tray === 'boolean' ? 'POST' : 'GET', { closeToTray: close_to_tray });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ close_to_tray: data.closeToTray }, null, 2),
+          },
+        ],
+      };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
 async function start() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

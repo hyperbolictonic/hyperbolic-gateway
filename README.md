@@ -108,7 +108,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (28 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (49 Tools Total)
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
@@ -155,6 +155,12 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `run_script` | `name: string`, `args?: object` | Executes a saved script in active tab with dynamic runtime arguments. |
 | | `list_scripts` | `domain?: string`, `tag?: string` | Lists all registered macros in the persistent vault. |
 | | `delete_script` | `name: string` | Removes a script from the persistent vault and vector index. |
+| **Desktop & System Tray** | `set_window_visibility` | `visible: boolean` | Minimizes browser window to Windows notification tray to stay out of the way, or restores to screen. |
+| | `configure_system_tray` | `close_to_tray?: boolean` | Configures tray options such as close-to-tray background operation. |
+| **Human-In-The-Loop & Alert** | `request_human_intervention` | `reason: string`, `timeout_seconds?: number`, `bring_to_front?: boolean` | Halts agent, triggers native OS alert, unhides window, and injects interactive banner for CAPTCHAs/credentials. |
+| | `resolve_human_intervention` | `id?: string`, `notes?: string` | Resolves active intervention request and resumes agent execution. |
+| | `get_human_intervention_status` | _none_ | Checks active intervention status and history log. |
+| | `send_notification` | `title: string`, `message: string`, `urgency?: string`, `sound?: boolean` | Emits non-blocking OS native desktop banner notification to user. |
 
 ---
 

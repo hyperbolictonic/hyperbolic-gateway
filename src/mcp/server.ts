@@ -661,6 +661,151 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 34: request_human_intervention
+  server.tool(
+    'request_human_intervention',
+    'Halts the agent and requests human-in-the-loop (HIL) assistance when credentials, 2FA, OTP, CAPTCHA, or manual human approval are required. Unhides/restores the cyberdeck window from the tray, flashes the taskbar, triggers an OS native desktop notification, and injects an interactive action banner into the active page. Blocks until the user confirms completion or timeout occurs.',
+    {
+      reason: z.string().describe('Clear explanation of what human action is needed (e.g. "Please solve the Cloudflare Turnstile challenge and log into your account").'),
+      timeout_seconds: z.number().optional().describe('Max seconds to wait for human intervention before timing out (default: 180).'),
+      bring_to_front: z.boolean().optional().describe('Whether to unhide and restore the browser window from system tray (default: true).'),
+    },
+    async ({ reason, timeout_seconds, bring_to_front }) => {
+      try {
+        const result = await chassis.requestHumanIntervention(reason, {
+          timeoutSeconds: timeout_seconds,
+          bringToFront: bring_to_front,
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Human intervention error: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 35: resolve_human_intervention
+  server.tool(
+    'resolve_human_intervention',
+    'Resolves an active human intervention request, unpausing the agent.',
+    {
+      id: z.string().optional().describe('Specific intervention ID (resolves current active request if omitted).'),
+      notes: z.string().optional().describe('Optional confirmation notes or summary of action taken.'),
+    },
+    async ({ id, notes }) => {
+      try {
+        const resolved = chassis.resolveHumanIntervention(id, notes);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: resolved
+                ? `Intervention resolved successfully: ${notes || 'User confirmed.'}`
+                : 'No pending intervention request matching that ID was found.',
+            },
+          ],
+        };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to resolve intervention: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 36: get_human_intervention_status
+  server.tool(
+    'get_human_intervention_status',
+    'Inspects the current human intervention state and request history.',
+    {},
+    async () => {
+      try {
+        const active = chassis.getActiveHumanIntervention();
+        const history = chassis.getHumanInterventionHistory();
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ active_request: active, history_count: history.length, recent_history: history.slice(-5) }, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to get intervention status: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 37: send_notification
+  server.tool(
+    'send_notification',
+    'Dispatches an OS native desktop notification to alert the user without blocking agent execution (e.g. when a scraping run finishes or an important event occurs).',
+    {
+      title: z.string().describe('Notification title.'),
+      message: z.string().describe('Notification body message.'),
+      urgency: z.enum(['normal', 'critical', 'low']).optional().describe('Urgency level (default: normal).'),
+      sound: z.boolean().optional().describe('Whether to play notification alert sound (default: true).'),
+    },
+    async ({ title, message, urgency, sound }) => {
+      try {
+        const sent = chassis.sendNotification(title, message, urgency, sound);
+        return { content: [{ type: 'text', text: JSON.stringify({ success: sent, title, message }) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to send notification: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 38: set_window_visibility
+  server.tool(
+    'set_window_visibility',
+    'Controls the cyberdeck desktop window visibility (e.g. minimize to system tray to stay out of the user\'s way, or restore to screen).',
+    {
+      visible: z.boolean().describe('true to restore and focus window; false to minimize/hide to the system tray.'),
+    },
+    async ({ visible }) => {
+      try {
+        chassis.setWindowVisibility(visible);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ success: true, visible: chassis.isWindowVisible(), state: visible ? 'WINDOW_RESTORED' : 'MINIMIZED_TO_TRAY' }),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to set window visibility: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 39: configure_system_tray
+  server.tool(
+    'configure_system_tray',
+    'Inspects or configures system tray behavior (such as enabling/disabling close-to-tray).',
+    {
+      close_to_tray: z.boolean().optional().describe('If specified, enables (true) or disables (false) minimize-to-tray when user clicks the window close button.'),
+    },
+    async ({ close_to_tray }) => {
+      try {
+        if (typeof close_to_tray === 'boolean') {
+          chassis.setCloseToTray(close_to_tray);
+        }
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                close_to_tray: chassis.isCloseToTray(),
+                is_window_visible: chassis.isWindowVisible(),
+              }, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to configure tray: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   return {
     startStdio: async () => {
       const transport = new StdioServerTransport();

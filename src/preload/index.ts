@@ -24,6 +24,11 @@ export interface ElectronAPI {
   onTelemetry: (callback: (event: TelemetryEvent) => void) => () => void;
   onConstructHarvested: (callback: (construct: HarvestedConstruct) => void) => () => void;
   onLog: (callback: (log: any) => void) => () => void;
+  resolveHil: (id?: string, notes?: string) => Promise<boolean>;
+  cancelHil: (id?: string) => Promise<boolean>;
+  getActiveHil: () => Promise<any>;
+  onHilRequested: (callback: (request: any) => void) => () => void;
+  onHilCleared: (callback: () => void) => () => void;
 }
 
 const api: ElectronAPI = {
@@ -75,6 +80,22 @@ const api: ElectronAPI = {
     const handler = (_: any, log: any) => callback(log);
     ipcRenderer.on('chassis:log', handler);
     return () => ipcRenderer.removeListener('chassis:log', handler);
+  },
+
+  resolveHil: (id?: string, notes?: string) => ipcRenderer.invoke('hil:resolve', { id, notes }),
+  cancelHil: (id?: string) => ipcRenderer.invoke('hil:cancel', { id }),
+  getActiveHil: () => ipcRenderer.invoke('hil:get-active'),
+
+  onHilRequested: (callback) => {
+    const handler = (_: any, req: any) => callback(req);
+    ipcRenderer.on('hil:requested', handler);
+    return () => ipcRenderer.removeListener('hil:requested', handler);
+  },
+
+  onHilCleared: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('hil:cleared', handler);
+    return () => ipcRenderer.removeListener('hil:cleared', handler);
   },
 };
 

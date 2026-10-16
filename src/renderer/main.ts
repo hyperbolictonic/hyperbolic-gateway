@@ -256,6 +256,9 @@ function updateState(state: ChassisState) {
     case 'ERROR':
       agentStatusBadge.classList.add('badge-error');
       break;
+    case 'AWAITING_INPUT':
+      agentStatusBadge.classList.add('badge-warning', 'animate-pulse');
+      break;
   }
 
   // Update Stats
@@ -342,6 +345,44 @@ if (window.electronAPI) {
   window.electronAPI.onTelemetry(appendTelemetry);
   window.electronAPI.onConstructHarvested(renderConstruct);
   window.electronAPI.onLog(appendLog);
+  window.electronAPI.onHilRequested(showHilBanner);
+  window.electronAPI.onHilCleared(removeHilBanner);
+
+  // Check if HIL request is already active on load
+  window.electronAPI.getActiveHil().then((active) => {
+    if (active) showHilBanner(active);
+  });
+}
+
+function showHilBanner(req: { id: string; reason: string }) {
+  removeHilBanner();
+  const banner = document.createElement('div');
+  banner.id = 'hud-hil-banner';
+  banner.className =
+    'alert alert-warning shadow-2xl absolute top-3 left-1/2 -translate-x-1/2 z-50 w-auto max-w-xl flex items-center justify-between border-2 border-warning font-mono text-xs';
+  banner.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span class="text-base">⚠️</span>
+      <div>
+        <div class="font-bold text-[10px] uppercase tracking-wider text-warning-content">Human Action Needed</div>
+        <div class="text-xs text-base-content">${req.reason}</div>
+      </div>
+    </div>
+    <button id="hud-hil-resolve-btn" class="btn btn-xs btn-success font-mono font-bold ml-4">DONE</button>
+  `;
+  document.body.appendChild(banner);
+
+  const btn = banner.querySelector('#hud-hil-resolve-btn');
+  btn?.addEventListener('click', async () => {
+    btn.textContent = 'RESUMING...';
+    await window.electronAPI.resolveHil(req.id, 'User clicked DONE in Cyberdeck HUD');
+    removeHilBanner();
+  });
+}
+
+function removeHilBanner() {
+  const b = document.getElementById('hud-hil-banner');
+  if (b) b.remove();
 }
 
 // Keyboard shortcuts (Ctrl+H to harvest)

@@ -139,3 +139,23 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
   - Hook into Chrome DevTools Protocol `Network.webSocketFrameSent`, `Network.webSocketFrameReceived`, and `Network.eventSourceMessageReceived`.
   - Maintain an in-memory ring buffer of real-time streams and JSON/text payload frames.
   - MCP Tools: `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
+
+---
+
+### [x] 10. System Tray Integration & Background Minimization — ✅ *[COMPLETED]*
+- **Priority:** P5.9 (Desktop Ergonomics)
+- **Why:** Allows the cyberdeck browser window to run completely out of the way in the Windows notification tray while the agent operates autonomously in the background, freeing screen real estate.
+- **Implementation:**
+  - `TrayManager` with high-contrast icon, dynamic context menu, status readouts, and click toggle.
+  - Close-to-tray handling (`minimizeToTrayOnClose`).
+  - MCP Tools: `set_window_visibility({ visible })`, `configure_system_tray({ close_to_tray })`.
+
+---
+
+### [x] 11. Notification System & Human-In-The-Loop (HIL) Intervention — ✅ *[COMPLETED]*
+- **Priority:** P6.0 (Autonomous-Human Synergy)
+- **Why:** When agents encounter CAPTCHAs, 2FA, OTP codes, credentials, or security checkpoints, they should halt gracefully, alert the user, summon the browser window, and resume immediately once the human completes the action.
+- **Implementation:**
+  - `HilManager` with OS native desktop notifications (`Notification`), taskbar amber flashing (`flashFrame(true)`), and auto-window restoration.
+  - Interactive floating neon HUD banner injected into the active webpage and cyberdeck renderer with "Resume Agent (Done)" button.
+  - MCP Tools: `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, `send_notification`.

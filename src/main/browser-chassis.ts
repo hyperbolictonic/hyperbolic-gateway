@@ -18,6 +18,8 @@ import {
 import { MarksOverlay, type MarkItem } from './marks/marks-overlay.js';
 import { ScriptVault } from './scripts/script-vault.js';
 import type { ScriptItem } from './cortex/cortex-db.js';
+import { TrayManager } from './tray/tray-manager.js';
+import { HilManager, type HilRequest, type HilResolution, type NotificationOptions } from './hil/hil-manager.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -30,6 +32,8 @@ export class BrowserChassis {
   private networkInterceptor: NetworkInterceptor;
   private marksOverlay: MarksOverlay;
   private scriptVault: ScriptVault;
+  private trayManager: TrayManager | null = null;
+  private hilManager: HilManager;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
 
   private state: ChassisState = {
@@ -101,6 +105,27 @@ export class BrowserChassis {
     this.marksOverlay = new MarksOverlay();
     this.scriptVault = new ScriptVault();
 
+    this.hilManager = new HilManager({
+      getActiveWebContents: () => {
+        try {
+          return this.getActiveWebContents();
+        } catch {
+          return null;
+        }
+      },
+      onHilStateChanged: (pending, req) => {
+        this.trayManager?.updateStatus(this.state.agentStatus, this.state.tabs?.length || 0, pending);
+        if (pending && req) {
+          this.state.agentStatus = 'AWAITING_INPUT';
+          this.state.activeAction = `⚠️ HUMAN ACTION REQUIRED: ${req.reason}`;
+        } else {
+          this.state.agentStatus = 'IDLE';
+          this.state.activeAction = 'Standby - Awaiting MCP Uplink';
+        }
+        this.broadcastState();
+      },
+    });
+
     setInterval(() => {
       this.state.stats.uptimeSeconds++;
       this.broadcastState();
@@ -109,6 +134,11 @@ export class BrowserChassis {
 
   public setWindow(win: BrowserWindow) {
     this.mainWindow = win;
+    this.hilManager.setWindow(win);
+    this.trayManager = new TrayManager({
+      mainWindow: win,
+      closeToTrayDefault: true,
+    });
     this.downloadManager.attachToSession(win.webContents.session);
     this.downloadManager.onDownloadComplete((record) => {
       this.addLog('info', `Download Complete: "${record.filename}" (${record.totalBytes} bytes) saved to data/downloads/`);
@@ -145,6 +175,7 @@ export class BrowserChassis {
       onTabsChanged: (tabs: TabSummary[]) => {
         this.state.tabs = tabs;
         this.broadcastState();
+        this.trayManager?.updateStatus(this.state.agentStatus, tabs.length, !!this.hilManager.getActiveRequest());
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send('chassis:tabs-updated', tabs);
         }
@@ -895,5 +926,75 @@ export class BrowserChassis {
   public async deleteScript(name: string): Promise<boolean> {
     this.addLog('action', `MCP Directive: delete_script("${name}")`);
     return await this.scriptVault.deleteScript(name);
+  }
+
+  // System Tray & Window Visibility
+  public setWindowVisibility(visible: boolean): void {
+    if (visible) {
+      this.trayManager?.showWindow();
+    } else {
+      this.trayManager?.hideWindow();
+    }
+  }
+
+  public isWindowVisible(): boolean {
+    return this.trayManager ? this.trayManager.isWindowVisible() : true;
+  }
+
+  public setCloseToTray(enabled: boolean): void {
+    this.trayManager?.setCloseToTray(enabled);
+  }
+
+  public isCloseToTray(): boolean {
+    return this.trayManager ? this.trayManager.isCloseToTray() : true;
+  }
+
+  // Human-In-The-Loop & Notifications
+  public async requestHumanIntervention(
+    reason: string,
+    options?: { url?: string; timeoutSeconds?: number; bringToFront?: boolean }
+  ): Promise<HilResolution> {
+    this.addLog('warn', `⚠️ Human Intervention Requested: ${reason}`);
+    this.emitTelemetry({
+      type: 'navigation',
+      timestamp: Date.now(),
+      details: `HIL Intervention: ${reason}`,
+    });
+    return this.hilManager.requestIntervention({
+      reason,
+      url: options?.url,
+      timeoutSeconds: options?.timeoutSeconds,
+      bringToFront: options?.bringToFront,
+    });
+  }
+
+  public resolveHumanIntervention(id?: string, notes?: string): boolean {
+    const success = this.hilManager.resolveIntervention(id, notes);
+    if (success) {
+      this.addLog('info', `Human intervention resolved: ${notes || 'User confirmed.'}`);
+    }
+    return success;
+  }
+
+  public cancelHumanIntervention(id?: string): boolean {
+    return this.hilManager.cancelIntervention(id);
+  }
+
+  public getActiveHumanIntervention(): HilRequest | null {
+    return this.hilManager.getActiveRequest();
+  }
+
+  public getHumanInterventionHistory(): HilRequest[] {
+    return this.hilManager.getHistory();
+  }
+
+  public sendNotification(
+    title: string,
+    message: string,
+    urgency?: 'normal' | 'critical' | 'low',
+    sound?: boolean
+  ): boolean {
+    this.addLog('info', `Desktop Notification Dispatched: [${title}] ${message}`);
+    return this.hilManager.sendNotification({ title, message, urgency, sound });
   }
 }

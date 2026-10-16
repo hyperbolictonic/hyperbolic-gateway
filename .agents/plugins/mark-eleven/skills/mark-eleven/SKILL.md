@@ -65,3 +65,11 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `list_realtime_streams({ type, active_only })` to inspect active and recent `wss://` WebSockets and SSE streams.
    - Call `get_stream_messages({ stream_id, type, direction, limit })` to inspect streaming frames and auto-parsed JSON payloads.
    - Call `clear_stream_messages({ stream_id })` to clear streaming frame buffers.
+16. **Desktop & System Tray Management:**
+   - Call `set_window_visibility({ visible })` to minimize the cyberdeck window to the system tray to stay out of the user's way, or restore to screen.
+   - Call `configure_system_tray({ close_to_tray })` to enable or disable background minimization when closing the window.
+17. **Human-In-The-Loop (HIL) Intervention & Desktop Notifications:**
+   - Call `request_human_intervention({ reason, timeout_seconds, bring_to_front })` when human credentials, 2FA, OTP, or CAPTCHAs are required. Triggers desktop notification, restores window from tray, flashes taskbar, and injects interactive banner until completed.
+   - Call `resolve_human_intervention({ id, notes })` to programmatically resolve a pending intervention.
+   - Call `get_human_intervention_status()` to inspect active request status and history.
+   - Call `send_notification({ title, message, urgency, sound })` to emit non-blocking desktop notifications.

@@ -374,6 +374,78 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      // Human-In-The-Loop & Notification Endpoints
+      if (req.method === 'POST' && pathname === '/hil/request') {
+        const body = await readBody();
+        const result = await chassis.requestHumanIntervention(body.reason, {
+          url: body.url,
+          timeoutSeconds: body.timeoutSeconds,
+          bringToFront: body.bringToFront,
+        });
+        sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/hil/resolve') {
+        const body = await readBody();
+        const resolved = chassis.resolveHumanIntervention(body.id, body.notes);
+        sendJson({ success: true, resolved });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/hil/cancel') {
+        const body = await readBody();
+        const cancelled = chassis.cancelHumanIntervention(body.id);
+        sendJson({ success: true, cancelled });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/hil/active') {
+        const active = chassis.getActiveHumanIntervention();
+        sendJson({ success: true, active });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/hil/history') {
+        const history = chassis.getHumanInterventionHistory();
+        sendJson({ success: true, history });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/notify') {
+        const body = await readBody();
+        const sent = chassis.sendNotification(body.title, body.message, body.urgency, body.sound);
+        sendJson({ success: true, sent });
+        return;
+      }
+
+      // Window & System Tray Management Endpoints
+      if (req.method === 'POST' && pathname === '/window/visibility') {
+        const body = await readBody();
+        chassis.setWindowVisibility(!!body.visible);
+        sendJson({ success: true, visible: chassis.isWindowVisible() });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/window/visibility') {
+        sendJson({ success: true, visible: chassis.isWindowVisible() });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/window/tray') {
+        const body = await readBody();
+        if (typeof body.closeToTray === 'boolean') {
+          chassis.setCloseToTray(body.closeToTray);
+        }
+        sendJson({ success: true, closeToTray: chassis.isCloseToTray() });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/window/tray') {
+        sendJson({ success: true, closeToTray: chassis.isCloseToTray() });
+        return;
+      }
+
       sendJson({ error: 'Endpoint not found' }, 404);
     } catch (err: any) {
       sendJson({ success: false, error: err?.message || String(err) }, 500);
