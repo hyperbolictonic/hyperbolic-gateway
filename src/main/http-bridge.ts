@@ -47,7 +47,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       if (req.method === 'POST' && pathname === '/navigate') {
         const body = await readBody();
         const autoDismiss = body.autoDismissConsent !== undefined ? Boolean(body.autoDismissConsent) : true;
-        const result = await chassis.navigateTo(body.url, autoDismiss);
+        let targetUrl = body.url || body.destination || body.target || body.link || ''; if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) { targetUrl = 'https://' + targetUrl; } const result = await chassis.navigateTo(targetUrl, autoDismiss);
         sendJson({ success: true, result });
         return;
       }
@@ -280,7 +280,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
-      if (req.method === 'GET' && pathname === '/tabs') {
+      if (req.method === 'GET' && (pathname === '/tabs' || pathname === '/tabs/list')) {
         const tabs = chassis.getTabsSummary();
         sendJson({ success: true, tabs });
         return;

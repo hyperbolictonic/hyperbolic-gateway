@@ -191,7 +191,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'list_tabs',
     description: 'Returns an array of all currently open tabs with their IDs, URLs, and page titles.',
     parameters: {},
-    endpoint: '/tabs/list',
+    endpoint: '/tabs',
     method: 'GET',
     format: (data) => JSON.stringify(data.tabs, null, 2),
   },

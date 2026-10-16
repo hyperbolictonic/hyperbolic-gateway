@@ -36608,7 +36608,7 @@ var TOOLS_CATALOG = [
       auto_dismiss_consent: external_exports.boolean().optional().default(true).describe("Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)")
     },
     endpoint: "/navigate",
-    payload: (args) => ({ url: args.url, autoDismissConsent: args.auto_dismiss_consent }),
+    payload: (args) => { let u = args.url || args.destination || args.target || args.link || ""; if (u && !/^https?:\/\//i.test(u) && !/^about:/i.test(u) && !/^mark-eleven:/i.test(u)) u = "https://" + u; return { url: u, autoDismissConsent: args.auto_dismiss_consent }; },
     format: (data) => data.result || "Navigation complete"
   },
   {
@@ -36618,7 +36618,7 @@ var TOOLS_CATALOG = [
       url: external_exports.string().describe("The destination URL")
     },
     endpoint: "/navigate",
-    payload: (args) => ({ url: args.url }),
+    payload: (args) => { let u = args.url || args.destination || args.target || args.link || ""; if (u && !/^https?:\/\//i.test(u) && !/^about:/i.test(u) && !/^mark-eleven:/i.test(u)) u = "https://" + u; return { url: u }; },
     format: (data) => data.result || "Navigation complete"
   },
   // 2. Interaction
@@ -36776,7 +36776,7 @@ var TOOLS_CATALOG = [
     name: "list_tabs",
     description: "Returns an array of all currently open tabs with their IDs, URLs, and page titles.",
     parameters: {},
-    endpoint: "/tabs/list",
+    endpoint: "/tabs",
     method: "GET",
     format: (data) => JSON.stringify(data.tabs, null, 2)
   },
