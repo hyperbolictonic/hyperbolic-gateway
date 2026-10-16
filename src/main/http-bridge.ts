@@ -211,6 +211,44 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/scripts/save') {
+        const body = await readBody();
+        const script = await chassis.saveScript(body);
+        sendJson({ success: true, script });
+        return;
+      }
+
+      if ((req.method === 'GET' || req.method === 'POST') && pathname === '/scripts/recall') {
+        const body = req.method === 'POST' ? await readBody() : {};
+        const scripts = await chassis.recallScripts(body.query, {
+          domain: body.domain,
+          tag: body.tag,
+          limit: body.limit,
+        });
+        sendJson({ success: true, scripts });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/scripts/run') {
+        const body = await readBody();
+        const execution = await chassis.runScript(body.name, body.args);
+        sendJson({ success: true, execution });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/scripts/list') {
+        const scripts = await chassis.listScripts();
+        sendJson({ success: true, scripts });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/scripts/delete') {
+        const body = await readBody();
+        const deleted = await chassis.deleteScript(body.name);
+        sendJson({ success: true, deleted });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/history') {
         const body = await readBody();
         let result = '';

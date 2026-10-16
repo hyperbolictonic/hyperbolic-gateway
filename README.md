@@ -147,6 +147,11 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | **Visual Grounding** | `take_annotated_screenshot` | _none_ | Tags all visible interactive elements with numbered neon badges (`[1]`, `[2]`, etc.) and returns image + lookup table. |
 | | `click_mark` | `mark_id: number` | Moves humanized Bézier ghost cursor to mark #ID and clicks with 100% accuracy. |
 | | `type_mark` | `mark_id: number`, `text: string` | Focuses mark #ID and types text with variable human typing cadence. |
+| **Script Vault & Macros** | `save_script` | `name: string`, `code: string`, `description?: string`, `domain?: string`, `tags?: string[]` | Saves and embeds a custom JavaScript macro into LanceDB Cortex. |
+| | `recall_script` | `query?: string`, `domain?: string`, `tag?: string`, `limit?: number` | Semantically searches saved scrapers & macros using natural language. |
+| | `run_script` | `name: string`, `args?: object` | Executes a saved script in active tab with dynamic runtime arguments. |
+| | `list_scripts` | `domain?: string`, `tag?: string` | Lists all registered macros in the persistent vault. |
+| | `delete_script` | `name: string` | Removes a script from the persistent vault and vector index. |
 
 ---
 
@@ -169,6 +174,7 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`src/main/session/`** | [src/main/session/README.md](./src/main/session/README.md) | Persistent cookie jar and session snapshot vault for cross-run auth persistence. |
 | **`src/main/network/`** | [src/main/network/README.md](./src/main/network/README.md) | Chrome DevTools Protocol wire interceptor capturing background XHR/Fetch JSON streams. |
 | **`src/main/marks/`** | [src/main/marks/README.md](./src/main/marks/README.md) | Set-of-Marks visual grounding engine injecting numbered neon badges for zero-ambiguity LLM actuation. |
+| **`src/main/scripts/`** | [src/main/scripts/README.md](./src/main/scripts/README.md) | Persistent script vault and LanceDB semantic macro recall engine with parameter injection. |
 | **`src/main/telemetry/`** | [src/main/telemetry/README.md](./src/main/telemetry/README.md) | Organic cubic Bézier mouse kinematics, Gaussian typing cadence, and stealth fingerprinting. |
 | **`src/main/harvester/`** | [src/main/harvester/README.md](./src/main/harvester/README.md) | Mozilla Readability & Turndown token-efficient markdown distillation. |
 | **`src/preload/`** | [src/preload/README.md](./src/preload/README.md) | Sandboxed ContextBridge IPC exposing typed `window.electronAPI` to the DOM. |

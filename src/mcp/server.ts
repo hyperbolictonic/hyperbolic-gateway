@@ -505,6 +505,107 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 26: save_script
+  server.tool(
+    'save_script',
+    'Saves and embeds a reusable JavaScript macro or scraper into the persistent LanceDB Cortex Script Vault.',
+    {
+      name: z.string().describe('Unique identifier for the macro (e.g. "extract_flight_cards", "unroll_reddit_comments").'),
+      code: z.string().describe('The JavaScript code or function to execute.'),
+      description: z.string().optional().describe('Plain English description of what the script does for semantic vector recall.'),
+      domain: z.string().optional().describe('Target domain (e.g. "skyscanner.net", "reddit.com", or "*" for universal).'),
+      tags: z.array(z.string()).optional().describe('Keywords or category tags.'),
+    },
+    async ({ name, code, description, domain, tags }) => {
+      try {
+        const script = await chassis.saveScript({ name, code, description, domain, tags });
+        return { content: [{ type: 'text', text: `Saved and indexed script "${script.name}" in Cortex Vault.` }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to save script: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 27: recall_script
+  server.tool(
+    'recall_script',
+    'Semantically searches the Script Vault using natural language queries to discover reusable DOM scrapers and macros.',
+    {
+      query: z.string().optional().describe('Natural language search query (e.g. "pull price table", "extract comments").'),
+      domain: z.string().optional().describe('Optional domain filter.'),
+      tag: z.string().optional().describe('Optional category tag filter.'),
+      limit: z.number().optional().describe('Maximum number of matching scripts to return (default: 10).'),
+    },
+    async ({ query, domain, tag, limit }) => {
+      try {
+        const scripts = await chassis.recallScripts(query, { domain, tag, limit });
+        return { content: [{ type: 'text', text: JSON.stringify(scripts, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to recall scripts: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 28: run_script
+  server.tool(
+    'run_script',
+    'Executes a saved JavaScript macro from the vault inside the active browser tab, passing optional runtime arguments.',
+    {
+      name: z.string().describe('The name of the script in the vault to execute.'),
+      args: z.record(z.string(), z.any()).optional().describe('Optional arguments object passed directly into the script.'),
+    },
+    async ({ name, args }) => {
+      try {
+        const execution = await chassis.runScript(name, args);
+        const resultText = typeof execution.result === 'object'
+          ? JSON.stringify(execution.result, null, 2)
+          : String(execution.result);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Executed script "${execution.name}" in ${execution.executionDurationMs}ms:\n\n${resultText}`,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to run script: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 29: list_scripts
+  server.tool(
+    'list_scripts',
+    'Returns all registered scripts in the vault with metadata, domains, and tags.',
+    {},
+    async () => {
+      try {
+        const scripts = await chassis.listScripts();
+        return { content: [{ type: 'text', text: JSON.stringify(scripts, null, 2) }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to list scripts: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 30: delete_script
+  server.tool(
+    'delete_script',
+    'Deletes a saved script from the persistent vault and LanceDB vector index.',
+    {
+      name: z.string().describe('Name of the script to delete.'),
+    },
+    async ({ name }) => {
+      try {
+        const deleted = await chassis.deleteScript(name);
+        return { content: [{ type: 'text', text: deleted ? `Deleted script "${name}".` : `Script "${name}" not found.` }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to delete script: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   return {
     startStdio: async () => {
       const transport = new StdioServerTransport();

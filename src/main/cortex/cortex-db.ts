@@ -60,10 +60,36 @@ export interface BookmarkItem {
   createdAt: string;
 }
 
+export interface ScriptRow {
+  id: string;
+  name: string;
+  description: string;
+  code: string;
+  domain?: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+  vector: number[];
+  [key: string]: unknown;
+}
+
+export interface ScriptItem {
+  id: string;
+  name: string;
+  description: string;
+  code: string;
+  domain?: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  score?: number;
+}
+
 export class CortexDB {
   private db: lancedb.Connection | null = null;
   private historyTable: lancedb.Table | null = null;
   private bookmarksTable: lancedb.Table | null = null;
+  private scriptsTable: lancedb.Table | null = null;
   private isInitialized = false;
   private initPromise: Promise<void> | null = null;
   private storageDir: string;
@@ -120,6 +146,24 @@ export class CortexDB {
         this.bookmarksTable = await this.db.createTable('bookmarks', seedBookmark);
       } else {
         this.bookmarksTable = await this.db.openTable('bookmarks');
+      }
+
+      // Initialize scripts table
+      if (!tables.includes('scripts')) {
+        const seedScript: ScriptRow = {
+          id: 'script_extract_links',
+          name: 'extract_all_links',
+          description: 'Extracts all anchor links, text, and href URLs currently present on the page into a clean array.',
+          code: '(() => Array.from(document.querySelectorAll("a[href]")).map(a => ({ text: a.innerText.trim(), href: a.href })).filter(l => l.text && l.href))()',
+          domain: '*',
+          tags: ['dom', 'links', 'extraction'],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          vector: generateEmbedding('extract_all_links Extracts all anchor links text and href URLs currently present on the page into a clean array dom links extraction'),
+        };
+        this.scriptsTable = await this.db.createTable('scripts', [seedScript]);
+      } else {
+        this.scriptsTable = await this.db.openTable('scripts');
       }
 
       this.isInitialized = true;
@@ -402,6 +446,148 @@ export class CortexDB {
       const escaped = url.replace(/'/g, "''");
       const res = await this.bookmarksTable.query().where(`url = '${escaped}'`).toArray();
       return res.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Saves or updates a script in LanceDB with vector embeddings.
+   */
+  public async saveScript(script: {
+    name: string;
+    code: string;
+    description?: string;
+    domain?: string;
+    tags?: string[];
+  }): Promise<ScriptItem> {
+    await this.initialize();
+    if (!this.scriptsTable) throw new Error('Scripts table uninitialized');
+
+    const cleanName = script.name.trim();
+    const description = script.description?.trim() || '';
+    const domain = script.domain?.trim() || '*';
+    const tags = script.tags || [];
+    const now = new Date().toISOString();
+    const id = `script_${cleanName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()}`;
+
+    // Remove existing script with same name if present
+    try {
+      await this.scriptsTable.delete(`name = '${cleanName.replace(/'/g, "''")}'`);
+    } catch {}
+
+    const textToEmbed = `${cleanName} ${description} ${domain} ${tags.join(' ')} ${script.code.slice(0, 300)}`;
+    const row: ScriptRow = {
+      id,
+      name: cleanName,
+      description,
+      code: script.code,
+      domain,
+      tags,
+      created_at: now,
+      updated_at: now,
+      vector: generateEmbedding(textToEmbed),
+    };
+
+    await this.scriptsTable.add([row]);
+
+    return {
+      id,
+      name: cleanName,
+      description,
+      code: script.code,
+      domain,
+      tags,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  /**
+   * Semantically recalls or lists scripts from LanceDB.
+   */
+  public async recallScripts(
+    query?: string,
+    options: { domain?: string; tag?: string; limit?: number } = {}
+  ): Promise<ScriptItem[]> {
+    await this.initialize();
+    if (!this.scriptsTable) return [];
+
+    const limit = options.limit || 20;
+    let rows: any[] = [];
+
+    if (query && query.trim().length > 0) {
+      const qVec = generateEmbedding(query);
+      rows = await this.scriptsTable.search(qVec).limit(limit).toArray();
+    } else {
+      rows = await this.scriptsTable.query().limit(limit).toArray();
+    }
+
+    let items: ScriptItem[] = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      code: r.code,
+      domain: r.domain,
+      tags: Array.isArray(r.tags) ? r.tags : [],
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      score: r._distance !== undefined ? 1 - r._distance : undefined,
+    }));
+
+    if (options.domain && options.domain !== '*') {
+      const targetDomain = options.domain.toLowerCase();
+      items = items.filter(
+        (s) => !s.domain || s.domain === '*' || s.domain.toLowerCase().includes(targetDomain) || targetDomain.includes(s.domain.toLowerCase())
+      );
+    }
+
+    if (options.tag) {
+      const targetTag = options.tag.toLowerCase();
+      items = items.filter((s) => s.tags.some((t) => t.toLowerCase() === targetTag));
+    }
+
+    return items;
+  }
+
+  /**
+   * Retrieves a script by name.
+   */
+  public async getScriptByName(name: string): Promise<ScriptItem | null> {
+    await this.initialize();
+    if (!this.scriptsTable) return null;
+
+    try {
+      const cleanName = name.replace(/'/g, "''");
+      const rows = await this.scriptsTable.query().where(`name = '${cleanName}'`).limit(1).toArray();
+      if (rows.length === 0) return null;
+      const r = rows[0];
+      return {
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        code: r.code,
+        domain: r.domain,
+        tags: Array.isArray(r.tags) ? r.tags : [],
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Deletes a script by name or ID.
+   */
+  public async deleteScript(nameOrId: string): Promise<boolean> {
+    await this.initialize();
+    if (!this.scriptsTable) return false;
+
+    try {
+      const escaped = nameOrId.replace(/'/g, "''");
+      await this.scriptsTable.delete(`id = '${escaped}' OR name = '${escaped}'`);
+      return true;
     } catch {
       return false;
     }

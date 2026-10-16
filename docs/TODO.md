@@ -118,3 +118,14 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
     ```
   - MCP Tools: `take_annotated_screenshot()`, `click_mark(mark_id)`, `type_mark(mark_id, text)`.
   - Guarantees 100% click accuracy with zero ambiguity.
+
+---
+
+### [x] 8. Script Vault & Semantic Macro Engine (`save_script` / `recall_script` / `run_script`) — ✅ *[COMPLETED]*
+- **Priority:** P5.5 (Cognitive Automation & Macro Recall)
+- **Why:** Allows agents and users to store reusable DOM extraction scripts and page macros, recall them semantically using natural language via LanceDB vector search, and run them with dynamic parameter injection.
+- **Implementation:**
+  - File persistence in `data/scripts/<name>.json`.
+  - Embedded vector indexing into LanceDB `scripts` table for conversational recall.
+  - Runtime execution via `runScript(wc, name, args)` with closure isolation.
+  - MCP Tools: `save_script`, `recall_script`, `run_script`, `list_scripts`, `delete_script`.

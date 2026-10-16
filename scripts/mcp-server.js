@@ -697,6 +697,107 @@ server.tool(
   }
 );
 
+// Tool 36: save_script
+server.tool(
+  'save_script',
+  'Saves and embeds a reusable JavaScript macro or scraper into the persistent LanceDB Cortex Script Vault.',
+  {
+    name: z.string().describe('Unique identifier for the macro (e.g. "extract_flight_cards", "unroll_reddit_comments").'),
+    code: z.string().describe('The JavaScript code or function to execute.'),
+    description: z.string().optional().describe('Plain English description of what the script does for semantic vector recall.'),
+    domain: z.string().optional().describe('Target domain (e.g. "skyscanner.net", "reddit.com", or "*" for universal).'),
+    tags: z.array(z.string()).optional().describe('Keywords or category tags.'),
+  },
+  async ({ name, code, description, domain, tags }) => {
+    try {
+      const data = await callBridge('/scripts/save', 'POST', { name, code, description, domain, tags });
+      return { content: [{ type: 'text', text: `Saved and indexed script "${data.script.name}" in Cortex Vault.` }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 37: recall_script
+server.tool(
+  'recall_script',
+  'Semantically searches the Script Vault using natural language queries to discover reusable DOM scrapers and macros.',
+  {
+    query: z.string().optional().describe('Natural language search query (e.g. "pull price table", "extract comments").'),
+    domain: z.string().optional().describe('Optional domain filter.'),
+    tag: z.string().optional().describe('Optional category tag filter.'),
+    limit: z.number().optional().describe('Maximum number of matching scripts to return (default: 10).'),
+  },
+  async ({ query, domain, tag, limit }) => {
+    try {
+      const data = await callBridge('/scripts/recall', 'POST', { query, domain, tag, limit });
+      return { content: [{ type: 'text', text: JSON.stringify(data.scripts, null, 2) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 38: run_script
+server.tool(
+  'run_script',
+  'Executes a saved JavaScript macro from the vault inside the active browser tab, passing optional runtime arguments.',
+  {
+    name: z.string().describe('The name of the script in the vault to execute.'),
+    args: z.record(z.string(), z.any()).optional().describe('Optional arguments object passed directly into the script.'),
+  },
+  async ({ name, args }) => {
+    try {
+      const data = await callBridge('/scripts/run', 'POST', { name, args });
+      const resultText = typeof data.execution.result === 'object'
+        ? JSON.stringify(data.execution.result, null, 2)
+        : String(data.execution.result);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Executed script "${data.execution.name}" in ${data.execution.executionDurationMs}ms:\n\n${resultText}`,
+          },
+        ],
+      };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 39: list_scripts
+server.tool(
+  'list_scripts',
+  'Returns all registered scripts in the vault with metadata, domains, and tags.',
+  {},
+  async () => {
+    try {
+      const data = await callBridge('/scripts/list', 'GET');
+      return { content: [{ type: 'text', text: JSON.stringify(data.scripts, null, 2) }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
+// Tool 40: delete_script
+server.tool(
+  'delete_script',
+  'Deletes a saved script from the persistent vault and LanceDB vector index.',
+  {
+    name: z.string().describe('Name of the script to delete.'),
+  },
+  async ({ name }) => {
+    try {
+      const data = await callBridge('/scripts/delete', 'POST', { name });
+      return { content: [{ type: 'text', text: data.deleted ? `Deleted script "${name}".` : `Script "${name}" not found.` }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] };
+    }
+  }
+);
+
 async function start() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

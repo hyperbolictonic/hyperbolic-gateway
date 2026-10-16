@@ -10,6 +10,8 @@ import { DownloadManager, type DownloadRecord } from './downloads/download-manag
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
 import { NetworkInterceptor, type CapturedNetworkRequest, type NetworkFilter } from './network/network-interceptor.js';
 import { MarksOverlay, type MarkItem } from './marks/marks-overlay.js';
+import { ScriptVault } from './scripts/script-vault.js';
+import type { ScriptItem } from './cortex/cortex-db.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -21,6 +23,7 @@ export class BrowserChassis {
   private sessionVault: SessionVault;
   private networkInterceptor: NetworkInterceptor;
   private marksOverlay: MarksOverlay;
+  private scriptVault: ScriptVault;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
 
   private state: ChassisState = {
@@ -90,6 +93,7 @@ export class BrowserChassis {
     this.sessionVault = new SessionVault();
     this.networkInterceptor = new NetworkInterceptor();
     this.marksOverlay = new MarksOverlay();
+    this.scriptVault = new ScriptVault();
 
     setInterval(() => {
       this.state.stats.uptimeSeconds++;
@@ -812,5 +816,59 @@ export class BrowserChassis {
 
   public getActiveMarks(): MarkItem[] {
     return this.marksOverlay.getActiveMarks();
+  }
+
+  public async saveScript(data: {
+    name: string;
+    code: string;
+    description?: string;
+    domain?: string;
+    tags?: string[];
+  }): Promise<ScriptItem> {
+    this.addLog('action', `MCP Directive: save_script("${data.name}")`);
+    const saved = await this.scriptVault.saveScript(data);
+    this.emitTelemetry({
+      type: 'harvest',
+      timestamp: Date.now(),
+      details: `Saved & indexed script "${saved.name}" in Cortex Vault`,
+    });
+    return saved;
+  }
+
+  public async recallScripts(query?: string, options?: { domain?: string; tag?: string; limit?: number }): Promise<ScriptItem[]> {
+    this.addLog('action', `MCP Directive: recall_scripts("${query || '*'}")`);
+    return await this.scriptVault.recallScripts(query, options);
+  }
+
+  public async runScript(name: string, args: Record<string, any> = {}) {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: run_script("${name}")`);
+    this.state.agentStatus = 'SIMULATING_INPUT';
+    this.broadcastState();
+
+    try {
+      const res = await this.scriptVault.runScript(wc, name, args);
+      this.state.agentStatus = 'IDLE';
+      this.broadcastState();
+      this.emitTelemetry({
+        type: 'harvest',
+        timestamp: Date.now(),
+        details: `Executed macro "${name}" in ${res.executionDurationMs}ms`,
+      });
+      return res;
+    } catch (err: any) {
+      this.state.agentStatus = 'IDLE';
+      this.broadcastState();
+      throw err;
+    }
+  }
+
+  public async listScripts(domain?: string, tag?: string): Promise<ScriptItem[]> {
+    return await this.scriptVault.listScripts(domain, tag);
+  }
+
+  public async deleteScript(name: string): Promise<boolean> {
+    this.addLog('action', `MCP Directive: delete_script("${name}")`);
+    return await this.scriptVault.deleteScript(name);
   }
 }
