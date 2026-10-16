@@ -7,6 +7,7 @@ Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade 
 ## 📑 Contents
 
 - [concept.md](./concept.md) — The foundational concept, design philosophy, and lore behind the Kuang Grade Mark Eleven Cyberdeck.
+- [TODO.md](./TODO.md) — Agent capability roadmap, prioritized from foundational utilities to high-bandwidth cognitive features.
 - [Root README.md](../README.md) — System overview, full 24-tool MCP reference, and architecture principles.
 - [Plugin Skill Reference](../.agents/plugins/mark-eleven/skills/mark-eleven/SKILL.md) — Operational instructions for LLM agents utilizing Mark Eleven.
 
