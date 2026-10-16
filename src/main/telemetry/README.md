@@ -6,10 +6,12 @@ This directory implements the organic input simulation engine and stealth host b
 
 ## 🏛️ Subsystems
 
-### 1. Organic Bézier Mouse Kinematics
-- Calculates natural, curved trajectories between pointer coordinates using randomized cubic Bézier control points.
-- Applies quintic ease-in / ease-out curves with simulated velocity deceleration near targets and randomized micro-overshoots.
-- Emits real-time coordinate and velocity pulses to the frontend radar canvas HUD.
+### 1. Bio-Kinematic Chaos & Neuromotor Mouse Engine
+- **Fractal Pink Noise ($1/f$):** Uses an Ornstein-Uhlenbeck stochastic drift process to generate autocorrelated micro-tremors, replacing synthetic uniform white noise with true biological muscle/tendon elasticity.
+- **Asymmetric Log-Normal Velocity & Minimum Jerk:** Implements Flash & Hogan's 5th-order minimum jerk polynomial skewed into a 30% ballistic acceleration phase and a 70% sensory feedback precision braking phase.
+- **Two-Thirds Power Law ($v \propto \kappa^{-1/3}$):** Dynamically couples path curvature to velocity, automatically decelerating through corners and accelerating along straight reaches.
+- **Target Overshoot & Saccadic Micro-Corrections:** High-speed reaching movements organically overshoot the target centroid by 2–8px, followed by an authentic 40–90ms saccadic correction loop.
+- **Duffing Chaotic Attractor:** Integrates Duffing non-periodic strange attractor perturbations using Runge-Kutta 4th order (RK4) to introduce non-repeating deterministic chaos.
 
 ### 2. Gaussian Typing Cadence
 - Simulates human typing variance using a normal Gaussian distribution between 60ms and 240ms per keystroke.
@@ -23,6 +25,10 @@ This directory implements the organic input simulation engine and stealth host b
 
 ## 📄 Source Files
 
+- **[`chaos-kinematics.ts`](./chaos-kinematics.ts)**:
+  `generateChaosTrajectory()` core engine. Implements the Ornstein-Uhlenbeck pink noise generator, Duffing strange attractor, minimum jerk model, and saccadic overshoot recoil.
+- **[`bezier.ts`](./bezier.ts)**:
+  Bézier trajectory wrapper delegating to the chaos kinematics engine with backwards-compatible interface types.
 - **[`input-simulator.ts`](./input-simulator.ts)**:
   `HumanizedInputSimulator` class. Dispatches authentic OS hardware events via `webContents.sendInputEvent` for mouse moves, clicks, keystrokes, and mousewheel impulses.
 - **[`host-fingerprint.ts`](./host-fingerprint.ts)**:

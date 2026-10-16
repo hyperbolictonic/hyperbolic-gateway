@@ -446,6 +446,36 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      // Chaos Kinematics & Mouse Movement Endpoints
+      if (req.method === 'POST' && pathname === '/chaos/trajectory') {
+        const body = await readBody();
+        const target = body.target || { x: 500, y: 500 };
+        const steps = chassis.testChaosTrajectory(target, body.options);
+        const totalDurationMs = steps.reduce((sum, s) => sum + s.delayMs, 0);
+        const peakVelocity = Math.max(...steps.map((s) => s.velocity));
+        const correctiveSteps = steps.filter((s) => s.isCorrective).length;
+        sendJson({
+          success: true,
+          steps,
+          metrics: {
+            stepCount: steps.length,
+            totalDurationMs,
+            peakVelocity,
+            hasOvershoot: correctiveSteps > 0,
+            correctiveSteps,
+          },
+        });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/mouse/move') {
+        const body = await readBody();
+        const target = body.target || { x: 500, y: 500 };
+        await chassis.moveMouse(target, body.options);
+        sendJson({ success: true, target });
+        return;
+      }
+
       sendJson({ error: 'Endpoint not found' }, 404);
     } catch (err: any) {
       sendJson({ success: false, error: err?.message || String(err) }, 500);

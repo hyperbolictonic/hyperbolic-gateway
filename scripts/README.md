@@ -11,6 +11,8 @@ This directory contains utility scripts, automated test harnesses, and the stand
   The official MCP server that communicates with LLM clients (Claude Desktop, Cursor, Antigravity) over standard input/output (`stdio`). Exposes all 49 standardized browser navigation, visual grounding, tab management, session vault, network stream interception, script recall, system tray, and human-in-the-loop tools by translating them into HTTP calls against the chassis bridge (`http://127.0.0.1:4111`).
 
 ### 2. Automated Test Suites
+- **[`test-chaos-engine.js`](./test-chaos-engine.js)**:
+  Benchmarking and live verification suite for the Bio-Kinematic Chaos Engine. Validates lag-1 autocorrelation ($1/f$ pink noise tremor), asymmetric minimum-jerk acceleration curves, ballistic target overshoots, and saccadic micro-corrections.
 - **[`test-tray-and-hil.js`](./test-tray-and-hil.js)**:
   Verifies system tray visibility toggling, close-to-tray configuration, native desktop notification dispatch, and human-in-the-loop (HIL) intervention request and resolution flow.
 - **[`test-realtime-streams.js`](./test-realtime-streams.js)**:

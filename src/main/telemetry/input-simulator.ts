@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron';
-import { generateOrganicTrajectory, type Point, type PathStep } from './bezier.js';
+import { generateOrganicTrajectory, type Point, type PathStep, type ChaosKinematicsOptions } from './bezier.js';
 
 export interface InputTelemetryReporter {
   onMouseMove?: (point: Point, velocity: number) => void;
@@ -25,7 +25,7 @@ export class HumanizedInputSimulator {
   public async moveMouseTo(
     webContents: WebContents,
     target: Point,
-    options?: { steps?: number; deviationMultiplier?: number }
+    options?: ChaosKinematicsOptions
   ): Promise<void> {
     const trajectory = generateOrganicTrajectory(this.currentCursor, target, options);
 

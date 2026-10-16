@@ -20,6 +20,11 @@ import { ScriptVault } from './scripts/script-vault.js';
 import type { ScriptItem } from './cortex/cortex-db.js';
 import { TrayManager } from './tray/tray-manager.js';
 import { HilManager, type HilRequest, type HilResolution, type NotificationOptions } from './hil/hil-manager.js';
+import {
+  generateChaosTrajectory,
+  type ChaosKinematicsOptions,
+  type PathStep,
+} from './telemetry/chaos-kinematics.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -996,5 +1001,20 @@ export class BrowserChassis {
   ): boolean {
     this.addLog('info', `Desktop Notification Dispatched: [${title}] ${message}`);
     return this.hilManager.sendNotification({ title, message, urgency, sound });
+  }
+
+  // Bio-Kinematic Chaos Trajectory Methods
+  public testChaosTrajectory(target: { x: number; y: number }, options?: ChaosKinematicsOptions): PathStep[] {
+    const start = this.simulator.getCursorPosition();
+    return generateChaosTrajectory(start, target, options);
+  }
+
+  public async moveMouse(target: { x: number; y: number }, options?: ChaosKinematicsOptions): Promise<void> {
+    const wc = this.getActiveWebContents();
+    await this.simulator.moveMouseTo(wc, target, options);
+  }
+
+  public getSimulator(): HumanizedInputSimulator {
+    return this.simulator;
   }
 }
