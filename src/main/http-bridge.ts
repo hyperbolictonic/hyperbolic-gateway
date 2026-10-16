@@ -38,7 +38,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
     };
 
     try {
-      if (req.method === 'GET' && pathname === '/health') {
+      if (req.method === 'GET' && (pathname === '/health' || pathname === '/page-info')) {
         const info = chassis.getPageInfo();
         sendJson({ status: 'ok', info });
         return;

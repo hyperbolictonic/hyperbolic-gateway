@@ -8,8 +8,10 @@
   "scripts": {
     "dev": "vite",
     "start": "electron .",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=bin/mcp-server.cjs",
+    "build:mcp": "npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=bin/mcp-server.cjs",
     "test:mcp": "node scripts/test-client.js",
+    "test:mcp:all": "node scripts/test-all-mcp-tools.js",
     "preview": "vite preview"
   },
   "keywords": [
@@ -21,7 +23,6 @@
     "cyberpunk"
   ],
   "author": "",
-  "license": "MIT",
   "dependencies": {
     "@lancedb/lancedb": "^0.40.0",
     "@modelcontextprotocol/sdk": "^1.32.1",

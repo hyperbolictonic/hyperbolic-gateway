@@ -3,7 +3,8 @@
     "mark-eleven": {
       "command": "node",
       "args": [
-        "./scripts/mcp-server.js"
+        "-e",
+        "const fs=require('fs'), path=require('path'); const candidates=[path.join(process.env.USERPROFILE||'','Documents/<workspace>/kuang_grade_mark_eleven/bin/mcp-server.cjs'), path.resolve('./bin/mcp-server.cjs')]; const p=candidates.find(c => fs.existsSync(c)); if(!p){console.error('bin/mcp-server.cjs not found');process.exit(1);} require(p);"
       ]
     }
   }
