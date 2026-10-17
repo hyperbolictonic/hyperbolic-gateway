@@ -7,21 +7,48 @@ description: Real-world visible Chromium browser navigator with Bézier ghost-cu
 
 Mark Eleven connects the LLM to an active, desktop Chromium browser window (`headless: false`) equipped with humanized telemetry to operate the live web without triggering automated bot defenses.
 
+## Golden Operational Sequence (Preferential Tool Hierarchy)
+
+To maximize speed, minimize token burn, and eliminate bot shadowbans, ALWAYS follow this 3-tier sequence:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ TIER 1 (FIRST CHOICE): Grounded Markdown (`get_page_markdown`)         │
+│ • Downsamples page to clean text with inline [#ID] marks.              │
+│ • You can immediately call `click_mark(id)` or `type_mark(id, text)`.   │
+│ • ZERO image tokens burned, 100% hardware trusted (isTrusted: true).    │
+├────────────────────────────────────────────────────────────────────────┤
+│ TIER 2 (FALLBACK): Set-of-Marks Screenshot (`take_economy_screenshot`) │
+│ • Use ONLY when visual layout, complex maps, or CAPTCHAs require vision.│
+│ • Downscaled 640px JPEG (~15x lighter than full PNG).                  │
+│ • Mark IDs match the markdown marks identically.                       │
+├────────────────────────────────────────────────────────────────────────┤
+│ TIER 3 (LAST RESORT): Script Inspection (`evaluate_javascript`)        │
+│ • Use STRICTLY for read-only DOM inspection, calculating values, or    │
+│   querying hidden attributes.                                          │
+│ • NEVER use JS to artificially set input values (`el.value = ...`) or  │
+│   dispatch synthetic clicks (`el.click()`) on protected sites! That   │
+│   sets `isTrusted: false` and triggers silent bot shadowbans.          │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Core Multimodal Workflow
 
 1. **Navigation:**
    - Call `navigate_to({ url })` to load the destination site in the visible window.
-2. **Visual Inspection (Multimodal Vision):**
-   - Call `take_screenshot()` to retrieve high-resolution viewport images. Returns dual content: local file path text and native MCP image content (`type: 'image'`, `mimeType: 'image/png'`) for direct vision comprehension.
-   - Saved automatically to `data/screenshots/` with automated retention cleanup (capped at 50 files).
-   - Use the visual capture to identify interactive elements, coordinate locations, modals, or visual captchas.
-3. **Humanized Interaction:**
-   - Call `click_element({ selector })` or `click_element({ x, y })` to dispatch organic Bézier pointer movement and hardware switch clicks. Supports parameter aliases (`target`, `element`).
-   - Call `type_text({ text, selector })` to type with realistic human Gaussian cadence (60-240ms). Supports parameter aliases (`value`, `input`).
+2. **Page Understanding (Tier 1 — Grounded Markdown First):**
+   - Call `get_page_markdown()` to read the page content with inline `[#ID]` marks stamped directly on buttons, links, and inputs.
+   - Actuate directly using `click_mark(id)` or `type_mark(id, text)`.
+3. **Visual Inspection (Tier 2 Fallback):**
+   - Call `take_economy_screenshot()` if visual verification or image inspection is needed. Returns compact 640px JPEG + marks table.
+   - `take_screenshot()` is reserved for full-resolution native captures.
+4. **Humanized Interaction:**
+   - Call `click_mark({ mark_id })` or `click_element({ selector })` to dispatch organic Bézier pointer movement and hardware switch clicks.
+   - Call `type_mark({ mark_id, text })` or `type_text({ text, selector })` to type with realistic human Gaussian cadence (60-240ms).
    - Call `press_key({ key })` for single keypresses (`Enter`, `Tab`, `Escape`, `Backspace`).
    - Call `scroll_page({ direction, amount })` to simulate inertia mousewheel scrolling.
-4. **Console & Script Execution vs. Hardware Trust:**
-   - **BEHAVIORAL TRUST & SHADOWBAN PREVENTION:** Avoid using `evaluate_javascript` to artificially set form values (`el.value = ...`) or trigger synthetic clicks (`el.click()`) on protected sites (e.g. Skyscanner, Google, Cloudflare). Synthetic DOM mutations set `isTrusted: false` and can trigger silent shadow-bans.
+5. **Console & Script Execution vs. Hardware Trust (Tier 3):**
+   - **BEHAVIORAL TRUST & SHADOWBAN PREVENTION:** Avoid using `evaluate_javascript` to artificially mutate form values or trigger synthetic clicks on protected sites (e.g. Skyscanner, Google, Cloudflare). Synthetic DOM mutations set `isTrusted: false` and can trigger silent shadow-bans.
    - Use `evaluate_javascript` strictly for **read-only DOM inspection**, querying computed styles, or checking JSON state.
    - For all interactions, use genuine hardware events: `type_mark`, `click_mark`, `type_text`, or `click_element` (`isTrusted: true`).
    - Call `get_console_logs({ limit })` to inspect page errors and network responses.

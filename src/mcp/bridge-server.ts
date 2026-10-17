@@ -152,10 +152,13 @@ export function createBridgeMcpServer() {
   // Any agent in ANY directory can read this via list_resources / read_resource
   const OKF_SKILL_GUIDE = `# 🧭 MARK ELEVEN: OPERATIONAL KNOWLEDGE FORMAT (OKF)
 
-1. [CORE ARCHITECTURE]
+1. [CORE ARCHITECTURE & OPERATIONAL SEQUENCE]
   - Visual Browser: Active visible Chromium window ('headless: false') with Bézier ghost-cursor telemetry.
   - Zero Context Bleed: Tools return compact 1-line markdown or distilled structures instead of raw JSON.
-  - Port & Transport: Connected to Cyberdeck bridge at 127.0.0.1:4111.
+  - PREFERENTIAL SEQUENCE (Tokens & Anti-Shadowban):
+    * TIER 1 (First Choice): get_page_markdown() -> returns clean text with inline [#ID] marks. Actuate via click_mark(id) / type_mark(id). Zero vision tokens burned!
+    * TIER 2 (Fallback): take_economy_screenshot() -> downscaled 640px JPEG Set-of-Marks. Use ONLY when visual layout/CAPTCHA requires vision.
+    * TIER 3 (Last Resort): evaluate_javascript() -> strictly for READ-ONLY inspection. NEVER mutate DOM or click via JS to avoid bot shadowbans (isTrusted: false).
 
 2. [VISUAL GROUNDING & SET-OF-MARKS (SoM)]
   - Three tiers (all share identical badge IDs):
