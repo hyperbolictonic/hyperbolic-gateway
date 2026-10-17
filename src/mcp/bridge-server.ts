@@ -212,11 +212,13 @@ export function createBridgeMcpServer() {
   - set_window_visibility(visible): Minimizes Cyberdeck to tray or restores to screen.
   - send_notification(title, message, urgency?): Native OS desktop notification.`;
 
+  // 1. Standard MCP Resource: mark-eleven://skills/guide
+  // Any agent in ANY directory or external repo can read this via list_resources / read_resource
   server.resource(
     'mark-eleven-skill',
     'mark-eleven://skills/guide',
     {
-      description: 'Comprehensive operational manual and workflow skill guide for Mark Eleven in OKF (Outline Knowledge Format).',
+      description: 'Comprehensive operational manual, Golden Operational Sequence, and workflow skill guide for Mark Eleven in OKF (Outline Knowledge Format).',
       mimeType: 'text/markdown',
     },
     async () => ({
@@ -228,6 +230,70 @@ export function createBridgeMcpServer() {
         },
       ],
     })
+  );
+
+  // 2. Standard MCP Resource: mark-eleven://okf/manifest
+  server.resource(
+    'okf-manifest',
+    'mark-eleven://okf/manifest',
+    {
+      description: 'Open Knowledge Format (OKF) manifest declaring bundleId kuang_browser_docs and all available partitions.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const manifestPath = path.resolve(process.cwd(), 'kuang_docs', 'okf.json');
+      let text = '{}';
+      try { text = fs.readFileSync(manifestPath, 'utf8'); } catch {}
+      return { contents: [{ uri: 'mark-eleven://okf/manifest', mimeType: 'application/json', text }] };
+    }
+  );
+
+  // 3. Standard MCP Resource: mark-eleven://okf/partitions/selector-and-som
+  server.resource(
+    'okf-selector-som',
+    'mark-eleven://okf/partitions/selector-and-som',
+    {
+      description: 'OKF Playbook: Golden Operational Sequence (Markdown -> Economy Screenshot -> Read-Only JS) and Set-of-Marks visual recipes.',
+      mimeType: 'text/markdown',
+    },
+    async () => {
+      const docPath = path.resolve(process.cwd(), 'kuang_docs', 'partitions', 'selector_and_som_recipes.md');
+      let text = '';
+      try { text = fs.readFileSync(docPath, 'utf8'); } catch {}
+      return { contents: [{ uri: 'mark-eleven://okf/partitions/selector-and-som', mimeType: 'text/markdown', text }] };
+    }
+  );
+
+  // 4. Standard MCP Resource: mark-eleven://okf/partitions/captcha-and-anti-bot
+  server.resource(
+    'okf-captcha-antibot',
+    'mark-eleven://okf/partitions/captcha-and-anti-bot',
+    {
+      description: 'OKF Playbook: Challenge Triage Matrix, Turnstile, text CAPTCHA solving, and HIL trigger rules.',
+      mimeType: 'text/markdown',
+    },
+    async () => {
+      const docPath = path.resolve(process.cwd(), 'kuang_docs', 'partitions', 'captcha_and_anti_bot_strategies.md');
+      let text = '';
+      try { text = fs.readFileSync(docPath, 'utf8'); } catch {}
+      return { contents: [{ uri: 'mark-eleven://okf/partitions/captcha-and-anti-bot', mimeType: 'text/markdown', text }] };
+    }
+  );
+
+  // 5. Standard MCP Resource: mark-eleven://okf/partitions/browser-navigation
+  server.resource(
+    'okf-browser-navigation',
+    'mark-eleven://okf/partitions/browser-navigation',
+    {
+      description: 'OKF Playbook: 0ms speculative prerender navigation, multi-tab orchestration, and session persistence.',
+      mimeType: 'text/markdown',
+    },
+    async () => {
+      const docPath = path.resolve(process.cwd(), 'kuang_docs', 'partitions', 'browser_navigation_playbook.md');
+      let text = '';
+      try { text = fs.readFileSync(docPath, 'utf8'); } catch {}
+      return { contents: [{ uri: 'mark-eleven://okf/partitions/browser-navigation', mimeType: 'text/markdown', text }] };
+    }
   );
 
   // Built-in help tool
