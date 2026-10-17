@@ -200,22 +200,24 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (49 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (52 Tools Total)
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
-| **Navigation** | `navigate_to` | `url: string`, `auto_dismiss_consent?: boolean` | Navigates active tab to URL. Auto-dismisses GDPR/cookie overlays by default. *(alias: `go_to_url`)* |
+| **Navigation** | `navigate_to` | `url: string`, `auto_dismiss_consent?: boolean` | Navigates active tab to URL. Auto-dismisses GDPR/cookie overlays by default. |
+| | `go_to_url` | `url: string`, `auto_dismiss_consent?: boolean` | Primary alias for `navigate_to`. Dispatches visible window navigation. |
 | | `navigate_history` | `action: 'back' \| 'forward' \| 'reload'` | Browser history navigation and reload controls. |
 | | `get_page_info` | _none_ | Returns current URL, title, and load state without full extraction. |
 | **Shield & Defense** | `dismiss_consent` | _none_ | Autonomously detects and dismisses GDPR/cookie banners via Bézier mouse click. |
-| **Interaction** | `click_element` | `selector?: string`, `x?: number`, `y?: number` | Clicks element by CSS selector or direct viewport (x, y) coordinates. |
-| | `type_text` | `text: string`, `selector?: string` | Types text with human Gaussian cadence variance (60–240ms). |
+| **Interaction** | `click_element` | `selector?: string`, `x?: number`, `y?: number` | Clicks element by CSS selector or direct viewport (x, y) coordinates with loose argument normalization (`target`, `element`). |
+| | `type_text` | `text: string`, `selector?: string` | Types text with human Gaussian cadence variance (60–240ms) with loose argument normalization (`value`, `input`). |
 | | `fill_form` | `fields: Record<string, string \| boolean \| number>`, `submit_selector?: string` | Fills multiple form inputs, selects, and checkboxes in a single turn. |
 | | `press_key` | `key: string` | Presses specific key (e.g. `Enter`, `Tab`, `Escape`, `Backspace`). |
 | | `scroll_page` | `direction: 'up' \| 'down'`, `amount?: number` | Incremental momentum wheel scrolling. |
-| **Observation** | `take_screenshot` | _none_ | High-res PNG image capture for multimodal visual inspection. |
-| | `get_page_markdown` | _none_ | Downsamples active DOM to clean token-efficient Markdown with YAML metadata. *(alias: `harvest_markdown`)* |
-| | `evaluate_javascript` | `script: string` | Evaluates custom JS expression in page context and returns JSON. |
+| **Observation & Vision** | `take_screenshot` | _none_ | High-res PNG capture. Returns dual content: file path text & native MCP image block (`type: 'image'`, `mimeType: 'image/png'`). Saved to `data/screenshots/` with automatic retention pruning. |
+| | `get_page_markdown` | _none_ | Downsamples active DOM to clean token-efficient Markdown with YAML metadata. |
+| | `harvest_markdown` | _none_ | Primary alias for `get_page_markdown`. Extracts clean markdown from the active tab. |
+| | `evaluate_javascript` | `script: string` | Evaluates custom JS expression in page context and returns serialized JSON. Accepts `script`, `code`, or `expression`. |
 | | `get_console_logs` | `limit?: number` | Returns recent web page and script console logs, warnings, and errors. |
 | | `get_fingerprint_profile` | _none_ | Returns active stealth host browser fingerprint and spoofed headers. |
 | **Multi-Tab** | `new_tab` | `url?: string` | Spawns a new independent browser tab instance. |
@@ -239,9 +241,9 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `list_realtime_streams` | `type?: 'websocket' \| 'sse'`, `active_only?: boolean` | Lists active WebSocket connections and open SSE channels. |
 | | `get_stream_messages` | `stream_id?: string`, `type?: string`, `direction?: string`, `limit?: number` | Inspects captured incoming/outgoing frames from WebSockets and SSE token streams. |
 | | `clear_stream_messages` | `stream_id?: string` | Clears the in-memory WebSocket and SSE message frame buffer. |
-| **Visual Grounding** | `take_annotated_screenshot` | _none_ | Tags all visible interactive elements with numbered neon badges (`[1]`, `[2]`, etc.) and returns image + lookup table. |
-| | `click_mark` | `mark_id: number` | Moves humanized Bézier ghost cursor to mark #ID and clicks with 100% accuracy. |
-| | `type_mark` | `mark_id: number`, `text: string` | Focuses mark #ID and types text with variable human typing cadence. |
+| **Visual Grounding** | `take_annotated_screenshot` | _none_ | Tags all visible interactive elements with numbered neon badges (`[1]`, `[2]`, etc.). Returns dual content: Set-of-Marks table text & native MCP image block (`type: 'image'`). Saved to `data/screenshots/`. |
+| | `click_mark` | `mark_id: number` | Moves humanized Bézier ghost cursor to mark #ID and clicks with 100% accuracy. Accepts numbers, strings, and aliases (`mark`, `id`). |
+| | `type_mark` | `mark_id: number`, `text: string`, `clear_first?: boolean` | Focuses mark #ID and types text with variable human typing cadence. |
 | **Script Vault & Macros** | `save_script` | `name: string`, `code: string`, `description?: string`, `domain?: string`, `tags?: string[]` | Saves and embeds a custom JavaScript macro into LanceDB Cortex. |
 | | `recall_script` | `query?: string`, `domain?: string`, `tag?: string`, `limit?: number` | Semantically searches saved scrapers & macros using natural language. |
 | | `run_script` | `name: string`, `args?: object` | Executes a saved script in active tab with dynamic runtime arguments. |
@@ -253,6 +255,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `resolve_human_intervention` | `id?: string`, `notes?: string` | Resolves active intervention request and resumes agent execution. |
 | | `get_human_intervention_status` | _none_ | Checks active intervention status and history log. |
 | | `send_notification` | `title: string`, `message: string`, `urgency?: string`, `sound?: boolean` | Emits non-blocking OS native desktop banner notification to user. |
+| **Assistance & Discovery** | `help` | _none_ | Returns a comprehensive operational manual and cheatsheet of all available browser automation capabilities. |
 
 ---
 
@@ -300,21 +303,21 @@ pnpm run build
 pnpm start
 ```
 
-### MCP Client Configuration (e.g. Claude Desktop, Cursor, Antigravity)
+### MCP Client Configuration (e.g. Claude Desktop, Cursor, Antigravity, Agent-Orcha)
 Add this to your MCP configuration (`claude_desktop_config.json` / `mcp_config.json`):
 ```json
 {
   "mcpServers": {
     "mark-eleven": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "electron",
-        "./dist-electron/main/index.js"
+        "<user>/Documents/<workspace>/kuang_grade_mark_eleven/bin/mcp-server.cjs"
       ]
     }
   }
 }
 ```
+> **Note:** The Mark Eleven Cyberdeck application must be running in the background (`pnpm run dev` or `pnpm start`) so the MCP stdio bridge runner can communicate with the active browser instance on `http://127.0.0.1:4111`.
 
 ---
 

@@ -16,7 +16,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'navigate_to',
     description: 'Navigates the real, visible Chromium browser window to a destination URL. Automatically dismisses GDPR/cookie consent overlays by default.',
     parameters: {
-      url: z.string().optional().describe('The destination URL (e.g. "https://news.ycombinator.com" or "https://www.skyscanner.net")'),
+      url: z.string().describe('The destination URL (e.g. "https://news.ycombinator.com" or "https://www.skyscanner.net")'),
       auto_dismiss_consent: z.boolean().optional().default(true).describe('Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)'),
     },
     endpoint: '/navigate',
@@ -38,7 +38,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'go_to_url',
     description: 'Alias for navigate_to. Navigates the browser window to a destination URL.',
     parameters: {
-      url: z.string().optional().describe('The destination URL'),
+      url: z.string().describe('The destination URL (e.g. "https://www.skyscanner.net")'),
     },
     endpoint: '/navigate',
     payload: (args) => {
@@ -61,13 +61,13 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'click_element',
     description: 'Clicks an element on the active web page using a CSS selector or direct viewport coordinates (x, y). Simulates realistic human pointer movement and switch actuation.',
     parameters: {
-      selector: z.string().optional().describe('CSS selector of the element to click'),
+      selector: z.string().optional().describe('CSS selector of the element to click (e.g. "button.submit", "a[href*=\'login\']", "#search-input")'),
       x: z.coerce.number().optional().describe('Direct X coordinate on the viewport in pixels'),
       y: z.coerce.number().optional().describe('Direct Y coordinate on the viewport in pixels'),
     },
     endpoint: '/click',
     payload: (args) => {
-      const selector = args?.selector || args?.element || args?.target || args?.css;
+      const selector = args?.selector || args?.element || args?.target || args?.css || args?.query;
       const x = args?.x !== undefined ? Number(args.x) : undefined;
       const y = args?.y !== undefined ? Number(args.y) : undefined;
       if (!selector && (x === undefined || y === undefined)) {
@@ -81,12 +81,12 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'type_text',
     description: 'Types text into an input element or active element with realistic human Gaussian typing cadence (60-240ms per keystroke).',
     parameters: {
-      text: z.coerce.string().optional().describe('The text string to type'),
+      text: z.string().describe('The text string to type (e.g. "London")'),
       selector: z.string().optional().describe('Optional CSS selector of the input element'),
     },
     endpoint: '/type',
     payload: (args) => {
-      const text = args?.text !== undefined ? String(args.text) : (args?.value !== undefined ? String(args.value) : (args?.content !== undefined ? String(args.content) : ''));
+      const text = args?.text !== undefined ? String(args.text) : (args?.value !== undefined ? String(args.value) : (args?.content !== undefined ? String(args.content) : (args?.input !== undefined ? String(args.input) : '')));
       const selector = args?.selector || args?.element || args?.target || args?.css;
       return { text, selector };
     },
@@ -96,7 +96,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'press_key',
     description: 'Dispatches a single hardware keyboard event (Enter, Tab, Escape, Backspace, ArrowDown, etc.).',
     parameters: {
-      key: z.string().optional().describe('The key name to press (e.g. "Enter", "Tab", "Escape", "Backspace")'),
+      key: z.string().describe('The key name to press (e.g. "Enter", "Tab", "Escape", "Backspace")'),
     },
     endpoint: '/press-key',
     payload: (args) => {
@@ -120,11 +120,11 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // 3. Visual & Inspection
   {
     name: 'take_screenshot',
-    description: 'Captures a full viewport image of the active tab. Saves to data/screenshots/ and returns the local file path.',
+    description: 'Captures a full viewport image of the active tab. Saves to data/screenshots/ and returns local file path and native MCP image content.',
     parameters: {},
     endpoint: '/screenshot',
     method: 'GET',
-    format: (data) => data.screenshot?.filePath || JSON.stringify(data, null, 2),
+    format: (data) => data.screenshot?.filePath ? `Screenshot saved to ${data.screenshot.filePath} (${data.screenshot.width || ''}x${data.screenshot.height || ''}px)` : 'Screenshot captured',
   },
   {
     name: 'get_page_markdown',
@@ -146,7 +146,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'evaluate_javascript',
     description: 'Executes a JavaScript expression or script in the isolated context of the active web page and returns the serialized result.',
     parameters: {
-      script: z.string().optional().describe('JavaScript code to evaluate in the page context (e.g. "document.title")'),
+      script: z.string().describe('JavaScript code to evaluate in the page context (e.g. "document.title" or "1+1")'),
     },
     endpoint: '/evaluate',
     payload: (args) => {
@@ -218,7 +218,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'switch_tab',
     description: 'Switches focus to an existing browser tab by its unique tab ID.',
     parameters: {
-      tab_id: z.union([z.string(), z.coerce.number()]).optional().describe('ID of the tab to switch to (e.g. "tab_1" or 1)'),
+      tab_id: z.coerce.string().describe('ID of the tab to switch to (e.g. "tab_1" or "1")'),
     },
     endpoint: '/tabs/switch',
     payload: (args) => {
@@ -235,7 +235,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'close_tab',
     description: 'Closes a browser tab by its tab ID (or active tab if omitted).',
     parameters: {
-      tab_id: z.union([z.string(), z.coerce.number()]).optional().describe('ID of tab to close (optional, closes active tab if omitted)'),
+      tab_id: z.coerce.string().optional().describe('ID of tab to close (optional, closes active tab if omitted)'),
     },
     endpoint: '/tabs/close',
     payload: (args) => {
@@ -433,7 +433,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // 10. Set-of-Marks (SoM) Grounding
   {
     name: 'take_annotated_screenshot',
-    description: 'Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, and returns mark mapping.',
+    description: 'Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping.',
     parameters: {},
     endpoint: '/marks/screenshot',
     method: 'GET',
@@ -443,37 +443,37 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'click_mark',
     description: 'Clicks an annotated element using its Set-of-Marks badge index from take_annotated_screenshot.',
     parameters: {
-      mark_id: z.coerce.number().optional().describe('The numeric ID of the mark badge to click (e.g. 1)'),
+      mark_id: z.coerce.number().describe('The numeric ID of the mark badge to click (e.g. 1)'),
     },
     endpoint: '/marks/click',
     payload: (args) => {
-      const raw = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id;
+      const raw = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id ?? args?.badge ?? args?.index ?? args?.num ?? args?.number;
       if (raw === undefined || raw === null || isNaN(Number(raw))) {
         throw new Error('Missing mark_id. Please provide { "mark_id": 1 } from take_annotated_screenshot().');
       }
       return { markId: Number(raw) };
     },
-    format: (data, args) => `Clicked mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id}`,
+    format: (data, args) => `Clicked mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id ?? args?.badge ?? args?.index ?? args?.num ?? args?.number}`,
   },
   {
     name: 'type_mark',
     description: 'Types text into an annotated input element using its Set-of-Marks badge index.',
     parameters: {
-      mark_id: z.coerce.number().optional().describe('The numeric ID of the mark badge to type into (e.g. 1)'),
-      text: z.coerce.string().optional().describe('Text to type'),
+      mark_id: z.coerce.number().describe('The numeric ID of the mark badge to type into (e.g. 1)'),
+      text: z.string().describe('The text string to type into the marked element (e.g. "London")'),
       clear_first: z.coerce.boolean().optional().default(false).describe('Whether to clear existing text before typing'),
     },
     endpoint: '/marks/type',
     payload: (args) => {
-      const rawId = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id;
+      const rawId = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id ?? args?.badge ?? args?.index ?? args?.num ?? args?.number;
       if (rawId === undefined || rawId === null || isNaN(Number(rawId))) {
         throw new Error('Missing mark_id. Please provide { "mark_id": 1, "text": "..." }');
       }
-      const text = String(args?.text ?? args?.value ?? '');
+      const text = String(args?.text ?? args?.value ?? args?.content ?? args?.input ?? '');
       const clearFirst = Boolean(args?.clear_first ?? args?.clearFirst ?? false);
       return { markId: Number(rawId), text, clearFirst };
     },
-    format: (data, args) => `Typed into mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id}`,
+    format: (data, args) => `Typed into mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id ?? args?.badge ?? args?.index ?? args?.num ?? args?.number}`,
   },
 
   // 11. Script Vault & Macro Engine
@@ -594,9 +594,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'request_human_intervention',
     description: 'Halts the agent and requests human assistance when credentials, 2FA, OTP, CAPTCHA, or manual approval are needed. Restores window, flashes taskbar, triggers desktop notification, and injects interactive banner.',
     parameters: {
-      reason: z.string().optional().describe('Clear explanation of what human action is needed'),
+      reason: z.string().describe('Clear explanation of what human action is needed (e.g. "Please solve the CAPTCHA")'),
       timeout_seconds: z.number().optional().describe('Max seconds to wait (default: 180)'),
-      bring_to_front: z.boolean().optional().describe('Whether to unhide/restore window from tray (default: true)'),
+      bring_to_front: z.boolean().optional().default(true).describe('Whether to unhide/restore window from tray (default: true)'),
     },
     endpoint: '/hil/request',
     payload: (args) => {
@@ -630,10 +630,10 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'send_notification',
     description: 'Dispatches an OS native desktop notification to alert the user without blocking agent execution.',
     parameters: {
-      title: z.string().optional().describe('Notification title'),
-      message: z.string().optional().describe('Notification body message'),
-      urgency: z.enum(['normal', 'critical', 'low']).optional().describe('Urgency level (default: normal)'),
-      sound: z.boolean().optional().describe('Whether to play notification alert sound (default: true)'),
+      message: z.string().describe('Notification body message'),
+      title: z.string().optional().default('Kuang Grade Mark Eleven').describe('Notification title'),
+      urgency: z.enum(['normal', 'critical', 'low']).optional().default('normal').describe('Urgency level (default: normal)'),
+      sound: z.boolean().optional().default(true).describe('Whether to play notification alert sound (default: true)'),
     },
     endpoint: '/notify',
     payload: (args) => {

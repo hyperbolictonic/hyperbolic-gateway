@@ -12,15 +12,16 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
 1. **Navigation:**
    - Call `navigate_to({ url })` to load the destination site in the visible window.
 2. **Visual Inspection (Multimodal Vision):**
-   - Call `take_screenshot()` to retrieve high-resolution viewport images.
+   - Call `take_screenshot()` to retrieve high-resolution viewport images. Returns dual content: local file path text and native MCP image content (`type: 'image'`, `mimeType: 'image/png'`) for direct vision comprehension.
+   - Saved automatically to `data/screenshots/` with automated retention cleanup (capped at 50 files).
    - Use the visual capture to identify interactive elements, coordinate locations, modals, or visual captchas.
 3. **Humanized Interaction:**
-   - Call `click_element({ selector })` or `click_element({ x, y })` to dispatch organic Bézier pointer movement and hardware switch clicks.
-   - Call `type_text({ text, selector })` to type with realistic human Gaussian cadence (60-240ms).
+   - Call `click_element({ selector })` or `click_element({ x, y })` to dispatch organic Bézier pointer movement and hardware switch clicks. Supports parameter aliases (`target`, `element`).
+   - Call `type_text({ text, selector })` to type with realistic human Gaussian cadence (60-240ms). Supports parameter aliases (`value`, `input`).
    - Call `press_key({ key })` for single keypresses (`Enter`, `Tab`, `Escape`, `Backspace`).
    - Call `scroll_page({ direction, amount })` to simulate inertia mousewheel scrolling.
 4. **Console & Script Execution:**
-   - Call `evaluate_javascript({ script })` to query the DOM or execute client-side logic.
+   - Call `evaluate_javascript({ script })` to query the DOM or execute client-side logic. Supports parameter aliases (`code`, `expression`, `js`).
    - Call `get_console_logs({ limit })` to inspect page errors and network responses.
 5. **Multi-Tab Orchestration:**
    - Call `new_tab({ url })` to open a new isolated browser tab.
@@ -28,7 +29,7 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `close_tab({ tab_id })` to close an active or specified tab and free memory.
    - Call `list_tabs()` to inspect all active tabs.
 6. **Token-Efficient Payload Extraction:**
-   - Call `get_page_markdown()` to downsample the active DOM into clean Markdown with YAML front-matter envelopes, saving 90%+ context window tokens.
+   - Call `get_page_markdown()` (or `harvest_markdown()`) to downsample the active DOM into clean Markdown with YAML front-matter envelopes, saving 90%+ context window tokens.
 7. **LanceDB Persistent Cortex & Semantic Recall:**
    - Call `recall_memory({ query, limit, domain })` to run hybrid semantic vector + BM25 full-text search across all previously browsed and read web pages.
    - Call `get_history({ limit, domain })` to view chronological visit history.
@@ -36,14 +37,14 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `list_bookmarks({ query, tag })` to retrieve or semantically search saved bookmarks.
    - Call `delete_bookmark({ url_or_id })` to remove a bookmark.
 8. **Visual Grounding with Set-of-Marks (SoM):**
-   - Call `take_annotated_screenshot()` to render high-contrast neon badges over all interactable elements and return a lookup table.
-   - Call `click_mark({ mark_id })` to perform human Bézier clicks directly on a visual badge number.
+   - Call `take_annotated_screenshot()` to render high-contrast neon badges over all interactable elements. Returns dual content: interactive marks lookup table and native MCP image content (`type: 'image'`, `mimeType: 'image/png'`).
+   - Call `click_mark({ mark_id })` to perform human Bézier clicks directly on a visual badge number. Accepts numbers or string numbers (`1` or `"1"`) and aliases (`mark`, `id`).
    - Call `type_mark({ mark_id, text, clear_first })` to type directly into an annotated input badge.
 9. **Single-Turn Batch Form Filler:**
    - Call `fill_form({ fields, submit_selector })` to populate multiple inputs, selects, radios, and checkboxes in a single turn with human typing cadence.
 10. **Autonomous Shield-Breaker:**
    - Cookie consent dialogs (OneTrust, Cookiebot, Google GDPR, TrustArc) are auto-dismissed on navigation.
-   - Call `dismiss_cookie_dialogs()` to manually force-dismiss any remaining consent banners.
+   - Call `dismiss_consent()` to manually force-dismiss any remaining consent banners.
 11. **Download Manager & Harvester:**
    - Files are automatically routed to `data/downloads/` and indexed into Cortex.
    - Call `list_downloads()` to inspect completed downloads.
@@ -73,3 +74,5 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `resolve_human_intervention({ id, notes })` to programmatically resolve a pending intervention.
    - Call `get_human_intervention_status()` to inspect active request status and history.
    - Call `send_notification({ title, message, urgency, sound })` to emit non-blocking desktop notifications.
+18. **Operational Manual & Tool Discovery:**
+   - Call `help()` to query a complete, detailed operational cheatsheet of all 52 available tools, parameters, and design principles.

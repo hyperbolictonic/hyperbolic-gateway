@@ -38,6 +38,11 @@ async function callBridge(endpoint: string, method: string = 'GET', body: any = 
   return await res.json();
 }
 
+function extractCleanBase64(data: any): string {
+  const raw = data?.screenshot?.base64Image || data?.base64Image || data?.image || '';
+  return typeof raw === 'string' ? raw.replace(/^data:image\/[a-z]+;base64,/, '') : '';
+}
+
 export function createBridgeMcpServer() {
   const server = new McpServer({
     name: 'kuang-grade-mark-eleven',
@@ -51,6 +56,73 @@ export function createBridgeMcpServer() {
         const body = tool.payload ? tool.payload(args) : args;
         logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${tool.endpoint} body: ${JSON.stringify(body)}`);
         const data = await callBridge(tool.endpoint, tool.method || 'POST', body);
+
+        // Native MCP Image Content support for multimodal vision LLMs & file-reading agents
+        if (tool.name === 'take_screenshot') {
+          const rawBase64 = extractCleanBase64(data);
+          const screenshot = data.screenshot || data;
+          const filePath = screenshot.filePath || '';
+          const w = screenshot.width || 0;
+          const h = screenshot.height || 0;
+          const descriptionText = filePath
+            ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).`
+            : `Screenshot captured (${w}x${h}px).`;
+
+          const content: any[] = [
+            {
+              type: 'text',
+              text: descriptionText,
+            },
+          ];
+
+          if (rawBase64) {
+            content.push({
+              type: 'image',
+              data: rawBase64,
+              mimeType: 'image/png',
+            });
+          }
+
+          logMcp(`[Tool Success] "take_screenshot" returning text + image part (${rawBase64.length} chars base64, path: ${filePath})`);
+          return { content };
+        }
+
+        if (tool.name === 'take_annotated_screenshot') {
+          const rawBase64 = extractCleanBase64(data);
+          const screenshot = data.screenshot || data;
+          const filePath = screenshot.filePath || '';
+          const w = screenshot.width || 0;
+          const h = screenshot.height || 0;
+          const marks = Array.isArray(data.marks) ? data.marks : [];
+          const marksTable = marks
+            .map((m: any) => `[#${m.id}] <${m.tag}${m.type ? ` type="${m.type}"` : ''}> "${m.text || ''}"`)
+            .join('\n');
+
+          const header = filePath
+            ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.`
+            : `Set-of-Marks Screenshot captured (${w}x${h}px). ${marks.length} interactive elements detected.`;
+
+          const descriptionText = `${header}\n\nInteractive Elements:\n${marksTable}\n\nUse click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
+
+          const content: any[] = [
+            {
+              type: 'text',
+              text: descriptionText,
+            },
+          ];
+
+          if (rawBase64) {
+            content.push({
+              type: 'image',
+              data: rawBase64,
+              mimeType: 'image/png',
+            });
+          }
+
+          logMcp(`[Tool Success] "take_annotated_screenshot" returning text + image part (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
+          return { content };
+        }
+
         const text = tool.format
           ? tool.format(data, args)
           : typeof data === 'string'
@@ -165,6 +237,7 @@ export function createBridgeMcpServer() {
             ...rawSchema,
             type: 'object',
             properties: rawSchema.properties || {},
+            required: Array.isArray(rawSchema.required) ? rawSchema.required : [],
             additionalProperties: true,
           };
           return {
@@ -198,36 +271,39 @@ export function createBridgeMcpServer() {
 export function normalizeIncomingParams(params: any): Record<string, any> {
   if (!params || typeof params !== 'object') return {};
 
-  // 1. Gather all non-protocol top-level keys in params (e.g. if caller passed { name: 'go_to_url', url: '...' })
-  const protocolKeys = new Set(['name', 'arguments', 'args', 'input', 'parameters', 'properties', 'props', 'data', '_meta', 'task', 'method', 'id', 'jsonrpc']);
-  const topLevelArgs: Record<string, any> = {};
-  for (const [k, v] of Object.entries(params)) {
-    if (!protocolKeys.has(k) && v !== undefined) {
-      topLevelArgs[k] = v;
+  // Standard MCP tools/call structure: { name: string, arguments?: Record<string, any> }
+  let container = params.arguments;
+
+  // Some harnesses send args / data / input / parameters as the argument container object
+  if (container === undefined || container === null || (typeof container === 'object' && Object.keys(container).length === 0)) {
+    if (params.args !== undefined && typeof params.args === 'object' && params.args !== null) {
+      container = params.args;
+    } else if (params.parameters !== undefined && typeof params.parameters === 'object' && params.parameters !== null) {
+      container = params.parameters;
+    } else if (params.data !== undefined && typeof params.data === 'object' && params.data !== null) {
+      container = params.data;
+    } else if (params.input !== undefined && typeof params.input === 'object' && params.input !== null) {
+      container = params.input;
+    } else if (params.properties !== undefined && typeof params.properties === 'object' && params.properties !== null) {
+      container = params.properties;
+    } else if (params.props !== undefined && typeof params.props === 'object' && params.props !== null) {
+      container = params.props;
     }
   }
 
-  // 2. Identify structured argument container if provided
-  let container = params.arguments;
-  if (container === undefined || container === null || (typeof container === 'object' && Object.keys(container).length === 0)) {
-    if (params.args !== undefined) container = params.args;
-    else if (params.input !== undefined) container = params.input;
-    else if (params.parameters !== undefined) container = params.parameters;
-    else if (params.properties !== undefined) container = params.properties;
-    else if (params.props !== undefined) container = params.props;
-    else if (params.data !== undefined) container = params.data;
-  }
-
-  // 3. Parse JSON string if needed (OpenAI function calling format)
+  // Parse JSON string if arguments arrived as a serialized string (OpenAI function calling)
   if (typeof container === 'string') {
     try {
-      container = JSON.parse(container);
+      const parsed = JSON.parse(container);
+      if (parsed && typeof parsed === 'object') {
+        container = parsed;
+      }
     } catch {
-      // keep as string
+      // not JSON object
     }
   }
 
-  // 4. Unwrap nested argument layers
+  // Unwrap nested arguments object if doubled: { arguments: { ... } } or { input: { ... } }
   if (container && typeof container === 'object') {
     if (container.arguments && typeof container.arguments === 'object') {
       container = container.arguments;
@@ -236,11 +312,22 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
     }
   }
 
-  // 5. Merge top-level and container args
-  const rawArgs = { ...topLevelArgs, ...(typeof container === 'object' && container !== null ? container : {}) };
+  // Gather any non-protocol top-level properties on params (for flat callers e.g. { name: 'click_mark', mark_id: 1 } or { name: 'click_mark', id: 1 })
+  const protocolKeys = new Set(['name', 'arguments', 'args', 'parameters', 'properties', 'props', 'data', '_meta', 'task', 'method', 'jsonrpc']);
+  const topLevelArgs: Record<string, any> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (!protocolKeys.has(k) && v !== undefined) {
+      topLevelArgs[k] = v;
+    }
+  }
+
+  const rawArgs = {
+    ...topLevelArgs,
+    ...(typeof container === 'object' && container !== null ? container : {}),
+  };
 
   const normalized: Record<string, any> = {};
-  // 6. Copy and convert camelCase to snake_case
+  // Copy and convert camelCase to snake_case
   for (const [k, v] of Object.entries(rawArgs)) {
     normalized[k] = v;
     const snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase();
@@ -249,38 +336,55 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
     }
   }
 
-  // 7. Common aliases for visual browser directives
-  if (normalized.mark !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.mark;
-  if (normalized.id !== undefined && normalized.mark_id === undefined && normalized.tab_id === undefined) normalized.mark_id = normalized.id;
-  if (normalized.badge !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.badge;
+  // Aliases for mark_id
+  const markVal = normalized.mark_id ?? normalized.markId ?? normalized.mark ?? normalized.badge ?? normalized.index ?? normalized.num ?? normalized.number ?? (normalized.selector === undefined && normalized.tab_id === undefined && normalized.id !== undefined ? normalized.id : undefined);
+  if (markVal !== undefined) {
+    normalized.mark_id = isNaN(Number(markVal)) ? markVal : Number(markVal);
+  }
 
-  if (normalized.element !== undefined && normalized.selector === undefined) normalized.selector = normalized.element;
-  if (normalized.target !== undefined && normalized.selector === undefined && normalized.url === undefined) normalized.selector = normalized.target;
-  if (normalized.css !== undefined && normalized.selector === undefined) normalized.selector = normalized.css;
-  if (normalized.query !== undefined && normalized.selector === undefined && normalized.search_query === undefined) normalized.selector = normalized.query;
+  // Aliases for script / JS
+  const scriptVal = normalized.script ?? normalized.code ?? normalized.js ?? normalized.expression ?? normalized.javascript;
+  if (scriptVal !== undefined) {
+    normalized.script = String(scriptVal);
+  }
 
-  if (normalized.link !== undefined && normalized.url === undefined) normalized.url = normalized.link;
-  if (normalized.href !== undefined && normalized.url === undefined) normalized.url = normalized.href;
-  if (normalized.destination !== undefined && normalized.url === undefined) normalized.url = normalized.destination;
-  if (normalized.address !== undefined && normalized.url === undefined) normalized.url = normalized.address;
-  if (normalized.uri !== undefined && normalized.url === undefined) normalized.url = normalized.uri;
-  if (normalized.URL !== undefined && normalized.url === undefined) normalized.url = normalized.URL;
+  // Aliases for text
+  const textVal = normalized.text ?? normalized.value ?? normalized.content ?? (normalized.selector === undefined && normalized.input !== undefined && typeof normalized.input === 'string' ? normalized.input : undefined);
+  if (textVal !== undefined) {
+    normalized.text = String(textVal);
+  }
 
-  if (normalized.code !== undefined && normalized.script === undefined) normalized.script = normalized.code;
-  if (normalized.js !== undefined && normalized.script === undefined) normalized.script = normalized.js;
-  if (normalized.expression !== undefined && normalized.script === undefined) normalized.script = normalized.expression;
-  if (normalized.javascript !== undefined && normalized.script === undefined) normalized.script = normalized.javascript;
+  // Aliases for tab_id
+  const tabVal = normalized.tab_id ?? normalized.tabId ?? normalized.tab ?? (normalized.mark_id === undefined && normalized.id !== undefined ? normalized.id : undefined);
+  if (tabVal !== undefined) {
+    normalized.tab_id = typeof tabVal === 'number' ? `tab_${tabVal}` : String(tabVal);
+  }
 
-  if (normalized.tabId !== undefined && normalized.tab_id === undefined) normalized.tab_id = normalized.tabId;
-  if (normalized.tab !== undefined && normalized.tab_id === undefined) normalized.tab_id = normalized.tab;
-  if (typeof normalized.tab_id === 'number') normalized.tab_id = 'tab_' + normalized.tab_id;
+  // Aliases for url
+  const urlVal = normalized.url ?? normalized.destination ?? normalized.target ?? normalized.link ?? normalized.href ?? normalized.address ?? normalized.uri ?? normalized.URL;
+  if (urlVal !== undefined) {
+    normalized.url = String(urlVal);
+  }
 
-  if (normalized.value !== undefined && normalized.text === undefined) normalized.text = normalized.value;
-  if (normalized.content !== undefined && normalized.text === undefined) normalized.text = normalized.content;
+  // Aliases for reason
+  const reasonVal = normalized.reason ?? normalized.message ?? normalized.prompt;
+  if (reasonVal !== undefined) {
+    normalized.reason = String(reasonVal);
+  }
 
-  if (normalized.message !== undefined && normalized.reason === undefined) normalized.reason = normalized.message;
-  if (normalized.prompt !== undefined && normalized.reason === undefined) normalized.reason = normalized.prompt;
+  // Aliases for selector
+  const selectorVal = normalized.selector ?? normalized.element ?? normalized.target ?? normalized.css ?? (normalized.search_query === undefined && normalized.query !== undefined ? normalized.query : undefined);
+  if (selectorVal !== undefined) {
+    normalized.selector = String(selectorVal);
+  }
 
+  // Aliases for key
+  const keyVal = normalized.key ?? normalized.key_name ?? normalized.button;
+  if (keyVal !== undefined) {
+    normalized.key = String(keyVal);
+  }
+
+  // Booleans / numbers / settings
   if (normalized.closeToTray !== undefined && normalized.close_to_tray === undefined) normalized.close_to_tray = normalized.closeToTray;
   if (normalized.autoDismissConsent !== undefined && normalized.auto_dismiss_consent === undefined) normalized.auto_dismiss_consent = normalized.autoDismissConsent;
   if (normalized.timeoutSeconds !== undefined && normalized.timeout_seconds === undefined) normalized.timeout_seconds = normalized.timeoutSeconds;
@@ -308,6 +412,7 @@ async function start() {
             ...rawSchema,
             type: 'object',
             properties: rawSchema.properties || {},
+            required: Array.isArray(rawSchema.required) ? rawSchema.required : [],
             additionalProperties: true,
           };
           return {

@@ -7,8 +7,8 @@ This directory contains utility scripts, automated test harnesses, and the stand
 ## 📜 Key Scripts
 
 ### 1. Model Context Protocol Server
-- **[`mcp-server.js`](./mcp-server.js)**:
-  The official MCP server that communicates with LLM clients (Claude Desktop, Cursor, Antigravity) over standard input/output (`stdio`). Exposes all 49 standardized browser navigation, visual grounding, tab management, session vault, network stream interception, script recall, system tray, and human-in-the-loop tools by translating them into HTTP calls against the chassis bridge (`http://127.0.0.1:4111`).
+- **[`mcp-server.js`](./mcp-server.js)** & **[`bin/mcp-server.cjs`](../bin/mcp-server.cjs)**:
+  The standalone MCP stdio server executable communicating with LLM clients (Claude Desktop, Cursor, Antigravity, Agent-Orcha) over standard I/O (`stdio`). Exposes all 52 standardized browser navigation, multimodal vision, visual grounding, tab management, session vault, network stream interception, script recall, system tray, and human-in-the-loop tools by translating them into HTTP calls against the chassis bridge (`http://127.0.0.1:4111`).
 
 ### 2. Automated Test Suites
 - **[`test-chaos-engine.js`](./test-chaos-engine.js)**:

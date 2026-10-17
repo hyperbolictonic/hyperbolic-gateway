@@ -124,14 +124,14 @@ export function createMcpServer(chassis: BrowserChassis) {
     {},
     async () => {
       try {
-        const { base64Image, width, height } = await chassis.takeScreenshot();
+        const { base64Image, filePath, width, height } = await chassis.takeScreenshot();
         const rawBase64 = base64Image.replace(/^data:image\/png;base64,/, '');
 
         return {
           content: [
             {
               type: 'text',
-              text: `Captured viewport screenshot (${width}x${height}px).`,
+              text: `Captured viewport screenshot (${width}x${height}px)${filePath ? `, saved to ${filePath}` : ''}.`,
             },
             {
               type: 'image',
@@ -451,16 +451,17 @@ export function createMcpServer(chassis: BrowserChassis) {
         const res = await chassis.takeAnnotatedScreenshot();
         const base64Data = res.screenshot.base64Image.replace(/^data:image\/png;base64,/, '');
         const marksTable = res.marks.map((m) => `[#${m.id}] <${m.tag}${m.type ? ` type="${m.type}"` : ''}> "${m.text}"`).join('\n');
+        const filePath = res.screenshot.filePath;
         return {
           content: [
+            {
+              type: 'text',
+              text: `Interactive Elements (${res.marks.length} detected)${filePath ? ` (screenshot saved to ${filePath})` : ''}:\n\n${marksTable}\n\nUse click_mark(id) or type_mark(id, text) to interact.`,
+            },
             {
               type: 'image',
               data: base64Data,
               mimeType: 'image/png',
-            },
-            {
-              type: 'text',
-              text: `Interactive Elements (${res.marks.length} detected):\n\n${marksTable}\n\nUse click_mark(id) or type_mark(id, text) to interact.`,
             },
           ],
         };

@@ -114,7 +114,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       if (req.method === 'POST' && pathname === '/type') {
         const body = await readBody();
         const selector = body.selector || body.element || body.target;
-        const text = body.text ?? body.value ?? '';
+        const text = body.text ?? body.value ?? body.content ?? body.input ?? '';
         const result = await chassis.typeText(String(text), selector);
         sendJson({ success: true, result });
         return;
@@ -153,9 +153,19 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/screenshots/cleanup') {
+        const body = await readBody();
+        const maxFiles = body.maxFiles !== undefined ? Number(body.maxFiles) : 50;
+        const maxAgeMs = body.maxAgeDays !== undefined ? Number(body.maxAgeDays) * 86400000 : 7 * 86400000;
+        const cleanupResult = chassis.cleanupScreenshots(maxFiles, maxAgeMs);
+        sendJson({ success: true, ...cleanupResult });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/evaluate') {
         const body = await readBody();
-        const result = await chassis.evaluateJavaScript(body.script);
+        const script = body.script || body.code || body.js || body.expression || body.javascript || '';
+        const result = await chassis.evaluateJavaScript(script);
         sendJson({ success: true, result });
         return;
       }
@@ -261,7 +271,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'POST' && pathname === '/marks/click') {
         const body = await readBody();
-        const rawId = body.markId ?? body.mark_id ?? body.mark ?? body.id;
+        const rawId = body.markId ?? body.mark_id ?? body.mark ?? body.id ?? body.badge ?? body.index ?? body.num ?? body.number;
         if (rawId === undefined || isNaN(Number(rawId))) {
           sendJson({ success: false, error: 'Must provide valid numeric markId (or mark_id)' }, 400);
           return;
@@ -273,8 +283,8 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'POST' && pathname === '/marks/type') {
         const body = await readBody();
-        const rawId = body.markId ?? body.mark_id ?? body.mark ?? body.id;
-        const text = body.text ?? body.value ?? '';
+        const rawId = body.markId ?? body.mark_id ?? body.mark ?? body.id ?? body.badge ?? body.index ?? body.num ?? body.number;
+        const text = body.text ?? body.value ?? body.content ?? body.input ?? '';
         if (rawId === undefined || isNaN(Number(rawId))) {
           sendJson({ success: false, error: 'Must provide valid numeric markId (or mark_id)' }, 400);
           return;
@@ -353,15 +363,21 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'POST' && pathname === '/tabs/switch') {
         const body = await readBody();
-        chassis.switchTab(body.tabId);
-        sendJson({ success: true, message: `Switched to tab ${body.tabId}` });
+        let rawId = body.tabId ?? body.tab_id ?? body.tab ?? body.id;
+        if (typeof rawId === 'number') rawId = `tab_${rawId}`;
+        else if (rawId && !String(rawId).startsWith('tab_') && !isNaN(Number(rawId))) rawId = `tab_${rawId}`;
+        chassis.switchTab(rawId);
+        sendJson({ success: true, message: `Switched to tab ${rawId}` });
         return;
       }
 
       if (req.method === 'POST' && pathname === '/tabs/close') {
         const body = await readBody();
-        chassis.closeTab(body.tabId);
-        sendJson({ success: true, message: `Closed tab ${body.tabId || 'active'}` });
+        let rawId = body.tabId ?? body.tab_id ?? body.tab ?? body.id;
+        if (typeof rawId === 'number') rawId = `tab_${rawId}`;
+        else if (rawId && !String(rawId).startsWith('tab_') && !isNaN(Number(rawId))) rawId = `tab_${rawId}`;
+        chassis.closeTab(rawId);
+        sendJson({ success: true, message: `Closed tab ${rawId || 'active'}` });
         return;
       }
 

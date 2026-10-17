@@ -36607,7 +36607,7 @@ var TOOLS_CATALOG = [
     name: "navigate_to",
     description: "Navigates the real, visible Chromium browser window to a destination URL. Automatically dismisses GDPR/cookie consent overlays by default.",
     parameters: {
-      url: external_exports.string().optional().describe('The destination URL (e.g. "https://news.ycombinator.com" or "https://www.skyscanner.net")'),
+      url: external_exports.string().describe('The destination URL (e.g. "https://news.ycombinator.com" or "https://www.skyscanner.net")'),
       auto_dismiss_consent: external_exports.boolean().optional().default(true).describe("Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)")
     },
     endpoint: "/navigate",
@@ -36629,7 +36629,7 @@ var TOOLS_CATALOG = [
     name: "go_to_url",
     description: "Alias for navigate_to. Navigates the browser window to a destination URL.",
     parameters: {
-      url: external_exports.string().optional().describe("The destination URL")
+      url: external_exports.string().describe('The destination URL (e.g. "https://www.skyscanner.net")')
     },
     endpoint: "/navigate",
     payload: (args) => {
@@ -36651,13 +36651,13 @@ var TOOLS_CATALOG = [
     name: "click_element",
     description: "Clicks an element on the active web page using a CSS selector or direct viewport coordinates (x, y). Simulates realistic human pointer movement and switch actuation.",
     parameters: {
-      selector: external_exports.string().optional().describe("CSS selector of the element to click"),
+      selector: external_exports.string().optional().describe(`CSS selector of the element to click (e.g. "button.submit", "a[href*='login']", "#search-input")`),
       x: external_exports.coerce.number().optional().describe("Direct X coordinate on the viewport in pixels"),
       y: external_exports.coerce.number().optional().describe("Direct Y coordinate on the viewport in pixels")
     },
     endpoint: "/click",
     payload: (args) => {
-      const selector = args?.selector || args?.element || args?.target || args?.css;
+      const selector = args?.selector || args?.element || args?.target || args?.css || args?.query;
       const x = args?.x !== void 0 ? Number(args.x) : void 0;
       const y = args?.y !== void 0 ? Number(args.y) : void 0;
       if (!selector && (x === void 0 || y === void 0)) {
@@ -36671,12 +36671,12 @@ var TOOLS_CATALOG = [
     name: "type_text",
     description: "Types text into an input element or active element with realistic human Gaussian typing cadence (60-240ms per keystroke).",
     parameters: {
-      text: external_exports.coerce.string().optional().describe("The text string to type"),
+      text: external_exports.string().describe('The text string to type (e.g. "London")'),
       selector: external_exports.string().optional().describe("Optional CSS selector of the input element")
     },
     endpoint: "/type",
     payload: (args) => {
-      const text = args?.text !== void 0 ? String(args.text) : args?.value !== void 0 ? String(args.value) : args?.content !== void 0 ? String(args.content) : "";
+      const text = args?.text !== void 0 ? String(args.text) : args?.value !== void 0 ? String(args.value) : args?.content !== void 0 ? String(args.content) : args?.input !== void 0 ? String(args.input) : "";
       const selector = args?.selector || args?.element || args?.target || args?.css;
       return { text, selector };
     },
@@ -36686,7 +36686,7 @@ var TOOLS_CATALOG = [
     name: "press_key",
     description: "Dispatches a single hardware keyboard event (Enter, Tab, Escape, Backspace, ArrowDown, etc.).",
     parameters: {
-      key: external_exports.string().optional().describe('The key name to press (e.g. "Enter", "Tab", "Escape", "Backspace")')
+      key: external_exports.string().describe('The key name to press (e.g. "Enter", "Tab", "Escape", "Backspace")')
     },
     endpoint: "/press-key",
     payload: (args) => {
@@ -36709,11 +36709,11 @@ var TOOLS_CATALOG = [
   // 3. Visual & Inspection
   {
     name: "take_screenshot",
-    description: "Captures a full viewport image of the active tab. Saves to data/screenshots/ and returns the local file path.",
+    description: "Captures a full viewport image of the active tab. Saves to data/screenshots/ and returns local file path and native MCP image content.",
     parameters: {},
     endpoint: "/screenshot",
     method: "GET",
-    format: (data) => data.screenshot?.filePath || JSON.stringify(data, null, 2)
+    format: (data) => data.screenshot?.filePath ? `Screenshot saved to ${data.screenshot.filePath} (${data.screenshot.width || ""}x${data.screenshot.height || ""}px)` : "Screenshot captured"
   },
   {
     name: "get_page_markdown",
@@ -36741,7 +36741,7 @@ var TOOLS_CATALOG = [
     name: "evaluate_javascript",
     description: "Executes a JavaScript expression or script in the isolated context of the active web page and returns the serialized result.",
     parameters: {
-      script: external_exports.string().optional().describe('JavaScript code to evaluate in the page context (e.g. "document.title")')
+      script: external_exports.string().describe('JavaScript code to evaluate in the page context (e.g. "document.title" or "1+1")')
     },
     endpoint: "/evaluate",
     payload: (args) => {
@@ -36812,7 +36812,7 @@ var TOOLS_CATALOG = [
     name: "switch_tab",
     description: "Switches focus to an existing browser tab by its unique tab ID.",
     parameters: {
-      tab_id: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe('ID of the tab to switch to (e.g. "tab_1" or 1)')
+      tab_id: external_exports.coerce.string().describe('ID of the tab to switch to (e.g. "tab_1" or "1")')
     },
     endpoint: "/tabs/switch",
     payload: (args) => {
@@ -36829,7 +36829,7 @@ var TOOLS_CATALOG = [
     name: "close_tab",
     description: "Closes a browser tab by its tab ID (or active tab if omitted).",
     parameters: {
-      tab_id: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe("ID of tab to close (optional, closes active tab if omitted)")
+      tab_id: external_exports.coerce.string().optional().describe("ID of tab to close (optional, closes active tab if omitted)")
     },
     endpoint: "/tabs/close",
     payload: (args) => {
@@ -37019,7 +37019,7 @@ var TOOLS_CATALOG = [
   // 10. Set-of-Marks (SoM) Grounding
   {
     name: "take_annotated_screenshot",
-    description: "Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, and returns mark mapping.",
+    description: "Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping.",
     parameters: {},
     endpoint: "/marks/screenshot",
     method: "GET",
@@ -37029,37 +37029,37 @@ var TOOLS_CATALOG = [
     name: "click_mark",
     description: "Clicks an annotated element using its Set-of-Marks badge index from take_annotated_screenshot.",
     parameters: {
-      mark_id: external_exports.coerce.number().optional().describe("The numeric ID of the mark badge to click (e.g. 1)")
+      mark_id: external_exports.coerce.number().describe("The numeric ID of the mark badge to click (e.g. 1)")
     },
     endpoint: "/marks/click",
     payload: (args) => {
-      const raw = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id;
+      const raw = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id ?? args?.badge ?? args?.index ?? args?.num ?? args?.number;
       if (raw === void 0 || raw === null || isNaN(Number(raw))) {
         throw new Error('Missing mark_id. Please provide { "mark_id": 1 } from take_annotated_screenshot().');
       }
       return { markId: Number(raw) };
     },
-    format: (data, args) => `Clicked mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id}`
+    format: (data, args) => `Clicked mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id ?? args?.badge ?? args?.index ?? args?.num ?? args?.number}`
   },
   {
     name: "type_mark",
     description: "Types text into an annotated input element using its Set-of-Marks badge index.",
     parameters: {
-      mark_id: external_exports.coerce.number().optional().describe("The numeric ID of the mark badge to type into (e.g. 1)"),
-      text: external_exports.coerce.string().optional().describe("Text to type"),
+      mark_id: external_exports.coerce.number().describe("The numeric ID of the mark badge to type into (e.g. 1)"),
+      text: external_exports.string().describe('The text string to type into the marked element (e.g. "London")'),
       clear_first: external_exports.coerce.boolean().optional().default(false).describe("Whether to clear existing text before typing")
     },
     endpoint: "/marks/type",
     payload: (args) => {
-      const rawId = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id;
+      const rawId = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id ?? args?.badge ?? args?.index ?? args?.num ?? args?.number;
       if (rawId === void 0 || rawId === null || isNaN(Number(rawId))) {
         throw new Error('Missing mark_id. Please provide { "mark_id": 1, "text": "..." }');
       }
-      const text = String(args?.text ?? args?.value ?? "");
+      const text = String(args?.text ?? args?.value ?? args?.content ?? args?.input ?? "");
       const clearFirst = Boolean(args?.clear_first ?? args?.clearFirst ?? false);
       return { markId: Number(rawId), text, clearFirst };
     },
-    format: (data, args) => `Typed into mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id}`
+    format: (data, args) => `Typed into mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id ?? args?.badge ?? args?.index ?? args?.num ?? args?.number}`
   },
   // 11. Script Vault & Macro Engine
   {
@@ -37176,9 +37176,9 @@ var TOOLS_CATALOG = [
     name: "request_human_intervention",
     description: "Halts the agent and requests human assistance when credentials, 2FA, OTP, CAPTCHA, or manual approval are needed. Restores window, flashes taskbar, triggers desktop notification, and injects interactive banner.",
     parameters: {
-      reason: external_exports.string().optional().describe("Clear explanation of what human action is needed"),
+      reason: external_exports.string().describe('Clear explanation of what human action is needed (e.g. "Please solve the CAPTCHA")'),
       timeout_seconds: external_exports.number().optional().describe("Max seconds to wait (default: 180)"),
-      bring_to_front: external_exports.boolean().optional().describe("Whether to unhide/restore window from tray (default: true)")
+      bring_to_front: external_exports.boolean().optional().default(true).describe("Whether to unhide/restore window from tray (default: true)")
     },
     endpoint: "/hil/request",
     payload: (args) => {
@@ -37212,10 +37212,10 @@ var TOOLS_CATALOG = [
     name: "send_notification",
     description: "Dispatches an OS native desktop notification to alert the user without blocking agent execution.",
     parameters: {
-      title: external_exports.string().optional().describe("Notification title"),
-      message: external_exports.string().optional().describe("Notification body message"),
-      urgency: external_exports.enum(["normal", "critical", "low"]).optional().describe("Urgency level (default: normal)"),
-      sound: external_exports.boolean().optional().describe("Whether to play notification alert sound (default: true)")
+      message: external_exports.string().describe("Notification body message"),
+      title: external_exports.string().optional().default("Kuang Grade Mark Eleven").describe("Notification title"),
+      urgency: external_exports.enum(["normal", "critical", "low"]).optional().default("normal").describe("Urgency level (default: normal)"),
+      sound: external_exports.boolean().optional().default(true).describe("Whether to play notification alert sound (default: true)")
     },
     endpoint: "/notify",
     payload: (args) => {
@@ -37258,6 +37258,10 @@ async function callBridge(endpoint, method = "GET", body = null) {
   }
   return await res.json();
 }
+function extractCleanBase64(data) {
+  const raw = data?.screenshot?.base64Image || data?.base64Image || data?.image || "";
+  return typeof raw === "string" ? raw.replace(/^data:image\/[a-z]+;base64,/, "") : "";
+}
 function createBridgeMcpServer() {
   const server = new McpServer({
     name: "kuang-grade-mark-eleven",
@@ -37270,6 +37274,60 @@ function createBridgeMcpServer() {
         const body = tool.payload ? tool.payload(args) : args;
         logMcp(`[HTTP Forward] ${tool.method || "POST"} ${tool.endpoint} body: ${JSON.stringify(body)}`);
         const data = await callBridge(tool.endpoint, tool.method || "POST", body);
+        if (tool.name === "take_screenshot") {
+          const rawBase64 = extractCleanBase64(data);
+          const screenshot = data.screenshot || data;
+          const filePath = screenshot.filePath || "";
+          const w = screenshot.width || 0;
+          const h = screenshot.height || 0;
+          const descriptionText = filePath ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).` : `Screenshot captured (${w}x${h}px).`;
+          const content = [
+            {
+              type: "text",
+              text: descriptionText
+            }
+          ];
+          if (rawBase64) {
+            content.push({
+              type: "image",
+              data: rawBase64,
+              mimeType: "image/png"
+            });
+          }
+          logMcp(`[Tool Success] "take_screenshot" returning text + image part (${rawBase64.length} chars base64, path: ${filePath})`);
+          return { content };
+        }
+        if (tool.name === "take_annotated_screenshot") {
+          const rawBase64 = extractCleanBase64(data);
+          const screenshot = data.screenshot || data;
+          const filePath = screenshot.filePath || "";
+          const w = screenshot.width || 0;
+          const h = screenshot.height || 0;
+          const marks = Array.isArray(data.marks) ? data.marks : [];
+          const marksTable = marks.map((m) => `[#${m.id}] <${m.tag}${m.type ? ` type="${m.type}"` : ""}> "${m.text || ""}"`).join("\n");
+          const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.` : `Set-of-Marks Screenshot captured (${w}x${h}px). ${marks.length} interactive elements detected.`;
+          const descriptionText = `${header}
+
+Interactive Elements:
+${marksTable}
+
+Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
+          const content = [
+            {
+              type: "text",
+              text: descriptionText
+            }
+          ];
+          if (rawBase64) {
+            content.push({
+              type: "image",
+              data: rawBase64,
+              mimeType: "image/png"
+            });
+          }
+          logMcp(`[Tool Success] "take_annotated_screenshot" returning text + image part (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
+          return { content };
+        }
         const text = tool.format ? tool.format(data, args) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
         logMcp(`[Tool Success] "${tool.name}" result: ${String(text).slice(0, 100)}`);
         return { content: [{ type: "text", text }] };
@@ -37378,6 +37436,7 @@ ${allDocs}`
             ...rawSchema,
             type: "object",
             properties: rawSchema.properties || {},
+            required: Array.isArray(rawSchema.required) ? rawSchema.required : [],
             additionalProperties: true
           };
           return {
@@ -37409,25 +37468,28 @@ ${allDocs}`
 }
 function normalizeIncomingParams(params) {
   if (!params || typeof params !== "object") return {};
-  const protocolKeys = /* @__PURE__ */ new Set(["name", "arguments", "args", "input", "parameters", "properties", "props", "data", "_meta", "task", "method", "id", "jsonrpc"]);
-  const topLevelArgs = {};
-  for (const [k, v] of Object.entries(params)) {
-    if (!protocolKeys.has(k) && v !== void 0) {
-      topLevelArgs[k] = v;
-    }
-  }
   let container = params.arguments;
   if (container === void 0 || container === null || typeof container === "object" && Object.keys(container).length === 0) {
-    if (params.args !== void 0) container = params.args;
-    else if (params.input !== void 0) container = params.input;
-    else if (params.parameters !== void 0) container = params.parameters;
-    else if (params.properties !== void 0) container = params.properties;
-    else if (params.props !== void 0) container = params.props;
-    else if (params.data !== void 0) container = params.data;
+    if (params.args !== void 0 && typeof params.args === "object" && params.args !== null) {
+      container = params.args;
+    } else if (params.parameters !== void 0 && typeof params.parameters === "object" && params.parameters !== null) {
+      container = params.parameters;
+    } else if (params.data !== void 0 && typeof params.data === "object" && params.data !== null) {
+      container = params.data;
+    } else if (params.input !== void 0 && typeof params.input === "object" && params.input !== null) {
+      container = params.input;
+    } else if (params.properties !== void 0 && typeof params.properties === "object" && params.properties !== null) {
+      container = params.properties;
+    } else if (params.props !== void 0 && typeof params.props === "object" && params.props !== null) {
+      container = params.props;
+    }
   }
   if (typeof container === "string") {
     try {
-      container = JSON.parse(container);
+      const parsed = JSON.parse(container);
+      if (parsed && typeof parsed === "object") {
+        container = parsed;
+      }
     } catch {
     }
   }
@@ -37438,7 +37500,17 @@ function normalizeIncomingParams(params) {
       container = container.input;
     }
   }
-  const rawArgs = { ...topLevelArgs, ...typeof container === "object" && container !== null ? container : {} };
+  const protocolKeys = /* @__PURE__ */ new Set(["name", "arguments", "args", "parameters", "properties", "props", "data", "_meta", "task", "method", "jsonrpc"]);
+  const topLevelArgs = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (!protocolKeys.has(k) && v !== void 0) {
+      topLevelArgs[k] = v;
+    }
+  }
+  const rawArgs = {
+    ...topLevelArgs,
+    ...typeof container === "object" && container !== null ? container : {}
+  };
   const normalized = {};
   for (const [k, v] of Object.entries(rawArgs)) {
     normalized[k] = v;
@@ -37447,30 +37519,38 @@ function normalizeIncomingParams(params) {
       normalized[snakeKey] = v;
     }
   }
-  if (normalized.mark !== void 0 && normalized.mark_id === void 0) normalized.mark_id = normalized.mark;
-  if (normalized.id !== void 0 && normalized.mark_id === void 0 && normalized.tab_id === void 0) normalized.mark_id = normalized.id;
-  if (normalized.badge !== void 0 && normalized.mark_id === void 0) normalized.mark_id = normalized.badge;
-  if (normalized.element !== void 0 && normalized.selector === void 0) normalized.selector = normalized.element;
-  if (normalized.target !== void 0 && normalized.selector === void 0 && normalized.url === void 0) normalized.selector = normalized.target;
-  if (normalized.css !== void 0 && normalized.selector === void 0) normalized.selector = normalized.css;
-  if (normalized.query !== void 0 && normalized.selector === void 0 && normalized.search_query === void 0) normalized.selector = normalized.query;
-  if (normalized.link !== void 0 && normalized.url === void 0) normalized.url = normalized.link;
-  if (normalized.href !== void 0 && normalized.url === void 0) normalized.url = normalized.href;
-  if (normalized.destination !== void 0 && normalized.url === void 0) normalized.url = normalized.destination;
-  if (normalized.address !== void 0 && normalized.url === void 0) normalized.url = normalized.address;
-  if (normalized.uri !== void 0 && normalized.url === void 0) normalized.url = normalized.uri;
-  if (normalized.URL !== void 0 && normalized.url === void 0) normalized.url = normalized.URL;
-  if (normalized.code !== void 0 && normalized.script === void 0) normalized.script = normalized.code;
-  if (normalized.js !== void 0 && normalized.script === void 0) normalized.script = normalized.js;
-  if (normalized.expression !== void 0 && normalized.script === void 0) normalized.script = normalized.expression;
-  if (normalized.javascript !== void 0 && normalized.script === void 0) normalized.script = normalized.javascript;
-  if (normalized.tabId !== void 0 && normalized.tab_id === void 0) normalized.tab_id = normalized.tabId;
-  if (normalized.tab !== void 0 && normalized.tab_id === void 0) normalized.tab_id = normalized.tab;
-  if (typeof normalized.tab_id === "number") normalized.tab_id = "tab_" + normalized.tab_id;
-  if (normalized.value !== void 0 && normalized.text === void 0) normalized.text = normalized.value;
-  if (normalized.content !== void 0 && normalized.text === void 0) normalized.text = normalized.content;
-  if (normalized.message !== void 0 && normalized.reason === void 0) normalized.reason = normalized.message;
-  if (normalized.prompt !== void 0 && normalized.reason === void 0) normalized.reason = normalized.prompt;
+  const markVal = normalized.mark_id ?? normalized.markId ?? normalized.mark ?? normalized.badge ?? normalized.index ?? normalized.num ?? normalized.number ?? (normalized.selector === void 0 && normalized.tab_id === void 0 && normalized.id !== void 0 ? normalized.id : void 0);
+  if (markVal !== void 0) {
+    normalized.mark_id = isNaN(Number(markVal)) ? markVal : Number(markVal);
+  }
+  const scriptVal = normalized.script ?? normalized.code ?? normalized.js ?? normalized.expression ?? normalized.javascript;
+  if (scriptVal !== void 0) {
+    normalized.script = String(scriptVal);
+  }
+  const textVal = normalized.text ?? normalized.value ?? normalized.content ?? (normalized.selector === void 0 && normalized.input !== void 0 && typeof normalized.input === "string" ? normalized.input : void 0);
+  if (textVal !== void 0) {
+    normalized.text = String(textVal);
+  }
+  const tabVal = normalized.tab_id ?? normalized.tabId ?? normalized.tab ?? (normalized.mark_id === void 0 && normalized.id !== void 0 ? normalized.id : void 0);
+  if (tabVal !== void 0) {
+    normalized.tab_id = typeof tabVal === "number" ? `tab_${tabVal}` : String(tabVal);
+  }
+  const urlVal = normalized.url ?? normalized.destination ?? normalized.target ?? normalized.link ?? normalized.href ?? normalized.address ?? normalized.uri ?? normalized.URL;
+  if (urlVal !== void 0) {
+    normalized.url = String(urlVal);
+  }
+  const reasonVal = normalized.reason ?? normalized.message ?? normalized.prompt;
+  if (reasonVal !== void 0) {
+    normalized.reason = String(reasonVal);
+  }
+  const selectorVal = normalized.selector ?? normalized.element ?? normalized.target ?? normalized.css ?? (normalized.search_query === void 0 && normalized.query !== void 0 ? normalized.query : void 0);
+  if (selectorVal !== void 0) {
+    normalized.selector = String(selectorVal);
+  }
+  const keyVal = normalized.key ?? normalized.key_name ?? normalized.button;
+  if (keyVal !== void 0) {
+    normalized.key = String(keyVal);
+  }
   if (normalized.closeToTray !== void 0 && normalized.close_to_tray === void 0) normalized.close_to_tray = normalized.closeToTray;
   if (normalized.autoDismissConsent !== void 0 && normalized.auto_dismiss_consent === void 0) normalized.auto_dismiss_consent = normalized.autoDismissConsent;
   if (normalized.timeoutSeconds !== void 0 && normalized.timeout_seconds === void 0) normalized.timeout_seconds = normalized.timeoutSeconds;
@@ -37494,6 +37574,7 @@ async function start() {
             ...rawSchema,
             type: "object",
             properties: rawSchema.properties || {},
+            required: Array.isArray(rawSchema.required) ? rawSchema.required : [],
             additionalProperties: true
           };
           return {

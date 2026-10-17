@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { BrowserWindow, nativeImage, ipcMain } from 'electron';
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
@@ -599,7 +601,67 @@ export class BrowserChassis {
     return `Scrolled ${direction} by ${amount}px`;
   }
 
-  public async takeScreenshot(): Promise<{ base64Image: string; width: number; height: number }> {
+  public getScreenshotsDir(): string {
+    const dir = path.resolve(process.cwd(), 'data', 'screenshots');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  }
+
+  public cleanupScreenshots(maxFiles: number = 50, maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): { prunedCount: number; remainingCount: number } {
+    try {
+      const dir = this.getScreenshotsDir();
+      const files = fs.readdirSync(dir);
+      const now = Date.now();
+      const screenshotFiles: { file: string; fullPath: string; mtimeMs: number; size: number }[] = [];
+
+      for (const file of files) {
+        if (!file.toLowerCase().endsWith('.png')) continue;
+        const fullPath = path.join(dir, file);
+        try {
+          const stat = fs.statSync(fullPath);
+          screenshotFiles.push({ file, fullPath, mtimeMs: stat.mtimeMs, size: stat.size });
+        } catch {
+          // ignore stat errors
+        }
+      }
+
+      // Sort oldest first
+      screenshotFiles.sort((a, b) => a.mtimeMs - b.mtimeMs);
+
+      let prunedCount = 0;
+      const keepFiles: typeof screenshotFiles = [];
+
+      for (const item of screenshotFiles) {
+        const isExpired = now - item.mtimeMs > maxAgeMs;
+        const wouldExceedLimit = (screenshotFiles.length - prunedCount) > maxFiles;
+
+        if (isExpired || wouldExceedLimit) {
+          try {
+            fs.unlinkSync(item.fullPath);
+            prunedCount++;
+          } catch (err: any) {
+            console.error(`[BrowserChassis] Failed to prune screenshot ${item.file}:`, err);
+            keepFiles.push(item);
+          }
+        } else {
+          keepFiles.push(item);
+        }
+      }
+
+      if (prunedCount > 0) {
+        this.addLog('info', `Disk Maintenance: Pruned ${prunedCount} old screenshots from data/screenshots/ (kept ${keepFiles.length})`);
+      }
+
+      return { prunedCount, remainingCount: keepFiles.length };
+    } catch (err: any) {
+      console.error('[BrowserChassis] Error in cleanupScreenshots:', err);
+      return { prunedCount: 0, remainingCount: 0 };
+    }
+  }
+
+  public async takeScreenshot(): Promise<{ base64Image: string; filePath: string; width: number; height: number }> {
     const wc = this.getActiveWebContents();
     this.addLog('action', 'MCP Directive: take_screenshot()');
 
@@ -612,15 +674,24 @@ export class BrowserChassis {
     });
     const size = image.getSize();
     const base64Image = image.toDataURL();
+    const pngBuffer = image.toPNG();
+
+    // Save PNG to disk & run retention cleanup
+    const screenshotsDir = this.getScreenshotsDir();
+    const filename = `screenshot_${Date.now()}.png`;
+    const filePath = path.join(screenshotsDir, filename);
+    fs.writeFileSync(filePath, pngBuffer);
+    this.cleanupScreenshots(50);
 
     this.emitTelemetry({
       type: 'harvest',
       timestamp: Date.now(),
-      details: `Captured live viewport screenshot: ${size.width}x${size.height}px`,
+      details: `Captured live viewport screenshot: ${size.width}x${size.height}px, saved to ${filePath}`,
     });
 
     return {
       base64Image,
+      filePath,
       width: size.width,
       height: size.height,
     };
@@ -785,7 +856,7 @@ export class BrowserChassis {
   }
 
   public async takeAnnotatedScreenshot(): Promise<{
-    screenshot: { base64Image: string; width: number; height: number };
+    screenshot: { base64Image: string; filePath: string; width: number; height: number };
     marks: MarkItem[];
   }> {
     const wc = this.getActiveWebContents();
@@ -807,19 +878,28 @@ export class BrowserChassis {
     });
     const size = image.getSize();
     const base64Image = image.toDataURL();
+    const pngBuffer = image.toPNG();
 
     // 3. Immediately clean up marks from DOM
     await this.marksOverlay.removeMarks(wc);
 
+    // 4. Save PNG to disk & run retention cleanup
+    const screenshotsDir = this.getScreenshotsDir();
+    const filename = `annotated_${Date.now()}.png`;
+    const filePath = path.join(screenshotsDir, filename);
+    fs.writeFileSync(filePath, pngBuffer);
+    this.cleanupScreenshots(50);
+
     this.emitTelemetry({
       type: 'harvest',
       timestamp: Date.now(),
-      details: `Set-of-Marks: Tagged ${marks.length} interactive targets`,
+      details: `Set-of-Marks: Tagged ${marks.length} interactive targets, saved to ${filePath}`,
     });
 
     return {
       screenshot: {
         base64Image,
+        filePath,
         width: size.width,
         height: size.height,
       },
