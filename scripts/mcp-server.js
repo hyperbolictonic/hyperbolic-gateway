@@ -36605,16 +36605,21 @@ var TOOLS_CATALOG = [
     name: "navigate_to",
     description: "Navigates the real, visible Chromium browser window to a destination URL. Automatically dismisses GDPR/cookie consent overlays by default.",
     parameters: {
-      url: external_exports.string().describe('The destination URL (e.g. "https://news.ycombinator.com" or "https://reddit.com")'),
+      url: external_exports.string().optional().describe('The destination URL (e.g. "https://news.ycombinator.com" or "https://www.skyscanner.net")'),
       auto_dismiss_consent: external_exports.boolean().optional().default(true).describe("Whether to automatically detect and dismiss cookie/GDPR consent overlays (default: true)")
     },
     endpoint: "/navigate",
     payload: (args) => {
-      let targetUrl = args.url || args.destination || args.target || args.link || args.href || "";
-      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
-        targetUrl = "https://" + targetUrl;
+      let targetUrl = args?.url || args?.destination || args?.target || args?.link || args?.href || args?.address || "";
+      if (typeof targetUrl === "string" && targetUrl) {
+        if (!/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
+          targetUrl = "https://" + targetUrl;
+        }
       }
-      return { url: targetUrl, autoDismissConsent: args.auto_dismiss_consent ?? true };
+      if (!targetUrl) {
+        throw new Error('Missing destination URL. Please provide { "url": "https://..." }');
+      }
+      return { url: targetUrl, autoDismissConsent: args?.auto_dismiss_consent ?? true };
     },
     format: (data) => data.result || "Navigation complete"
   },
@@ -36622,13 +36627,18 @@ var TOOLS_CATALOG = [
     name: "go_to_url",
     description: "Alias for navigate_to. Navigates the browser window to a destination URL.",
     parameters: {
-      url: external_exports.string().describe("The destination URL")
+      url: external_exports.string().optional().describe("The destination URL")
     },
     endpoint: "/navigate",
     payload: (args) => {
-      let targetUrl = args.url || args.destination || args.target || args.link || args.href || "";
-      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
-        targetUrl = "https://" + targetUrl;
+      let targetUrl = args?.url || args?.destination || args?.target || args?.link || args?.href || args?.address || "";
+      if (typeof targetUrl === "string" && targetUrl) {
+        if (!/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
+          targetUrl = "https://" + targetUrl;
+        }
+      }
+      if (!targetUrl) {
+        throw new Error('Missing destination URL. Please provide { "url": "https://..." }');
       }
       return { url: targetUrl };
     },
@@ -36644,32 +36654,43 @@ var TOOLS_CATALOG = [
       y: external_exports.coerce.number().optional().describe("Direct Y coordinate on the viewport in pixels")
     },
     endpoint: "/click",
-    payload: (args) => ({
-      selector: args.selector || args.element || args.target || args.css,
-      x: args.x !== void 0 ? Number(args.x) : void 0,
-      y: args.y !== void 0 ? Number(args.y) : void 0
-    }),
+    payload: (args) => {
+      const selector = args?.selector || args?.element || args?.target || args?.css;
+      const x = args?.x !== void 0 ? Number(args.x) : void 0;
+      const y = args?.y !== void 0 ? Number(args.y) : void 0;
+      if (!selector && (x === void 0 || y === void 0)) {
+        throw new Error('Missing click target. Please provide either a "selector" (CSS selector) or ("x", "y") viewport coordinates.');
+      }
+      return { selector, x, y };
+    },
     format: (data) => data.result || "Click executed"
   },
   {
     name: "type_text",
     description: "Types text into an input element or active element with realistic human Gaussian typing cadence (60-240ms per keystroke).",
     parameters: {
-      text: external_exports.string().describe("The text string to type"),
+      text: external_exports.coerce.string().optional().describe("The text string to type"),
       selector: external_exports.string().optional().describe("Optional CSS selector of the input element")
     },
     endpoint: "/type",
-    payload: (args) => ({ text: args.text, selector: args.selector }),
+    payload: (args) => {
+      const text = args?.text !== void 0 ? String(args.text) : args?.value !== void 0 ? String(args.value) : args?.content !== void 0 ? String(args.content) : "";
+      const selector = args?.selector || args?.element || args?.target || args?.css;
+      return { text, selector };
+    },
     format: (data) => data.result || "Text typed successfully"
   },
   {
     name: "press_key",
     description: "Dispatches a single hardware keyboard event (Enter, Tab, Escape, Backspace, ArrowDown, etc.).",
     parameters: {
-      key: external_exports.string().describe('The key name to press (e.g. "Enter", "Tab", "Escape", "Backspace")')
+      key: external_exports.string().optional().describe('The key name to press (e.g. "Enter", "Tab", "Escape", "Backspace")')
     },
     endpoint: "/press-key",
-    payload: (args) => ({ key: args.key }),
+    payload: (args) => {
+      const key = args?.key || args?.key_name || args?.button || "Enter";
+      return { key };
+    },
     format: (data) => data.result || "Key pressed"
   },
   {
@@ -36680,7 +36701,7 @@ var TOOLS_CATALOG = [
       amount: external_exports.number().optional().default(400).describe("Scroll amount in pixels (default: 400)")
     },
     endpoint: "/scroll",
-    payload: (args) => ({ direction: args.direction, amount: args.amount }),
+    payload: (args) => ({ direction: args?.direction || "down", amount: args?.amount !== void 0 ? Number(args.amount) : 400 }),
     format: (data) => data.result || "Scrolled successfully"
   },
   // 3. Visual & Inspection
@@ -36718,10 +36739,16 @@ var TOOLS_CATALOG = [
     name: "evaluate_javascript",
     description: "Executes a JavaScript expression or script in the isolated context of the active web page and returns the serialized result.",
     parameters: {
-      script: external_exports.string().describe("JavaScript code to evaluate in the page context")
+      script: external_exports.string().optional().describe('JavaScript code to evaluate in the page context (e.g. "document.title")')
     },
     endpoint: "/evaluate",
-    payload: (args) => ({ script: args.script }),
+    payload: (args) => {
+      const script = args?.script || args?.code || args?.js || args?.expression || args?.javascript || "";
+      if (!script) {
+        throw new Error('Missing script to evaluate. Please provide { "script": "..." }');
+      }
+      return { script };
+    },
     format: (data) => JSON.stringify(data.result, null, 2)
   },
   {
@@ -36765,13 +36792,15 @@ var TOOLS_CATALOG = [
     name: "new_tab",
     description: "Opens a new isolated browser tab in the Cyberdeck window and navigates to the given URL (default: about:blank).",
     parameters: {
-      url: external_exports.string().optional().describe("Initial URL to load")
+      url: external_exports.string().optional().describe('Initial URL to load (e.g. "https://news.ycombinator.com")')
     },
     endpoint: "/tabs/new",
     payload: (args) => {
-      let targetUrl = args.url || args.destination || args.target || args.link || args.href || "";
-      if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl)) {
-        targetUrl = "https://" + targetUrl;
+      let targetUrl = args?.url || args?.destination || args?.target || args?.link || args?.href || args?.address || "";
+      if (typeof targetUrl === "string" && targetUrl) {
+        if (!/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) {
+          targetUrl = "https://" + targetUrl;
+        }
       }
       return { url: targetUrl };
     },
@@ -36781,21 +36810,32 @@ var TOOLS_CATALOG = [
     name: "switch_tab",
     description: "Switches focus to an existing browser tab by its unique tab ID.",
     parameters: {
-      tab_id: external_exports.union([external_exports.string(), external_exports.coerce.number().transform((n) => "tab_" + n)]).describe('ID of the tab to switch to (e.g. "tab_1" or 1)')
+      tab_id: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe('ID of the tab to switch to (e.g. "tab_1" or 1)')
     },
     endpoint: "/tabs/switch",
-    payload: (args) => ({ tabId: typeof args.tab_id === "number" ? "tab_" + args.tab_id : args.tab_id }),
-    format: (data, args) => data.message || `Switched to tab: ${args.tab_id || data.tabId}`
+    payload: (args) => {
+      let rawId = args?.tab_id ?? args?.tabId ?? args?.tab ?? args?.id;
+      if (rawId === void 0 || rawId === null || rawId === "") {
+        throw new Error('Missing tab_id. Please provide { "tab_id": "tab_1" } or call list_tabs() first.');
+      }
+      const tabId = typeof rawId === "number" ? `tab_${rawId}` : String(rawId).startsWith("tab_") ? String(rawId) : !isNaN(Number(rawId)) ? `tab_${rawId}` : String(rawId);
+      return { tabId };
+    },
+    format: (data, args) => data.message || `Switched to tab: ${args?.tab_id || data.tabId}`
   },
   {
     name: "close_tab",
     description: "Closes a browser tab by its tab ID (or active tab if omitted).",
     parameters: {
-      tab_id: external_exports.union([external_exports.string(), external_exports.coerce.number().transform((n) => "tab_" + n)]).optional().describe("ID of tab to close (optional)")
+      tab_id: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe("ID of tab to close (optional, closes active tab if omitted)")
     },
     endpoint: "/tabs/close",
-    payload: (args) => ({ tabId: typeof args.tab_id === "number" ? "tab_" + args.tab_id : args.tab_id }),
-    format: (data, args) => data.message || `Closed tab: ${args.tab_id || data.tabId || "active"}`
+    payload: (args) => {
+      let rawId = args?.tab_id ?? args?.tabId ?? args?.tab ?? args?.id;
+      const tabId = rawId !== void 0 && rawId !== null && rawId !== "" ? typeof rawId === "number" ? `tab_${rawId}` : String(rawId).startsWith("tab_") ? String(rawId) : !isNaN(Number(rawId)) ? `tab_${rawId}` : String(rawId) : void 0;
+      return { tabId };
+    },
+    format: (data, args) => data.message || `Closed tab: ${args?.tab_id || data.tabId || "active"}`
   },
   {
     name: "list_tabs",
@@ -36987,27 +37027,37 @@ var TOOLS_CATALOG = [
     name: "click_mark",
     description: "Clicks an annotated element using its Set-of-Marks badge index from take_annotated_screenshot.",
     parameters: {
-      mark_id: external_exports.coerce.number().describe("The numeric ID of the mark badge to click")
+      mark_id: external_exports.coerce.number().optional().describe("The numeric ID of the mark badge to click (e.g. 1)")
     },
     endpoint: "/marks/click",
-    payload: (args) => ({ markId: Number(args.mark_id ?? args.markId ?? args.mark ?? args.id) }),
-    format: (data, args) => `Clicked mark #${args.mark_id}`
+    payload: (args) => {
+      const raw = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id;
+      if (raw === void 0 || raw === null || isNaN(Number(raw))) {
+        throw new Error('Missing mark_id. Please provide { "mark_id": 1 } from take_annotated_screenshot().');
+      }
+      return { markId: Number(raw) };
+    },
+    format: (data, args) => `Clicked mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id}`
   },
   {
     name: "type_mark",
     description: "Types text into an annotated input element using its Set-of-Marks badge index.",
     parameters: {
-      mark_id: external_exports.coerce.number().describe("The numeric ID of the mark badge to type into"),
-      text: external_exports.coerce.string().describe("Text to type"),
+      mark_id: external_exports.coerce.number().optional().describe("The numeric ID of the mark badge to type into (e.g. 1)"),
+      text: external_exports.coerce.string().optional().describe("Text to type"),
       clear_first: external_exports.coerce.boolean().optional().default(false).describe("Whether to clear existing text before typing")
     },
     endpoint: "/marks/type",
-    payload: (args) => ({
-      markId: Number(args.mark_id ?? args.markId ?? args.mark ?? args.id),
-      text: String(args.text ?? args.value ?? ""),
-      clearFirst: args.clear_first ?? args.clearFirst ?? false
-    }),
-    format: (data, args) => `Typed into mark #${args.mark_id}`
+    payload: (args) => {
+      const rawId = args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id;
+      if (rawId === void 0 || rawId === null || isNaN(Number(rawId))) {
+        throw new Error('Missing mark_id. Please provide { "mark_id": 1, "text": "..." }');
+      }
+      const text = String(args?.text ?? args?.value ?? "");
+      const clearFirst = Boolean(args?.clear_first ?? args?.clearFirst ?? false);
+      return { markId: Number(rawId), text, clearFirst };
+    },
+    format: (data, args) => `Typed into mark #${args?.mark_id ?? args?.markId ?? args?.mark ?? args?.id}`
   },
   // 11. Script Vault & Macro Engine
   {
@@ -37103,11 +37153,11 @@ var TOOLS_CATALOG = [
     name: "set_window_visibility",
     description: "Controls the cyberdeck desktop window visibility (e.g. minimize to system tray to stay out of the user's way, or restore to screen).",
     parameters: {
-      visible: external_exports.boolean().describe("true to restore and focus window; false to minimize/hide to system tray")
+      visible: external_exports.coerce.boolean().optional().describe("true to restore and focus window; false to minimize/hide to system tray")
     },
     endpoint: "/window/visibility",
-    payload: (args) => ({ visible: args.visible }),
-    format: (data, args) => JSON.stringify({ success: true, visible: data.visible, state: args.visible ? "WINDOW_RESTORED" : "MINIMIZED_TO_TRAY" })
+    payload: (args) => ({ visible: args?.visible !== void 0 ? Boolean(args.visible) : true }),
+    format: (data, args) => JSON.stringify({ success: true, visible: data.visible, state: args?.visible ?? true ? "WINDOW_RESTORED" : "MINIMIZED_TO_TRAY" })
   },
   {
     name: "configure_system_tray",
@@ -37116,7 +37166,7 @@ var TOOLS_CATALOG = [
       close_to_tray: external_exports.boolean().optional().describe("If specified, enables (true) or disables (false) minimize-to-tray when closing window")
     },
     endpoint: "/window/tray",
-    payload: (args) => ({ closeToTray: args.close_to_tray }),
+    payload: (args) => ({ closeToTray: args?.close_to_tray }),
     format: (data) => JSON.stringify({ close_to_tray: data.closeToTray }, null, 2)
   },
   // 14. Human-In-The-Loop (HIL) Intervention & Desktop Notifications
@@ -37124,12 +37174,17 @@ var TOOLS_CATALOG = [
     name: "request_human_intervention",
     description: "Halts the agent and requests human assistance when credentials, 2FA, OTP, CAPTCHA, or manual approval are needed. Restores window, flashes taskbar, triggers desktop notification, and injects interactive banner.",
     parameters: {
-      reason: external_exports.string().describe("Clear explanation of what human action is needed"),
+      reason: external_exports.string().optional().describe("Clear explanation of what human action is needed"),
       timeout_seconds: external_exports.number().optional().describe("Max seconds to wait (default: 180)"),
       bring_to_front: external_exports.boolean().optional().describe("Whether to unhide/restore window from tray (default: true)")
     },
     endpoint: "/hil/request",
-    payload: (args) => ({ reason: args.reason, timeoutSeconds: args.timeout_seconds, bringToFront: args.bring_to_front }),
+    payload: (args) => {
+      const reason = args?.reason || args?.message || args?.prompt || "Human assistance requested by AI agent.";
+      const timeoutSeconds = args?.timeout_seconds !== void 0 ? Number(args.timeout_seconds) : void 0;
+      const bringToFront = args?.bring_to_front ?? true;
+      return { reason, timeoutSeconds, bringToFront };
+    },
     format: (data) => JSON.stringify(data.result, null, 2)
   },
   {
@@ -37140,8 +37195,8 @@ var TOOLS_CATALOG = [
       notes: external_exports.string().optional().describe("Confirmation notes or summary of action taken")
     },
     endpoint: "/hil/resolve",
-    payload: (args) => ({ id: args.id, notes: args.notes }),
-    format: (data, args) => data.resolved ? `Intervention resolved: ${args.notes || "User confirmed."}` : "No pending intervention request found."
+    payload: (args) => ({ id: args?.id, notes: args?.notes }),
+    format: (data, args) => data.resolved ? `Intervention resolved: ${args?.notes || "User confirmed."}` : "No pending intervention request found."
   },
   {
     name: "get_human_intervention_status",
@@ -37155,14 +37210,18 @@ var TOOLS_CATALOG = [
     name: "send_notification",
     description: "Dispatches an OS native desktop notification to alert the user without blocking agent execution.",
     parameters: {
-      title: external_exports.string().describe("Notification title"),
-      message: external_exports.string().describe("Notification body message"),
+      title: external_exports.string().optional().describe("Notification title"),
+      message: external_exports.string().optional().describe("Notification body message"),
       urgency: external_exports.enum(["normal", "critical", "low"]).optional().describe("Urgency level (default: normal)"),
       sound: external_exports.boolean().optional().describe("Whether to play notification alert sound (default: true)")
     },
     endpoint: "/notify",
-    payload: (args) => ({ title: args.title, message: args.message, urgency: args.urgency, sound: args.sound }),
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args.title, message: args.message })
+    payload: (args) => {
+      const title = args?.title || "Kuang Grade Mark Eleven";
+      const message = args?.message || args?.text || args?.body || "Agent notification";
+      return { title, message, urgency: args?.urgency, sound: args?.sound };
+    },
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Kuang Grade Mark Eleven", message: args?.message || "Notification sent" })
   }
 ];
 
@@ -37289,11 +37348,21 @@ ${allDocs}`
       };
     }
   );
+  const rawCallHandler = server.server?._requestHandlers?.get?.("tools/call");
+  if (rawCallHandler) {
+    server.server._requestHandlers.set("tools/call", async (request, extra) => {
+      if (request?.params) {
+        request.params.arguments = normalizeIncomingParams(request.params);
+        console.error(`[Mark Eleven MCP] tools/call: "${request.params.name}" args:`, JSON.stringify(request.params.arguments));
+      }
+      return await rawCallHandler(request, extra);
+    });
+  }
   return server;
 }
 function normalizeIncomingParams(params) {
   if (!params || typeof params !== "object") return {};
-  const protocolKeys = /* @__PURE__ */ new Set(["name", "arguments", "args", "input", "parameters", "properties", "_meta", "task", "method", "id", "jsonrpc"]);
+  const protocolKeys = /* @__PURE__ */ new Set(["name", "arguments", "args", "input", "parameters", "properties", "props", "data", "_meta", "task", "method", "id", "jsonrpc"]);
   const topLevelArgs = {};
   for (const [k, v] of Object.entries(params)) {
     if (!protocolKeys.has(k) && v !== void 0) {
@@ -37306,6 +37375,8 @@ function normalizeIncomingParams(params) {
     else if (params.input !== void 0) container = params.input;
     else if (params.parameters !== void 0) container = params.parameters;
     else if (params.properties !== void 0) container = params.properties;
+    else if (params.props !== void 0) container = params.props;
+    else if (params.data !== void 0) container = params.data;
   }
   if (typeof container === "string") {
     try {
@@ -37330,20 +37401,34 @@ function normalizeIncomingParams(params) {
     }
   }
   if (normalized.mark !== void 0 && normalized.mark_id === void 0) normalized.mark_id = normalized.mark;
-  if (normalized.id !== void 0 && normalized.mark_id === void 0) normalized.mark_id = normalized.id;
+  if (normalized.id !== void 0 && normalized.mark_id === void 0 && normalized.tab_id === void 0) normalized.mark_id = normalized.id;
+  if (normalized.badge !== void 0 && normalized.mark_id === void 0) normalized.mark_id = normalized.badge;
   if (normalized.element !== void 0 && normalized.selector === void 0) normalized.selector = normalized.element;
-  if (normalized.target !== void 0 && normalized.selector === void 0) normalized.selector = normalized.target;
+  if (normalized.target !== void 0 && normalized.selector === void 0 && normalized.url === void 0) normalized.selector = normalized.target;
   if (normalized.css !== void 0 && normalized.selector === void 0) normalized.selector = normalized.css;
+  if (normalized.query !== void 0 && normalized.selector === void 0 && normalized.search_query === void 0) normalized.selector = normalized.query;
   if (normalized.link !== void 0 && normalized.url === void 0) normalized.url = normalized.link;
   if (normalized.href !== void 0 && normalized.url === void 0) normalized.url = normalized.href;
   if (normalized.destination !== void 0 && normalized.url === void 0) normalized.url = normalized.destination;
   if (normalized.address !== void 0 && normalized.url === void 0) normalized.url = normalized.address;
+  if (normalized.uri !== void 0 && normalized.url === void 0) normalized.url = normalized.uri;
+  if (normalized.URL !== void 0 && normalized.url === void 0) normalized.url = normalized.URL;
   if (normalized.code !== void 0 && normalized.script === void 0) normalized.script = normalized.code;
   if (normalized.js !== void 0 && normalized.script === void 0) normalized.script = normalized.js;
   if (normalized.expression !== void 0 && normalized.script === void 0) normalized.script = normalized.expression;
+  if (normalized.javascript !== void 0 && normalized.script === void 0) normalized.script = normalized.javascript;
   if (normalized.tabId !== void 0 && normalized.tab_id === void 0) normalized.tab_id = normalized.tabId;
   if (normalized.tab !== void 0 && normalized.tab_id === void 0) normalized.tab_id = normalized.tab;
   if (typeof normalized.tab_id === "number") normalized.tab_id = "tab_" + normalized.tab_id;
+  if (normalized.value !== void 0 && normalized.text === void 0) normalized.text = normalized.value;
+  if (normalized.content !== void 0 && normalized.text === void 0) normalized.text = normalized.content;
+  if (normalized.message !== void 0 && normalized.reason === void 0) normalized.reason = normalized.message;
+  if (normalized.prompt !== void 0 && normalized.reason === void 0) normalized.reason = normalized.prompt;
+  if (normalized.closeToTray !== void 0 && normalized.close_to_tray === void 0) normalized.close_to_tray = normalized.closeToTray;
+  if (normalized.autoDismissConsent !== void 0 && normalized.auto_dismiss_consent === void 0) normalized.auto_dismiss_consent = normalized.autoDismissConsent;
+  if (normalized.timeoutSeconds !== void 0 && normalized.timeout_seconds === void 0) normalized.timeout_seconds = normalized.timeoutSeconds;
+  if (normalized.bringToFront !== void 0 && normalized.bring_to_front === void 0) normalized.bring_to_front = normalized.bringToFront;
+  if (normalized.clearFirst !== void 0 && normalized.clear_first === void 0) normalized.clear_first = normalized.clearFirst;
   return normalized;
 }
 async function start() {

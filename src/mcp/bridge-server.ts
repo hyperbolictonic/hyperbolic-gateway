@@ -133,6 +133,18 @@ export function createBridgeMcpServer() {
     }
   );
 
+  // Install universal request-level argument normalizer on underlying MCP Server
+  const rawCallHandler = (server as any).server?._requestHandlers?.get?.('tools/call');
+  if (rawCallHandler) {
+    (server as any).server._requestHandlers.set('tools/call', async (request: any, extra: any) => {
+      if (request?.params) {
+        request.params.arguments = normalizeIncomingParams(request.params);
+        console.error(`[Mark Eleven MCP] tools/call: "${request.params.name}" args:`, JSON.stringify(request.params.arguments));
+      }
+      return await rawCallHandler(request, extra);
+    });
+  }
+
   return server;
 }
 
@@ -140,7 +152,7 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
   if (!params || typeof params !== 'object') return {};
 
   // 1. Gather all non-protocol top-level keys in params (e.g. if caller passed { name: 'go_to_url', url: '...' })
-  const protocolKeys = new Set(['name', 'arguments', 'args', 'input', 'parameters', 'properties', '_meta', 'task', 'method', 'id', 'jsonrpc']);
+  const protocolKeys = new Set(['name', 'arguments', 'args', 'input', 'parameters', 'properties', 'props', 'data', '_meta', 'task', 'method', 'id', 'jsonrpc']);
   const topLevelArgs: Record<string, any> = {};
   for (const [k, v] of Object.entries(params)) {
     if (!protocolKeys.has(k) && v !== undefined) {
@@ -155,9 +167,11 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
     else if (params.input !== undefined) container = params.input;
     else if (params.parameters !== undefined) container = params.parameters;
     else if (params.properties !== undefined) container = params.properties;
+    else if (params.props !== undefined) container = params.props;
+    else if (params.data !== undefined) container = params.data;
   }
 
-  // 3. Parse JSON string if needed
+  // 3. Parse JSON string if needed (OpenAI function calling format)
   if (typeof container === 'string') {
     try {
       container = JSON.parse(container);
@@ -188,26 +202,43 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
     }
   }
 
-  // 7. Common aliases
+  // 7. Common aliases for visual browser directives
   if (normalized.mark !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.mark;
-  if (normalized.id !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.id;
+  if (normalized.id !== undefined && normalized.mark_id === undefined && normalized.tab_id === undefined) normalized.mark_id = normalized.id;
+  if (normalized.badge !== undefined && normalized.mark_id === undefined) normalized.mark_id = normalized.badge;
 
   if (normalized.element !== undefined && normalized.selector === undefined) normalized.selector = normalized.element;
-  if (normalized.target !== undefined && normalized.selector === undefined) normalized.selector = normalized.target;
+  if (normalized.target !== undefined && normalized.selector === undefined && normalized.url === undefined) normalized.selector = normalized.target;
   if (normalized.css !== undefined && normalized.selector === undefined) normalized.selector = normalized.css;
+  if (normalized.query !== undefined && normalized.selector === undefined && normalized.search_query === undefined) normalized.selector = normalized.query;
 
   if (normalized.link !== undefined && normalized.url === undefined) normalized.url = normalized.link;
   if (normalized.href !== undefined && normalized.url === undefined) normalized.url = normalized.href;
   if (normalized.destination !== undefined && normalized.url === undefined) normalized.url = normalized.destination;
   if (normalized.address !== undefined && normalized.url === undefined) normalized.url = normalized.address;
+  if (normalized.uri !== undefined && normalized.url === undefined) normalized.url = normalized.uri;
+  if (normalized.URL !== undefined && normalized.url === undefined) normalized.url = normalized.URL;
 
   if (normalized.code !== undefined && normalized.script === undefined) normalized.script = normalized.code;
   if (normalized.js !== undefined && normalized.script === undefined) normalized.script = normalized.js;
   if (normalized.expression !== undefined && normalized.script === undefined) normalized.script = normalized.expression;
+  if (normalized.javascript !== undefined && normalized.script === undefined) normalized.script = normalized.javascript;
 
   if (normalized.tabId !== undefined && normalized.tab_id === undefined) normalized.tab_id = normalized.tabId;
   if (normalized.tab !== undefined && normalized.tab_id === undefined) normalized.tab_id = normalized.tab;
   if (typeof normalized.tab_id === 'number') normalized.tab_id = 'tab_' + normalized.tab_id;
+
+  if (normalized.value !== undefined && normalized.text === undefined) normalized.text = normalized.value;
+  if (normalized.content !== undefined && normalized.text === undefined) normalized.text = normalized.content;
+
+  if (normalized.message !== undefined && normalized.reason === undefined) normalized.reason = normalized.message;
+  if (normalized.prompt !== undefined && normalized.reason === undefined) normalized.reason = normalized.prompt;
+
+  if (normalized.closeToTray !== undefined && normalized.close_to_tray === undefined) normalized.close_to_tray = normalized.closeToTray;
+  if (normalized.autoDismissConsent !== undefined && normalized.auto_dismiss_consent === undefined) normalized.auto_dismiss_consent = normalized.autoDismissConsent;
+  if (normalized.timeoutSeconds !== undefined && normalized.timeout_seconds === undefined) normalized.timeout_seconds = normalized.timeoutSeconds;
+  if (normalized.bringToFront !== undefined && normalized.bring_to_front === undefined) normalized.bring_to_front = normalized.bringToFront;
+  if (normalized.clearFirst !== undefined && normalized.clear_first === undefined) normalized.clear_first = normalized.clearFirst;
 
   return normalized;
 }
@@ -217,7 +248,7 @@ async function start() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  // Install robust argument normalizer interceptor to protect against any client transport/casing quirks
+  // Install transport-level interceptor to guarantee JSON-RPC messages are normalized
   const prevOnMessage = (transport as any).onmessage;
   if (typeof prevOnMessage === 'function') {
     (transport as any).onmessage = (msg: any, extra: any) => {
