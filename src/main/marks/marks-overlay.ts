@@ -16,6 +16,24 @@ export interface MarkItem {
 
 export class MarksOverlay {
   private activeMarks: Map<number, MarkItem> = new Map();
+  /** Session-sticky registry for structural anchors: fingerprint -> markId */
+  private staticAnchorMap: Map<string, number> = new Map();
+  private lastUrl: string = '';
+
+  /**
+   * Resets sticky anchor cache when navigating to an entirely new page origin/path.
+   */
+  public resetIfUrlChanged(currentUrl: string): void {
+    try {
+      const cleanUrl = currentUrl.split('?')[0].split('#')[0].toLowerCase();
+      if (this.lastUrl && this.lastUrl !== cleanUrl) {
+        this.staticAnchorMap.clear();
+      }
+      this.lastUrl = cleanUrl;
+    } catch {
+      this.staticAnchorMap.clear();
+    }
+  }
 
   /**
    * Scans the active WebContents DOM for visible interactive elements,
@@ -34,9 +52,17 @@ export class MarksOverlay {
   public async injectMarks(wc: WebContents): Promise<MarkItem[]> {
     if (!wc || wc.isDestroyed()) return [];
 
+    const currentUrl = wc.getURL();
+    this.resetIfUrlChanged(currentUrl);
+
+    // Pass existing static anchors so the injected script can reuse sticky IDs
+    const existingAnchors = Object.fromEntries(this.staticAnchorMap.entries());
+
     const script = `
       (() => {
-        // Clear stale marks from previous scans so data-mark-id lookups can never collide
+        const existingAnchors = ${JSON.stringify(existingAnchors)};
+
+        // Clear stale visual marks from previous scans
         document.querySelectorAll('[data-mark-id]').forEach((n) => n.removeAttribute('data-mark-id'));
 
         // Remove existing overlay if present
@@ -50,6 +76,8 @@ export class MarksOverlay {
 
         const SEMANTIC = 'a[href], button, input:not([type="hidden"]), select, textarea, details, summary, [contenteditable=""], [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="combobox"], [role="option"], [role="treeitem"], [role="tab"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="slider"], [role="spinbutton"], [role="searchbox"], [role="textbox"], [aria-haspopup]:not([aria-haspopup="false"]), [aria-expanded], [onclick], [tabindex="0"]';
         const POPUP = '[role="listbox"], [role="menu"], [role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open], [role="tooltip"], [data-radix-popper-content-wrapper], [data-radix-portal], .MuiPopover-root, .MuiMenu-root, .ant-select-dropdown, .select2-dropdown';
+        const STATIC_CONTAINERS = 'header, nav, footer, aside, form, [role="banner"], [role="navigation"], [role="search"], [role="toolbar"]';
+        const DYNAMIC_CONTAINERS = '[aria-live], [role="feed"], [role="log"], [data-results], .results, tbody, .infinite-scroll';
         const clean = (s) => (s || '').replace(/\\s+/g, ' ').trim();
 
         const isVisible = (el, rect) => {
@@ -135,6 +163,30 @@ export class MarksOverlay {
           return v ? v.slice(0, 50) : undefined;
         };
 
+        // Determine if an element is a structural static anchor vs dynamic feed/result item
+        const isStaticAnchor = (el) => {
+          // If explicitly in a dynamic container, treat as dynamic
+          if (el.closest(DYNAMIC_CONTAINERS)) return false;
+          // Structural layout elements: nav, header, footer, search form
+          if (el.closest(STATIC_CONTAINERS)) return true;
+          // Fixed/sticky headers or toolbars
+          const style = window.getComputedStyle(el);
+          if (style.position === 'fixed' || style.position === 'sticky') return true;
+          // Elements with deterministic DOM IDs or names
+          if (el.id && !/\\d{5,}/.test(el.id)) return true;
+          if (el.name) return true;
+          return false;
+        };
+
+        // Computes a deterministic fingerprint for stable anchor matching
+        const computeFingerprint = (el, label) => {
+          const id = el.id ? '#' + el.id : '';
+          const name = el.name ? '[name=' + el.name + ']' : '';
+          const role = el.getAttribute('role') || '';
+          const href = (el.getAttribute('href') || '').split('?')[0];
+          return [el.tagName, id, name, role, label, href].filter(Boolean).join('|');
+        };
+
         // 1. Gather candidates (semantic first, then cursor:pointer heuristic)
         const seen = new Set();
         const candidates = [];
@@ -164,16 +216,56 @@ export class MarksOverlay {
           const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
           const hit = document.elementFromPoint(cx, cy);
           if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) continue; // covered by something else
-          items.push({ el, rect, popup: !!el.closest(POPUP) });
+          const popup = !!el.closest(POPUP);
+          const isStatic = isStaticAnchor(el);
+          items.push({ el, rect, popup, isStatic });
         }
 
-        // 3. Popup contents first (stable sort keeps DOM order within each group)
+        // 3. Popup contents first, then normal order
         items.sort((a, b) => (a.popup === b.popup ? 0 : a.popup ? -1 : 1));
 
+        // 4. Stable assignment: Reserve numbers for sticky static anchors first
+        const usedIds = new Set();
+        const assignments = [];
+        const newStaticAnchors = {};
+
+        // Pass A: Check existing sticky anchors
+        for (const item of items) {
+          const label = accName(item.el).slice(0, 50);
+          const fp = computeFingerprint(item.el, label);
+          let assignedId = null;
+
+          if (item.isStatic && existingAnchors[fp]) {
+            assignedId = existingAnchors[fp];
+            usedIds.add(assignedId);
+            newStaticAnchors[fp] = assignedId;
+          }
+          assignments.push({ ...item, label, fp, assignedId });
+        }
+
+        // Pass B: Allocate IDs for new items sequentially
+        let nextSeqId = 1;
+        const getNextAvailableId = () => {
+          while (usedIds.has(nextSeqId)) {
+            nextSeqId++;
+          }
+          usedIds.add(nextSeqId);
+          return nextSeqId;
+        };
+
         const marks = [];
-        let markId = 1;
-        for (const { el, rect } of items) {
-          const label = accName(el).slice(0, 50);
+        for (const item of assignments) {
+          let markId = item.assignedId;
+          if (markId === null) {
+            markId = getNextAvailableId();
+            if (item.isStatic) {
+              newStaticAnchors[item.fp] = markId;
+            }
+          }
+
+          if (markId > 99) continue; // Respect 99 mark ceiling for token efficiency
+
+          const { el, rect, label } = item;
           const state = stateOf(el);
           const value = valueOf(el);
           const disabled = state.split(',').includes('disabled');
@@ -188,7 +280,7 @@ export class MarksOverlay {
             position: fixed;
             top: \${Math.max(0, rect.top)}px;
             left: \${Math.max(0, rect.left)}px;
-            background: \${disabled ? '#a1a1aa' : '#eab308'};
+            background: \${disabled ? '#a1a1aa' : item.isStatic ? '#06b6d4' : '#eab308'};
             color: #09090b;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 11px;
@@ -196,8 +288,8 @@ export class MarksOverlay {
             line-height: 1;
             padding: 2px 4px;
             border-radius: 3px;
-            box-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 10px rgba(234, 179, 8, 0.6);
-            border: 1px solid \${disabled ? '#71717a' : '#ca8a04'};
+            box-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 10px \${item.isStatic ? 'rgba(6, 182, 212, 0.6)' : 'rgba(234, 179, 8, 0.6)'};
+            border: 1px solid \${disabled ? '#71717a' : item.isStatic ? '#0891b2' : '#ca8a04'};
             pointer-events: none;
             z-index: 2147483647;
           \`;
@@ -210,7 +302,7 @@ export class MarksOverlay {
             left: \${rect.left}px;
             width: \${rect.width}px;
             height: \${rect.height}px;
-            border: 1px dashed \${disabled ? 'rgba(161, 161, 170, 0.7)' : 'rgba(234, 179, 8, 0.7)'};
+            border: 1px dashed \${disabled ? 'rgba(161, 161, 170, 0.7)' : item.isStatic ? 'rgba(6, 182, 212, 0.7)' : 'rgba(234, 179, 8, 0.7)'};
             pointer-events: none;
             box-sizing: border-box;
             z-index: 2147483646;
@@ -238,17 +330,22 @@ export class MarksOverlay {
               y: Math.round(rect.top + rect.height / 2),
             },
           });
-
-          markId++;
-          if (markId > 99) break; // Limit to 99 most relevant elements to keep tokens minimal
         }
 
-        return marks;
+        return { marks, newStaticAnchors };
       })()
     `;
 
     try {
-      const marks: MarkItem[] = await wc.executeJavaScript(script);
+      const res: { marks: MarkItem[]; newStaticAnchors: Record<string, number> } = await wc.executeJavaScript(script);
+      const marks = res?.marks || [];
+      const newAnchors = res?.newStaticAnchors || {};
+
+      // Update sticky static anchor registry
+      for (const [fp, id] of Object.entries(newAnchors)) {
+        this.staticAnchorMap.set(fp, id);
+      }
+
       this.activeMarks.clear();
       for (const m of marks) {
         this.activeMarks.set(m.id, m);
