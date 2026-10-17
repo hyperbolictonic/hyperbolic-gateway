@@ -661,17 +661,40 @@ export class BrowserChassis {
     }
   }
 
+  private async capturePageWithRetry(
+    wc: Electron.WebContents,
+    bounds: { x: number; y: number; width: number; height: number },
+    maxRetries: number = 3
+  ): Promise<Electron.NativeImage> {
+    let lastError: any = null;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await wc.capturePage({
+          x: 0,
+          y: 0,
+          width: Math.max(1, bounds.width),
+          height: Math.max(1, bounds.height),
+        });
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || err);
+        if (attempt < maxRetries - 1 && (msg.includes('Viz') || msg.includes('compositor') || msg.includes('Gpu') || msg.includes('GPU'))) {
+          this.addLog('warn', `Transient capturePage hitch (${msg}). Retrying in 120ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise((r) => setTimeout(r, 120));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError;
+  }
+
   public async takeScreenshot(): Promise<{ base64Image: string; filePath: string; width: number; height: number }> {
     const wc = this.getActiveWebContents();
     this.addLog('action', 'MCP Directive: take_screenshot()');
 
     const bounds = this.getViewportBounds();
-    const image = await wc.capturePage({
-      x: 0,
-      y: 0,
-      width: Math.max(1, bounds.width),
-      height: Math.max(1, bounds.height),
-    });
+    const image = await this.capturePageWithRetry(wc, bounds);
     const size = image.getSize();
     const base64Image = image.toDataURL();
     const pngBuffer = image.toPNG();
@@ -870,12 +893,7 @@ export class BrowserChassis {
 
     // 2. Capture annotated screenshot
     const bounds = this.getViewportBounds();
-    const image = await wc.capturePage({
-      x: 0,
-      y: 0,
-      width: Math.max(1, bounds.width),
-      height: Math.max(1, bounds.height),
-    });
+    const image = await this.capturePageWithRetry(wc, bounds);
     const size = image.getSize();
     const base64Image = image.toDataURL();
     const pngBuffer = image.toPNG();

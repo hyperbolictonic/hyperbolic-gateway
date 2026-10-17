@@ -51,7 +51,12 @@ export class ConstructHarvester {
       doc.querySelectorAll(tag).forEach(el => el.remove());
     });
 
-    const htmlToConvert = parsed?.content || doc.body?.innerHTML || rawHtml;
+    // Detect if Readability over-pruned an aggregator/portal page (e.g. Google News, Skyscanner, search listings)
+    const bodyTextLen = doc.body?.textContent?.trim().length || 0;
+    const readabilityTextLen = parsed?.textContent?.trim().length || 0;
+    const isAggregatorOrPortal = readabilityTextLen < 250 || (bodyTextLen > 600 && readabilityTextLen < bodyTextLen * 0.35);
+
+    const htmlToConvert = (!isAggregatorOrPortal && parsed?.content) ? parsed.content : (doc.body?.innerHTML || rawHtml);
 
     // Downsample HTML to clean GFM Markdown
     const rawMarkdown = this.turndown.turndown(htmlToConvert);

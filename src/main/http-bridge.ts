@@ -42,7 +42,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
     if (req.method === 'GET') {
       logBridge(`--> \x1b[36mGET\x1b[0m ${pathname}`);
-      chassis.addLog('network', `GET ${pathname}`);
+      chassis.addLog('info', `GET ${pathname}`);
     }
 
     // Helper to read JSON body
@@ -55,11 +55,11 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
             const parsed = body ? JSON.parse(body) : {};
             const preview = JSON.stringify(parsed);
             logBridge(`--> \x1b[35m${req.method}\x1b[0m ${pathname} body: ${preview.length > 300 ? preview.slice(0, 300) + '...' : preview}`);
-            chassis.addLog('network', `${req.method} ${pathname}`);
+            chassis.addLog('info', `${req.method} ${pathname}`);
             resolve(parsed);
           } catch {
             logBridge(`--> \x1b[35m${req.method}\x1b[0m ${pathname} body: [Raw/Non-JSON] ${body.slice(0, 100)}`);
-            chassis.addLog('network', `${req.method} ${pathname}`);
+            chassis.addLog('info', `${req.method} ${pathname}`);
             resolve({});
           }
         });
