@@ -28,6 +28,8 @@ import {
   type PathStep,
 } from './telemetry/chaos-kinematics.js';
 import { JsonNavigator, type JsonQueryOptions, type JsonQueryResult } from './utils/json-navigator.js';
+import { RenderedSnapshotEngine, type RenderedSnapshotOptions, type RenderedSnapshotResult } from './snapshots/rendered-snapshot.js';
+import { PrerenderEngine, type PrerenderOptions } from './prerender/prerender-engine.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -42,6 +44,7 @@ export class BrowserChassis {
   private scriptVault: ScriptVault;
   private trayManager: TrayManager | null = null;
   private hilManager: HilManager;
+  private prerenderEngine: PrerenderEngine;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
 
   private state: ChassisState = {
@@ -112,6 +115,12 @@ export class BrowserChassis {
     this.networkInterceptor = new NetworkInterceptor();
     this.marksOverlay = new MarksOverlay();
     this.scriptVault = new ScriptVault();
+
+    this.prerenderEngine = new PrerenderEngine(
+      this.hostProfile,
+      cortex,
+      (level, msg) => this.addLog(level, msg)
+    );
 
     this.hilManager = new HilManager({
       getActiveWebContents: () => {
@@ -383,6 +392,16 @@ export class BrowserChassis {
     const formattedUrl = url.startsWith('http://') || url.startsWith('https://')
       ? url
       : `https://${url}`;
+
+    // 0ms Navigation: Check if target URL is already warm in speculative prerender pool
+    if (this.prerenderEngine.has(formattedUrl)) {
+      const warmView = this.prerenderEngine.consume(formattedUrl);
+      if (warmView && this.tabManager) {
+        this.addLog('action', `0ms Speculative Elevation: Elevated prerendered view for ${formattedUrl}`);
+        this.tabManager.createTab(formattedUrl, warmView);
+        return `Navigated to ${formattedUrl} (0ms Speculative Instant Elevation)`;
+      }
+    }
 
     this.addLog('action', `MCP Directive: navigate_to(${formattedUrl})`);
     const navPromise = wc.loadURL(formattedUrl);
@@ -948,6 +967,18 @@ export class BrowserChassis {
       maxStringLength: params.maxStringLength,
       filterPredicate: params.filterPredicate,
     });
+  }
+
+  public async snapshotRenderedPage(options: RenderedSnapshotOptions = {}): Promise<RenderedSnapshotResult> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: snapshot_rendered_page(format=${options.format || 'ax_tree'})`);
+    return await RenderedSnapshotEngine.capture(wc, options);
+  }
+
+  public async prerenderLinks(options: PrerenderOptions = {}): Promise<{ prerendered: string[]; count: number }> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: prerender_links(maxPages=${options.maxPages || 3})`);
+    return await this.prerenderEngine.prerender(wc, options);
   }
 
   public async takeAnnotatedScreenshot(opts: { economy?: boolean; textOnly?: boolean } = {}): Promise<{

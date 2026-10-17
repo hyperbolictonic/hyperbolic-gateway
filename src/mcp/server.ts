@@ -452,6 +452,7 @@ export function createMcpServer(chassis: BrowserChassis) {
       path: z.string().optional().describe('JSONPath / dot-notation query, e.g. "itineraries[0..3].pricing", "items[?price < 300]"'),
       view: z.enum(['value', 'schema', 'keys', 'summary']).optional().default('value').describe('Inspection mode: "schema", "keys", "summary", or "value"'),
       limit: z.coerce.number().optional().default(25).describe('Max array items to return (default: 25)'),
+      filter_predicate: z.string().optional().describe('Filter expression, e.g. "price < 300", "usesCookies == true"'),
       json_string: z.string().optional().describe('Inline JSON string (when source is "inline_json")'),
     },
     async (args) => {
@@ -462,6 +463,7 @@ export function createMcpServer(chassis: BrowserChassis) {
           path: args.path,
           view: args.view as any,
           limit: args.limit !== undefined ? Number(args.limit) : 25,
+          filterPredicate: args.filter_predicate,
           jsonString: args.json_string,
         });
         const header = `### JSON Navigator Query [${result.path || '$'}] (view: ${result.view}${result.matchCount !== undefined ? `, total: ${result.matchCount}` : ''})\n`;
@@ -469,6 +471,75 @@ export function createMcpServer(chassis: BrowserChassis) {
         return { content: [{ type: 'text', text: `${header}${body}` }] };
       } catch (error: any) {
         return { isError: true, content: [{ type: 'text', text: `JSON Navigator error: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 22c: snapshot_rendered_page
+  server.tool(
+    'snapshot_rendered_page',
+    'Captures a post-hydration, rendered point-in-time snapshot of dynamic, JavaScript-heavy pages (React, Next.js, Vue). Freezes live state, pierces Shadow DOM, and extracts ultra-token-efficient Accessibility (AX) Trees, rendered Markdown, or unrendered source HTML.',
+    {
+      format: z.enum(['ax_tree', 'markdown', 'html', 'unrendered_html']).optional().default('ax_tree').describe('Snapshot format: "ax_tree" (recommended: semantic roles, labels, and states with zero cosmetic div noise), "markdown" (computed DOM markdown with live values), "html" (rendered static HTML), or "unrendered_html" (raw pre-mutation HTML source)'),
+      wait_until_idle_ms: z.coerce.number().optional().default(400).describe('Time in ms to wait for pending network microtasks and React state updates to settle (default: 400)'),
+      pierce_shadow_dom: z.coerce.boolean().optional().default(true).describe('Whether to traverse and unwrap encapsulated Shadow Roots (#shadow-root)'),
+      save_to_disk: z.coerce.boolean().optional().default(false).describe('Whether to persist snapshot to data/snapshots/ for offline re-inspection via query_json_data'),
+      force_rerender: z.coerce.boolean().optional().default(false).describe('Whether to force reflow and dispatch resize events to trigger re-renders before snapshotting'),
+    },
+    async (args) => {
+      try {
+        const res = await chassis.snapshotRenderedPage({
+          format: args.format,
+          waitUntilIdleMs: args.wait_until_idle_ms,
+          pierceShadowDom: args.pierce_shadow_dom,
+          saveToDisk: args.save_to_disk,
+          forceRerender: args.force_rerender,
+        });
+        const stats = res.stats || {};
+        const fileNotice = res.filePath ? ` (Saved to: ${res.filePath})` : '';
+        const header = `### Rendered Page Snapshot [${res.format?.toUpperCase()}] — "${res.title}" (${stats.estimatedTokens || 0} est tokens, ${stats.byteLength || 0} bytes)${fileNotice}\nURL: ${res.url}\n\n`;
+        return { content: [{ type: 'text', text: `${header}${res.content}` }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to snapshot rendered page: ${error?.message || error}` }] };
+      }
+    }
+  );
+
+  // Tool 22d: prerender_links
+  server.tool(
+    'prerender_links',
+    'Speculative Pre-rendering Engine. Pre-executes, hydrates, and caches candidate links in background views so subsequent navigation is 0ms instantaneous. Automatically distills and indexes content into LanceDB Cortex memory.',
+    {
+      urls: z.array(z.string()).optional().describe('Specific candidate URLs to prerender. If omitted, uses selector or page link heuristics'),
+      selector: z.string().optional().describe('CSS selector to pick candidate links from the active page (e.g. "a.search-result", ".docs-nav a")'),
+      max_pages: z.coerce.number().optional().default(3).describe('Maximum candidate pages to prerender in background pool (max: 3)'),
+      harvest_to_cortex: z.coerce.boolean().optional().default(true).describe('Whether to automatically distill and index pre-rendered pages into LanceDB Cortex memory for instant recall_memory'),
+      wait_until_idle_ms: z.coerce.number().optional().default(500).describe('Hydration wait time per candidate view'),
+    },
+    async (args) => {
+      try {
+        const res = await chassis.prerenderLinks({
+          urls: args.urls,
+          selector: args.selector,
+          maxPages: args.max_pages,
+          harvestToCortex: args.harvest_to_cortex,
+          waitUntilIdleMs: args.wait_until_idle_ms,
+        });
+        const list = Array.isArray(res.prerendered) ? res.prerendered : [];
+        if (list.length === 0) {
+          return { content: [{ type: 'text', text: 'No candidate links were pre-rendered.' }] };
+        }
+        const lines = list.map((u: string) => `- [0ms READY] ${u}`);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `### Speculative Pre-rendered Pool (${list.length} pages warm & indexed to Cortex)\nSubsequent navigate_to() calls targeting these URLs will load with 0ms perceived latency.\n\n${lines.join('\n')}`,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `Failed to prerender links: ${error?.message || error}` }] };
       }
     }
   );

@@ -37121,6 +37121,62 @@ ${JSON.stringify(data.data, null, 2)}
 \`\`\``;
     }
   },
+  {
+    name: "snapshot_rendered_page",
+    description: "Captures a post-hydration, rendered point-in-time snapshot of dynamic, JavaScript-heavy pages (React, Next.js, Vue). Freezes live state, pierces Shadow DOM, and extracts ultra-token-efficient Accessibility (AX) Trees or rendered Markdown.",
+    parameters: {
+      format: external_exports.enum(["ax_tree", "markdown", "html", "unrendered_html"]).optional().default("ax_tree").describe('Snapshot format: "ax_tree" (recommended: semantic roles, labels, and states with zero cosmetic div noise), "markdown" (computed DOM markdown with live values), "html" (rendered static HTML), or "unrendered_html" (raw pre-mutation HTML source)'),
+      wait_until_idle_ms: external_exports.coerce.number().optional().default(400).describe("Time in ms to wait for pending network microtasks and React state updates to settle (default: 400)"),
+      pierce_shadow_dom: external_exports.coerce.boolean().optional().default(true).describe("Whether to traverse and unwrap encapsulated Shadow Roots (#shadow-root)"),
+      save_to_disk: external_exports.coerce.boolean().optional().default(false).describe("Whether to persist snapshot to data/snapshots/ for offline re-inspection via query_json_data"),
+      force_rerender: external_exports.coerce.boolean().optional().default(false).describe("Whether to force reflow and dispatch resize events to trigger re-renders before snapshotting")
+    },
+    endpoint: "/snapshot/rendered",
+    payload: (args) => ({
+      format: args?.format || "ax_tree",
+      waitUntilIdleMs: args?.wait_until_idle_ms !== void 0 ? Number(args.wait_until_idle_ms) : 400,
+      pierceShadowDom: args?.pierce_shadow_dom !== void 0 ? Boolean(args.pierce_shadow_dom) : true,
+      saveToDisk: args?.save_to_disk !== void 0 ? Boolean(args.save_to_disk) : false,
+      forceRerender: args?.force_rerender !== void 0 ? Boolean(args.force_rerender) : false
+    }),
+    format: (data) => {
+      const stats = data.stats || {};
+      const fileNotice = data.filePath ? ` (Saved to: ${data.filePath})` : "";
+      const header = `### Rendered Page Snapshot [${data.format?.toUpperCase()}] \u2014 "${data.title}" (${stats.estimatedTokens || 0} est tokens, ${stats.byteLength || 0} bytes)${fileNotice}
+URL: ${data.url}
+
+`;
+      return `${header}${data.content || "Snapshot empty"}`;
+    }
+  },
+  {
+    name: "prerender_links",
+    description: "Speculative Pre-rendering Engine. Pre-executes, hydrates, and caches candidate links in background views so subsequent navigation is 0ms instantaneous. Automatically distills and indexes content into LanceDB Cortex memory.",
+    parameters: {
+      urls: external_exports.array(external_exports.string()).optional().describe("Specific candidate URLs to prerender. If omitted, uses selector or page link heuristics"),
+      selector: external_exports.string().optional().describe('CSS selector to pick candidate links from the active page (e.g. "a.search-result", ".docs-nav a")'),
+      max_pages: external_exports.coerce.number().optional().default(3).describe("Maximum candidate pages to prerender in background pool (max: 3)"),
+      harvest_to_cortex: external_exports.coerce.boolean().optional().default(true).describe("Whether to automatically distill and index pre-rendered pages into LanceDB Cortex memory for instant recall_memory"),
+      wait_until_idle_ms: external_exports.coerce.number().optional().default(500).describe("Hydration wait time per candidate view")
+    },
+    endpoint: "/prerender/links",
+    payload: (args) => ({
+      urls: args?.urls,
+      selector: args?.selector,
+      maxPages: args?.max_pages !== void 0 ? Number(args.max_pages) : 3,
+      harvestToCortex: args?.harvest_to_cortex !== void 0 ? Boolean(args.harvest_to_cortex) : true,
+      waitUntilIdleMs: args?.wait_until_idle_ms !== void 0 ? Number(args.wait_until_idle_ms) : 500
+    }),
+    format: (data) => {
+      const list = Array.isArray(data.prerendered) ? data.prerendered : [];
+      if (list.length === 0) return "No candidate links were pre-rendered.";
+      const lines = list.map((u) => `- [0ms READY] ${u}`);
+      return `### Speculative Pre-rendered Pool (${list.length} pages warm & indexed to Cortex)
+Subsequent navigate_to() calls targeting these URLs will load with 0ms perceived latency.
+
+${lines.join("\n")}`;
+    }
+  },
   // 10. Set-of-Marks (SoM) Grounding
   {
     name: "take_annotated_screenshot",
@@ -37532,7 +37588,16 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
     * Sources: "network_payload" (request_id), "stream_messages" (stream_id), "download_file" (filename), "inline_json" (jsonString).
     * Views: "value" (default), "schema", "keys", "summary".
 
-4. [MULTI-TAB & SESSION ORCHESTRATION]
+4. [RENDERED SNAPSHOTS & SPECULATIVE PRERENDERING]
+  - snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?, save_to_disk?):
+    * Freezes post-hydration DOM in heavy SPAs (React, Next.js, Vue).
+    * format: "ax_tree" (recommended: semantic hierarchy skipping div soup), "markdown" (clean computed text), "html".
+    * Pierces #shadow-root and bakes live input values into attributes.
+  - prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?):
+    * Speculative Pre-rendering: Pre-executes candidate links in background views for 0ms instantaneous navigation.
+    * Automatically distills and embeds pages into LanceDB Cortex memory (recall_memory ready).
+
+5. [MULTI-TAB & SESSION ORCHESTRATION]
   - Tabs: new_tab(url?) -> switch_tab(tab_id) -> list_tabs() (1-line markdown) -> close_tab(tab_id?).
   - Sessions: save_session(name) -> restore_session(name) -> list_sessions() (cookies & storage persist).
 
@@ -37596,6 +37661,8 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
 - fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
           inspection: `### Visual & Content Inspection
 - get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.
+- snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?): Freezes dynamic post-hydration JS-heavy pages (AX tree outline, rendered markdown, or HTML).
+- prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?): Pre-executes and hydrates candidate links in background views for 0ms navigation and Cortex pre-harvest.
 - take_screenshot(): Captures full viewport image.
 - evaluate_javascript(script): Evaluates arbitrary JS in the active tab.
 - get_page_info(): Returns active URL, title, tab ID, loading status.

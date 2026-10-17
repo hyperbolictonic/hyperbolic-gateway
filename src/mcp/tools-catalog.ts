@@ -515,6 +515,56 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       return `${header}\`\`\`json\n${JSON.stringify(data.data, null, 2)}\n\`\`\``;
     },
   },
+  {
+    name: 'snapshot_rendered_page',
+    description: 'Captures a post-hydration, rendered point-in-time snapshot of dynamic, JavaScript-heavy pages (React, Next.js, Vue). Freezes live state, pierces Shadow DOM, and extracts ultra-token-efficient Accessibility (AX) Trees or rendered Markdown.',
+    parameters: {
+      format: z.enum(['ax_tree', 'markdown', 'html', 'unrendered_html']).optional().default('ax_tree').describe('Snapshot format: "ax_tree" (recommended: semantic roles, labels, and states with zero cosmetic div noise), "markdown" (computed DOM markdown with live values), "html" (rendered static HTML), or "unrendered_html" (raw pre-mutation HTML source)'),
+      wait_until_idle_ms: z.coerce.number().optional().default(400).describe('Time in ms to wait for pending network microtasks and React state updates to settle (default: 400)'),
+      pierce_shadow_dom: z.coerce.boolean().optional().default(true).describe('Whether to traverse and unwrap encapsulated Shadow Roots (#shadow-root)'),
+      save_to_disk: z.coerce.boolean().optional().default(false).describe('Whether to persist snapshot to data/snapshots/ for offline re-inspection via query_json_data'),
+      force_rerender: z.coerce.boolean().optional().default(false).describe('Whether to force reflow and dispatch resize events to trigger re-renders before snapshotting'),
+    },
+    endpoint: '/snapshot/rendered',
+    payload: (args) => ({
+      format: args?.format || 'ax_tree',
+      waitUntilIdleMs: args?.wait_until_idle_ms !== undefined ? Number(args.wait_until_idle_ms) : 400,
+      pierceShadowDom: args?.pierce_shadow_dom !== undefined ? Boolean(args.pierce_shadow_dom) : true,
+      saveToDisk: args?.save_to_disk !== undefined ? Boolean(args.save_to_disk) : false,
+      forceRerender: args?.force_rerender !== undefined ? Boolean(args.force_rerender) : false,
+    }),
+    format: (data) => {
+      const stats = data.stats || {};
+      const fileNotice = data.filePath ? ` (Saved to: ${data.filePath})` : '';
+      const header = `### Rendered Page Snapshot [${data.format?.toUpperCase()}] — "${data.title}" (${stats.estimatedTokens || 0} est tokens, ${stats.byteLength || 0} bytes)${fileNotice}\nURL: ${data.url}\n\n`;
+      return `${header}${data.content || 'Snapshot empty'}`;
+    },
+  },
+  {
+    name: 'prerender_links',
+    description: 'Speculative Pre-rendering Engine. Pre-executes, hydrates, and caches candidate links in background views so subsequent navigation is 0ms instantaneous. Automatically distills and indexes content into LanceDB Cortex memory.',
+    parameters: {
+      urls: z.array(z.string()).optional().describe('Specific candidate URLs to prerender. If omitted, uses selector or page link heuristics'),
+      selector: z.string().optional().describe('CSS selector to pick candidate links from the active page (e.g. "a.search-result", ".docs-nav a")'),
+      max_pages: z.coerce.number().optional().default(3).describe('Maximum candidate pages to prerender in background pool (max: 3)'),
+      harvest_to_cortex: z.coerce.boolean().optional().default(true).describe('Whether to automatically distill and index pre-rendered pages into LanceDB Cortex memory for instant recall_memory'),
+      wait_until_idle_ms: z.coerce.number().optional().default(500).describe('Hydration wait time per candidate view'),
+    },
+    endpoint: '/prerender/links',
+    payload: (args) => ({
+      urls: args?.urls,
+      selector: args?.selector,
+      maxPages: args?.max_pages !== undefined ? Number(args.max_pages) : 3,
+      harvestToCortex: args?.harvest_to_cortex !== undefined ? Boolean(args.harvest_to_cortex) : true,
+      waitUntilIdleMs: args?.wait_until_idle_ms !== undefined ? Number(args.wait_until_idle_ms) : 500,
+    }),
+    format: (data) => {
+      const list = Array.isArray(data.prerendered) ? data.prerendered : [];
+      if (list.length === 0) return 'No candidate links were pre-rendered.';
+      const lines = list.map((u: string) => `- [0ms READY] ${u}`);
+      return `### Speculative Pre-rendered Pool (${list.length} pages warm & indexed to Cortex)\nSubsequent navigate_to() calls targeting these URLs will load with 0ms perceived latency.\n\n${lines.join('\n')}`;
+    },
+  },
 
   // 10. Set-of-Marks (SoM) Grounding
   {

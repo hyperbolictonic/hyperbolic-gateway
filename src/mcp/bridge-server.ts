@@ -178,7 +178,16 @@ export function createBridgeMcpServer() {
     * Sources: "network_payload" (request_id), "stream_messages" (stream_id), "download_file" (filename), "inline_json" (jsonString).
     * Views: "value" (default), "schema", "keys", "summary".
 
-4. [MULTI-TAB & SESSION ORCHESTRATION]
+4. [RENDERED SNAPSHOTS & SPECULATIVE PRERENDERING]
+  - snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?, save_to_disk?):
+    * Freezes post-hydration DOM in heavy SPAs (React, Next.js, Vue).
+    * format: "ax_tree" (recommended: semantic hierarchy skipping div soup), "markdown" (clean computed text), "html".
+    * Pierces #shadow-root and bakes live input values into attributes.
+  - prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?):
+    * Speculative Pre-rendering: Pre-executes candidate links in background views for 0ms instantaneous navigation.
+    * Automatically distills and embeds pages into LanceDB Cortex memory (recall_memory ready).
+
+5. [MULTI-TAB & SESSION ORCHESTRATION]
   - Tabs: new_tab(url?) -> switch_tab(tab_id) -> list_tabs() (1-line markdown) -> close_tab(tab_id?).
   - Sessions: save_session(name) -> restore_session(name) -> list_sessions() (cookies & storage persist).
 
@@ -236,7 +245,7 @@ export function createBridgeMcpServer() {
         const docs: Record<string, string> = {
           navigation: `### Navigation Tools\n- navigate_to(url, auto_dismiss_consent?): Navigates active browser window to URL and auto-clears cookie overlays.\n- navigate_history(direction: "back" | "forward"): Moves back or forward in history.`,
           interaction: `### Interaction & Telemetry Tools\n- click_element(selector?, x?, y?): Performs organic Bio-Kinematic Chaos mouse movement and switch clicks with visual pointer.\n- type_text(text, selector?): Types with realistic human Gaussian cadence (60-240ms).\n- press_key(key): Dispatches single hardware keys ('Enter', 'Tab', 'Escape', 'Backspace').\n- scroll_page(direction?, amount?): Simulates organic inertial wheel scrolling.\n- fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
-          inspection: `### Visual & Content Inspection\n- get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.\n- take_screenshot(): Captures full viewport image.\n- evaluate_javascript(script): Evaluates arbitrary JS in the active tab.\n- get_page_info(): Returns active URL, title, tab ID, loading status.\n- get_console_logs(limit?): Returns live browser console logs.\n- take_annotated_screenshot(): Set-of-Marks visual badges overlay (full PNG + marks table).\n- take_economy_screenshot(): Same marks table with a small 640px JPEG (~10-20x lighter). Prefer for vision models when cost matters.\n- list_marks(): Marks table only, NO image. Use with text-only models; click_mark/type_mark work afterwards.\n- click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
+          inspection: `### Visual & Content Inspection\n- get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.\n- snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?): Freezes dynamic post-hydration JS-heavy pages (AX tree outline, rendered markdown, or HTML).\n- prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?): Pre-executes and hydrates candidate links in background views for 0ms navigation and Cortex pre-harvest.\n- take_screenshot(): Captures full viewport image.\n- evaluate_javascript(script): Evaluates arbitrary JS in the active tab.\n- get_page_info(): Returns active URL, title, tab ID, loading status.\n- get_console_logs(limit?): Returns live browser console logs.\n- take_annotated_screenshot(): Set-of-Marks visual badges overlay (full PNG + marks table).\n- take_economy_screenshot(): Same marks table with a small 640px JPEG (~10-20x lighter). Prefer for vision models when cost matters.\n- list_marks(): Marks table only, NO image. Use with text-only models; click_mark/type_mark work afterwards.\n- click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
           tabs: `### Multi-Tab Orchestration\n- new_tab(url?): Opens a new tab.\n- switch_tab(tab_id): Focuses a specific tab.\n- close_tab(tab_id?): Closes a tab.\n- list_tabs(): Returns all open tabs.`,
           memory: `### LanceDB Cortex & Bookmarks\n- recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously browsed pages.\n- add_bookmark(url, title, notes?, tags?): Saves a research bookmark to LanceDB.\n- list_bookmarks(query?, tag?, limit?): Searches or lists saved bookmarks.\n- delete_bookmark(url_or_id): Removes a bookmark.\n- get_history(limit?, domain?): Chronological browsing history.`,
           macros: `### Script Vault & Macro Engine\n- save_script(name, description, code, parameters?): Vaults a reusable DOM script into LanceDB.\n- recall_script(query, limit?): Semantically searches for vaulted automation scripts.\n- run_script(name, args?): Executes vaulted script inside the live tab.\n- list_scripts() / delete_script(name): Manages vaulted scripts.`,

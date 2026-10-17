@@ -260,6 +260,32 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/snapshot/rendered') {
+        const body = await readBody();
+        const result = await chassis.snapshotRenderedPage({
+          format: body.format || body.mode,
+          waitUntilIdleMs: body.waitUntilIdleMs ?? body.wait_until_idle_ms,
+          pierceShadowDom: body.pierceShadowDom ?? body.pierce_shadow_dom,
+          saveToDisk: body.saveToDisk ?? body.save_to_disk,
+          forceRerender: body.forceRerender ?? body.force_rerender,
+        });
+        sendJson({ success: true, ...result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/prerender/links') {
+        const body = await readBody();
+        const result = await chassis.prerenderLinks({
+          urls: body.urls,
+          selector: body.selector,
+          maxPages: body.maxPages ?? body.max_pages,
+          harvestToCortex: body.harvestToCortex ?? body.harvest_to_cortex,
+          waitUntilIdleMs: body.waitUntilIdleMs ?? body.wait_until_idle_ms,
+        });
+        sendJson({ success: true, ...result });
+        return;
+      }
+
       if ((req.method === 'GET' || req.method === 'POST') && pathname === '/streams/list') {
         const body = req.method === 'POST' ? await readBody() : {};
         const streams = chassis.getRealtimeStreams(body);

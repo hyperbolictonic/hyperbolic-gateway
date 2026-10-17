@@ -10,12 +10,12 @@ While [`scripts/mcp-server.js`](../../scripts/README.md) is the standalone stdio
 
 ---
 
-## 🧰 Registered MCP Tool Domains (53 Tools Total)
+## 🧰 Registered MCP Tool Domains (55 Tools Total)
 
 1. **Navigation & History (4 Tools):** `navigate_to`, `go_to_url`, `navigate_history`, `get_page_info`.
 2. **Autonomous Shield & Consent (1 Tool):** `dismiss_consent`.
 3. **Hardware-Level Input Simulation (5 Tools):** `click_element`, `type_text`, `fill_form`, `press_key`, `scroll_page`.
-4. **Multimodal Observation & Vision (6 Tools):** `take_screenshot` (dual text + native MCP image content), `get_page_markdown`, `harvest_markdown`, `evaluate_javascript`, `get_console_logs`, `get_fingerprint_profile`.
+4. **Multimodal Observation & Vision (8 Tools):** `take_screenshot` (dual text + native MCP image content), `get_page_markdown`, `harvest_markdown`, `snapshot_rendered_page` (post-hydration AX tree, rendered markdown, or unrendered HTML), `prerender_links` (speculative 0ms pre-rendering & Cortex pre-harvest), `evaluate_javascript`, `get_console_logs`, `get_fingerprint_profile`.
 5. **Multi-Tab Orchestration (4 Tools):** `new_tab`, `switch_tab`, `close_tab`, `list_tabs`.
 6. **LanceDB Cortex Persistent Memory (6 Tools):** `recall_memory`, `get_history`, `clear_history`, `add_bookmark`, `list_bookmarks`, `delete_bookmark`.
 7. **Download Manager & Harvester (2 Tools):** `list_downloads`, `read_download`.

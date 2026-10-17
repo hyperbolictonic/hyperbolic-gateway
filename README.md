@@ -209,11 +209,11 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (53 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (55 Tools Total)
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
-| **Navigation** | `navigate_to` | `url: string`, `auto_dismiss_consent?: boolean` | Navigates active tab to URL. Auto-dismisses GDPR/cookie overlays by default. |
+| **Navigation** | `navigate_to` | `url: string`, `auto_dismiss_consent?: boolean` | Navigates active tab to URL. Auto-dismisses GDPR/cookie overlays by default. Supports 0ms instant elevation if pre-rendered. |
 | | `go_to_url` | `url: string`, `auto_dismiss_consent?: boolean` | Primary alias for `navigate_to`. Dispatches visible window navigation. |
 | | `navigate_history` | `action: 'back' \| 'forward' \| 'reload'` | Browser history navigation and reload controls. |
 | | `get_page_info` | _none_ | Returns current URL, title, and load state without full extraction. |
@@ -226,6 +226,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | **Observation & Vision** | `take_screenshot` | _none_ | High-res PNG capture. Returns dual content: file path text & native MCP image block (`type: 'image'`, `mimeType: 'image/png'`). Saved to `data/screenshots/` with automatic retention pruning. |
 | | `get_page_markdown` | _none_ | Downsamples active DOM to clean token-efficient Markdown with YAML metadata. |
 | | `harvest_markdown` | _none_ | Primary alias for `get_page_markdown`. Extracts clean markdown from the active tab. |
+| | `snapshot_rendered_page` | `format?: 'ax_tree' \| 'markdown' \| 'html' \| 'unrendered_html'`, `wait_until_idle_ms?: number`, `pierce_shadow_dom?: boolean`, `force_rerender?: boolean`, `save_to_disk?: boolean` | **Rendered Point-in-Time Snapshot.** Freezes dynamic SPAs, pierces Shadow DOM, and extracts ultra-token-efficient Accessibility (AX) Trees, rendered Markdown, or unrendered source HTML. |
+| | `prerender_links` | `urls?: string[]`, `selector?: string`, `max_pages?: number`, `harvest_to_cortex?: boolean`, `wait_until_idle_ms?: number` | **Speculative Pre-rendering Engine.** Pre-hydrates candidate links in background views for **0ms instant navigation**, and auto-indexes into LanceDB Cortex memory. |
 | | `evaluate_javascript` | `script: string` | Evaluates custom JS expression in page context and returns serialized JSON. Accepts `script`, `code`, or `expression`. |
 | | `get_console_logs` | `limit?: number` | Returns recent web page and script console logs, warnings, and errors. |
 | | `get_fingerprint_profile` | _none_ | Returns active stealth host browser fingerprint and spoofed headers. |

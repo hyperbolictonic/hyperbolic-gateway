@@ -30,6 +30,13 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `list_tabs()` to inspect all active tabs.
 6. **Token-Efficient Payload Extraction:**
    - Call `get_page_markdown()` (or `harvest_markdown()`) to downsample the active DOM into clean Markdown with YAML front-matter envelopes, saving 90%+ context window tokens.
+   - **Rendered Point-in-Time Snapshots (`snapshot_rendered_page`):** For complex JavaScript SPAs (React, Next.js, Vue) where standard HTML is an unhydrated shell, call `snapshot_rendered_page({ format, force_rerender, save_to_disk })`.
+     * `format: "ax_tree"` (Recommended): Extracts an ultra-clean Accessibility Tree outline (roles, labels, values, states like `expanded=`, `checked=`, `disabled`) with zero `<div>` clutter.
+     * `format: "markdown"`: Computed DOM markdown with Shadow DOM pierced and live form values preserved.
+     * `format: "unrendered_html"`: Raw, pre-mutation initial HTML source before client scripts ran.
+     * `format: "html"`: Rendered static HTML with Shadow DOM expanded.
+     * `force_rerender: true`: Dispatches resize events and forces reflows to trigger re-renders before snapshotting.
+   - **Speculative Pre-rendering Engine (`prerender_links`):** Call `prerender_links({ urls, selector, max_pages })` while reading the current page. Pre-renders and hydrates candidate target links in background views for **0ms instantaneous navigation** on subsequent `navigate_to()` calls, and automatically distills and indexes their content straight into LanceDB Cortex memory (`recall_memory` ready).
 7. **LanceDB Persistent Cortex & Semantic Recall:**
    - Call `recall_memory({ query, limit, domain })` to run hybrid semantic vector + BM25 full-text search across all previously browsed and read web pages.
    - Call `get_history({ limit, domain })` to view chronological visit history.

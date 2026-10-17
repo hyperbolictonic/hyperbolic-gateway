@@ -59,11 +59,11 @@ export class TabManager {
     return this.activeTabId;
   }
 
-  public createTab(initialUrl: string = 'about:blank'): TabInstance {
+  public createTab(initialUrl: string = 'about:blank', existingView?: WebContentsView): TabInstance {
     this.counter++;
     const id = `tab_${this.counter}`;
 
-    const view = new WebContentsView({
+    const view = existingView || new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -160,8 +160,13 @@ export class TabManager {
 
     this.tabs.set(id, tab);
 
-    // Navigate to initial URL or Cyberdeck Manual
-    if (initialUrl && initialUrl !== 'about:blank' && initialUrl !== 'mark-eleven://manual') {
+    // If view was already prerendered, it is already loaded
+    if (existingView) {
+      tab.title = wc.getTitle() || 'Prerendered Page';
+      tab.isLoading = false;
+      this.options.onTabUpdated?.(tab);
+      this.notifyTabsChanged();
+    } else if (initialUrl && initialUrl !== 'about:blank' && initialUrl !== 'mark-eleven://manual') {
       const formatted = initialUrl.startsWith('http://') || initialUrl.startsWith('https://')
         ? initialUrl
         : `https://${initialUrl}`;
