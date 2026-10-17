@@ -269,6 +269,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `resolve_human_intervention` | `id?: string`, `notes?: string` | Resolves active intervention request and resumes agent execution. |
 | | `get_human_intervention_status` | _none_ | Checks active intervention status and history log. |
 | | `send_notification` | `title: string`, `message: string`, `urgency?: string`, `sound?: boolean` | Emits non-blocking OS native desktop banner notification to user. |
+| | `send_desktop_notification` | `message: string`, `title?: string`, `urgency?: string`, `sound?: boolean` | Dedicated HIL notification tool (used by Agent Orcha) to alert human operator with critical desktop sound/banner. |
 | **Assistance & Discovery** | `help` | _none_ | Returns a comprehensive operational manual and cheatsheet of all available browser automation capabilities. |
 
 ---

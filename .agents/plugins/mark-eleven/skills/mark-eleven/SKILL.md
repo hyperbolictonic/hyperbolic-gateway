@@ -100,5 +100,6 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `resolve_human_intervention({ id, notes })` to programmatically resolve a pending intervention.
    - Call `get_human_intervention_status()` to inspect active request status and history.
    - Call `send_notification({ title, message, urgency, sound })` to emit non-blocking desktop notifications.
+   - Call `send_desktop_notification({ message, title, urgency, sound })` to summon human operator with critical sound/banner.
 19. **Operational Manual & Tool Discovery:**
-   - Call `help()` to query a complete, detailed operational cheatsheet of all 55 available tools, parameters, and design principles.
+   - Call `help()` to query a complete, detailed operational cheatsheet of all 57 available tools, parameters, and design principles.

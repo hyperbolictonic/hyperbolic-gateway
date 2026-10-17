@@ -10,7 +10,7 @@ While [`scripts/mcp-server.js`](../../scripts/README.md) is the standalone stdio
 
 ---
 
-## 🧰 Registered MCP Tool Domains (55 Tools Total)
+## 🧰 Registered MCP Tool Domains (57 Tools Total)
 
 1. **Navigation & History (4 Tools):** `navigate_to`, `go_to_url`, `navigate_history`, `get_page_info`.
 2. **Autonomous Shield & Consent (1 Tool):** `dismiss_consent`.
@@ -23,7 +23,7 @@ While [`scripts/mcp-server.js`](../../scripts/README.md) is the standalone stdio
 9. **Network Intelligence & Real-Time Streams (7 Tools):** `get_network_traffic`, `get_api_payload`, `clear_network_traffic`, `query_json_data` (token-efficient JSON navigator), `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
 10. **Set-of-Marks Visual Grounding (5 Tools):** `take_annotated_screenshot` (dual text + full PNG), `take_economy_screenshot` (marks + 640px JPEG, ~10-20x lighter), `list_marks` (marks only, no image — for text-only models), `click_mark`, `type_mark`.
 11. **Script Vault & Semantic Macro Engine (5 Tools):** `save_script`, `recall_script`, `run_script`, `list_scripts`, `delete_script`.
-12. **Desktop System Tray & HIL Intervention (6 Tools):** `set_window_visibility`, `configure_system_tray`, `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, `send_notification`.
+12. **Desktop System Tray & HIL Intervention (7 Tools):** `set_window_visibility`, `configure_system_tray`, `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, `send_notification`, `send_desktop_notification`.
 13. **Assistance & Discovery (1 Tool):** `help`.
 
 ---
@@ -31,7 +31,7 @@ While [`scripts/mcp-server.js`](../../scripts/README.md) is the standalone stdio
 ## 📄 Key Source Files
 
 - **[`tools-catalog.ts`](./tools-catalog.ts)**:
-  Central repository of all 52 tool definitions, Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters.
+  Central repository of all 57 tool definitions, Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters.
 - **[`bridge-server.ts`](./bridge-server.ts)**:
   Factory `createBridgeMcpServer()` configuring `@modelcontextprotocol/sdk` to forward tool calls to the active browser chassis via `http://127.0.0.1:4111` and package dual text + native base64 PNG image blocks.
 - **[`server.ts`](./server.ts)**:
