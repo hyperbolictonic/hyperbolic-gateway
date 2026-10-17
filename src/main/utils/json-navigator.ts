@@ -9,6 +9,7 @@ export interface JsonQueryOptions {
   view?: 'value' | 'schema' | 'keys' | 'summary';
   limit?: number;
   maxStringLength?: number;
+  filterPredicate?: string;
 }
 
 export interface JsonQueryResult {
@@ -32,6 +33,11 @@ export class JsonNavigator {
     let current = root;
     if (targetPath && targetPath !== '$' && targetPath !== '.') {
       current = this.resolvePath(root, targetPath);
+    }
+
+    // 1b. Apply filter predicate parameter if provided
+    if (options.filterPredicate && Array.isArray(current)) {
+      current = this.evaluateFilter(current, options.filterPredicate);
     }
 
     // 2. Apply requested view
@@ -98,6 +104,17 @@ export class JsonNavigator {
             view: 'summary',
             matchCount: Object.keys(current).length,
             data: summary,
+          };
+        }
+        if (typeof current === 'string') {
+          return {
+            path: targetPath || '$',
+            view: 'summary',
+            data: {
+              type: 'string',
+              length: current.length,
+              preview: current.length > maxStrLen ? `${current.slice(0, maxStrLen)}... [${current.length - maxStrLen} more characters]` : current,
+            },
           };
         }
         return {
@@ -177,11 +194,17 @@ export class JsonNavigator {
           continue;
         }
 
-        // 3. Simple filter: [?key == val], [?key < val], [?key > val], [?key]
+        // 3. Simple filter: [?key == val], [?key = val], [?key < val], [?key > val], [?key]
         if (inner.startsWith('?')) {
           if (!Array.isArray(curr)) return undefined;
           const expr = inner.slice(1).trim();
-          curr = this.evaluateFilter(curr, expr);
+          const filtered = this.evaluateFilter(curr, expr);
+          const remainingTokens = tokens.slice(i + 1);
+          if (remainingTokens.length > 0) {
+            const subPath = remainingTokens.join('.');
+            return filtered.map(item => this.resolvePath(item, subPath)).filter(x => x !== undefined);
+          }
+          curr = filtered;
           continue;
         }
 
@@ -258,8 +281,8 @@ export class JsonNavigator {
    * Simple predicate evaluator for array filtering.
    */
   private static evaluateFilter(arr: any[], expr: string): any[] {
-    // Matches: key < 300, key > 100, key == 'London', key != false, or truthy key
-    const match = expr.match(/^([a-zA-Z0-9_.$]+)\s*(==|!=|<=|>=|<|>)\s*(.+)$/);
+    // Matches: key < 300, key > 100, key == 'London', key = true, key != false, or truthy key
+    const match = expr.match(/^([a-zA-Z0-9_.$]+)\s*(===|==|=|!=|<=|>=|<|>)\s*(.+)$/);
     if (!match) {
       // Truthy check: [?isAvailable]
       const key = expr.trim();
@@ -279,7 +302,9 @@ export class JsonNavigator {
     return arr.filter(item => {
       const actual = this.resolvePath(item, key);
       switch (op) {
-        case '==': return actual == targetVal;
+        case '=':
+        case '==':
+        case '===': return actual == targetVal;
         case '!=': return actual != targetVal;
         case '<': return actual < targetVal;
         case '<=': return actual <= targetVal;

@@ -887,6 +887,7 @@ export class BrowserChassis {
     view?: 'value' | 'schema' | 'keys' | 'summary';
     limit?: number;
     maxStringLength?: number;
+    filterPredicate?: string;
   }): JsonQueryResult {
     this.addLog('action', `MCP Directive: query_json_data(${params.source}${params.sourceId ? `:${params.sourceId}` : ''}, view=${params.view || 'value'})`);
 
@@ -945,6 +946,7 @@ export class BrowserChassis {
       view: params.view,
       limit: params.limit,
       maxStringLength: params.maxStringLength,
+      filterPredicate: params.filterPredicate,
     });
   }
 

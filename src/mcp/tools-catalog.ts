@@ -496,6 +496,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       path: z.string().optional().describe('JSONPath / dot-notation query, e.g. "itineraries[0..3].pricing", "users[*].email", "items[?price < 300]"'),
       view: z.enum(['value', 'schema', 'keys', 'summary']).optional().default('value').describe('Inspection mode: "schema" (types and array lengths without data), "keys" (object keys list), "summary" (high-level structure sample), or "value" (extracted target slice)'),
       limit: z.coerce.number().optional().default(25).describe('Max array items to return (default: 25)'),
+      filter_predicate: z.string().optional().describe('Filter expression for array elements, e.g. "price < 300", "usesCookies == true", "country = UK"'),
       json_string: z.string().optional().describe('Inline JSON string (when source is "inline_json")'),
     },
     endpoint: '/json/query',
@@ -505,6 +506,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       path: args?.path ?? args?.query,
       view: args?.view ?? args?.mode ?? 'value',
       limit: args?.limit !== undefined ? Number(args.limit) : 25,
+      filterPredicate: args?.filter_predicate ?? args?.filterPredicate ?? args?.filter,
       jsonString: args?.json_string ?? args?.jsonString ?? args?.json,
     }),
     format: (data) => {

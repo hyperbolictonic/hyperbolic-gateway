@@ -308,15 +308,25 @@ export class NetworkInterceptor {
       throw new Error(`No payload buffered for request ID "${requestId}". (Has body: ${meta?.hasBody})`);
     }
 
-    let parsedData: any = payload.body;
+    let rawBody = payload.body;
+    if (payload.base64Encoded) {
+      try {
+        rawBody = Buffer.from(payload.body, 'base64').toString('utf8');
+      } catch {
+        rawBody = payload.body;
+      }
+    }
+
+    let parsedData: any = rawBody;
     let isJson = false;
 
-    if (meta?.mimeType?.includes('json') || payload.body.trim().startsWith('{') || payload.body.trim().startsWith('[')) {
+    const trimmed = typeof rawBody === 'string' ? rawBody.trim() : '';
+    if (meta?.mimeType?.includes('json') || trimmed.startsWith('{') || trimmed.startsWith('[')) {
       try {
-        parsedData = JSON.parse(payload.body);
+        parsedData = JSON.parse(trimmed);
         isJson = true;
       } catch {
-        parsedData = payload.body;
+        parsedData = rawBody;
       }
     }
 

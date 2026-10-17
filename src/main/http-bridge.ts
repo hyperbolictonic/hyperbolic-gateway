@@ -254,6 +254,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
           view: body.view || body.mode,
           limit: body.limit !== undefined ? Number(body.limit) : undefined,
           maxStringLength: body.maxStringLength || body.max_string_length,
+          filterPredicate: body.filterPredicate || body.filter_predicate || body.filter,
         });
         sendJson({ success: true, ...result });
         return;
