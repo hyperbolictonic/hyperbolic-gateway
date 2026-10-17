@@ -144,10 +144,78 @@ export function createBridgeMcpServer() {
     });
   }
 
+  // Register standard MCP Resource: mark-eleven://skills/guide
+  // Any agent in ANY directory can read this via list_resources / read_resource
+  const OKF_SKILL_GUIDE = `# 🧭 MARK ELEVEN: OPERATIONAL KNOWLEDGE FORMAT (OKF)
+
+1. [CORE ARCHITECTURE]
+  - Visual Browser: Active visible Chromium window ('headless: false') with Bézier ghost-cursor telemetry.
+  - Zero Context Bleed: Tools return compact 1-line markdown or distilled structures instead of raw JSON.
+  - Port & Transport: Connected to Cyberdeck bridge at 127.0.0.1:4111.
+
+2. [VISUAL GROUNDING & SET-OF-MARKS (SoM)]
+  - Three tiers (all share identical badge IDs):
+    * take_annotated_screenshot(): Marks table + full-resolution PNG (for vision models).
+    * take_economy_screenshot(): Marks table + 640px JPEG (~10-20x lighter, recommended for vision).
+    * list_marks(): Marks table only, NO image (zero token waste, ideal for text-only LLMs).
+  - Actuation:
+    * click_mark(mark_id): Bézier trajectory click on badge number (accepts number or string).
+    * type_mark(mark_id, text, clear_first?): Focuses mark badge and types with human cadence.
+  - Accessibility & States:
+    * Badge tags display roles and state: [role=combobox] {value="...", expanded=false, disabled, required}.
+    * Custom selects / menus: Click mark to expand -> call list_marks() -> click option mark -> verify.
+
+3. [NETWORK INTERCEPTION & JSON NAVIGATOR]
+  - Inspection:
+    * get_network_traffic(resource_type?, url_pattern?, limit?): Compact 1-line HTTP summaries with [HAS_BODY] indicator.
+    * get_api_payload(request_id): Retrieves raw response body.
+  - Token-Efficient JSON Navigator (query_json_data):
+    * Step 1 (Schema): query_json_data({ source: "network_payload", source_id: "<req_id>", view: "schema" }) -> outlines structure and array counts without raw dump.
+    * Step 2 (Path Slice): query_json_data({ ..., path: "results.itineraries[0..3].price" }) -> slices arrays and projects nested properties.
+    * Step 3 (Filter): query_json_data({ ..., filter_predicate: "price < 300" }) -> filters items without code execution.
+    * Sources: "network_payload" (request_id), "stream_messages" (stream_id), "download_file" (filename), "inline_json" (jsonString).
+    * Views: "value" (default), "schema", "keys", "summary".
+
+4. [MULTI-TAB & SESSION ORCHESTRATION]
+  - Tabs: new_tab(url?) -> switch_tab(tab_id) -> list_tabs() (1-line markdown) -> close_tab(tab_id?).
+  - Sessions: save_session(name) -> restore_session(name) -> list_sessions() (cookies & storage persist).
+
+5. [LANCEDB CORTEX & KNOWLEDGE RECALL]
+  - recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously visited pages.
+  - Bookmarks: add_bookmark(url, title, notes?, tags?) -> list_bookmarks(query?, tag?) -> delete_bookmark(url_or_id).
+  - History: get_history(limit?, domain?) -> clear_history().
+
+6. [REALTIME WEBSOCKETS & SSE]
+  - list_realtime_streams(type?, active_only?): Lists active wss:// sockets and SSE streams.
+  - get_stream_messages(stream_id?, limit?): Rolling buffer of parsed frames.
+
+7. [HUMAN-IN-THE-LOOP & SYSTEM TRAY]
+  - request_human_intervention(reason, timeout_seconds?): Unhides window, flashes taskbar, shows in-page banner for CAPTCHAs/logins.
+  - set_window_visibility(visible): Minimizes Cyberdeck to tray or restores to screen.
+  - send_notification(title, message, urgency?): Native OS desktop notification.`;
+
+  server.resource(
+    'mark-eleven-skill',
+    'mark-eleven://skills/guide',
+    {
+      description: 'Comprehensive operational manual and workflow skill guide for Mark Eleven in OKF (Outline Knowledge Format).',
+      mimeType: 'text/markdown',
+    },
+    async () => ({
+      contents: [
+        {
+          uri: 'mark-eleven://skills/guide',
+          mimeType: 'text/markdown',
+          text: OKF_SKILL_GUIDE,
+        },
+      ],
+    })
+  );
+
   // Built-in help tool
   server.tool(
     'help',
-    'Returns a categorized guide, cheatsheet, and workflow tips for all available Mark Eleven MCP tools.',
+    'Returns a categorized guide, cheatsheet, and workflow tips for all available Mark Eleven MCP tools (served directly in OKF).',
     {
       category: z.enum([
         'all',
@@ -162,65 +230,25 @@ export function createBridgeMcpServer() {
       ]).optional().default('all').describe('Optional category to filter help'),
     },
     async ({ category }) => {
-      const docs: Record<string, string> = {
-        navigation: `### Navigation Tools
-- navigate_to(url, auto_dismiss_consent?): Navigates active browser window to URL and auto-clears cookie overlays.
-- navigate_history(direction: "back" | "forward"): Moves back or forward in history.`,
-        interaction: `### Interaction & Telemetry Tools
-- click_element(selector?, x?, y?): Performs organic Bio-Kinematic Chaos mouse movement and switch clicks with visual pointer.
-- type_text(text, selector?): Types with realistic human Gaussian cadence (60-240ms).
-- press_key(key): Dispatches single hardware keys ('Enter', 'Tab', 'Escape', 'Backspace').
-- scroll_page(direction?, amount?): Simulates organic inertial wheel scrolling.
-- fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
-        inspection: `### Visual & Content Inspection
-- get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.
-- take_screenshot(): Captures full viewport image.
-- evaluate_javascript(script): Evaluates arbitrary JS in the active tab.
-- get_page_info(): Returns active URL, title, tab ID, loading status.
-- get_console_logs(limit?): Returns live browser console logs.
-- take_annotated_screenshot(): Set-of-Marks visual badges overlay (full PNG + marks table).
-- take_economy_screenshot(): Same marks table with a small 640px JPEG (~10-20x lighter). Prefer for vision models when cost matters.
-- list_marks(): Marks table only, NO image. Use with text-only models; click_mark/type_mark work afterwards.
-- click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
-        tabs: `### Multi-Tab Orchestration
-- new_tab(url?): Opens a new tab.
-- switch_tab(tab_id): Focuses a specific tab.
-- close_tab(tab_id?): Closes a tab.
-- list_tabs(): Returns all open tabs.`,
-        memory: `### LanceDB Cortex & Bookmarks
-- recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously browsed pages.
-- add_bookmark(url, title, notes?, tags?): Saves a research bookmark to LanceDB.
-- list_bookmarks(query?, tag?, limit?): Searches or lists saved bookmarks.
-- delete_bookmark(url_or_id): Removes a bookmark.
-- get_history(limit?, domain?): Chronological browsing history.`,
-        macros: `### Script Vault & Macro Engine
-- save_script(name, description, code, parameters?): Vaults a reusable DOM script into LanceDB.
-- recall_script(query, limit?): Semantically searches for vaulted automation scripts.
-- run_script(name, args?): Executes vaulted script inside the live tab.
-- list_scripts() / delete_script(name): Manages vaulted scripts.`,
-        network: `### Network & Stream Interception
-- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses (returns compact 1-line markdown summaries).
-- get_api_payload(request_id): Retrieves raw JSON response payload from intercepted API calls.
-- query_json_data(source, source_id?, path?, view?, filter_predicate?, max_items?, max_string_length?): Token-efficient JSON navigator. Extracts nested paths (e.g. "items[0..3].price"), distills schemas, filters arrays, and avoids context blowups. Sources: "network_payload", "stream_messages", "download_file", "inline_json".
-- list_realtime_streams(type?, active_only?): Lists active wss:// WebSockets and SSE streams.
-- get_stream_messages(stream_id?, type?, direction?, limit?): Inspects real-time streaming frames.`,
-        system: `### System Tray & Human-In-The-Loop
-- set_window_visibility(visible): Minimizes Cyberdeck to system tray or restores to screen.
-- configure_system_tray(close_to_tray?): Configures close-to-tray background mode.
-- request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.
-- send_notification(title, message, urgency?, sound?): Sends native OS notification.`
-      };
-
-      if (category && category !== 'all' && docs[category]) {
-        return { content: [{ type: 'text', text: docs[category] }] };
+      if (category && category !== 'all') {
+        const docs: Record<string, string> = {
+          navigation: `### Navigation Tools\n- navigate_to(url, auto_dismiss_consent?): Navigates active browser window to URL and auto-clears cookie overlays.\n- navigate_history(direction: "back" | "forward"): Moves back or forward in history.`,
+          interaction: `### Interaction & Telemetry Tools\n- click_element(selector?, x?, y?): Performs organic Bio-Kinematic Chaos mouse movement and switch clicks with visual pointer.\n- type_text(text, selector?): Types with realistic human Gaussian cadence (60-240ms).\n- press_key(key): Dispatches single hardware keys ('Enter', 'Tab', 'Escape', 'Backspace').\n- scroll_page(direction?, amount?): Simulates organic inertial wheel scrolling.\n- fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
+          inspection: `### Visual & Content Inspection\n- get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.\n- take_screenshot(): Captures full viewport image.\n- evaluate_javascript(script): Evaluates arbitrary JS in the active tab.\n- get_page_info(): Returns active URL, title, tab ID, loading status.\n- get_console_logs(limit?): Returns live browser console logs.\n- take_annotated_screenshot(): Set-of-Marks visual badges overlay (full PNG + marks table).\n- take_economy_screenshot(): Same marks table with a small 640px JPEG (~10-20x lighter). Prefer for vision models when cost matters.\n- list_marks(): Marks table only, NO image. Use with text-only models; click_mark/type_mark work afterwards.\n- click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
+          tabs: `### Multi-Tab Orchestration\n- new_tab(url?): Opens a new tab.\n- switch_tab(tab_id): Focuses a specific tab.\n- close_tab(tab_id?): Closes a tab.\n- list_tabs(): Returns all open tabs.`,
+          memory: `### LanceDB Cortex & Bookmarks\n- recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously browsed pages.\n- add_bookmark(url, title, notes?, tags?): Saves a research bookmark to LanceDB.\n- list_bookmarks(query?, tag?, limit?): Searches or lists saved bookmarks.\n- delete_bookmark(url_or_id): Removes a bookmark.\n- get_history(limit?, domain?): Chronological browsing history.`,
+          macros: `### Script Vault & Macro Engine\n- save_script(name, description, code, parameters?): Vaults a reusable DOM script into LanceDB.\n- recall_script(query, limit?): Semantically searches for vaulted automation scripts.\n- run_script(name, args?): Executes vaulted script inside the live tab.\n- list_scripts() / delete_script(name): Manages vaulted scripts.`,
+          network: `### Network & Stream Interception\n- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses (returns compact 1-line markdown summaries).\n- get_api_payload(request_id): Retrieves raw JSON response payload from intercepted API calls.\n- query_json_data(source, source_id?, path?, view?, filter_predicate?, max_items?, max_string_length?): Token-efficient JSON navigator. Extracts nested paths (e.g. "items[0..3].price"), distills schemas, filters arrays, and avoids context blowups. Sources: "network_payload", "stream_messages", "download_file", "inline_json".\n- list_realtime_streams(type?, active_only?): Lists active wss:// WebSockets and SSE streams.\n- get_stream_messages(stream_id?, type?, direction?, limit?): Inspects real-time streaming frames.`,
+          system: `### System Tray & Human-In-The-Loop\n- set_window_visibility(visible): Minimizes Cyberdeck to system tray or restores to screen.\n- configure_system_tray(close_to_tray?): Configures close-to-tray background mode.\n- request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.\n- send_notification(title, message, urgency?, sound?): Sends native OS notification.`
+        };
+        return { content: [{ type: 'text', text: docs[category] || 'Category not found.' }] };
       }
 
-      const allDocs = Object.values(docs).join('\n\n');
       return {
         content: [
           {
             type: 'text',
-            text: `# 🧭 Kuang Grade Mark Eleven — MCP Help & Cheatsheet\n\nTotal Tools: ${TOOLS_CATALOG.length + 1}\n\n${allDocs}`
+            text: OKF_SKILL_GUIDE
           }
         ]
       };
