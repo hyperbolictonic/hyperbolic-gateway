@@ -715,27 +715,43 @@ export class BrowserChassis {
     throw lastError;
   }
 
-  public async takeScreenshot(): Promise<{ base64Image: string; filePath: string; width: number; height: number }> {
+  public async takeScreenshot(opts: {
+    maxWidth?: number;
+    format?: 'jpeg' | 'png';
+    quality?: number;
+  } = {}): Promise<{ base64Image: string; filePath: string; width: number; height: number; mimeType: string }> {
     const wc = this.getActiveWebContents();
     this.addLog('action', 'MCP Directive: take_screenshot()');
 
     const bounds = this.getViewportBounds();
-    const image = await this.capturePageWithRetry(wc, bounds);
-    const size = image.getSize();
-    const base64Image = image.toDataURL();
-    const pngBuffer = image.toPNG();
+    const rawImage = await this.capturePageWithRetry(wc, bounds);
 
-    // Save PNG to disk & run retention cleanup
+    const maxWidth = opts.maxWidth !== undefined ? opts.maxWidth : 768;
+    const format = opts.format || 'jpeg';
+    const quality = opts.quality !== undefined ? opts.quality : 70;
+
+    let outImage = rawImage;
+    if (maxWidth > 0 && rawImage.getSize().width > maxWidth) {
+      outImage = rawImage.resize({ width: maxWidth, quality: 'good' });
+    }
+
+    const size = outImage.getSize();
+    const isJpeg = format === 'jpeg';
+    const mimeType = isJpeg ? 'image/jpeg' : 'image/png';
+    const buffer = isJpeg ? outImage.toJPEG(quality) : outImage.toPNG();
+    const base64Image = `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+    // Save image to disk & run retention cleanup
     const screenshotsDir = this.getScreenshotsDir();
-    const filename = `screenshot_${Date.now()}.png`;
+    const filename = `screenshot_${Date.now()}.${isJpeg ? 'jpg' : 'png'}`;
     const filePath = path.join(screenshotsDir, filename);
-    fs.writeFileSync(filePath, pngBuffer);
+    fs.writeFileSync(filePath, buffer);
     this.cleanupScreenshots(50);
 
     this.emitTelemetry({
       type: 'harvest',
       timestamp: Date.now(),
-      details: `Captured live viewport screenshot: ${size.width}x${size.height}px, saved to ${filePath}`,
+      details: `Captured live viewport screenshot: ${size.width}x${size.height}px (${mimeType}, ${(buffer.length / 1024).toFixed(1)} KB), saved to ${filePath}`,
     });
 
     return {
@@ -743,6 +759,7 @@ export class BrowserChassis {
       filePath,
       width: size.width,
       height: size.height,
+      mimeType,
     };
   }
 

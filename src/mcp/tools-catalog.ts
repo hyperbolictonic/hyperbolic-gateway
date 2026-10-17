@@ -118,14 +118,29 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     format: (data) => data.result || 'Scrolled successfully',
   },
 
-  // 3. Visual & Inspection
   {
     name: 'take_screenshot',
-    description: 'Captures a full viewport image of the active tab. Saves to data/screenshots/ and returns local file path and native MCP image content.',
-    parameters: {},
+    description: 'Captures a full viewport image of the active tab. Defaults to 768px fast JPEG (~15ms encoding, tiny wire payload). Saves to data/screenshots/ and returns local file path and native MCP image content.',
+    parameters: {
+      max_width: z.coerce.number().optional().default(768).describe('Max width in pixels to bound screenshot (default: 768 for optimal token efficiency; pass 0 for full native resolution)'),
+      format: z.enum(['jpeg', 'png']).optional().default('jpeg').describe('Image format (default: "jpeg" for ~13x faster encoding; "png" for lossless)'),
+      quality: z.coerce.number().optional().default(70).describe('JPEG compression quality from 1 to 100 (default: 70)'),
+    },
     endpoint: '/screenshot',
     method: 'GET',
-    format: (data) => data.screenshot?.filePath ? `Screenshot saved to ${data.screenshot.filePath} (${data.screenshot.width || ''}x${data.screenshot.height || ''}px)` : 'Screenshot captured',
+    payload: (args) => {
+      const maxWidth = args?.max_width !== undefined ? Number(args.max_width) : 768;
+      const format = args?.format || 'jpeg';
+      const quality = args?.quality !== undefined ? Number(args.quality) : 70;
+      return {
+        queryParams: {
+          max_width: String(maxWidth),
+          format,
+          quality: String(quality),
+        },
+      };
+    },
+    format: (data) => data.screenshot?.filePath ? `Screenshot saved to ${data.screenshot.filePath} (${data.screenshot.width || ''}x${data.screenshot.height || ''}px, ${data.screenshot.mimeType || 'image/jpeg'})` : 'Screenshot captured',
   },
   {
     name: 'get_page_markdown',

@@ -84,7 +84,7 @@ export function createBridgeMcpServer() {
             content.push({
               type: 'image',
               data: rawBase64,
-              mimeType: 'image/png',
+              mimeType: screenshot.mimeType || (screenshot.filePath?.endsWith('.png') ? 'image/png' : 'image/jpeg'),
             });
           }
 

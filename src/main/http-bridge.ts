@@ -149,7 +149,13 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       if (req.method === 'GET' && pathname === '/screenshot') {
-        const screenshot = await chassis.takeScreenshot();
+        const maxWidthParam = url.searchParams.get('max_width');
+        const maxWidth = maxWidthParam !== null ? Number(maxWidthParam) : 768;
+        const format = (url.searchParams.get('format') || 'jpeg').toLowerCase() as 'jpeg' | 'png';
+        const qualityParam = url.searchParams.get('quality');
+        const quality = qualityParam !== null ? Number(qualityParam) : 70;
+
+        const screenshot = await chassis.takeScreenshot({ maxWidth, format, quality });
         sendJson({ success: true, screenshot });
         return;
       }
