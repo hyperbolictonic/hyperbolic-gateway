@@ -823,4 +823,21 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
     format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Kuang Grade Mark Eleven', message: args?.message || 'Notification sent' }),
   },
+  {
+    name: 'send_desktop_notification',
+    description: 'Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).',
+    parameters: {
+      message: z.string().describe('Specific reason why the user is needed and instructions for what to do in the browser.'),
+      title: z.string().optional().default('Kuang Browser: Human Intervention Required').describe('Notification title'),
+      urgency: z.enum(['low', 'normal', 'critical']).optional().default('critical').describe('Urgency level of the notification.'),
+      sound: z.boolean().optional().default(true).describe('Whether to play notification alert sound (default: true)'),
+    },
+    endpoint: '/notify',
+    payload: (args) => {
+      const title = args?.title || 'Kuang Browser: Human Intervention Required';
+      const message = args?.message || args?.text || args?.body || 'Human intervention required in Kuang browser';
+      return { title, message, urgency: args?.urgency || 'critical', sound: args?.sound ?? true };
+    },
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Kuang Browser: Human Intervention Required', message: args?.message || 'Notification sent' }),
+  },
 ];

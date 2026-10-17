@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agent-orcha.dev/schemas/okf-v1.json",
+  "okfVersion": "1.0.0",
+  "bundleId": "kuang_browser_docs",
+  "name": "Kuang Grade Mark Eleven Playbooks & Knowledge",
+  "version": "1.0.0",
+  "description": "Standard operating procedures, Set-of-Marks strategies, HIL protocols, and anti-bot handling for Kuang browser automation.",
+  "engineCompatibility": {
+    "supportedEngines": ["orcha_graph", "eve_vfs", "codex_cli", "antigravity_cli"]
+  },
+  "partitions": [
+    {
+      "name": "CAPTCHA & Anti-Bot Strategies",
+      "path": "partitions/captcha_and_anti_bot_strategies.md",
+      "type": "playbook",
+      "summary": "Step-by-step procedures for text CAPTCHAs, Turnstile challenges, and triggering HIL alerts."
+    },
+    {
+      "name": "Selector & Set-of-Marks Recipes",
+      "path": "partitions/selector_and_som_recipes.md",
+      "type": "reference",
+      "summary": "Best practices for using take_annotated_screenshot and resilient CSS/XPath selectors."
+    },
+    {
+      "name": "Browser Navigation Playbook",
+      "path": "partitions/browser_navigation_playbook.md",
+      "type": "playbook",
+      "summary": "Guidelines for multi-tab orchestration, 0ms speculative prerender navigation, and session persistence."
+    }
+  ]
+}
