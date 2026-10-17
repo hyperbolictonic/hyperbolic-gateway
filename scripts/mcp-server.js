@@ -37367,6 +37367,34 @@ ${allDocs}`
       };
     }
   );
+  const rawListHandler = server.server?._requestHandlers?.get?.("tools/list");
+  if (rawListHandler) {
+    server.server._requestHandlers.set("tools/list", async (request, extra) => {
+      const result = await rawListHandler(request, extra);
+      if (result && Array.isArray(result.tools)) {
+        result.tools = result.tools.map((t) => {
+          const rawSchema = t.inputSchema || {};
+          const schema = {
+            ...rawSchema,
+            type: "object",
+            properties: rawSchema.properties || {},
+            additionalProperties: true
+          };
+          return {
+            ...t,
+            inputSchema: schema,
+            parameters: schema,
+            // Required by OpenAI, Vercel AI SDK, and generic agent adapters
+            input_schema: schema,
+            // Required by Anthropic Claude and Python MCP adapters
+            schema
+            // Required by JSON-RPC standard schema adapters
+          };
+        });
+      }
+      return result;
+    });
+  }
   const rawCallHandler = server.server?._requestHandlers?.get?.("tools/call");
   if (rawCallHandler) {
     server.server._requestHandlers.set("tools/call", async (request, extra) => {
@@ -37456,6 +37484,33 @@ async function start() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logMcp("Connected to stdio transport. Listening for JSON-RPC messages.");
+  const prevSend = transport.send;
+  if (typeof prevSend === "function") {
+    transport.send = (msg) => {
+      if (msg?.result?.tools && Array.isArray(msg.result.tools)) {
+        msg.result.tools = msg.result.tools.map((t) => {
+          const rawSchema = t.inputSchema || t.parameters || t.input_schema || {};
+          const schema = {
+            ...rawSchema,
+            type: "object",
+            properties: rawSchema.properties || {},
+            additionalProperties: true
+          };
+          return {
+            ...t,
+            inputSchema: schema,
+            parameters: schema,
+            // Guaranteed for OpenAI / Vercel AI SDK adapters
+            input_schema: schema,
+            // Guaranteed for Anthropic Claude adapters
+            schema
+            // Guaranteed for generic JSON-RPC adapters
+          };
+        });
+      }
+      return prevSend.call(transport, msg);
+    };
+  }
   const prevOnMessage = transport.onmessage;
   if (typeof prevOnMessage === "function") {
     transport.onmessage = (msg, extra) => {
