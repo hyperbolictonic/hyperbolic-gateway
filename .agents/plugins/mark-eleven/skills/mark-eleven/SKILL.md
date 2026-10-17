@@ -20,8 +20,10 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `type_text({ text, selector })` to type with realistic human Gaussian cadence (60-240ms). Supports parameter aliases (`value`, `input`).
    - Call `press_key({ key })` for single keypresses (`Enter`, `Tab`, `Escape`, `Backspace`).
    - Call `scroll_page({ direction, amount })` to simulate inertia mousewheel scrolling.
-4. **Console & Script Execution:**
-   - Call `evaluate_javascript({ script })` to query the DOM or execute client-side logic. Supports parameter aliases (`code`, `expression`, `js`).
+4. **Console & Script Execution vs. Hardware Trust:**
+   - **BEHAVIORAL TRUST & SHADOWBAN PREVENTION:** Avoid using `evaluate_javascript` to artificially set form values (`el.value = ...`) or trigger synthetic clicks (`el.click()`) on protected sites (e.g. Skyscanner, Google, Cloudflare). Synthetic DOM mutations set `isTrusted: false` and can trigger silent shadow-bans.
+   - Use `evaluate_javascript` strictly for **read-only DOM inspection**, querying computed styles, or checking JSON state.
+   - For all interactions, use genuine hardware events: `type_mark`, `click_mark`, `type_text`, or `click_element` (`isTrusted: true`).
    - Call `get_console_logs({ limit })` to inspect page errors and network responses.
 5. **Multi-Tab Orchestration:**
    - Call `new_tab({ url })` to open a new isolated browser tab.
@@ -43,13 +45,16 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `add_bookmark({ url, title, notes, tags })` to persist important research links with semantic tags.
    - Call `list_bookmarks({ query, tag })` to retrieve or semantically search saved bookmarks.
    - Call `delete_bookmark({ url_or_id })` to remove a bookmark.
-8. **Visual Grounding with Set-of-Marks (SoM):**
-   - Call `take_annotated_screenshot()` to render high-contrast neon badges over all interactable elements. Returns dual content: interactive marks lookup table and native MCP image content (`type: 'image'`, `mimeType: 'image/png'`).
-   - **Economy mode:** call `take_economy_screenshot()` for the same marks table with a 640px-wide JPEG (`mimeType: 'image/jpeg'`), roughly 10-20x lighter. Prefer this on vision models when token cost or latency matters.
-   - **Text-only mode:** call `list_marks()` for the marks table with NO image. Use this when the model is text-only (images inlined into a prompt can stall local inference servers) or when you only need element IDs.
-   - Mark IDs are identical across all three tools, so `click_mark` / `type_mark` work after any of them.
-   - Call `click_mark({ mark_id })` to perform human Bézier clicks directly on a visual badge number. Accepts numbers or string numbers (`1` or `"1"`) and aliases (`mark`, `id`).
-   - Call `type_mark({ mark_id, text, clear_first })` to type directly into an annotated input badge.
+8. **Visual Grounding with Set-of-Marks (SoM) & Cached Mark Re-Use:**
+   - **Stop Wasting Tokens on Repeated Screenshots:**
+     * Call `take_annotated_screenshot()` or `take_economy_screenshot()` ONCE to orient yourself.
+     * **Cached Mark IDs:** Static anchors (inputs, buttons, search bars in cyan badges) maintain **session-sticky Mark IDs** across layout shifts.
+     * You can call `click_mark(id)` or `type_mark(id, text)` repeatedly without taking a new screenshot! The browser chassis dynamically tracks the element's live bounding box even if it moved.
+     * If you need an updated list of element IDs or input values without downloading an image, call `list_marks()` (~15ms, 0 image tokens).
+   - **Economy mode (`take_economy_screenshot`):** Use this as your default visual tool for vision models—it produces a 640px JPEG (~15x lighter than full PNG) with the exact same badge numbers.
+   - **Text-only mode (`list_marks`):** Marks table with NO image. Ideal when vision isn't strictly required.
+   - Call `click_mark({ mark_id })` to dispatch humanized Bézier pointer movement and hardware switch clicks.
+   - Call `type_mark({ mark_id, text, clear_first })` to focus and type with human Gaussian cadence variance.
    - Mark lines are accessibility-aware: `[#4] <INPUT role=combobox> "Country" {value="UK", expanded=false, required}`. Labels come from `aria-label`, `aria-labelledby`, `<label>`, visible text, alt/placeholder. State flags: `disabled`, `expanded=`, `checked`, `selected`, `pressed=`, `required`, `invalid`, `haspopup=`, `readonly`. Do NOT click marks flagged `disabled`. Use `value=` to verify what was typed or selected.
    - **Custom dropdowns (div-based selects, React Select, Radix, MUI):** `click_mark` the trigger (look for `haspopup=` / `expanded=false`), then call `list_marks()` again. Options of an open popup (`role=option`/`menuitem`) are numbered first. `click_mark` the option, then re-scan to confirm (`expanded=false` and the trigger's `value`/text changed). Mark IDs are re-assigned on every scan, so always re-scan after the page changes.
    - Elements covered by a modal or open menu are not marked. Plain clickable divs with no ARIA are detected via `cursor: pointer`. If a widget is still missing, fall back to `click_element({ x, y })` or `evaluate_javascript`.

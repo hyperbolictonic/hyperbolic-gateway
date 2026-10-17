@@ -62,10 +62,7 @@ export class MarksOverlay {
       (() => {
         const existingAnchors = ${JSON.stringify(existingAnchors)};
 
-        // Clear stale visual marks from previous scans
-        document.querySelectorAll('[data-mark-id]').forEach((n) => n.removeAttribute('data-mark-id'));
-
-        // Remove existing overlay if present
+        // Remove existing visual overlay container if present (leave data-mark-id for sticky cache)
         const old = document.getElementById('mark-eleven-som-container');
         if (old) old.remove();
 
@@ -229,13 +226,18 @@ export class MarksOverlay {
         const assignments = [];
         const newStaticAnchors = {};
 
-        // Pass A: Check existing sticky anchors
+        // Pass A: Check existing sticky anchors or previously stamped data-mark-id
         for (const item of items) {
           const label = accName(item.el).slice(0, 50);
           const fp = computeFingerprint(item.el, label);
           let assignedId = null;
 
-          if (item.isStatic && existingAnchors[fp]) {
+          const existingMarkAttr = item.el.getAttribute('data-mark-id');
+          if (existingMarkAttr && !isNaN(Number(existingMarkAttr))) {
+            assignedId = Number(existingMarkAttr);
+            usedIds.add(assignedId);
+            if (item.isStatic) newStaticAnchors[fp] = assignedId;
+          } else if (item.isStatic && existingAnchors[fp]) {
             assignedId = existingAnchors[fp];
             usedIds.add(assignedId);
             newStaticAnchors[fp] = assignedId;
@@ -358,7 +360,10 @@ export class MarksOverlay {
   }
 
   /**
-   * Cleans up the ephemeral visual badges from the DOM.
+   * Cleans up the ephemeral visual badges and outline boxes from the DOM viewport.
+   * NOTE: Retains the data-mark-id attribute on the interactive DOM elements so that
+   * subsequent click_mark and type_mark calls can continue tracking shifted coordinates
+   * dynamically without needing a fresh screenshot!
    */
   public async removeMarks(wc: WebContents): Promise<void> {
     if (!wc || wc.isDestroyed()) return;
