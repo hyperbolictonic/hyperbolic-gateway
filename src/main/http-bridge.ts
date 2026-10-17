@@ -142,7 +142,8 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       if (req.method === 'GET' && pathname === '/markdown') {
-        const construct = await chassis.harvestMarkdown();
+        const includeMarks = url.searchParams.get('include_marks') !== 'false' && url.searchParams.get('marks') !== 'false';
+        const construct = await chassis.harvestMarkdown({ includeMarks });
         sendJson({ success: true, construct });
         return;
       }

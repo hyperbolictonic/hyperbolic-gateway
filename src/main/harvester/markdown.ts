@@ -18,16 +18,46 @@ export class ConstructHarvester {
     // Strip unhelpful noise tags
     this.turndown.remove(['script', 'style', 'noscript', 'iframe', 'canvas', 'svg'] as any);
 
-    // Ensure links retain clean syntax
+    // Ensure links retain clean syntax, with [#ID] badge prefix if marked
     this.turndown.addRule('cleanLinks', {
       filter: 'a',
       replacement: (content, node) => {
         const element = node as HTMLAnchorElement;
         const href = element.getAttribute('href');
+        const markId = element.getAttribute('data-mark-id');
+        const markPrefix = markId ? `[#${markId}] ` : '';
         if (!href || href.startsWith('javascript:') || !content.trim()) {
-          return content;
+          return markPrefix + content;
         }
-        return `[${content.trim()}](${href})`;
+        return `${markPrefix}[${content.trim()}](${href})`;
+      },
+    });
+
+    // Annotate buttons with [#ID]
+    this.turndown.addRule('markedButtons', {
+      filter: 'button',
+      replacement: (content, node) => {
+        const element = node as HTMLButtonElement;
+        const markId = element.getAttribute('data-mark-id');
+        const text = content.trim() || element.getAttribute('aria-label') || element.getAttribute('title') || 'Button';
+        return markId ? `[#${markId}] <button>${text}</button>` : `<button>${text}</button>`;
+      },
+    });
+
+    // Annotate input/select/textarea controls with [#ID]
+    this.turndown.addRule('markedInputs', {
+      filter: ['input', 'select', 'textarea'],
+      replacement: (_content, node) => {
+        const element = node as HTMLElement;
+        const markId = element.getAttribute('data-mark-id');
+        const tag = element.tagName.toLowerCase();
+        const type = element.getAttribute('type') || 'text';
+        const name = element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.getAttribute('name') || '';
+        const value = (element as any).value || element.getAttribute('value') || '';
+        const labelStr = name ? ` "${name}"` : '';
+        const valStr = value ? ` value="${value}"` : '';
+        const prefix = markId ? `[#${markId}] ` : '';
+        return `${prefix}<${tag} type="${type}"${labelStr}${valStr}>`;
       },
     });
   }

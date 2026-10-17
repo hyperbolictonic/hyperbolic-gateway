@@ -30,8 +30,13 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `switch_tab({ tab_id })` to focus another tab.
    - Call `close_tab({ tab_id })` to close an active or specified tab and free memory.
    - Call `list_tabs()` to inspect all active tabs.
-6. **Token-Efficient Payload Extraction:**
-   - Call `get_page_markdown()` (or `harvest_markdown()`) to downsample the active DOM into clean Markdown with YAML front-matter envelopes, saving 90%+ context window tokens.
+6. **Token-Efficient Payload Extraction & Grounded Marked Markdown:**
+   - Call `get_page_markdown({ include_marks: true })` (or `harvest_markdown()`) to downsample the active DOM into clean Markdown with YAML front-matter envelopes, saving 90%+ context window tokens.
+   - **Marked Markdown Grounding:** Interactive elements are automatically tagged with inline `[#ID]` markers:
+     * Links: `[#1] [Flights](https://...)`
+     * Buttons: `[#2] <button>Search Flights</button>`
+     * Inputs: `[#3] <input type="text" "Where from?" value="London">`
+   - **Zero-Screenshot Workflow:** You can read the markdown and immediately call `click_mark(2)` or `type_mark(3, "Tokyo")` directly from the text without taking a screenshot!
    - **Rendered Point-in-Time Snapshots (`snapshot_rendered_page`):** For complex JavaScript SPAs (React, Next.js, Vue) where standard HTML is an unhydrated shell, call `snapshot_rendered_page({ format, force_rerender, save_to_disk })`.
      * `format: "ax_tree"` (Recommended): Extracts an ultra-clean Accessibility Tree outline (roles, labels, values, states like `expanded=`, `checked=`, `disabled`) with zero `<div>` clutter.
      * `format: "markdown"`: Computed DOM markdown with Shadow DOM pierced and live form values preserved.

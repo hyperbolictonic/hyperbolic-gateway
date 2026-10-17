@@ -23,14 +23,18 @@ function logMcp(message: string) {
 }
 
 async function callBridge(endpoint: string, method: string = 'GET', body: any = null) {
+  let url = `${BRIDGE_URL}${endpoint}`;
   const options: RequestInit = {
     method,
     headers: { 'Content-Type': 'application/json' },
   };
-  if (body && (method === 'POST' || method === 'PUT')) {
+  if (body?.queryParams && (method === 'GET' || method === 'DELETE')) {
+    const q = new URLSearchParams(body.queryParams).toString();
+    if (q) url += (url.includes('?') ? '&' : '?') + q;
+  } else if (body && (method === 'POST' || method === 'PUT')) {
     options.body = JSON.stringify(body);
   }
-  const res = await fetch(`${BRIDGE_URL}${endpoint}`, options);
+  const res = await fetch(url, options);
   if (!res.ok) {
     const errorData = await res.json().catch(() => null);
     const detail = errorData?.error || errorData?.message || res.statusText;

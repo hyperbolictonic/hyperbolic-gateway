@@ -746,11 +746,17 @@ export class BrowserChassis {
     };
   }
 
-  public async harvestMarkdown(): Promise<HarvestedConstruct> {
+  public async harvestMarkdown(opts: { includeMarks?: boolean } = {}): Promise<HarvestedConstruct> {
     const wc = this.getActiveWebContents();
     this.state.agentStatus = 'HARVESTING';
     this.broadcastState();
-    this.addLog('action', 'MCP Directive: get_page_markdown()');
+    this.addLog('action', `MCP Directive: get_page_markdown(include_marks=${opts.includeMarks ?? true})`);
+
+    // Ensure interactive elements have data-mark-id stamps for grounded markdown
+    if (opts.includeMarks !== false) {
+      await this.marksOverlay.injectMarks(wc);
+      await this.marksOverlay.removeMarks(wc); // Strips visual badges, keeps data-mark-id
+    }
 
     const rawHtml = await wc.executeJavaScript('document.documentElement.outerHTML');
     const url = wc.getURL();

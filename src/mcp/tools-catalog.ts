@@ -129,18 +129,30 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'get_page_markdown',
-    description: 'Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). Saves 90%+ context window tokens.',
-    parameters: {},
+    description: 'Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). By default includes Set-of-Marks badges ([#1], [#2]...) directly on interactive elements (links, buttons, inputs) so you can call click_mark(id) or type_mark(id) directly from the text without taking screenshots!',
+    parameters: {
+      include_marks: z.coerce.boolean().optional().default(true).describe('Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)'),
+    },
     endpoint: '/markdown',
     method: 'GET',
+    payload: (args) => {
+      const includeMarks = args?.include_marks !== false && args?.marks !== false;
+      return { queryParams: { include_marks: String(includeMarks) } };
+    },
     format: (data) => { const md = data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; },
   },
   {
     name: 'harvest_markdown',
-    description: 'Alias for get_page_markdown. Extracts clean markdown from the active tab.',
-    parameters: {},
+    description: 'Alias for get_page_markdown. Extracts clean markdown with inline [#ID] marks from the active tab.',
+    parameters: {
+      include_marks: z.coerce.boolean().optional().default(true).describe('Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)'),
+    },
     endpoint: '/markdown',
     method: 'GET',
+    payload: (args) => {
+      const includeMarks = args?.include_marks !== false && args?.marks !== false;
+      return { queryParams: { include_marks: String(includeMarks) } };
+    },
     format: (data) => { const md = data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; },
   },
   {
