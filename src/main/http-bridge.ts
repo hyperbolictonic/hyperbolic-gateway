@@ -1,8 +1,31 @@
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { BrowserChassis } from './browser-chassis.js';
+
+function logBridge(message: string, isError = false) {
+  const timestamp = new Date().toISOString();
+  if (isError) {
+    console.error(`[Cyberdeck Bridge ${timestamp}] ${message}`);
+  } else {
+    console.log(`[Cyberdeck Bridge ${timestamp}] ${message}`);
+  }
+  try {
+    const logDir = path.resolve(process.cwd(), 'data', 'logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const cleanMsg = message.replace(/\x1b\[[0-9;]*m/g, '');
+    fs.appendFileSync(path.join(logDir, 'http-bridge.log'), `[${timestamp}] ${cleanMsg}\n`);
+  } catch {
+    // Ignore logging disk errors
+  }
+}
 
 export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
   const server = http.createServer(async (req, res) => {
+    const startTime = Date.now();
+
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -17,6 +40,11 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
+    if (req.method === 'GET') {
+      logBridge(`--> \x1b[36mGET\x1b[0m ${pathname}`);
+      chassis.addLog('network', `GET ${pathname}`);
+    }
+
     // Helper to read JSON body
     const readBody = (): Promise<any> =>
       new Promise((resolve) => {
@@ -24,8 +52,14 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         req.on('data', (chunk) => (body += chunk));
         req.on('end', () => {
           try {
-            resolve(body ? JSON.parse(body) : {});
+            const parsed = body ? JSON.parse(body) : {};
+            const preview = JSON.stringify(parsed);
+            logBridge(`--> \x1b[35m${req.method}\x1b[0m ${pathname} body: ${preview.length > 300 ? preview.slice(0, 300) + '...' : preview}`);
+            chassis.addLog('network', `${req.method} ${pathname}`);
+            resolve(parsed);
           } catch {
+            logBridge(`--> \x1b[35m${req.method}\x1b[0m ${pathname} body: [Raw/Non-JSON] ${body.slice(0, 100)}`);
+            chassis.addLog('network', `${req.method} ${pathname}`);
             resolve({});
           }
         });
@@ -33,6 +67,10 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
     // Helper to send JSON
     const sendJson = (data: any, status = 200) => {
+      const duration = Date.now() - startTime;
+      const statusColor = status >= 400 ? '\x1b[31m' : '\x1b[32m';
+      const summary = status >= 400 ? JSON.stringify(data) : (data?.result ? String(data.result).slice(0, 120) : 'OK');
+      logBridge(`<-- ${statusColor}${status}\x1b[0m ${req.method} ${pathname} (${duration}ms) - ${summary}`, status >= 400);
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(data, null, 2));
     };
@@ -122,7 +160,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
-      if (req.method === 'GET' && pathname === '/console-logs') {
+      if (req.method === 'GET' && (pathname === '/console-logs' || pathname === '/console/logs')) {
         const logs = chassis.getTargetConsoleLogs(50);
         sendJson({ success: true, logs });
         return;
@@ -503,10 +541,12 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
   });
 
   server.on('error', (err: any) => {
+    logBridge(`HTTP Bridge server error on port ${port}: ${err?.message || err}`, true);
     chassis.addLog('warn', `HTTP Bridge server error on port ${port}: ${err?.message || err}`);
   });
 
   server.listen(port, '127.0.0.1', () => {
+    logBridge(`\n======================================================\n 🚀 KUANG GRADE MARK ELEVEN // CYBERDECK HTTP BRIDGE\n Active at: http://127.0.0.1:${port}\n Live directive logging enabled.\n======================================================\n`);
     chassis.addLog('info', `Autonomous Bridge active at http://127.0.0.1:${port}`);
   });
 

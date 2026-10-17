@@ -1,9 +1,25 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { TOOLS_CATALOG } from './tools-catalog.js';
 
 const BRIDGE_URL = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
+
+function logMcp(message: string) {
+  const timestamp = new Date().toISOString();
+  console.error(`[Mark Eleven MCP ${timestamp}] ${message}`);
+  try {
+    const logDir = path.resolve(process.cwd(), 'data', 'logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    fs.appendFileSync(path.join(logDir, 'mcp-server.log'), `[${timestamp}] ${message}\n`);
+  } catch {
+    // Ignore logging disk errors
+  }
+}
 
 async function callBridge(endpoint: string, method: string = 'GET', body: any = null) {
   const options: RequestInit = {
@@ -31,15 +47,19 @@ export function createBridgeMcpServer() {
   for (const tool of TOOLS_CATALOG) {
     server.tool(tool.name, tool.description, tool.parameters, async (args) => {
       try {
+        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${JSON.stringify(args)}`);
         const body = tool.payload ? tool.payload(args) : args;
+        logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${tool.endpoint} body: ${JSON.stringify(body)}`);
         const data = await callBridge(tool.endpoint, tool.method || 'POST', body);
         const text = tool.format
           ? tool.format(data, args)
           : typeof data === 'string'
             ? data
             : JSON.stringify(data, null, 2);
+        logMcp(`[Tool Success] "${tool.name}" result: ${String(text).slice(0, 100)}`);
         return { content: [{ type: 'text', text }] };
       } catch (err: any) {
+        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`);
         return {
           isError: true,
           content: [
@@ -244,15 +264,18 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
 }
 
 async function start() {
+  logMcp('Initializing Mark Eleven MCP Server over stdio...');
   const server = createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  logMcp('Connected to stdio transport. Listening for JSON-RPC messages.');
 
   // Install transport-level interceptor to guarantee JSON-RPC messages are normalized
   const prevOnMessage = (transport as any).onmessage;
   if (typeof prevOnMessage === 'function') {
     (transport as any).onmessage = (msg: any, extra: any) => {
       if (msg && msg.method === 'tools/call' && msg.params) {
+        logMcp(`[Transport Interceptor] Received "${msg.params.name}". Normalizing params.`);
         msg.params.arguments = normalizeIncomingParams(msg.params);
       }
       return prevOnMessage.call(transport, msg, extra);
@@ -261,6 +284,7 @@ async function start() {
 }
 
 start().catch((err) => {
+  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`);
   console.error('Fatal Mark Eleven MCP Server Error:', err);
   process.exit(1);
 });
