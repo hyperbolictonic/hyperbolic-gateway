@@ -37099,7 +37099,7 @@ ${lines.join("\n")}`;
       path: external_exports.string().optional().describe('JSONPath / dot-notation query, e.g. "itineraries[0..3].pricing", "users[*].email", "items[?price < 300]"'),
       view: external_exports.enum(["value", "schema", "keys", "summary"]).optional().default("value").describe('Inspection mode: "schema" (types and array lengths without data), "keys" (object keys list), "summary" (high-level structure sample), or "value" (extracted target slice)'),
       limit: external_exports.coerce.number().optional().default(25).describe("Max array items to return (default: 25)"),
-      filter_predicate: external_exports.string().optional().describe('Filter expression for array elements, e.g. "price < 300", "usesCookies == true", "country = UK"'),
+      filter_predicate: external_exports.string().optional().describe('Filter expression for array elements, e.g. "price < 300", "usesCookies == true". Tip: Apply to object arrays (e.g. path="vendors") rather than leaf string projections (e.g. "vendors.name")'),
       json_string: external_exports.string().optional().describe('Inline JSON string (when source is "inline_json")')
     },
     endpoint: "/json/query",
@@ -37526,7 +37526,9 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
   - Token-Efficient JSON Navigator (query_json_data):
     * Step 1 (Schema): query_json_data({ source: "network_payload", source_id: "<req_id>", view: "schema" }) -> outlines structure and array counts without raw dump.
     * Step 2 (Path Slice): query_json_data({ ..., path: "results.itineraries[0..3].price" }) -> slices arrays and projects nested properties.
-    * Step 3 (Filter): query_json_data({ ..., filter_predicate: "price < 300" }) -> filters items without code execution.
+    * Step 3 (Filter): Filter at object level before leaf projection:
+      - Embedded path style: path: "vendors[?usesCookies = true].name" (filters objects, then projects name).
+      - Parameter style: path: "vendors[0..10]", filter_predicate: "usesCookies == true" (do NOT pass leaf .name before filter_predicate).
     * Sources: "network_payload" (request_id), "stream_messages" (stream_id), "download_file" (filename), "inline_json" (jsonString).
     * Views: "value" (default), "schema", "keys", "summary".
 

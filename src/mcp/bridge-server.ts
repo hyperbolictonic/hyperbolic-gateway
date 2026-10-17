@@ -172,7 +172,9 @@ export function createBridgeMcpServer() {
   - Token-Efficient JSON Navigator (query_json_data):
     * Step 1 (Schema): query_json_data({ source: "network_payload", source_id: "<req_id>", view: "schema" }) -> outlines structure and array counts without raw dump.
     * Step 2 (Path Slice): query_json_data({ ..., path: "results.itineraries[0..3].price" }) -> slices arrays and projects nested properties.
-    * Step 3 (Filter): query_json_data({ ..., filter_predicate: "price < 300" }) -> filters items without code execution.
+    * Step 3 (Filter): Filter at object level before leaf projection:
+      - Embedded path style: path: "vendors[?usesCookies = true].name" (filters objects, then projects name).
+      - Parameter style: path: "vendors[0..10]", filter_predicate: "usesCookies == true" (do NOT pass leaf .name before filter_predicate).
     * Sources: "network_payload" (request_id), "stream_messages" (stream_id), "download_file" (filename), "inline_json" (jsonString).
     * Views: "value" (default), "schema", "keys", "summary".
 

@@ -68,7 +68,7 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Sources: `"network_payload"` (by `request_id`), `"stream_messages"` (by `stream_id`), `"download_file"` (by `filename`), or `"inline_json"`.
    - **Step 1 — Schema Inspection:** Call `query_json_data({ source: "network_payload", source_id: "<req_id>", view: "schema" })` to see structural outline and array lengths (e.g. `itineraries: Array(45) { price: number, legs: Array }`).
    - **Step 2 — Dot/Bracket Path Extraction:** Drill down directly: `path: "content.results.itineraries[0..3].pricingOptions"`.
-   - **Step 3 — Wildcards & Predicate Filters:** Filter arrays without code: `filter_predicate: "price < 300"`, `path: "items[*].name"`.
+   - **Step 3 — Wildcards & Predicate Filters:** Filter arrays without code: `filter_predicate: "price < 300"` or inline `path: "items[?price < 300].name"`. (Tip: Predicates evaluate against the object level before projecting to a leaf property like `.name`).
    - Views: `"value"` (default extracted result), `"schema"` (type summary), `"keys"` (top-level property names), `"summary"` (entry count, depth, size).
    - Automatic truncation: Strings over `max_string_length` (default: 200 chars) are clipped to prevent base64/HTML blowups; arrays are capped at `max_items` (default: 50).
 15. **Script Vault & Semantic Macro Engine:**
