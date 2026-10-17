@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { formatMark } from './format-mark.js';
 
 export interface ToolCatalogItem {
   name: string;
@@ -184,7 +185,16 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
     endpoint: '/console/logs',
     payload: (args) => ({ limit: args.limit }),
-    format: (data) => JSON.stringify(data.logs, null, 2),
+    format: (data) => {
+      const logs = Array.isArray(data.logs) ? data.logs : [];
+      if (logs.length === 0) return 'No console logs captured.';
+      const lines = logs.map((l: any) => {
+        const time = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '';
+        const level = (l.level || 'info').toUpperCase().padEnd(5);
+        return `[${time}] ${level} ${l.message || ''}`;
+      });
+      return `### Console Logs (${logs.length})\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'get_fingerprint_profile',
@@ -253,7 +263,11 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {},
     endpoint: '/tabs',
     method: 'GET',
-    format: (data) => JSON.stringify(data.tabs, null, 2),
+    format: (data) => {
+      const tabs = Array.isArray(data.tabs) ? data.tabs : [];
+      if (tabs.length === 0) return 'No open tabs';
+      return tabs.map((t: any) => `${t.isActive ? '* ' : '- '}[${t.id}] ${t.isLoading ? '(loading) ' : ''}"${t.title || 'Untitled'}" - ${t.url}`).join('\n');
+    },
   },
 
   // 5. Memory & Cortex (LanceDB)
@@ -278,7 +292,15 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
     endpoint: '/history/list',
     payload: (args) => ({ limit: args.limit, domain: args.domain }),
-    format: (data) => JSON.stringify(data.history, null, 2),
+    format: (data) => {
+      const hist = Array.isArray(data.history) ? data.history : [];
+      if (hist.length === 0) return 'No browsing history entries found.';
+      const lines = hist.map((h: any) => {
+        const time = h.visitedAt ? new Date(h.visitedAt).toLocaleDateString() : '';
+        return `- [${time}] "${h.title || 'Untitled'}" - ${h.url}`;
+      });
+      return `### Browsing History (${hist.length})\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'clear_history',
@@ -310,7 +332,15 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
     endpoint: '/bookmarks/list',
     payload: (args) => ({ query: args.query, tag: args.tag, limit: args.limit }),
-    format: (data) => JSON.stringify(data.bookmarks, null, 2),
+    format: (data) => {
+      const bm = Array.isArray(data.bookmarks) ? data.bookmarks : [];
+      if (bm.length === 0) return 'No bookmarks found.';
+      const lines = bm.map((b: any) => {
+        const tags = Array.isArray(b.tags) && b.tags.length > 0 ? ` [${b.tags.join(', ')}]` : '';
+        return `- [${b.id || 'bm'}] "${b.title || 'Untitled'}" - ${b.url}${tags}`;
+      });
+      return `### Saved Bookmarks (${bm.length})\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'delete_bookmark',
@@ -350,7 +380,16 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {},
     endpoint: '/downloads',
     method: 'GET',
-    format: (data) => JSON.stringify(data.downloads, null, 2),
+    format: (data) => {
+      const dls = Array.isArray(data.downloads) ? data.downloads : [];
+      if (dls.length === 0) return 'No downloaded files found in data/downloads/.';
+      const lines = dls.map((d: any) => {
+        const sizeKb = d.size ? `${Math.round(d.size / 1024)}KB` : 'unknown size';
+        const status = d.state || d.status || 'completed';
+        return `- ${d.filename || d.name} (${sizeKb}, ${status}) - path: ${d.path || d.filename}`;
+      });
+      return `### Downloaded Files (${dls.length})\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'read_download',
@@ -390,7 +429,16 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {},
     endpoint: '/sessions/list',
     method: 'GET',
-    format: (data) => JSON.stringify(data.sessions, null, 2),
+    format: (data) => {
+      const sess = Array.isArray(data.sessions) ? data.sessions : [];
+      if (sess.length === 0) return 'No saved sessions found in vault.';
+      const lines = sess.map((s: any) => {
+        const cookies = s.cookieCount !== undefined ? `${s.cookieCount} cookies` : '';
+        const savedAt = s.savedAt ? new Date(s.savedAt).toLocaleDateString() : '';
+        return `- "${s.name || s.id}" (${[cookies, savedAt].filter(Boolean).join(', ')})`;
+      });
+      return `### Vault Sessions (${sess.length})\n${lines.join('\n')}`;
+    },
   },
 
   // 9. Network & API Interception
@@ -410,7 +458,17 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       resourceType: args.resource_type,
       limit: args.limit,
     }),
-    format: (data) => JSON.stringify(data.traffic, null, 2),
+    format: (data) => {
+      const list = Array.isArray(data.traffic) ? data.traffic : [];
+      if (list.length === 0) return 'No matching network requests captured.';
+      const lines = list.map((r: any) => {
+        const status = r.status ? String(r.status) : 'pending';
+        const dur = r.responseDurationMs !== undefined ? `${r.responseDurationMs}ms` : '';
+        const bodyTag = r.hasBody ? ' [HAS_BODY]' : '';
+        return `[${r.requestId}] ${status} ${r.method} ${r.url.slice(0, 80)}${r.url.length > 80 ? '...' : ''} (${r.resourceType}${dur ? `, ${dur}` : ''})${bodyTag}`;
+      });
+      return `### Captured Network Requests (${list.length})\nUse query_json_data({ source: "network_payload", source_id: "<requestId>" }) to inspect JSON bodies.\n\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'get_api_payload',
@@ -429,6 +487,32 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     endpoint: '/network/clear',
     format: (data) => data.message || 'Network traffic cleared',
   },
+  {
+    name: 'query_json_data',
+    description: 'Token-efficient JSON navigator. Inspects schemas, extracts nested dot/bracket paths (e.g. "items[0..3].price"), searches keys, or runs filters without dumping massive multi-megabyte payloads into the LLM context.',
+    parameters: {
+      source: z.enum(['network_payload', 'stream_messages', 'download_file', 'inline_json']).default('network_payload').describe('Data source: "network_payload" (from get_network_traffic), "stream_messages" (from list_realtime_streams), "download_file" (from data/downloads/), or "inline_json"'),
+      source_id: z.string().optional().describe('Target request ID, stream ID, or download filename'),
+      path: z.string().optional().describe('JSONPath / dot-notation query, e.g. "itineraries[0..3].pricing", "users[*].email", "items[?price < 300]"'),
+      view: z.enum(['value', 'schema', 'keys', 'summary']).optional().default('value').describe('Inspection mode: "schema" (types and array lengths without data), "keys" (object keys list), "summary" (high-level structure sample), or "value" (extracted target slice)'),
+      limit: z.coerce.number().optional().default(25).describe('Max array items to return (default: 25)'),
+      json_string: z.string().optional().describe('Inline JSON string (when source is "inline_json")'),
+    },
+    endpoint: '/json/query',
+    payload: (args) => ({
+      source: args?.source || 'network_payload',
+      sourceId: args?.source_id ?? args?.sourceId ?? args?.requestId ?? args?.request_id ?? args?.streamId ?? args?.stream_id ?? args?.filename,
+      path: args?.path ?? args?.query,
+      view: args?.view ?? args?.mode ?? 'value',
+      limit: args?.limit !== undefined ? Number(args.limit) : 25,
+      jsonString: args?.json_string ?? args?.jsonString ?? args?.json,
+    }),
+    format: (data) => {
+      const header = `### JSON Navigator Query [${data.path || '$'}] (view: ${data.view}${data.matchCount !== undefined ? `, total: ${data.matchCount}` : ''})\n`;
+      if (typeof data.data === 'string') return `${header}${data.data}`;
+      return `${header}\`\`\`json\n${JSON.stringify(data.data, null, 2)}\n\`\`\``;
+    },
+  },
 
   // 10. Set-of-Marks (SoM) Grounding
   {
@@ -437,7 +521,23 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {},
     endpoint: '/marks/screenshot',
     method: 'GET',
-    format: (data) => JSON.stringify(data.marks, null, 2),
+    format: (data) => (Array.isArray(data.marks) ? data.marks.map((m: any) => formatMark(m)).join('\n') : JSON.stringify(data)),
+  },
+  {
+    name: 'take_economy_screenshot',
+    description: 'Lightweight Set-of-Marks screenshot: downscaled to 640px wide JPEG (~10-20x smaller than take_annotated_screenshot) plus the same mark mapping. Use for vision models when token/bandwidth cost matters.',
+    parameters: {},
+    endpoint: '/marks/screenshot?economy=1',
+    method: 'GET',
+    format: (data) => (Array.isArray(data.marks) ? data.marks.map((m: any) => formatMark(m)).join('\n') : JSON.stringify(data)),
+  },
+  {
+    name: 'list_marks',
+    description: 'Text-only Set-of-Marks: returns the numbered interactive element table with NO image. Use for text-only models or the cheapest possible page scan; click_mark / type_mark work afterwards.',
+    parameters: {},
+    endpoint: '/marks/screenshot?text_only=1',
+    method: 'GET',
+    format: (data) => (Array.isArray(data.marks) ? data.marks.map((m: any) => formatMark(m)).join('\n') : JSON.stringify(data)),
   },
   {
     name: 'click_mark',
@@ -499,7 +599,12 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
     endpoint: '/scripts/recall',
     payload: (args) => ({ query: args.query, limit: args.limit }),
-    format: (data) => JSON.stringify(data.scripts, null, 2),
+    format: (data) => {
+      const scripts = Array.isArray(data.scripts) ? data.scripts : [];
+      if (scripts.length === 0) return 'No matching scripts found in vault.';
+      const lines = scripts.map((s: any) => `- "${s.name}" (score: ${s.score ? s.score.toFixed(2) : 'n/a'}): ${s.description || 'No description'}`);
+      return `### Recalled Scripts (${scripts.length})\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'run_script',
@@ -518,7 +623,12 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {},
     endpoint: '/scripts/list',
     method: 'GET',
-    format: (data) => JSON.stringify(data.scripts, null, 2),
+    format: (data) => {
+      const scripts = Array.isArray(data.scripts) ? data.scripts : [];
+      if (scripts.length === 0) return 'No scripts saved in vault.';
+      const lines = scripts.map((s: any) => `- "${s.name}": ${s.description || 'No description'}`);
+      return `### Script Vault (${scripts.length})\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'delete_script',
@@ -541,7 +651,15 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
     endpoint: '/streams/list',
     payload: (args) => ({ type: args.type, activeOnly: args.active_only }),
-    format: (data) => JSON.stringify(data.streams, null, 2),
+    format: (data) => {
+      const list = Array.isArray(data.streams) ? data.streams : [];
+      if (list.length === 0) return 'No realtime streams (WebSocket/SSE) captured.';
+      const lines = list.map((s: any) => {
+        const state = s.closed ? 'closed' : 'OPEN';
+        return `[${s.streamId}] ${s.type.toUpperCase()} ${state} ${s.url} (msgs: ${s.messageCount || 0})`;
+      });
+      return `### Realtime Streams (${list.length})\nUse query_json_data({ source: "stream_messages", source_id: "<streamId>" }) to inspect stream data.\n\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'get_stream_messages',
@@ -554,7 +672,17 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
     endpoint: '/streams/messages',
     payload: (args) => ({ streamId: args.stream_id, type: args.type, direction: args.direction, limit: args.limit }),
-    format: (data) => JSON.stringify(data.messages, null, 2),
+    format: (data) => {
+      const msgs = Array.isArray(data.messages) ? data.messages : [];
+      if (msgs.length === 0) return 'No stream messages captured.';
+      const lines = msgs.map((m: any) => {
+        const dir = (m.direction || 'msg').toUpperCase();
+        const time = m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : '';
+        const preview = typeof m.data === 'string' ? m.data.slice(0, 100) : JSON.stringify(m.data || m.jsonData || '').slice(0, 100);
+        return `[${time}] ${dir} (stream: ${m.streamId || 'n/a'}): ${preview}`;
+      });
+      return `### Realtime Messages (${msgs.length})\n${lines.join('\n')}`;
+    },
   },
   {
     name: 'clear_stream_messages',

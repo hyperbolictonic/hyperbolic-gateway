@@ -242,6 +242,23 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/json/query') {
+        const body = await readBody();
+        const source = body.source || body.from || 'network_payload';
+        const sourceId = body.sourceId || body.source_id || body.requestId || body.request_id || body.streamId || body.stream_id || body.filename || body.file;
+        const result = chassis.queryJsonData({
+          source,
+          sourceId,
+          jsonString: body.jsonString || body.json_string || body.json,
+          path: body.path || body.query,
+          view: body.view || body.mode,
+          limit: body.limit !== undefined ? Number(body.limit) : undefined,
+          maxStringLength: body.maxStringLength || body.max_string_length,
+        });
+        sendJson({ success: true, ...result });
+        return;
+      }
+
       if ((req.method === 'GET' || req.method === 'POST') && pathname === '/streams/list') {
         const body = req.method === 'POST' ? await readBody() : {};
         const streams = chassis.getRealtimeStreams(body);
@@ -264,7 +281,8 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       if (req.method === 'GET' && pathname === '/marks/screenshot') {
-        const result = await chassis.takeAnnotatedScreenshot();
+        const flag = (name: string) => ['1', 'true'].includes((url.searchParams.get(name) || '').toLowerCase());
+        const result = await chassis.takeAnnotatedScreenshot({ economy: flag('economy'), textOnly: flag('text_only') });
         sendJson({ success: true, ...result });
         return;
       }

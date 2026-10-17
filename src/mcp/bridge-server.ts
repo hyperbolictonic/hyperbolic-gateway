@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { TOOLS_CATALOG } from './tools-catalog.js';
+import { formatMark } from './format-mark.js';
 
 const BRIDGE_URL = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
 
@@ -87,16 +88,14 @@ export function createBridgeMcpServer() {
           return { content };
         }
 
-        if (tool.name === 'take_annotated_screenshot') {
+        if (tool.name === 'take_annotated_screenshot' || tool.name === 'take_economy_screenshot' || tool.name === 'list_marks') {
           const rawBase64 = extractCleanBase64(data);
           const screenshot = data.screenshot || data;
           const filePath = screenshot.filePath || '';
           const w = screenshot.width || 0;
           const h = screenshot.height || 0;
           const marks = Array.isArray(data.marks) ? data.marks : [];
-          const marksTable = marks
-            .map((m: any) => `[#${m.id}] <${m.tag}${m.type ? ` type="${m.type}"` : ''}> "${m.text || ''}"`)
-            .join('\n');
+          const marksTable = marks.map((m: any) => formatMark(m)).join('\n');
 
           const header = filePath
             ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.`
@@ -115,11 +114,11 @@ export function createBridgeMcpServer() {
             content.push({
               type: 'image',
               data: rawBase64,
-              mimeType: 'image/png',
+              mimeType: screenshot.mimeType || 'image/png',
             });
           }
 
-          logMcp(`[Tool Success] "take_annotated_screenshot" returning text + image part (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
+          logMcp(`[Tool Success] "${tool.name}" returning text${rawBase64 ? ' + image part' : ' only'} (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
           return { content };
         }
 
@@ -179,7 +178,9 @@ export function createBridgeMcpServer() {
 - evaluate_javascript(script): Evaluates arbitrary JS in the active tab.
 - get_page_info(): Returns active URL, title, tab ID, loading status.
 - get_console_logs(limit?): Returns live browser console logs.
-- take_annotated_screenshot(): Set-of-Marks visual badges overlay.
+- take_annotated_screenshot(): Set-of-Marks visual badges overlay (full PNG + marks table).
+- take_economy_screenshot(): Same marks table with a small 640px JPEG (~10-20x lighter). Prefer for vision models when cost matters.
+- list_marks(): Marks table only, NO image. Use with text-only models; click_mark/type_mark work afterwards.
 - click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
         tabs: `### Multi-Tab Orchestration
 - new_tab(url?): Opens a new tab.
@@ -198,8 +199,9 @@ export function createBridgeMcpServer() {
 - run_script(name, args?): Executes vaulted script inside the live tab.
 - list_scripts() / delete_script(name): Manages vaulted scripts.`,
         network: `### Network & Stream Interception
-- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses.
+- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses (returns compact 1-line markdown summaries).
 - get_api_payload(request_id): Retrieves raw JSON response payload from intercepted API calls.
+- query_json_data(source, source_id?, path?, view?, filter_predicate?, max_items?, max_string_length?): Token-efficient JSON navigator. Extracts nested paths (e.g. "items[0..3].price"), distills schemas, filters arrays, and avoids context blowups. Sources: "network_payload", "stream_messages", "download_file", "inline_json".
 - list_realtime_streams(type?, active_only?): Lists active wss:// WebSockets and SSE streams.
 - get_stream_messages(stream_id?, type?, direction?, limit?): Inspects real-time streaming frames.`,
         system: `### System Tray & Human-In-The-Loop

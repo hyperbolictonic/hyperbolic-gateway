@@ -9,6 +9,24 @@ When agents interact with complex web applications (e.g. Skyscanner flight matri
 2. **Selector Invariant**: Avoids fragile, obfuscated CSS selectors or dynamically generated class names.
 3. **Deterministic Actuation**: The agent simply inspects the annotated screenshot and issues `click_mark(4)` or `type_mark(2, "Tokyo")`. The chassis looks up mark #4's bounding rect and drives the physical Bézier mouse cursor directly to the center of the element.
 
+## Detection & Accessibility Metadata
+
+Marks are built from three layers, so custom (non-`<select>`) widgets are covered:
+
+1. **Semantic HTML + ARIA roles:** `a[href]`, `button`, `input`, `select`, `textarea`, `summary`, `contenteditable`, and roles `button`, `link`, `checkbox`, `radio`, `switch`, `combobox`, `option`, `treeitem`, `tab`, `menuitem*`, `slider`, `spinbutton`, `searchbox`, `textbox`.
+2. **ARIA state attributes:** anything with `aria-haspopup` or `aria-expanded`.
+3. **`cursor: pointer` heuristic:** outermost clickable `div`/`span`/`li`/`td`/`img`/`svg`/`label` with no role (framework click handlers).
+
+Additional behaviour:
+- **Occlusion check:** `document.elementFromPoint` at each element's centre; elements covered by modals/menus are skipped.
+- **Popup priority:** elements inside open popups (`role=listbox|menu|dialog`, `aria-modal`, `dialog[open]`, Radix/MUI/antd/select2 portals) are numbered first so options survive the 99-mark cap.
+- **Accessible names:** `aria-label` → `aria-labelledby` → `<label>` → text → `placeholder`/`title`/`alt`/`name`/`value`.
+- **State flags** (`MarkItem.state`): `disabled`, `expanded=`, `checked`, `selected`, `pressed=`, `current`, `required`, `invalid`, `haspopup=`, `readonly`. Disabled marks get grey badges.
+- **`MarkItem.value`:** current value of inputs/selects/sliders (never for password fields).
+- **Stale-mark safety:** `data-mark-id` attributes are cleared at the start of every scan; IDs are only valid until the next scan.
+
+Rendered table line: `[#4] <INPUT role=combobox> "Country" {value="UK", expanded=false, required}`.
+
 ## Workflow
 
 1. Agent calls `take_annotated_screenshot()`.
@@ -27,7 +45,9 @@ When agents interact with complex web applications (e.g. Skyscanner flight matri
 
 ## HTTP Bridge API
 
-- `GET /marks/screenshot` -> returns `{ screenshot: { base64Image, width, height }, marks: MarkItem[] }`.
+- `GET /marks/screenshot` -> returns `{ screenshot: { base64Image, filePath, width, height, mimeType }, marks: MarkItem[] }`.
+  - `?economy=1` -> downscales to 640px wide and encodes as JPEG q45 (`mimeType: "image/jpeg"`).
+  - `?text_only=1` -> skips capture entirely; `screenshot.base64Image` is empty and only `marks` is meaningful.
 - `POST /marks/click` - `{ "markId": 1 }` -> executes humanized Bézier cursor click on mark #1.
 - `POST /marks/type` - `{ "markId": 2, "text": "..." }` -> clicks mark #2 and types with natural cadence.
 - `GET /marks/list` -> returns active marks table.
@@ -35,5 +55,17 @@ When agents interact with complex web applications (e.g. Skyscanner flight matri
 ## MCP Tools
 
 - `take_annotated_screenshot`: Captures a viewport screenshot tagged with numbered neon badges and returns the marks lookup table.
+- `take_economy_screenshot`: Same marks table with a 640px-wide JPEG (q45) image. Roughly 10-20x lighter; for vision models when cost matters.
+- `list_marks`: Marks table only, no image. For text-only models; never sends pixels.
 - `click_mark`: Clicks directly on the element corresponding to a numbered visual mark ID.
 - `type_mark`: Focuses and enters text into the element corresponding to a numbered visual mark ID.
+
+## Choosing a Mode
+
+| Mode | Image | Typical size | Best for |
+| :--- | :--- | :--- | :--- |
+| Full (`take_annotated_screenshot`) | PNG, native resolution | hundreds of KB | Vision models needing fine detail |
+| Economy (`take_economy_screenshot`) | JPEG q45, max 640px wide | tens of KB | Vision models, cost-sensitive loops |
+| Text-only (`list_marks`) | none | marks table only | Text-only models, cheapest scan |
+
+Mark IDs are registered identically in every mode, so `click_mark` / `type_mark` work after any of them. Economy downscaling only affects the returned image; actuation uses the real DOM rects.

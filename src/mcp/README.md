@@ -10,7 +10,7 @@ While [`scripts/mcp-server.js`](../../scripts/README.md) is the standalone stdio
 
 ---
 
-## 🧰 Registered MCP Tool Domains (52 Tools Total)
+## 🧰 Registered MCP Tool Domains (53 Tools Total)
 
 1. **Navigation & History (4 Tools):** `navigate_to`, `go_to_url`, `navigate_history`, `get_page_info`.
 2. **Autonomous Shield & Consent (1 Tool):** `dismiss_consent`.
@@ -20,8 +20,8 @@ While [`scripts/mcp-server.js`](../../scripts/README.md) is the standalone stdio
 6. **LanceDB Cortex Persistent Memory (6 Tools):** `recall_memory`, `get_history`, `clear_history`, `add_bookmark`, `list_bookmarks`, `delete_bookmark`.
 7. **Download Manager & Harvester (2 Tools):** `list_downloads`, `read_download`.
 8. **Session & Cookie Jar Vault (3 Tools):** `save_session`, `restore_session`, `list_sessions`.
-9. **Network Intelligence & Real-Time Streams (6 Tools):** `get_network_traffic`, `get_api_payload`, `clear_network_traffic`, `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
-10. **Set-of-Marks Visual Grounding (3 Tools):** `take_annotated_screenshot` (dual text + native MCP image content), `click_mark`, `type_mark`.
+9. **Network Intelligence & Real-Time Streams (7 Tools):** `get_network_traffic`, `get_api_payload`, `clear_network_traffic`, `query_json_data` (token-efficient JSON navigator), `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
+10. **Set-of-Marks Visual Grounding (5 Tools):** `take_annotated_screenshot` (dual text + full PNG), `take_economy_screenshot` (marks + 640px JPEG, ~10-20x lighter), `list_marks` (marks only, no image — for text-only models), `click_mark`, `type_mark`.
 11. **Script Vault & Semantic Macro Engine (5 Tools):** `save_script`, `recall_script`, `run_script`, `list_scripts`, `delete_script`.
 12. **Desktop System Tray & HIL Intervention (6 Tools):** `set_window_visibility`, `configure_system_tray`, `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, `send_notification`.
 13. **Assistance & Discovery (1 Tool):** `help`.

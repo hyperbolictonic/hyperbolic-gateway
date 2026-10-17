@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import type { BrowserChassis } from '../main/browser-chassis.js';
+import { formatMark } from './format-mark.js';
 
 export function createMcpServer(chassis: BrowserChassis) {
   const server = new McpServer({
@@ -441,6 +442,37 @@ export function createMcpServer(chassis: BrowserChassis) {
     }
   );
 
+  // Tool 22b: query_json_data
+  server.tool(
+    'query_json_data',
+    'Token-efficient JSON navigator. Inspects schemas, extracts nested dot/bracket paths (e.g. "items[0..3].price"), searches keys, or runs filters without dumping massive multi-megabyte payloads into the LLM context.',
+    {
+      source: z.enum(['network_payload', 'stream_messages', 'download_file', 'inline_json']).default('network_payload').describe('Data source'),
+      source_id: z.string().optional().describe('Target request ID, stream ID, or download filename'),
+      path: z.string().optional().describe('JSONPath / dot-notation query, e.g. "itineraries[0..3].pricing", "items[?price < 300]"'),
+      view: z.enum(['value', 'schema', 'keys', 'summary']).optional().default('value').describe('Inspection mode: "schema", "keys", "summary", or "value"'),
+      limit: z.coerce.number().optional().default(25).describe('Max array items to return (default: 25)'),
+      json_string: z.string().optional().describe('Inline JSON string (when source is "inline_json")'),
+    },
+    async (args) => {
+      try {
+        const result = chassis.queryJsonData({
+          source: (args.source || 'network_payload') as any,
+          sourceId: args.source_id,
+          path: args.path,
+          view: args.view as any,
+          limit: args.limit !== undefined ? Number(args.limit) : 25,
+          jsonString: args.json_string,
+        });
+        const header = `### JSON Navigator Query [${result.path || '$'}] (view: ${result.view}${result.matchCount !== undefined ? `, total: ${result.matchCount}` : ''})\n`;
+        const body = typeof result.data === 'string' ? result.data : `\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``;
+        return { content: [{ type: 'text', text: `${header}${body}` }] };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `JSON Navigator error: ${error?.message || error}` }] };
+      }
+    }
+  );
+
   // Tool 23: take_annotated_screenshot
   server.tool(
     'take_annotated_screenshot',
@@ -450,7 +482,7 @@ export function createMcpServer(chassis: BrowserChassis) {
       try {
         const res = await chassis.takeAnnotatedScreenshot();
         const base64Data = res.screenshot.base64Image.replace(/^data:image\/png;base64,/, '');
-        const marksTable = res.marks.map((m) => `[#${m.id}] <${m.tag}${m.type ? ` type="${m.type}"` : ''}> "${m.text}"`).join('\n');
+        const marksTable = res.marks.map((m) => formatMark(m)).join('\n');
         const filePath = res.screenshot.filePath;
         return {
           content: [
@@ -469,6 +501,43 @@ export function createMcpServer(chassis: BrowserChassis) {
         return { isError: true, content: [{ type: 'text', text: `Annotated screenshot failed: ${error?.message || error}` }] };
       }
     }
+  );
+
+  // Tool 23b/23c: lightweight Set-of-Marks variants
+  const registerMarksVariant = (name: string, description: string, opts: { economy?: boolean; textOnly?: boolean }) => {
+    server.tool(name, description, {}, async () => {
+      try {
+        const res = await chassis.takeAnnotatedScreenshot(opts);
+        const marksTable = res.marks.map((m) => formatMark(m)).join('\n');
+        const filePath = res.screenshot.filePath;
+        const content: any[] = [
+          {
+            type: 'text',
+            text: `Interactive Elements (${res.marks.length} detected)${filePath ? ` (screenshot saved to ${filePath})` : ''}:\n\n${marksTable}\n\nUse click_mark(id) or type_mark(id, text) to interact.`,
+          },
+        ];
+        if (res.screenshot.base64Image) {
+          content.push({
+            type: 'image',
+            data: res.screenshot.base64Image.replace(/^data:image\/[a-z]+;base64,/, ''),
+            mimeType: res.screenshot.mimeType,
+          });
+        }
+        return { content };
+      } catch (error: any) {
+        return { isError: true, content: [{ type: 'text', text: `${name} failed: ${error?.message || error}` }] };
+      }
+    });
+  };
+  registerMarksVariant(
+    'take_economy_screenshot',
+    'Lightweight Set-of-Marks screenshot: 640px-wide JPEG plus the numbered element table. Much cheaper than take_annotated_screenshot.',
+    { economy: true }
+  );
+  registerMarksVariant(
+    'list_marks',
+    'Text-only Set-of-Marks: numbered interactive element table with NO image. Cheapest page scan; click_mark/type_mark work afterwards.',
+    { textOnly: true }
   );
 
   // Tool 24: click_mark

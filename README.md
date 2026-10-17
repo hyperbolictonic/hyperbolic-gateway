@@ -125,6 +125,15 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
   1. `take_annotated_screenshot()` captures the badge overlay and returns an element lookup table (`{ id: 1, tag: "BUTTON", text: "Submit", bbox: [...] }`).
   2. `click_mark(1)` moves the Bézier ghost cursor to the element's centroid with sub-pixel accuracy and clicks.
   3. `type_mark(2, "cyberdeck")` focuses the input and types text with human cadence.
+- **Three cost tiers** (pick the cheapest that fits your model):
+
+  | Tool | Payload | Use when |
+  | :--- | :--- | :--- |
+  | `take_annotated_screenshot` | Marks table + full-resolution PNG | Vision model, fine visual detail matters |
+  | `take_economy_screenshot` | Marks table + 640px-wide JPEG (q45), roughly 10-20x smaller | Vision model, tokens/bandwidth matter |
+  | `list_marks` | Marks table only, **no image** | Text-only models (e.g. local GGUFs) or the cheapest page scan |
+
+  All three register the same mark IDs, so `click_mark` / `type_mark` work after any of them. Text-only models must not be sent images: a base64 PNG inlined into the prompt can be 100k+ tokens and will stall local inference servers.
 
 ---
 
@@ -200,7 +209,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (52 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (53 Tools Total)
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
@@ -235,13 +244,16 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | **Session Vault** | `save_session` | `name?: string` | Captures active cookies and localStorage state into persistent JSON vault. |
 | | `restore_session` | `name: string` | Rehydrates cookies and localStorage state into browser session. |
 | | `list_sessions` | _none_ | Lists all stored session snapshots with timestamps and cookie counts. |
-| **Network Intelligence** | `get_network_traffic` | `url_pattern?: string`, `method?: string`, `resource_type?: string`, `limit?: number` | Inspects live HTTP/XHR/Fetch requests captured via Chrome DevTools Protocol. |
+| **Network Intelligence** | `get_network_traffic` | `url_pattern?: string`, `method?: string`, `resource_type?: string`, `limit?: number` | Inspects live HTTP/XHR/Fetch requests captured via Chrome DevTools Protocol (returns compact 1-line markdown summaries). |
 | | `get_api_payload` | `request_id: string` | Retrieves and parses the full raw JSON or text response body for an intercepted request. |
+| | `query_json_data` | `source: string`, `source_id?: string`, `path?: string`, `view?: string`, `filter_predicate?: string`, `max_items?: number`, `max_string_length?: number` | **Token-Efficient JSON Navigator.** Queries large payloads/streams/files via dot/bracket paths (`items[0..3].price`), extracts schemas, searches keys, and applies filters without context-window blowup. |
 | | `clear_network_traffic` | _none_ | Resets and clears the in-memory network traffic ring buffer. |
-| | `list_realtime_streams` | `type?: 'websocket' \| 'sse'`, `active_only?: boolean` | Lists active WebSocket connections and open SSE channels. |
+| | `list_realtime_streams` | `type?: 'websocket' \| 'sse'`, `active_only?: boolean` | Lists active WebSocket connections and open SSE channels in compact 1-line format. |
 | | `get_stream_messages` | `stream_id?: string`, `type?: string`, `direction?: string`, `limit?: number` | Inspects captured incoming/outgoing frames from WebSockets and SSE token streams. |
 | | `clear_stream_messages` | `stream_id?: string` | Clears the in-memory WebSocket and SSE message frame buffer. |
 | **Visual Grounding** | `take_annotated_screenshot` | _none_ | Tags all visible interactive elements with numbered neon badges (`[1]`, `[2]`, etc.). Returns dual content: Set-of-Marks table text & native MCP image block (`type: 'image'`). Saved to `data/screenshots/`. |
+| | `take_economy_screenshot` | _none_ | Lightweight variant: same marks table, but the image is downscaled to 640px wide and JPEG-encoded (q45, `image/jpeg`). Saved to `data/screenshots/` as `annotated_eco_*.jpg`. |
+| | `list_marks` | _none_ | Text-only variant: returns the marks table with no image and no file written. Ideal for text-only models. |
 | | `click_mark` | `mark_id: number` | Moves humanized Bézier ghost cursor to mark #ID and clicks with 100% accuracy. Accepts numbers, strings, and aliases (`mark`, `id`). |
 | | `type_mark` | `mark_id: number`, `text: string`, `clear_first?: boolean` | Focuses mark #ID and types text with variable human typing cadence. |
 | **Script Vault & Macros** | `save_script` | `name: string`, `code: string`, `description?: string`, `domain?: string`, `tags?: string[]` | Saves and embeds a custom JavaScript macro into LanceDB Cortex. |

@@ -27,6 +27,7 @@ import {
   type ChaosKinematicsOptions,
   type PathStep,
 } from './telemetry/chaos-kinematics.js';
+import { JsonNavigator, type JsonQueryOptions, type JsonQueryResult } from './utils/json-navigator.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -878,12 +879,93 @@ export class BrowserChassis {
     this.networkInterceptor.clearStreamMessages(streamId);
   }
 
-  public async takeAnnotatedScreenshot(): Promise<{
-    screenshot: { base64Image: string; filePath: string; width: number; height: number };
+  public queryJsonData(params: {
+    source: 'network_payload' | 'stream_messages' | 'download_file' | 'inline_json';
+    sourceId?: string;
+    jsonString?: string;
+    path?: string;
+    view?: 'value' | 'schema' | 'keys' | 'summary';
+    limit?: number;
+    maxStringLength?: number;
+  }): JsonQueryResult {
+    this.addLog('action', `MCP Directive: query_json_data(${params.source}${params.sourceId ? `:${params.sourceId}` : ''}, view=${params.view || 'value'})`);
+
+    let targetData: any = null;
+
+    switch (params.source) {
+      case 'network_payload': {
+        if (!params.sourceId) throw new Error('Missing "sourceId" (requestId) for source "network_payload"');
+        const payload = this.networkInterceptor.getPayload(params.sourceId);
+        targetData = payload.data;
+        break;
+      }
+
+      case 'stream_messages': {
+        const messages = this.networkInterceptor.getStreamMessages({
+          streamId: params.sourceId,
+          limit: params.limit || 50,
+        });
+        targetData = messages.map(m => m.jsonData !== undefined ? m.jsonData : m.data);
+        break;
+      }
+
+      case 'download_file': {
+        if (!params.sourceId) throw new Error('Missing "sourceId" (filename) for source "download_file"');
+        const downloadsDir = path.join(process.cwd(), 'data', 'downloads');
+        const filePath = path.join(downloadsDir, path.basename(params.sourceId));
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`Downloaded file not found: ${params.sourceId}`);
+        }
+        const raw = fs.readFileSync(filePath, 'utf8');
+        try {
+          targetData = JSON.parse(raw);
+        } catch {
+          targetData = raw;
+        }
+        break;
+      }
+
+      case 'inline_json': {
+        const raw = params.jsonString || params.sourceId;
+        if (!raw) throw new Error('Missing "jsonString" or raw json in "sourceId" for source "inline_json"');
+        try {
+          targetData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch (e: any) {
+          throw new Error(`Invalid inline JSON provided: ${e.message}`);
+        }
+        break;
+      }
+
+      default:
+        throw new Error(`Unsupported source: ${params.source}`);
+    }
+
+    return JsonNavigator.query(targetData, {
+      path: params.path,
+      view: params.view,
+      limit: params.limit,
+      maxStringLength: params.maxStringLength,
+    });
+  }
+
+  public async takeAnnotatedScreenshot(opts: { economy?: boolean; textOnly?: boolean } = {}): Promise<{
+    screenshot: { base64Image: string; filePath: string; width: number; height: number; mimeType: string };
     marks: MarkItem[];
   }> {
     const wc = this.getActiveWebContents();
-    this.addLog('action', 'MCP Directive: take_annotated_screenshot()');
+    const economy = Boolean(opts.economy);
+    const textOnly = Boolean(opts.textOnly);
+    this.addLog('action', `MCP Directive: take_annotated_screenshot(${textOnly ? 'text_only' : economy ? 'economy' : 'full'})`);
+
+    // Text-only: badges are only needed to populate the mark registry; no pixels are captured.
+    if (textOnly) {
+      const textMarks = await this.marksOverlay.injectMarks(wc);
+      await this.marksOverlay.removeMarks(wc);
+      return {
+        screenshot: { base64Image: '', filePath: '', width: 0, height: 0, mimeType: 'image/png' },
+        marks: textMarks,
+      };
+    }
 
     // 1. Inject visual badges into DOM
     const marks = await this.marksOverlay.injectMarks(wc);
@@ -894,18 +976,26 @@ export class BrowserChassis {
     // 2. Capture annotated screenshot
     const bounds = this.getViewportBounds();
     const image = await this.capturePageWithRetry(wc, bounds);
-    const size = image.getSize();
-    const base64Image = image.toDataURL();
-    const pngBuffer = image.toPNG();
 
     // 3. Immediately clean up marks from DOM
     await this.marksOverlay.removeMarks(wc);
 
-    // 4. Save PNG to disk & run retention cleanup
+    // Economy mode: downscale to max 640px wide and encode as JPEG (~10-20x smaller payload)
+    const ECONOMY_MAX_WIDTH = 640;
+    let outImage = image;
+    if (economy && image.getSize().width > ECONOMY_MAX_WIDTH) {
+      outImage = image.resize({ width: ECONOMY_MAX_WIDTH, quality: 'good' });
+    }
+    const size = outImage.getSize();
+    const mimeType = economy ? 'image/jpeg' : 'image/png';
+    const buffer = economy ? outImage.toJPEG(45) : outImage.toPNG();
+    const base64Image = `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+    // 4. Save to disk & run retention cleanup
     const screenshotsDir = this.getScreenshotsDir();
-    const filename = `annotated_${Date.now()}.png`;
+    const filename = `annotated_${economy ? 'eco_' : ''}${Date.now()}.${economy ? 'jpg' : 'png'}`;
     const filePath = path.join(screenshotsDir, filename);
-    fs.writeFileSync(filePath, pngBuffer);
+    fs.writeFileSync(filePath, buffer);
     this.cleanupScreenshots(50);
 
     this.emitTelemetry({
@@ -920,6 +1010,7 @@ export class BrowserChassis {
         filePath,
         width: size.width,
         height: size.height,
+        mimeType,
       },
       marks,
     };
