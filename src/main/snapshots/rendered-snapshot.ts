@@ -48,15 +48,14 @@ export class RenderedSnapshotEngine {
     const title = wc.getTitle();
     const timestamp = Date.now();
 
-    // Force re-render / repaint if requested
+    // Force re-render / repaint if requested (non-destructive double-RAF to flush layout/compositor)
     if (options.forceRerender) {
       await wc.executeJavaScript(`
-        (() => {
-          window.dispatchEvent(new Event('resize'));
-          document.body.style.display = 'none';
-          void document.body.offsetHeight; // trigger reflow
-          document.body.style.display = '';
-        })()
+        new Promise((resolve) => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(resolve);
+          });
+        })
       `).catch(() => {});
     }
 

@@ -393,8 +393,14 @@ export class BrowserChassis {
       ? url
       : `https://${url}`;
 
-    // 0ms Navigation: Check if target URL is already warm in speculative prerender pool
-    if (this.prerenderEngine.has(formattedUrl)) {
+    // 0ms Navigation: Check if target URL is already warm in speculative prerender pool.
+    // Guard: Do not elevate if current active tab is already on this page/domain or active form state is present.
+    const currentUrl = wc.getURL();
+    const isSamePage = currentUrl
+      ? this.prerenderEngine.normalizeUrl(currentUrl) === this.prerenderEngine.normalizeUrl(formattedUrl)
+      : false;
+
+    if (!isSamePage && this.prerenderEngine.has(formattedUrl)) {
       const warmView = this.prerenderEngine.consume(formattedUrl);
       if (warmView && this.tabManager) {
         this.addLog('action', `0ms Speculative Elevation: Elevated prerendered view for ${formattedUrl}`);

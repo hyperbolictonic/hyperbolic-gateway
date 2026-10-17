@@ -293,10 +293,16 @@ export class PrerenderEngine {
     }
   }
 
-  private normalizeUrl(url: string): string {
+  public normalizeUrl(url: string): string {
     try {
       const u = new URL(url);
-      return `${u.origin}${u.pathname}`.replace(/\/+$/, '').toLowerCase();
+      // Canonicalize query parameters so search order doesn't cause cache misses,
+      // while preserving distinct filter/query states so filtered pages never collide with base pages.
+      const params = new URLSearchParams(u.search);
+      params.sort();
+      const queryString = params.toString();
+      const basePath = `${u.origin}${u.pathname}`.replace(/\/+$/, '').toLowerCase();
+      return queryString ? `${basePath}?${queryString}` : basePath;
     } catch {
       return url.trim().toLowerCase();
     }
