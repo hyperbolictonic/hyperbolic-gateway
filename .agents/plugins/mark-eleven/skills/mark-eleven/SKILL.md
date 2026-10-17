@@ -91,9 +91,14 @@ Mark Eleven connects the LLM to an active, desktop Chromium browser window (`hea
    - Call `set_window_visibility({ visible })` to minimize the cyberdeck window to the system tray to stay out of the user's way, or restore to screen.
    - Call `configure_system_tray({ close_to_tray })` to enable or disable background minimization when closing the window.
 18. **Human-In-The-Loop (HIL) Intervention & Desktop Notifications:**
-   - Call `request_human_intervention({ reason, timeout_seconds, bring_to_front })` when human credentials, 2FA, OTP, or CAPTCHAs are required. Triggers desktop notification, restores window from tray, flashes taskbar, and injects interactive banner until completed.
+   - **CRITICAL DIRECTIVE — PROACTIVE HIL USAGE:** Do NOT get stuck in loops, guess passwords, or attempt to bypass complex bot defenses autonomously. If you encounter any of the following, call `request_human_intervention` IMMEDIATELY:
+     1. **Bot Checkpoints:** Cloudflare Turnstile, reCAPTCHA, hCaptcha, Arkose Labs, or Cloudflare challenge pages.
+     2. **Authentication:** Login forms requiring user credentials, 2FA/MFA, SMS OTP codes, or email verification links.
+     3. **High-Stakes Actions:** Payment checkout forms, credit card entry, or final booking confirmations.
+     4. **Ambiguity / Hard Roadblocks:** When the target page structure is completely unexpected or blocked and you need the user to clarify.
+   - Calling `request_human_intervention({ reason, timeout_seconds, bring_to_front: true })` immediately alerts the user with an audible OS desktop notification, unhides and brings the browser window to the front, flashes the Windows taskbar, and injects a prominent HUD banner. Once the human solves the checkpoint, execution resumes automatically.
    - Call `resolve_human_intervention({ id, notes })` to programmatically resolve a pending intervention.
    - Call `get_human_intervention_status()` to inspect active request status and history.
    - Call `send_notification({ title, message, urgency, sound })` to emit non-blocking desktop notifications.
 19. **Operational Manual & Tool Discovery:**
-   - Call `help()` to query a complete, detailed operational cheatsheet of all 53 available tools, parameters, and design principles.
+   - Call `help()` to query a complete, detailed operational cheatsheet of all 55 available tools, parameters, and design principles.

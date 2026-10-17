@@ -201,7 +201,7 @@ export function createBridgeMcpServer() {
   - get_stream_messages(stream_id?, limit?): Rolling buffer of parsed frames.
 
 7. [HUMAN-IN-THE-LOOP & SYSTEM TRAY]
-  - request_human_intervention(reason, timeout_seconds?): Unhides window, flashes taskbar, shows in-page banner for CAPTCHAs/logins.
+  - request_human_intervention(reason, timeout_seconds?, bring_to_front?): PROACTIVELY CALL THIS whenever hitting Cloudflare challenges, CAPTCHAs, login/2FA screens, checkout payments, or critical blockers. Halts agent, triggers audible desktop alerts, unhides window, flashes taskbar, and presents HUD banner until user confirms.
   - set_window_visibility(visible): Minimizes Cyberdeck to tray or restores to screen.
   - send_notification(title, message, urgency?): Native OS desktop notification.`;
 

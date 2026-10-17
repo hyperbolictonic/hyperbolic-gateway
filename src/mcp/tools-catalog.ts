@@ -772,11 +772,11 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // 14. Human-In-The-Loop (HIL) Intervention & Desktop Notifications
   {
     name: 'request_human_intervention',
-    description: 'Halts the agent and requests human assistance when credentials, 2FA, OTP, CAPTCHA, or manual approval are needed. Restores window, flashes taskbar, triggers desktop notification, and injects interactive banner.',
+    description: 'PROACTIVELY call this whenever encountering CAPTCHAs, Cloudflare Turnstile, login/2FA prompts, payment checkouts, or unexpected roadblocks. Halts agent execution, triggers audible desktop alerts, unhides and brings window to front, flashes taskbar, and presents an interactive HUD banner for human assistance.',
     parameters: {
-      reason: z.string().describe('Clear explanation of what human action is needed (e.g. "Please solve the CAPTCHA")'),
-      timeout_seconds: z.number().optional().describe('Max seconds to wait (default: 180)'),
-      bring_to_front: z.boolean().optional().default(true).describe('Whether to unhide/restore window from tray (default: true)'),
+      reason: z.string().describe('Clear explanation of what human action is needed (e.g. "Please solve the Cloudflare Turnstile challenge" or "Please enter 2FA code")'),
+      timeout_seconds: z.number().optional().describe('Max seconds to wait for human action (default: 180)'),
+      bring_to_front: z.boolean().optional().default(true).describe('Whether to unhide/restore window from tray and bring to front (default: true)'),
     },
     endpoint: '/hil/request',
     payload: (args) => {
