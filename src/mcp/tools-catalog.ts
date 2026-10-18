@@ -147,28 +147,32 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     description: 'Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). By default includes Set-of-Marks badges ([#1], [#2]...) directly on interactive elements (links, buttons, inputs) so you can call click_mark(id) or type_mark(id) directly from the text without taking screenshots!',
     parameters: {
       include_marks: z.coerce.boolean().optional().default(true).describe('Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)'),
+      include_offscreen: z.coerce.boolean().optional().default(false).describe('Also annotate interactive elements outside the current viewport so their [#ID] badges appear in the markdown (use for long/virtualized result lists; default: false)'),
     },
     endpoint: '/markdown',
     method: 'GET',
     payload: (args) => {
       const includeMarks = args?.include_marks !== false && args?.marks !== false;
-      return { queryParams: { include_marks: String(includeMarks) } };
+      const includeOffscreen = args?.include_offscreen === true;
+      return { queryParams: { include_marks: String(includeMarks), include_offscreen: String(includeOffscreen) } };
     },
-    format: (data) => { const md = data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; },
+    format: (data) => { const md = data.construct?.content || data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; },
   },
   {
     name: 'harvest_markdown',
     description: 'Alias for get_page_markdown. Extracts clean markdown with inline [#ID] marks from the active tab.',
     parameters: {
       include_marks: z.coerce.boolean().optional().default(true).describe('Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)'),
+      include_offscreen: z.coerce.boolean().optional().default(false).describe('Also annotate interactive elements outside the current viewport (use for long/virtualized result lists; default: false)'),
     },
     endpoint: '/markdown',
     method: 'GET',
     payload: (args) => {
       const includeMarks = args?.include_marks !== false && args?.marks !== false;
-      return { queryParams: { include_marks: String(includeMarks) } };
+      const includeOffscreen = args?.include_offscreen === true;
+      return { queryParams: { include_marks: String(includeMarks), include_offscreen: String(includeOffscreen) } };
     },
-    format: (data) => { const md = data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; },
+    format: (data) => { const md = data.construct?.content || data.construct?.markdown || JSON.stringify(data, null, 2); return md.length > 25000 ? md.slice(0, 25000) + "\n\n... [Output truncated to 25000 chars]" : md; },
   },
   {
     name: 'evaluate_javascript',
@@ -477,6 +481,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().describe('Filter by HTTP method'),
       resource_type: z.enum(['xhr', 'fetch', 'document', 'script', 'stylesheet', 'image', 'other']).optional().describe('Filter by resource type'),
       limit: z.number().optional().default(50).describe('Max records to return'),
+      since: z.union([z.literal('last_action'), z.coerce.number()]).optional().describe('Only requests at/after this epoch-ms timestamp, or the literal "last_action" to correlate XHRs with the most recent action (click/type/navigate/act).'),
     },
     endpoint: '/network/traffic',
     payload: (args) => ({
@@ -484,6 +489,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       method: args.method,
       resourceType: args.resource_type,
       limit: args.limit,
+      since: args.since,
     }),
     format: (data) => {
       const list = Array.isArray(data.traffic) ? data.traffic : [];
@@ -596,26 +602,35 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // 10. Set-of-Marks (SoM) Grounding
   {
     name: 'take_annotated_screenshot',
-    description: 'Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping.',
-    parameters: {},
+    description: 'Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping. Set include_offscreen=true to also badge elements below/above the fold (long result lists).',
+    parameters: {
+      include_offscreen: z.coerce.boolean().optional().default(false).describe('Also badge interactive elements outside the current viewport (default: false)'),
+    },
     endpoint: '/marks/screenshot',
     method: 'GET',
+    payload: (args) => ({ queryParams: { include_offscreen: String(args?.include_offscreen === true) } }),
     format: (data) => (Array.isArray(data.marks) ? data.marks.map((m: any) => formatMark(m)).join('\n') : JSON.stringify(data)),
   },
   {
     name: 'take_economy_screenshot',
-    description: 'Lightweight Set-of-Marks screenshot: downscaled to 640px wide JPEG (~10-20x smaller than take_annotated_screenshot) plus the same mark mapping. Use for vision models when token/bandwidth cost matters.',
-    parameters: {},
-    endpoint: '/marks/screenshot?economy=1',
+    description: 'Lightweight Set-of-Marks screenshot: downscaled to 640px wide JPEG (~10-20x smaller than take_annotated_screenshot) plus the same mark mapping. Use for vision models when token/bandwidth cost matters. Set include_offscreen=true to also badge elements below/above the fold.',
+    parameters: {
+      include_offscreen: z.coerce.boolean().optional().default(false).describe('Also badge interactive elements outside the current viewport (default: false)'),
+    },
+    endpoint: '/marks/screenshot',
     method: 'GET',
+    payload: (args) => ({ queryParams: { economy: '1', include_offscreen: String(args?.include_offscreen === true) } }),
     format: (data) => (Array.isArray(data.marks) ? data.marks.map((m: any) => formatMark(m)).join('\n') : JSON.stringify(data)),
   },
   {
     name: 'list_marks',
-    description: 'Text-only Set-of-Marks: returns the numbered interactive element table with NO image. Use for text-only models or the cheapest possible page scan; click_mark / type_mark work afterwards.',
-    parameters: {},
-    endpoint: '/marks/screenshot?text_only=1',
+    description: 'Text-only Set-of-Marks: returns the numbered interactive element table with NO image. Use for text-only models or the cheapest possible page scan; click_mark / type_mark work afterwards. On long/virtualized result lists set include_offscreen=true so below-the-fold items are numbered too (click_mark scrolls them into view).',
+    parameters: {
+      include_offscreen: z.coerce.boolean().optional().default(false).describe('Also number interactive elements outside the current viewport so long result lists are fully listed (default: false)'),
+    },
+    endpoint: '/marks/screenshot',
     method: 'GET',
+    payload: (args) => ({ queryParams: { text_only: '1', include_offscreen: String(args?.include_offscreen === true) } }),
     format: (data) => (Array.isArray(data.marks) ? data.marks.map((m: any) => formatMark(m)).join('\n') : JSON.stringify(data)),
   },
   {
@@ -866,5 +881,282 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       return { title, message, urgency: args?.urgency || 'critical', sound: args?.sound ?? true };
     },
     format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Kuang Browser: Human Intervention Required', message: args?.message || 'Notification sent' }),
+  },
+
+  // ---------------------------------------------------------------------------
+  // 14. Primitives Layer — one observe / act / wait / extract model.
+  // These complement the procedural verbs above; nothing is replaced.
+  // ---------------------------------------------------------------------------
+  {
+    name: 'wait_for',
+    description:
+      'Declarative readiness gate. Polls until every (require="all") or any (require="any", default) condition holds, then returns. This is the primitive that replaces blind sleeps. Condition types: ' +
+      '{"type":"selector","selector":"...","visible":true} · {"type":"gone","selector":"..."} · {"type":"text","text":"..."} (or {"regex":"..."}) · {"type":"url","pattern":"..."} · ' +
+      '{"type":"role_name","role":"button","name":"Search"} · {"type":"count","selector":".card","min":5} · {"type":"network_idle","quietMs":800} · ' +
+      '{"type":"stable","target":"marks|height|text|nodes","holdMs":400} (waits for lazily-rendered lists to stop growing) · {"type":"revision","version":N}.',
+    parameters: {
+      conditions: z.array(z.record(z.string(), z.any())).describe('Array of condition objects, e.g. [{"type":"selector","selector":".result"}]'),
+      require: z.enum(['any', 'all']).optional().default('any').describe('"all" = every condition must hold; "any" = first one (default)'),
+      timeout_ms: z.coerce.number().optional().default(15000).describe('Give up after this many ms (default: 15000)'),
+      poll_ms: z.coerce.number().optional().default(250).describe('Poll interval in ms (default: 250)'),
+    },
+    endpoint: '/wait-for',
+    payload: (args) => ({
+      conditions: args?.conditions || (args?.condition ? [args.condition] : []),
+      require: args?.require || 'any',
+      timeout_ms: args?.timeout_ms,
+      poll_ms: args?.poll_ms,
+    }),
+    format: (data) => {
+      const lines = (data.results || []).map((r: any) => `${r.ok ? '✓' : '✗'} ${r.type}${r.evidence ? ` — ${r.evidence}` : ''}`);
+      return `${data.ok ? 'READY' : 'TIMED OUT'} after ${data.waitedMs}ms (${data.attempts} polls, require=${data.require})\n${lines.join('\n')}`;
+    },
+  },
+  {
+    name: 'observe',
+    description:
+      'One budgeted observation model with projections. as="markdown" (TIER 1 harvest with inline [#id] marks) · as="text" (innerText, region-scoped) · as="ax" (accessibility tree) · as="som" (numbered marks table) · ' +
+      'as="list" · as="table" · as="app_data" (structured extraction). Use budget + the returned next_cursor to page a large page instead of truncating it. region accepts a mark id (number) or CSS selector.',
+    parameters: {
+      as: z.enum(['markdown', 'text', 'ax', 'som', 'list', 'table', 'app_data']).optional().default('markdown').describe('Projection to return (default: markdown)'),
+      region: z.union([z.coerce.number(), z.string()]).optional().describe('Scope to a mark id (number) or CSS selector (string)'),
+      budget: z.coerce.number().optional().describe('Max characters to return; page with next_cursor (0/omitted = whole text)'),
+      cursor: z.union([z.string(), z.coerce.number()]).optional().describe('next_cursor from a previous observe call'),
+      include_offscreen: z.coerce.boolean().optional().default(false).describe('Include below/above-the-fold elements (markdown marks, som, list)'),
+      limit: z.coerce.number().optional().describe('Max rows for list/table projections'),
+    },
+    endpoint: '/observe',
+    payload: (args) => ({
+      as: args?.as || 'markdown',
+      region: args?.region,
+      budget: args?.budget,
+      cursor: args?.cursor,
+      include_offscreen: args?.include_offscreen === true,
+      limit: args?.limit,
+    }),
+    format: (data) => {
+      const head = `# observe(as=${data.as}) ${data.url ? `— ${data.url}` : ''}`;
+      const meta = `chars=${data.text ? data.text.length : 0}/${data.total ?? 0}${data.truncated ? ` · next_cursor=${data.next_cursor}` : ''}`;
+      return `${head}\n${meta}\n\n${data.text || '(no content)'}`;
+    },
+  },
+  {
+    name: 'extract',
+    description:
+      'Structured extraction (read-only, no JS injection into page logic). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. ' +
+      'kind="table" returns {headers, rows, records} from a <table> or ARIA grid. kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs.',
+    parameters: {
+      kind: z.enum(['list', 'table', 'app_data']).default('list').describe('Extraction kind'),
+      ref: z.coerce.number().optional().describe('Scope to a mark id (from list_marks/find)'),
+      selector: z.string().optional().describe('Scope to a CSS selector (default: whole page)'),
+      limit: z.coerce.number().optional().default(200).describe('Max rows/sources'),
+    },
+    endpoint: '/extract',
+    payload: (args) => ({ kind: args?.kind || 'list', ref: args?.ref, selector: args?.selector, limit: args?.limit }),
+    format: (data) => {
+      if (data.error) return `extract failed: ${data.error}`;
+      if (data.kind === 'table') {
+        const head = (data.headers || []).join(' | ');
+        const rows = (data.rows || []).map((r: any[]) => r.join(' | ')).join('\n');
+        return `# table (${data.count} rows)\n${head}\n${rows}`;
+      }
+      if (data.kind === 'app_data') {
+        return `# app_data (${data.count} sources)\n` + (data.sources || []).map((s: any) => `${s.source} (${s.bytes}B, parsed=${s.parsed})`).join('\n');
+      }
+      const rows = (data.rows || []).map((r: any, i: number) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ''}${r.mark ? ` [#${r.mark}]` : ''}`);
+      return `# list (${data.count} items${data.container?.sig ? `, container="${data.container.sig}"` : ''})\n${rows.join('\n')}`;
+    },
+  },
+  {
+    name: 'collect_all',
+    description:
+      'Scroll a virtualized/lazy list to the bottom and collect every distinct row (deduped by text+href) in ONE call. The abstraction that replaces a manual scroll-and-harvest sweep. ' +
+      'Auto-detects the repeating item container; use selector/ref to scope it and scroll="window" for page-level infinite scroll.',
+    parameters: {
+      selector: z.string().optional().describe('CSS selector of the list container (default: auto-detect)'),
+      ref: z.coerce.number().optional().describe('Mark id of the list container (from find/list_marks)'),
+      scroll: z.enum(['container', 'window']).optional().default('container').describe('Scroll the container itself or the whole window'),
+      step: z.coerce.number().optional().default(600).describe('Pixels per scroll step'),
+      delay_ms: z.coerce.number().optional().default(250).describe('Wait after each scroll for lazy content'),
+      max_scrolls: z.coerce.number().optional().default(30).describe('Safety cap on scroll iterations'),
+      max: z.coerce.number().optional().default(300).describe('Max rows to collect'),
+    },
+    endpoint: '/collect',
+    payload: (args) => ({
+      selector: args?.selector,
+      ref: args?.ref,
+      scroll: args?.scroll || 'container',
+      step: args?.step,
+      delay_ms: args?.delay_ms,
+      max_scrolls: args?.max_scrolls,
+      max: args?.max,
+    }),
+    format: (data) => {
+      if (data.error) return `collect_all failed: ${data.error}`;
+      const rows = (data.rows || []).map((r: any, i: number) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ''}`);
+      return `# collect_all — ${data.count} distinct rows after ${data.scrolls} scrolls\n${rows.join('\n')}`;
+    },
+  },
+  {
+    name: 'find',
+    description:
+      'Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act()/click_mark().',
+    parameters: {
+      role: z.string().optional().describe('ARIA role or implied role (e.g. "button", "link", "combobox")'),
+      name: z.string().optional().describe('Accessible-name substring (case-insensitive)'),
+      contains: z.string().optional().describe('Text/value substring'),
+      regex: z.string().optional().describe('Regex over text/value'),
+      tag: z.string().optional().describe('Element tag, e.g. "A" or "BUTTON"'),
+      selector: z.string().optional().describe('CSS selector the element must match'),
+      limit: z.coerce.number().optional().default(25).describe('Max refs to return'),
+      include_offscreen: z.coerce.boolean().optional().default(true).describe('Also search below/above the fold (default: true)'),
+    },
+    endpoint: '/find',
+    payload: (args) => ({
+      role: args?.role,
+      name: args?.name,
+      contains: args?.contains,
+      regex: args?.regex,
+      tag: args?.tag,
+      selector: args?.selector,
+      limit: args?.limit,
+      include_offscreen: args?.include_offscreen,
+    }),
+    format: (data) => {
+      const rows = (data.marks || []).map((m: any) => formatMark(m));
+      return `# find — ${data.count} of ${data.total} match(es)\n${rows.join('\n')}`;
+    },
+  },
+  {
+    name: 'expect',
+    description: 'Immediate assertion (no polling) over the same condition vocabulary as wait_for. Returns pass/fail plus per-condition evidence, so an agent can self-check before proceeding instead of guessing.',
+    parameters: {
+      conditions: z.array(z.record(z.string(), z.any())).describe('Conditions to assert immediately, e.g. [{"type":"text","text":"GBP"},{"type":"url","pattern":"/flights"}]'),
+    },
+    endpoint: '/expect',
+    payload: (args) => ({ conditions: args?.conditions || (args?.condition ? [args.condition] : []) }),
+    format: (data) => {
+      const lines = (data.results || []).map((r: any) => `${r.ok ? '✓' : '✗'} ${r.type}${r.evidence ? ` — ${r.evidence}` : ''}`);
+      return `${data.ok ? 'PASS' : 'FAIL'} (${data.results.filter((r: any) => r.ok).length}/${data.results.length} conditions)\n${lines.join('\n')}`;
+    },
+  },
+  {
+    name: 'act',
+    description:
+      'Unified, humanlike action on a mark ref with optional post-conditions and a delta report. action="click"|"focus"|"hover"|"type"|"press". ' +
+      'Pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs.',
+    parameters: {
+      mark_id: z.coerce.number().optional().describe('Target mark id from find/list_marks/observe (not needed for action="press")'),
+      action: z.enum(['click', 'focus', 'hover', 'type', 'press']).default('click').describe('Action to perform'),
+      text: z.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
+      secret: z.coerce.boolean().optional().default(false).describe('Redact typed text from logs'),
+      await_conditions: z.array(z.record(z.string(), z.any())).optional().describe('wait_for conditions evaluated right after the action'),
+      timeout_ms: z.coerce.number().optional().default(15000).describe('Timeout for await_conditions'),
+      dry_run: z.coerce.boolean().optional().default(false).describe('Resolve the target but do not act'),
+    },
+    endpoint: '/act',
+    payload: (args) => ({
+      mark_id: args?.mark_id,
+      action: args?.action || 'click',
+      text: args?.text !== undefined ? String(args.text) : undefined,
+      secret: args?.secret === true,
+      await: args?.await_conditions,
+      timeout_ms: args?.timeout_ms,
+      dry_run: args?.dry_run === true,
+    }),
+    format: (data) => {
+      if (data.dryRun) return `DRY RUN — would ${data.action} [#${data.markId}] <${data.target?.tag}> "${data.target?.text}"${data.wouldType ? ` typing "${data.wouldType}"` : ''}`;
+      const d = data.delta || {};
+      const parts = [
+        `${data.action} [#${data.markId}] <${data.target?.tag}> "${data.target?.text}"`,
+        d.urlChanged ? `url: ${d.beforeUrl} -> ${d.afterUrl}` : 'url unchanged',
+        `revision ${d.revisionBefore}->${d.revisionAfter}`,
+        `marks ${d.marksBefore}->${d.marksAfter}`,
+      ];
+      if (data.awaited) parts.push(`await: ${data.awaited.ok ? 'READY' : 'TIMED OUT'} in ${data.awaited.waitedMs}ms${data.awaited.hint ? ` [${data.awaited.hint}]` : ''}`);
+      return parts.join(' · ');
+    },
+  },
+  {
+    name: 'page_state',
+    description: 'Cheap monotonic state signature (revision, url, title, mark count, DOM node count, scroll height, text length/hash). Use with diff() to detect change without re-reading the page.',
+    parameters: {},
+    endpoint: '/page-state',
+    method: 'POST',
+    format: (data) => JSON.stringify(data.state, null, 2),
+  },
+  {
+    name: 'diff',
+    description: 'Field-by-field diff between the current page state and a previously observed revision (from page_state/observe/act). Shows exactly what changed: url, title, marks, nodeCount, height, scrollY, textLen, textHash.',
+    parameters: {
+      since: z.coerce.number().optional().describe('Revision to diff against (default: earliest recorded state)'),
+    },
+    endpoint: '/diff',
+    payload: (args) => ({ since: args?.since }),
+    format: (data) => {
+      if (!data.changed) return `No change since revision ${data.from?.revision} (revision ${data.to?.revision}).`;
+      const lines = Object.entries(data.changes || {}).map(([k, v]: any) => `${k}: ${JSON.stringify(v.from)} -> ${JSON.stringify(v.to)}`);
+      return `Changed ${data.from?.revision} -> ${data.to?.revision}\n${lines.join('\n')}`;
+    },
+  },
+  {
+    name: 'bridge_health',
+    description: 'Bridge + app liveness and capability discovery: version, page revision, negotiated primitives capabilities, active tab/url, window focused/visible state, the active synthetic-input transport (cdp|native), and the timestamp of the last mutating action.',
+    parameters: {},
+    endpoint: '/health',
+    method: 'GET',
+    format: (data) => JSON.stringify({ status: data.status, version: data.version, revision: data.revision, capabilities: data.capabilities, url: data.info?.url, title: data.info?.title, window: data.window, input: data.input, lastActionAt: data.lastActionAt }, null, 2),
+  },
+  {
+    name: 'export_har',
+    description: 'Exports captured network traffic as a HAR 1.2 log (request/response headers + body previews). Set save=true to write data/har/har_<ts>.har and get the path; otherwise the HAR JSON is returned.',
+    parameters: {
+      pattern: z.string().optional().describe('URL substring filter'),
+      limit: z.coerce.number().optional().default(250).describe('Max entries'),
+      save: z.coerce.boolean().optional().default(false).describe('Write the HAR to data/har/ and return the path instead of the JSON'),
+    },
+    endpoint: '/network/har',
+    payload: (args) => ({ pattern: args?.pattern, limit: args?.limit, save: args?.save === true }),
+    format: (data) => (data.filePath ? `HAR written to ${data.filePath} (${data.entries} entries)` : JSON.stringify(data.har)),
+  },
+  {
+    name: 'context_save',
+    description: 'Saves the current browsing context (cookies + storage) under a name — the profile abstraction for authenticated sessions.',
+    parameters: { name: z.string().optional().describe('Context name (auto-generated if omitted)') },
+    endpoint: '/context/save',
+    payload: (args) => ({ name: args?.name }),
+    format: (data) => JSON.stringify(data.result),
+  },
+  {
+    name: 'context_open',
+    description: 'Restores (switches to) a named browsing context/profile, reloading its cookies and storage.',
+    parameters: { name: z.string().describe('Context name to restore') },
+    endpoint: '/context/open',
+    payload: (args) => ({ name: args?.name }),
+    format: (data) => JSON.stringify(data.result),
+  },
+  {
+    name: 'context_list',
+    description: 'Lists saved browsing contexts (cookie/storage profiles).',
+    parameters: {},
+    endpoint: '/context/list',
+    method: 'GET',
+    format: (data) => JSON.stringify(data.contexts, null, 2),
+  },
+  {
+    name: 'context_delete',
+    description: 'Deletes a saved browsing context/profile.',
+    parameters: { name: z.string().describe('Context name to delete') },
+    endpoint: '/context/delete',
+    payload: (args) => ({ name: args?.name }),
+    format: (data) => JSON.stringify({ deleted: data.deleted }),
+  },
+  {
+    name: 'focus_window',
+    description: 'Brings the Cyberdeck window to the foreground and focuses it. Synthetic input is delivered over CDP by default and is focus-independent, so this is only needed to make the window visible to a human (HIL) or when bridge_health.input.transport reports the legacy "native" fallback.',
+    parameters: {},
+    endpoint: '/window/focus',
+    method: 'POST',
+    format: (data) => JSON.stringify({ focused: data.focused }),
   },
 ];

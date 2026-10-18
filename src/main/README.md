@@ -20,6 +20,8 @@ This directory is the brain of the Electron desktop application and visible Chro
   Chrome DevTools Protocol (CDP) live network interceptor capturing XHR/Fetch API JSON responses and duplex WebSocket/SSE frames.
 - **[`marks/`](./marks/README.md)**:
   Set-of-Marks (SoM) visual grounding engine injecting high-contrast neon badges (`[1]`, `[2]`) over interactable DOM elements for zero-ambiguity LLM actuation.
+- **[`primitives/`](./primitives/README.md)**:
+  Orthogonal primitive layer (`observe` · `act` · `wait_for` · `expect` · `find` · `extract` · `collect_all` · `page_state`/`diff` · `export_har`) with structured error codes (`STALE_REF`/`TIMEOUT`/`NO_TARGET`/`BAD_REQUEST`/`NOT_SUPPORTED`) and injected DOM probes. Exposed via `chassis.getPrimitives()`.
 - **[`scripts/`](./scripts/README.md)**:
   Script Vault and LanceDB semantic macro recall engine enabling natural language script search and parameter-injected runtime execution.
 - **[`tray/`](./tray/README.md)**:
@@ -27,7 +29,7 @@ This directory is the brain of the Electron desktop application and visible Chro
 - **[`hil/`](./hil/README.md)**:
   Human-In-The-Loop cooperative intervention protocol with OS native desktop notifications, window summoning, and in-page cyberdeck alert banners.
 - **[`telemetry/`](./telemetry/README.md)**:
-  Humanized cubic Bézier cursor movement, Gaussian typing cadence variance, and stealth browser profile detection.
+  Humanized cubic Bézier cursor movement, Gaussian typing cadence variance, and stealth browser profile detection. Input is dispatched **CDP-first** (`Input.dispatchMouseEvent`/`dispatchKeyEvent`/`mouseWheel`) so it is focus-independent, with `webContents.sendInputEvent` as a fallback.
 - **[`harvester/`](./harvester/README.md)**:
   Token-efficient Markdown distillation engine powered by Mozilla Readability and Turndown.
 

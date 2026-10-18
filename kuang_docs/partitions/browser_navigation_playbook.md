@@ -17,3 +17,7 @@ Mark Eleven features a **0ms Speculative Prerender Engine**:
 ## 3. Session Persistence
 - `save_session(name)`: Snapshots cookies, localStorage, and sessionStorage.
 - `restore_session(name)`: Rehydrates an authenticated session on demand.
+- **Context profiles:** `context_save(name)` / `context_open(name)` / `context_list()` /
+  `context_delete(name)` are thin aliases over the session vault — the profile abstraction for
+  switching authenticated identities. See **partition 4** for the primitives, wait vocabulary,
+  and workflow recipes (R1–R5) that tie navigation, observation and network capture together.

@@ -17,6 +17,16 @@ if (!gotTheLock) {
 let mainWindow: BrowserWindow | null = null;
 const chassis = new BrowserChassis();
 
+// The Cyberdeck is driven while the human's editor/terminal owns the foreground, so the
+// window is routinely *occluded*. Chromium then stops producing frames for it, which
+// silently breaks anything driven by rendering: scroll events never fire (so lazy-loading
+// "infinite" feeds never append), IntersectionObserver callbacks never run, and rAF-based
+// hydration stalls. Disable occlusion/renderer backgrounding so a driving agent sees the
+// same page a foregrounded human would.
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+
 app.on('second-instance', () => {
   if (mainWindow) {
     if (!mainWindow.isVisible()) {

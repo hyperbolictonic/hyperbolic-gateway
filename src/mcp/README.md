@@ -10,7 +10,7 @@ While [`scripts/mcp-server.js`](../../scripts/README.md) is the standalone stdio
 
 ---
 
-## 🧰 Registered MCP Tool Domains (57 Tools Total)
+## 🧰 Registered MCP Tool Domains (74 Tools Total)
 
 1. **Navigation & History (4 Tools):** `navigate_to`, `go_to_url`, `navigate_history`, `get_page_info`.
 2. **Autonomous Shield & Consent (1 Tool):** `dismiss_consent`.
@@ -20,21 +20,24 @@ While [`scripts/mcp-server.js`](../../scripts/README.md) is the standalone stdio
 6. **LanceDB Cortex Persistent Memory (6 Tools):** `recall_memory`, `get_history`, `clear_history`, `add_bookmark`, `list_bookmarks`, `delete_bookmark`.
 7. **Download Manager & Harvester (2 Tools):** `list_downloads`, `read_download`.
 8. **Session & Cookie Jar Vault (3 Tools):** `save_session`, `restore_session`, `list_sessions`.
-9. **Network Intelligence & Real-Time Streams (7 Tools):** `get_network_traffic`, `get_api_payload`, `clear_network_traffic`, `query_json_data` (token-efficient JSON navigator), `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
+9. **Network Intelligence & Real-Time Streams (7 Tools):** `get_network_traffic` (with action-correlated `since`), `get_api_payload`, `clear_network_traffic`, `query_json_data` (token-efficient JSON navigator), `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
 10. **Set-of-Marks Visual Grounding (5 Tools):** `take_annotated_screenshot` (dual text + full PNG), `take_economy_screenshot` (marks + 640px JPEG, ~10-20x lighter), `list_marks` (marks only, no image — for text-only models), `click_mark`, `type_mark`.
 11. **Script Vault & Semantic Macro Engine (5 Tools):** `save_script`, `recall_script`, `run_script`, `list_scripts`, `delete_script`.
 12. **Desktop System Tray & HIL Intervention (7 Tools):** `set_window_visibility`, `configure_system_tray`, `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, `send_notification`, `send_desktop_notification`.
-13. **Assistance & Discovery (1 Tool):** `help`.
+13. **Orthogonal Primitives & Abstraction (16 Tools):** `wait_for`, `observe`, `extract`, `collect_all`, `find`, `expect`, `act`, `page_state`, `diff`, `bridge_health`, `export_har`, `context_save`, `context_open`, `context_list`, `context_delete`, `focus_window`.
+14. **Assistance & Discovery (1 Tool):** `help`.
+
+In addition to the 74 tools, `bridge-server.ts` registers **6 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
 
 ---
 
 ## 📄 Key Source Files
 
 - **[`tools-catalog.ts`](./tools-catalog.ts)**:
-  Central repository of all 57 tool definitions, Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters.
+  Central repository of all 73 tool definitions (74 with the built-in `help`), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters.
 - **[`bridge-server.ts`](./bridge-server.ts)**:
   Factory `createBridgeMcpServer()` configuring `@modelcontextprotocol/sdk` to forward tool calls to the active browser chassis via `http://127.0.0.1:4111` and package dual text + native base64 PNG image blocks.
 - **[`server.ts`](./server.ts)**:
-  In-process MCP server binding direct Electron `BrowserChassis` methods when running without external process separation.
+  Legacy in-process MCP server binding direct Electron `BrowserChassis` methods (45 hand-written tools, no primitives). It is **imported by `src/main/index.ts` but not currently invoked**; the canonical, fully-featured server is [`bridge-server.ts`](./bridge-server.ts) (74 tools) shipped as `bin/mcp-server.cjs`. Treat `server.ts` as an experimental "unified mode" path pending re-wiring.
 - **[`bin/mcp-server.cjs`](../../bin/mcp-server.cjs)** & **[`scripts/mcp-server.js`](../../scripts/mcp-server.js)**:
   Production bundled standalone stdio executable spawned by AI agents and IDEs.

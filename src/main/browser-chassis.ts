@@ -18,6 +18,7 @@ import {
   type StreamMessage,
 } from './network/network-interceptor.js';
 import { MarksOverlay, type MarkItem } from './marks/marks-overlay.js';
+import { Primitives } from './primitives/primitives.js';
 import { ScriptVault } from './scripts/script-vault.js';
 import type { ScriptItem } from './cortex/cortex-db.js';
 import { TrayManager } from './tray/tray-manager.js';
@@ -46,6 +47,9 @@ export class BrowserChassis {
   private hilManager: HilManager;
   private prerenderEngine: PrerenderEngine;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
+  private primitives: Primitives;
+  /** Monotonic page revision: bumped on navigation and every mutating action. */
+  private revision = 0;
 
   private state: ChassisState = {
     currentUrl: 'about:blank',
@@ -143,6 +147,28 @@ export class BrowserChassis {
       },
     });
 
+    // Orthogonal primitives layer (observe / act / wait / extract / collect / find).
+    // It borrows the chassis' real input + marks plumbing so it stays on the humanlike path.
+    this.primitives = new Primitives({
+      webContents: () => this.getActiveWebContents(),
+      log: (level, msg) => this.addLog(level, msg),
+      evaluate: (script) => this.evaluateQuiet(script),
+      harvest: (opts) => this.harvestMarkdown(opts),
+      injectMarks: (opts) => this.marksOverlay.injectMarks(this.getActiveWebContents(), opts || {}),
+      removeMarks: () => this.marksOverlay.removeMarks(this.getActiveWebContents()),
+      getMarks: () => this.getActiveMarks(),
+      getMarkTarget: (id) => this.marksOverlay.getMarkTarget(this.getActiveWebContents(), id),
+      clickMark: (id) => this.clickMark(id),
+      typeMark: (id, text, opts) => this.typeMark(id, text, opts),
+      moveMouseTo: (target) => this.moveMouse(target),
+      pressKey: (key) => this.pressKey(key),
+      snapshotRenderedPage: (opts) => this.snapshotRenderedPage(opts),
+      getNetworkTraffic: (filter) => this.getNetworkTraffic(filter),
+      getPageInfo: () => this.getPageInfo(),
+      revision: () => this.revision,
+      windowFocused: () => this.isWindowFocused(),
+    });
+
     setInterval(() => {
       this.state.stats.uptimeSeconds++;
       this.broadcastState();
@@ -183,6 +209,8 @@ export class BrowserChassis {
           this.state.isLoading = tab.isLoading;
           this.state.activeTabId = tab.id;
           this.broadcastState();
+
+          if (!tab.isLoading) this.bumpRevision();
 
           if (!tab.isLoading && tab.url && !tab.url.startsWith('mark-eleven:') && tab.url !== 'about:blank') {
             this.indexTabQuietly(tab);
@@ -419,6 +447,7 @@ export class BrowserChassis {
     }
 
     await navPromise;
+    this.bumpRevision();
     return `Navigated to ${formattedUrl}`;
   }
 
@@ -490,6 +519,7 @@ export class BrowserChassis {
 
     this.state.agentStatus = 'IDLE';
     this.broadcastState();
+    this.bumpRevision();
     return `Clicked element at (${targetX}, ${targetY})`;
   }
 
@@ -505,6 +535,7 @@ export class BrowserChassis {
     await this.simulator.typeText(wc, text);
     this.state.agentStatus = 'IDLE';
     this.broadcastState();
+    this.bumpRevision();
     return `Typed text (${text.length} chars) with variable human cadence`;
   }
 
@@ -606,6 +637,7 @@ export class BrowserChassis {
     this.state.agentStatus = 'IDLE';
     this.broadcastState();
 
+    this.bumpRevision();
     return {
       success: fieldsFilled > 0,
       fieldsFilled,
@@ -624,6 +656,7 @@ export class BrowserChassis {
 
     this.state.agentStatus = 'IDLE';
     this.broadcastState();
+    this.bumpRevision();
     return `Scrolled ${direction} by ${amount}px`;
   }
 
@@ -763,15 +796,15 @@ export class BrowserChassis {
     };
   }
 
-  public async harvestMarkdown(opts: { includeMarks?: boolean } = {}): Promise<HarvestedConstruct> {
+  public async harvestMarkdown(opts: { includeMarks?: boolean; includeOffscreen?: boolean } = {}): Promise<HarvestedConstruct> {
     const wc = this.getActiveWebContents();
     this.state.agentStatus = 'HARVESTING';
     this.broadcastState();
-    this.addLog('action', `MCP Directive: get_page_markdown(include_marks=${opts.includeMarks ?? true})`);
+    this.addLog('action', `MCP Directive: get_page_markdown(include_marks=${opts.includeMarks ?? true}${opts.includeOffscreen ? ', include_offscreen' : ''})`);
 
     // Ensure interactive elements have data-mark-id stamps for grounded markdown
     if (opts.includeMarks !== false) {
-      await this.marksOverlay.injectMarks(wc);
+      await this.marksOverlay.injectMarks(wc, { includeOffscreen: Boolean(opts.includeOffscreen) });
       await this.marksOverlay.removeMarks(wc); // Strips visual badges, keeps data-mark-id
     }
 
@@ -801,6 +834,7 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     this.addLog('action', `MCP Directive: press_key("${key}")`);
     await this.simulator.pressKey(wc, key);
+    this.bumpRevision();
     return `Pressed key: ${key}`;
   }
 
@@ -815,6 +849,7 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     if (wc.navigationHistory.canGoBack()) {
       wc.navigationHistory.goBack();
+      this.bumpRevision();
       return 'Navigated back in history';
     }
     return 'Cannot navigate back; at start of history';
@@ -824,6 +859,7 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     if (wc.navigationHistory.canGoForward()) {
       wc.navigationHistory.goForward();
+      this.bumpRevision();
       return 'Navigated forward in history';
     }
     return 'Cannot navigate forward; at end of history';
@@ -832,6 +868,7 @@ export class BrowserChassis {
   public async reload(): Promise<string> {
     const wc = this.getActiveWebContents();
     wc.reload();
+    this.bumpRevision();
     return 'Reloaded active web page';
   }
 
@@ -1010,27 +1047,29 @@ export class BrowserChassis {
     return await this.prerenderEngine.prerender(wc, options);
   }
 
-  public async takeAnnotatedScreenshot(opts: { economy?: boolean; textOnly?: boolean } = {}): Promise<{
+  public async takeAnnotatedScreenshot(opts: { economy?: boolean; textOnly?: boolean; includeOffscreen?: boolean } = {}): Promise<{
     screenshot: { base64Image: string; filePath: string; width: number; height: number; mimeType: string };
     marks: MarkItem[];
   }> {
     const wc = this.getActiveWebContents();
     const economy = Boolean(opts.economy);
     const textOnly = Boolean(opts.textOnly);
-    this.addLog('action', `MCP Directive: take_annotated_screenshot(${textOnly ? 'text_only' : economy ? 'economy' : 'full'})`);
+    const includeOffscreen = Boolean(opts.includeOffscreen);
+    this.addLog('action', `MCP Directive: take_annotated_screenshot(${textOnly ? 'text_only' : economy ? 'economy' : 'full'}${includeOffscreen ? ', include_offscreen' : ''})`);
 
     // Text-only: badges are only needed to populate the mark registry; no pixels are captured.
     if (textOnly) {
-      const textMarks = await this.marksOverlay.injectMarks(wc);
+      const textMarks = await this.marksOverlay.injectMarks(wc, { includeOffscreen });
       await this.marksOverlay.removeMarks(wc);
+      const viewport = this.getViewportBounds();
       return {
-        screenshot: { base64Image: '', filePath: '', width: 0, height: 0, mimeType: 'image/png' },
+        screenshot: { base64Image: '', filePath: '', width: viewport.width, height: viewport.height, mimeType: 'image/png' },
         marks: textMarks,
       };
     }
 
     // 1. Inject visual badges into DOM
-    const marks = await this.marksOverlay.injectMarks(wc);
+    const marks = await this.marksOverlay.injectMarks(wc, { includeOffscreen });
 
     // Wait a brief tick for render paint
     await new Promise((r) => setTimeout(r, 80));
@@ -1102,12 +1141,14 @@ export class BrowserChassis {
       details: `Set-of-Marks: Clicked mark #${markId} [${target.mark.tag}: "${target.mark.text}"]`,
     });
 
+    this.bumpRevision();
     return `Clicked mark #${markId} (${target.mark.tag}: "${target.mark.text}")`;
   }
 
-  public async typeMark(markId: number, text: string): Promise<string> {
+  public async typeMark(markId: number, text: string, opts: { secret?: boolean } = {}): Promise<string> {
     const wc = this.getActiveWebContents();
-    this.addLog('action', `MCP Directive: type_mark(#${markId}, "${text}")`);
+    const shown = opts.secret ? `[REDACTED ${String(text).length} chars]` : `"${text}"`;
+    this.addLog('action', `MCP Directive: type_mark(#${markId}, ${shown})`);
     const target = await this.marksOverlay.getMarkTarget(wc, markId);
     if (!target) {
       throw new Error(`Mark #${markId} not found. Call take_annotated_screenshot() to refresh interactive marks.`);
@@ -1118,12 +1159,33 @@ export class BrowserChassis {
 
     await this.simulator.clickAt(wc, target.currentCenter);
     await new Promise((r) => setTimeout(r, 100));
+
+    // A stray or occluded click silently sends keystrokes nowhere (sticky headers,
+    // lazy re-renders, a hidden window). Verify the target actually took focus and,
+    // if not, re-resolve its live centre and click once more before typing.
+    const focusedOk = await wc
+      .executeJavaScript(
+        `(() => { const el = document.querySelector('[data-mark-id="${markId}"]'); if (!el) return true; const a = document.activeElement; if (!a) return false; return a === el || (el.contains && el.contains(a)) || (a.closest && a.closest('[data-mark-id="${markId}"]') === el); })()`
+      )
+      .catch(() => true);
+    if (focusedOk === false) {
+      this.addLog('warn', `type_mark(#${markId}): target did not take focus after click; retrying once.`);
+      const retry = await this.marksOverlay.getMarkTarget(wc, markId);
+      if (retry) {
+        await this.simulator.clickAt(wc, retry.currentCenter);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+
     await this.simulator.typeText(wc, text);
 
     this.state.agentStatus = 'IDLE';
     this.broadcastState();
+    this.bumpRevision();
 
-    return `Focused mark #${markId} and typed "${text}"`;
+    return opts.secret
+      ? `Focused mark #${markId} and typed ${String(text).length} chars (redacted)`
+      : `Focused mark #${markId} and typed "${text}"`;
   }
 
   public getActiveMarks(): MarkItem[] {
@@ -1197,6 +1259,28 @@ export class BrowserChassis {
     return this.trayManager ? this.trayManager.isWindowVisible() : true;
   }
 
+  /** True when the app window currently owns OS focus (required for synthetic input). */
+  public isWindowFocused(): boolean {
+    try {
+      return Boolean(this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isFocused());
+    } catch {
+      return false;
+    }
+  }
+
+  /** Brings the app window to the foreground (best effort). */
+  public focusWindow(): boolean {
+    try {
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        if (!this.mainWindow.isVisible()) this.trayManager?.showWindow();
+        this.mainWindow.show();
+        this.mainWindow.focus();
+        this.mainWindow.moveTop();
+      }
+    } catch {}
+    return this.isWindowFocused();
+  }
+
   public setCloseToTray(enabled: boolean): void {
     this.trayManager?.setCloseToTray(enabled);
   }
@@ -1267,5 +1351,44 @@ export class BrowserChassis {
 
   public getSimulator(): HumanizedInputSimulator {
     return this.simulator;
+  }
+
+  // ---- Primitives layer (observe / act / wait / extract / collect / find) ----
+
+  public getPrimitives(): Primitives {
+    return this.primitives;
+  }
+
+  public getRevision(): number {
+    return this.revision;
+  }
+
+  public bumpRevision(): number {
+    return ++this.revision;
+  }
+
+  /** Executes page script without per-poll log spam (used by primitives probes). */
+  public async evaluateQuiet(script: string): Promise<any> {
+    const wc = this.getActiveWebContents();
+    return await wc.executeJavaScript(script);
+  }
+
+  /** Advertised capability surface for `bridge_health`. */
+  public getCapabilities(): string[] {
+    return [
+      'observe:v2',
+      'wait_for',
+      'extract:list,table,app_data',
+      'collect_all',
+      'find',
+      'expect',
+      'act',
+      'page_state',
+      'diff',
+      'network_since',
+      'export_har',
+      'contexts',
+      'marks_offscreen',
+    ];
   }
 }

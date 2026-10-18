@@ -30,6 +30,6 @@ This directory implements the organic input simulation engine and stealth host b
 - **[`bezier.ts`](./bezier.ts)**:
   Bézier trajectory wrapper delegating to the chaos kinematics engine with backwards-compatible interface types.
 - **[`input-simulator.ts`](./input-simulator.ts)**:
-  `HumanizedInputSimulator` class. Dispatches authentic OS hardware events via `webContents.sendInputEvent` for mouse moves, clicks, keystrokes, and mousewheel impulses.
+  `HumanizedInputSimulator` class. Replays the bio-kinematic trajectory as real input events: mouse moves, clicks, keystrokes and wheel impulses. Delivery prefers the tab's attached CDP debugger (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent`), which reaches the renderer **regardless of OS window focus** and only enables focus *emulation* rather than stealing the foreground. If no debugger is attached it falls back to `webContents.sendInputEvent`, bringing the window forward first because the OS drops those events while another window is focused. `lastInputTransport` (`cdp` | `native`) is surfaced through `/health` as `input.transport`.
 - **[`host-fingerprint.ts`](./host-fingerprint.ts)**:
   `detectHostBrowserProfile()` utility. Extracts machine attributes and builds stealth headers.

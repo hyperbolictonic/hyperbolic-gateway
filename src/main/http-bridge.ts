@@ -23,6 +23,12 @@ function logBridge(message: string, isError = false) {
 }
 
 export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
+  /** Timestamp of the last mutating action, for `since: "last_action"` network correlation. */
+  let lastActionAt = Date.now();
+  const MUTATING_PATHS = new Set([
+    '/navigate', '/click', '/type', '/form/fill', '/press-key', '/scroll',
+    '/marks/click', '/marks/type', '/act',
+  ]);
   const server = http.createServer(async (req, res) => {
     const startTime = Date.now();
 
@@ -39,6 +45,10 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
+
+    if (req.method === 'POST' && MUTATING_PATHS.has(pathname)) {
+      lastActionAt = Date.now();
+    }
 
     if (req.method === 'GET') {
       logBridge(`--> \x1b[36mGET\x1b[0m ${pathname}`);
@@ -78,7 +88,17 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
     try {
       if (req.method === 'GET' && (pathname === '/health' || pathname === '/page-info')) {
         const info = chassis.getPageInfo();
-        sendJson({ status: 'ok', info });
+        sendJson({
+          status: 'ok',
+          app: 'kuang-grade-mark-eleven',
+          version: '1.0.0',
+          revision: chassis.getRevision(),
+          capabilities: chassis.getCapabilities(),
+          lastActionAt,
+          window: { visible: chassis.isWindowVisible(), focused: chassis.isWindowFocused() },
+          input: { transport: chassis.getSimulator().lastInputTransport },
+          info,
+        });
         return;
       }
 
@@ -143,7 +163,8 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'GET' && pathname === '/markdown') {
         const includeMarks = url.searchParams.get('include_marks') !== 'false' && url.searchParams.get('marks') !== 'false';
-        const construct = await chassis.harvestMarkdown({ includeMarks });
+        const includeOffscreen = ['1', 'true'].includes((url.searchParams.get('include_offscreen') || '').toLowerCase());
+        const construct = await chassis.harvestMarkdown({ includeMarks, includeOffscreen });
         sendJson({ success: true, construct });
         return;
       }
@@ -231,8 +252,14 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if ((req.method === 'GET' || req.method === 'POST') && pathname === '/network/traffic') {
         const filter = req.method === 'POST' ? await readBody() : undefined;
-        const traffic = chassis.getNetworkTraffic(filter);
-        sendJson({ success: true, traffic });
+        let traffic = chassis.getNetworkTraffic(filter);
+        if (filter) {
+          const since = filter.since === 'last_action' ? lastActionAt : Number(filter.since);
+          if (since && !isNaN(since)) {
+            traffic = traffic.filter((r) => (r.requestTime || 0) >= since);
+          }
+        }
+        sendJson({ success: true, count: traffic.length, traffic });
         return;
       }
 
@@ -316,7 +343,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'GET' && pathname === '/marks/screenshot') {
         const flag = (name: string) => ['1', 'true'].includes((url.searchParams.get(name) || '').toLowerCase());
-        const result = await chassis.takeAnnotatedScreenshot({ economy: flag('economy'), textOnly: flag('text_only') });
+        const result = await chassis.takeAnnotatedScreenshot({ economy: flag('economy'), textOnly: flag('text_only'), includeOffscreen: flag('include_offscreen') });
         sendJson({ success: true, ...result });
         return;
       }
@@ -549,12 +576,19 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       if (req.method === 'POST' && pathname === '/window/visibility') {
         const body = await readBody();
         chassis.setWindowVisibility(!!body.visible);
-        sendJson({ success: true, visible: chassis.isWindowVisible() });
+        if (body.visible && body.focus !== false) chassis.focusWindow();
+        sendJson({ success: true, visible: chassis.isWindowVisible(), focused: chassis.isWindowFocused() });
         return;
       }
 
       if (req.method === 'GET' && pathname === '/window/visibility') {
-        sendJson({ success: true, visible: chassis.isWindowVisible() });
+        sendJson({ success: true, visible: chassis.isWindowVisible(), focused: chassis.isWindowFocused() });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/window/focus') {
+        const focused = chassis.focusWindow();
+        sendJson({ success: true, focused });
         return;
       }
 
@@ -602,9 +636,181 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      // ---- Primitives layer (observe / act / wait / extract / collect / find) ----
+
+      if (req.method === 'GET' && pathname === '/page-version') {
+        sendJson({ success: true, revision: chassis.getRevision(), capabilities: chassis.getCapabilities() });
+        return;
+      }
+
+      if ((req.method === 'POST' || req.method === 'GET') && pathname === '/page-state') {
+        const state = await chassis.getPrimitives().pageState();
+        sendJson({ success: true, state });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/diff') {
+        const body = await readBody();
+        const since = body?.since !== undefined && body.since !== null && body.since !== '' ? Number(body.since) : undefined;
+        const diff = await chassis.getPrimitives().diff(isNaN(Number(since)) ? undefined : since);
+        sendJson({ success: true, ...diff });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/wait-for') {
+        const body = await readBody();
+        const conditions = Array.isArray(body?.conditions) ? body.conditions : body?.condition ? [body.condition] : [];
+        if (!conditions.length) {
+          sendJson({ success: false, error: 'Provide { conditions: [{type:"selector", selector:"..."}] }', code: 'BAD_REQUEST' }, 400);
+          return;
+        }
+        const result = await chassis.getPrimitives().waitFor(conditions, {
+          timeoutMs: body.timeout_ms ?? body.timeoutMs,
+          pollMs: body.poll_ms ?? body.pollMs,
+          require: body.require === 'all' ? 'all' : 'any',
+        });
+        sendJson({ success: true, ...result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/expect') {
+        const body = await readBody();
+        const conditions = Array.isArray(body?.conditions) ? body.conditions : body?.condition ? [body.condition] : [];
+        const result = await chassis.getPrimitives().expect(conditions);
+        sendJson({ success: true, ...result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/observe') {
+        const body = await readBody();
+        const obs = await chassis.getPrimitives().observe({
+          as: body?.as || body?.format || 'markdown',
+          region: body?.region,
+          budget: body?.budget !== undefined ? Number(body.budget) : undefined,
+          cursor: body?.cursor,
+          includeOffscreen: body?.include_offscreen === true || body?.includeOffscreen === true,
+          limit: body?.limit !== undefined ? Number(body.limit) : undefined,
+        });
+        sendJson({ success: true, ...obs });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/extract') {
+        const body = await readBody();
+        const kind = body?.kind || body?.type || 'list';
+        const data = await chassis.getPrimitives().extract({
+          kind,
+          ref: body?.ref !== undefined && body.ref !== null ? Number(body.ref) : undefined,
+          selector: body?.selector,
+          limit: body?.limit !== undefined ? Number(body.limit) : undefined,
+        });
+        sendJson({ success: true, ...data });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/collect') {
+        const body = await readBody();
+        const data = await chassis.getPrimitives().collectAll({
+          ref: body?.ref !== undefined && body.ref !== null ? Number(body.ref) : undefined,
+          selector: body?.selector,
+          scroll: body?.scroll === 'window' ? 'window' : 'container',
+          step: body?.step !== undefined ? Number(body.step) : undefined,
+          delayMs: body?.delay_ms ?? body?.delayMs,
+          maxScrolls: body?.max_scrolls ?? body?.maxScrolls,
+          max: body?.max !== undefined ? Number(body.max) : undefined,
+        });
+        sendJson({ success: true, ...data });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/find') {
+        const body = await readBody();
+        const data = await chassis.getPrimitives().find({
+          role: body?.role,
+          name: body?.name,
+          contains: body?.contains ?? body?.text,
+          regex: body?.regex,
+          flags: body?.flags,
+          tag: body?.tag,
+          selector: body?.selector,
+          limit: body?.limit !== undefined ? Number(body.limit) : undefined,
+          includeOffscreen: body?.include_offscreen === undefined ? true : body.include_offscreen === true,
+        });
+        sendJson({ success: true, ...data });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/act') {
+        const body = await readBody();
+        const rawId = body?.mark_id ?? body?.markId ?? body?.mark ?? body?.id ?? body?.badge;
+        const result = await chassis.getPrimitives().act({
+          markId: rawId !== undefined && rawId !== null ? Number(rawId) : NaN,
+          action: body?.action || 'click',
+          text: body?.text !== undefined ? String(body.text) : undefined,
+          secret: body?.secret === true,
+          await: Array.isArray(body?.await) ? body.await : Array.isArray(body?.await_conditions) ? body.await_conditions : undefined,
+          timeoutMs: body?.timeout_ms ?? body?.timeoutMs,
+          dryRun: body?.dry_run === true || body?.dryRun === true,
+          includeOffscreen: body?.include_offscreen === undefined ? true : body.include_offscreen === true,
+        });
+        sendJson({ success: true, ...result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/network/har') {
+        const body = await readBody();
+        const har = chassis.getPrimitives().exportHar({
+          limit: body?.limit !== undefined ? Number(body.limit) : undefined,
+          pattern: body?.pattern,
+        });
+        if (body?.save) {
+          const dir = path.resolve(process.cwd(), 'data', 'har');
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          const file = path.join(dir, `har_${Date.now()}.har`);
+          fs.writeFileSync(file, JSON.stringify(har, null, 2));
+          sendJson({ success: true, entries: har.log.entries.length, filePath: file });
+          return;
+        }
+        sendJson({ success: true, entries: har.log.entries.length, har });
+        return;
+      }
+
+      // Named contexts (cookie/storage profiles) — thin aliases over the session vault.
+      if (req.method === 'POST' && pathname === '/context/save') {
+        const body = await readBody();
+        const result = await chassis.saveSession(body?.name);
+        sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/context/open') {
+        const body = await readBody();
+        if (!body?.name) {
+          sendJson({ success: false, error: 'Provide { name }', code: 'BAD_REQUEST' }, 400);
+          return;
+        }
+        const result = await chassis.restoreSession(body.name);
+        sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/context/list') {
+        sendJson({ success: true, contexts: chassis.listSessions() });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/context/delete') {
+        const body = await readBody();
+        const deleted = chassis.deleteSession(body?.name);
+        sendJson({ success: true, deleted });
+        return;
+      }
+
       sendJson({ error: 'Endpoint not found' }, 404);
     } catch (err: any) {
-      sendJson({ success: false, error: err?.message || String(err) }, 500);
+      const code = err?.code || 'INTERNAL';
+      const client = ['BAD_REQUEST', 'STALE_REF', 'NO_TARGET', 'NOT_SUPPORTED', 'TIMEOUT'].includes(code);
+      sendJson({ success: false, error: err?.message || String(err), code }, client ? 400 : 500);
     }
   });
 

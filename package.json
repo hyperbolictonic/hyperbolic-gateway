@@ -1,8 +1,8 @@
 {
   "name": "kuang-grade-mark-eleven",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "MIT",
-  "description": "Stateful Visual Matrix Navigator (Electron Chassis + Pure Node.js Telemetry Engine)",
+  "description": "Stateful Visual Matrix Navigator (Electron Chassis + Focus-Independent Telemetry Engine + Orthogonal Primitive Layer)",
   "main": "dist-electron/main/index.js",
   "type": "module",
   "scripts": {
@@ -21,6 +21,10 @@
     "build:dist:all": "npm run build && electron-builder -mwl",
     "test:mcp": "node scripts/test-client.js",
     "test:mcp:all": "node scripts/test-all-mcp-tools.js",
+    "test:harvest": "node scripts/test-harvest-regression.mjs",
+    "test:primitives": "node scripts/test-primitives.mjs",
+    "test:mcp:primitives": "node scripts/test-mcp-primitives.mjs",
+    "test:focus": "node scripts/test-input-focus-independence.mjs",
     "preview": "vite preview"
   },
   "keywords": [

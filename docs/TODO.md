@@ -182,3 +182,24 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
      - Biomechanically couples trajectory curvature to velocity: pointer speed automatically decelerates when traversing tight turns or sharp corners and accelerates along straighter segments.
   5. **Deterministic Chaotic Perturbations (Duffing / Strange Attractor Drift):**
      - Superimposes low-amplitude chaotic attractor equations (or Simplex noise fields) across the Bézier control vectors, producing non-repeating, infinitely organic micro-curvature that defeats machine learning classifiers.
+
+---
+
+## 🧩 Phase 5: Orthogonal Primitive Layer & TIER-1 Harvest Hardening (2026-10-18)
+
+### [x] 13. Orthogonal Primitives (`observe` · `act` · `wait_for` · `expect` · `find` · `extract` · `collect_all`) — ✅ *[COMPLETED]*
+- **Priority:** P7 (Reliability & Token Economy)
+- **Why:** The flat verb list forced agents into blind sleeps, guessy selectors, and repeated full-page reads. A few orthogonal primitives (one observe model, one action model, one wait model) collapse those into deterministic, context-light calls.
+- **Implementation:** `src/main/primitives/primitives.ts` behind a narrow `PrimitivesHost` (implemented by `BrowserChassis`), exposed via `chassis.getPrimitives()` and the `/page-state`, `/wait-for`, `/expect`, `/observe`, `/extract`, `/collect`, `/find`, `/act`, `/diff`, `/network/har`, `/context/*` endpoints. Refs are the existing `data-mark-id` marks. Structured error codes (`STALE_REF`/`TIMEOUT`/`NO_TARGET`/`BAD_REQUEST`/`NOT_SUPPORTED`) map to HTTP 400.
+- **Details & recipes:** [`docs/PROPOSED_ABSTRACTIONS.md`](./PROPOSED_ABSTRACTIONS.md), [`kuang_docs/partitions/primitives_and_workflows.md`](../kuang_docs/partitions/primitives_and_workflows.md).
+
+### [x] 14. Focus-Independent CDP Input Delivery — ✅ *[COMPLETED]*
+- **Why:** `webContents.sendInputEvent` is dropped by the OS while another window is foreground (silent ~50% flake). Input is now dispatched over the tab's attached CDP debugger (`Input.dispatchMouseEvent`/`dispatchKeyEvent`/`mouseWheel`) with focus emulation enabled; `sendInputEvent` is a fallback only. `bridge_health` reports `input.transport`.
+
+### [x] 15. Occlusion-Proof Background Rendering — ✅ *[COMPLETED]*
+- **Why:** An occluded window reports `hidden`, throttles timers to ≥1s, and stops producing frames — so `scroll` events never fire and lazy lists stall. Fixed with `backgroundThrottling: false` + `--disable-backgrounding-occluded-windows` / `--disable-renderer-backgrounding` / `--disable-background-timer-throttling`.
+
+### [ ] 16. Deferred Primitive Polish
+- **`select` action** on `act` — deliberately excluded because setting a native value is a TIER-3 DOM mutation; the documented marks flow (click trigger → `list_marks` → click option) is the humanlike path.
+- **`download` wait condition** — needs a download correlation id.
+- **Permission tiers / read-only mode** — needs a policy surface in the MCP client.

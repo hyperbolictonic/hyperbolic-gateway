@@ -26,10 +26,13 @@ export class ConstructHarvester {
         const href = element.getAttribute('href');
         const markId = element.getAttribute('data-mark-id');
         const markPrefix = markId ? `[#${markId}] ` : '';
-        if (!href || href.startsWith('javascript:') || !content.trim()) {
-          return markPrefix + content;
+        // Card anchors (e.g. Skyscanner fare rows) often carry their entire label in
+        // aria-label/title with no text node; fall back to those so the content survives.
+        const text = content.trim() || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+        if (!href || href.startsWith('javascript:') || !text) {
+          return markPrefix + text;
         }
-        return `${markPrefix}[${content.trim()}](${href})`;
+        return `${markPrefix}[${text}](${href})`;
       },
     });
 
@@ -69,24 +72,30 @@ export class ConstructHarvester {
     const dom = new JSDOM(rawHtml, { url: currentUrl });
     const doc = dom.window.document;
 
+    // Strip heavy non-content tags before reading/parsing
+    const tagsToRemove = ['script', 'style', 'svg', 'noscript', 'iframe', 'canvas', 'template'];
+    tagsToRemove.forEach(tag => {
+      doc.querySelectorAll(tag).forEach(el => el.remove());
+    });
+
+    // Snapshot the cleaned body BEFORE Readability runs. `Readability.parse()` mutates the
+    // JSDOM document in place, so reading `doc.body.innerHTML` *after* it returns already-pruned
+    // content. That silently deleted virtualized list/card results (e.g. Skyscanner fare cards)
+    // on aggregator pages, where the fallback below is meant to keep the full body.
+    const cleanedBodyHtml = doc.body?.innerHTML || rawHtml;
+    const bodyTextLen = doc.body?.textContent?.trim().length || 0;
+
     // Use Mozilla Readability to isolate article content and strip sidebars/ads
     const reader = new Readability(doc);
     const parsed = reader.parse();
 
     const title = parsed?.title || doc.title || fallbackTitle || 'Untitled Matrix Node';
 
-    // Strip heavy non-content tags before converting to markdown
-    const tagsToRemove = ['script', 'style', 'svg', 'noscript', 'iframe', 'canvas', 'template'];
-    tagsToRemove.forEach(tag => {
-      doc.querySelectorAll(tag).forEach(el => el.remove());
-    });
-
     // Detect if Readability over-pruned an aggregator/portal page (e.g. Google News, Skyscanner, search listings)
-    const bodyTextLen = doc.body?.textContent?.trim().length || 0;
     const readabilityTextLen = parsed?.textContent?.trim().length || 0;
     const isAggregatorOrPortal = readabilityTextLen < 250 || (bodyTextLen > 600 && readabilityTextLen < bodyTextLen * 0.35);
 
-    const htmlToConvert = (!isAggregatorOrPortal && parsed?.content) ? parsed.content : (doc.body?.innerHTML || rawHtml);
+    const htmlToConvert = (!isAggregatorOrPortal && parsed?.content) ? parsed.content : cleanedBodyHtml;
 
     // Downsample HTML to clean GFM Markdown
     const rawMarkdown = this.turndown.turndown(htmlToConvert);

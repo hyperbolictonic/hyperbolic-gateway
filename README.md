@@ -11,6 +11,14 @@
 > *"I'll hack the Gibson"*  
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
+<p align="center">
+  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-22d3ee" />
+  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-74-a3e635" />
+  <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-6-f472b6" />
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
+  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20x64-64748b" />
+</p>
+
 ---
 
 ### **Grade Eleven is a Web Browser for your Local AI.**
@@ -23,11 +31,14 @@
 
 Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP) server that empowers multimodal LLM Agents (such as Bonsai 2 27B, Gemini, Claude, and GPT-4o) to operate the live, open web **like a human operator inside a real, visible Chromium browser instance**.
 
+> [!NOTE]
+> **What's new in 1.1.0** — an **orthogonal primitive layer** (`observe` · `act` · `wait_for` · `expect` · `find` · `extract` · `collect_all` · `page_state`/`diff` · `export_har` · `context_*`) that removes blind sleeps and guessy selectors, **focus-independent CDP input** (clicks/typing land even when another app owns the foreground), and **background-render hardening** so occluded windows still hydrate and scroll. 16 new tools, 1 new OKF playbook partition. See [docs/PROPOSED_ABSTRACTIONS.md](./docs/PROPOSED_ABSTRACTIONS.md).
+
 ### 🎯 Core Architecture Principles
 1. **100% Real Browser Chassis:** No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Mark Eleven runs a full-fledged, visible Chromium instance (`headless: false`) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
 2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can click directly by coordinate or selector (`click_element`).
 3. **Full Developer Console & Script Execution:** Gives the agent full console access (`get_console_logs`) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (`evaluate_javascript`) to interact with complex SPAs.
-4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches native OS-level hardware input events (`webContents.sendInputEvent`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence.
+4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches **real input events over the Chrome DevTools Protocol** (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `mouseWheel`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence. CDP delivery is **focus-independent** — it lands even when another application owns the OS foreground — with `webContents.sendInputEvent` kept only as a fallback.
 
 ---
 
@@ -62,8 +73,45 @@ Built with **Tailwind CSS v4** and **DaisyUI 5**:
 ## 🕹️ Ghost Cursor Telemetry Engine
 
 - **Organic Bézier Trajectories:** Natural cubic Bézier curve calculation with quintic ease-in/ease-out acceleration, micro-jitter, and target deceleration.
-- **Hardware Event Piping:** Directly dispatches Chromium input events via Electron's `webContents.sendInputEvent` (mouse movement, button press dwell time, variable-cadence keystrokes, and momentum mousewheel scrolling).
-- **Anti-Bot Defense Bypass:** Avoids heuristic bot triggers by behaving like an authentic human operator.
+- **Focus-Independent CDP Delivery:** Input events are dispatched over the tab's already-attached Chrome DevTools Protocol debugger (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `Input.mouseWheel`), with `Emulation.setFocusEmulationEnabled` so focus-gated page JS still responds. Clicks, keystrokes, and momentum wheel scrolling land **regardless of which window owns the OS foreground**. `webContents.sendInputEvent` remains only as a fallback (and only that path needs the window focused). The active transport is reported by `bridge_health` → `input.transport` (`cdp` | `native`).
+- **Anti-Bot Defense Bypass:** Avoids heuristic bot triggers by behaving like an authentic human operator; every interaction is `isTrusted: true` because it is genuine browser input, not a synthetic DOM `.click()`.
+
+---
+
+## 🎛️ Focus-Independent Input & Background Rendering
+
+Two real-desktop failure modes are handled explicitly so long harvests and HIL flows stay reliable:
+
+- **Input is not tied to OS focus.** Synthetic input is delivered over CDP and therefore reaches the renderer even while you work in another application. If the debugger is unavailable the simulator falls back to `webContents.sendInputEvent` and brings the window forward first (that path is the only one that steals the foreground). `bridge_health` exposes `input.transport` so an agent can tell which path is live.
+- **Occluded windows keep rendering.** Browsing tabs run with `backgroundThrottling: false`, and the app boots with `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`, and `--disable-background-timer-throttling`. Without these, Chromium reports the page `hidden`, throttles timers to ≥1s, and stops producing frames — so `scroll` events never fire and `IntersectionObserver`/rAF hydration stalls (the classic "lazy list stops growing" bug).
+- **Viewport gating is explicit.** Real input needs a non-zero viewport; a fresh or hidden tab can briefly report `0x0`. Call `set_window_visibility({ visible: true })` and wait for a non-zero viewport before acting. `focus_window()` is only for making the window visible to a human (HIL).
+
+---
+
+## 🧩 Orthogonal Primitive Layer
+
+The older tool list is being consolidated onto **a few orthogonal verbs** — one observation model, one action model, one wait model — with the flat tools becoming projections. All primitives run on the TIER-1 humanlike path (real input events; no page DOM mutation beyond Mark Eleven's own `data-mark-id` stamp).
+
+| Primitive | Job | Replaces |
+| :--- | :--- | :--- |
+| `observe(as, region, budget, cursor)` | One budgeted, cursor-paged observation model (`markdown`/`text`/`ax`/`som`/`list`/`table`/`app_data`) | `get_page_markdown` + `snapshot_rendered_page` + `list_marks` |
+| `act(mark_id, action, text, secret, await_conditions, dry_run)` | Unified humanlike click/focus/hover/type/press **+ optional post-conditions + delta report** | `click_mark`/`type_mark` plus a following wait |
+| `wait_for(conditions, require, timeout_ms)` | Declarative readiness gate — the primitive that replaces blind sleeps | every `sleep`/"did it load?" guess |
+| `expect(conditions)` | Immediate assertion (no polling) with per-condition evidence | agent-side guessing |
+| `find(role, name, contains, regex, tag, selector)` | Semantic element search → **refs** (mark ids) | hand-written CSS/XPath |
+| `extract(kind, ref, selector)` | Structured reads: repeating `list` rows, `table` records, embedded `app_data` | regex over HTML |
+| `collect_all(selector, scroll, max_scrolls)` | Scroll a lazy/virtualized list to the end and dedupe rows in **one call** | a manual scroll-and-harvest sweep |
+| `page_state()` / `diff(since)` | Cheap monotonic change signature + field-by-field diff for loops | re-reading the whole page |
+| `bridge_health()` | Liveness, `capabilities[]`, `revision`, `window`, `input.transport` | assuming the bridge is up |
+| `export_har(pattern, save)` · `context_*` | HAR 1.2 export · named cookie/storage profiles | ad-hoc replay · manual session juggling |
+
+**Refs are marks.** A ref *is* a Set-of-Marks badge id — `find` returns rows carrying the `mark`, and `act(mark_id=…)` consumes it (re-resolving the live centre each time). Nothing about the marks flow changes.
+
+**Wait vocabulary:** `selector` · `gone` · `text`/`regex` · `url` · `role_name` · `count(min/equals/max)` · `network_idle` · `stable(marks|height|text|nodes)` · `revision`.
+
+**Structured errors:** new endpoints return a machine code (HTTP 400) — `STALE_REF` (re-scan and re-issue), `TIMEOUT`, `NO_TARGET`, `BAD_REQUEST`, `NOT_SUPPORTED`.
+
+> Full recipes (R1–R5), the wait table, and the error catalogue live in the OKF partition [`kuang_docs/partitions/primitives_and_workflows.md`](./kuang_docs/partitions/primitives_and_workflows.md), also readable as the MCP resource `mark-eleven://okf/partitions/primitives-and-workflows`.
 
 ---
 
@@ -159,6 +207,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Stateful Auth Persistence:** Captures and restores active session cookies, `localStorage`, and `sessionStorage` into encrypted/structured snapshots under `./data/sessions/<name>.json`.
 - **Bypass 2FA & Logins:** Resume authenticated states on GitHub, airline portals, news sites, or internal dashboards across agent sessions without triggering repetitive logins or CAPTCHAs.
 - **MCP Tools:** `save_session(name)`, `restore_session(name)`, and `list_sessions()`.
+- **Context Profiles:** `context_save(name)` / `context_open(name)` / `context_list()` / `context_delete(name)` are thin aliases over the same vault — the profile abstraction for switching authenticated identities mid-session.
 
 ---
 
@@ -167,6 +216,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Direct Chrome DevTools Protocol Wire:** Attaches directly via CDP (`Network.enable`) to monitor all incoming and outgoing network traffic.
 - **Direct JSON Extraction:** Bypasses DOM scraping entirely for modern Single-Page Applications (SPAs like Twitter, Reddit, Skyscanner). Captures completed XHR/Fetch response bodies (`Network.getResponseBody`).
 - **MCP Inspection:** `get_network_traffic` filters requests by URL pattern or method, and `get_api_payload(request_id)` returns parsed JSON directly into the LLM context.
+- **Action-Correlated Capture:** `get_network_traffic({ since: 'last_action' })` returns only the requests fired by the most recent mutating action (also accepts an epoch-ms timestamp or a page revision). `export_har` writes a **HAR 1.2** log of captured traffic for offline replay.
 
 ---
 
@@ -209,7 +259,9 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (55 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (74 Tools Total)
+
+> 73 catalog tools + the built-in `help` tool. Six OKF **resources** are also exposed (`mark-eleven://skills/guide`, `mark-eleven://okf/manifest`, and four partition playbooks).
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
@@ -223,7 +275,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `fill_form` | `fields: Record<string, string \| boolean \| number>`, `submit_selector?: string` | Fills multiple form inputs, selects, and checkboxes in a single turn. |
 | | `press_key` | `key: string` | Presses specific key (e.g. `Enter`, `Tab`, `Escape`, `Backspace`). |
 | | `scroll_page` | `direction: 'up' \| 'down'`, `amount?: number` | Incremental momentum wheel scrolling. |
-| **Observation & Vision** | `take_screenshot` | _none_ | High-res PNG capture. Returns dual content: file path text & native MCP image block (`type: 'image'`, `mimeType: 'image/png'`). Saved to `data/screenshots/` with automatic retention pruning. |
+| **Observation & Vision** | `take_screenshot` | `max_width?: number`, `format?: 'jpeg' \| 'png'`, `quality?: number` | Viewport capture. Defaults to a **bounded 768px fast JPEG** (~15ms encode, tiny wire payload); pass `format: 'png'` for full-resolution lossless. Returns file path text & native MCP image block. Saved to `data/screenshots/` with automatic retention pruning. |
 | | `get_page_markdown` | _none_ | Downsamples active DOM to clean token-efficient Markdown with YAML metadata. |
 | | `harvest_markdown` | _none_ | Primary alias for `get_page_markdown`. Extracts clean markdown from the active tab. |
 | | `snapshot_rendered_page` | `format?: 'ax_tree' \| 'markdown' \| 'html' \| 'unrendered_html'`, `wait_until_idle_ms?: number`, `pierce_shadow_dom?: boolean`, `force_rerender?: boolean`, `save_to_disk?: boolean` | **Rendered Point-in-Time Snapshot.** Freezes dynamic SPAs, pierces Shadow DOM, and extracts ultra-token-efficient Accessibility (AX) Trees, rendered Markdown, or unrendered source HTML. |
@@ -246,10 +298,11 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | **Session Vault** | `save_session` | `name?: string` | Captures active cookies and localStorage state into persistent JSON vault. |
 | | `restore_session` | `name: string` | Rehydrates cookies and localStorage state into browser session. |
 | | `list_sessions` | _none_ | Lists all stored session snapshots with timestamps and cookie counts. |
-| **Network Intelligence** | `get_network_traffic` | `url_pattern?: string`, `method?: string`, `resource_type?: string`, `limit?: number` | Inspects live HTTP/XHR/Fetch requests captured via Chrome DevTools Protocol (returns compact 1-line markdown summaries). |
+| **Network Intelligence** | `get_network_traffic` | `url_pattern?: string`, `method?: string`, `resource_type?: string`, `limit?: number`, `since?: number \| 'last_action'` | Inspects live HTTP/XHR/Fetch requests captured via Chrome DevTools Protocol (returns compact 1-line markdown summaries). `since` narrows to requests after an epoch-ms timestamp, a page revision, or the last mutating action. |
 | | `get_api_payload` | `request_id: string` | Retrieves and parses the full raw JSON or text response body for an intercepted request. |
 | | `query_json_data` | `source: string`, `source_id?: string`, `path?: string`, `view?: string`, `filter_predicate?: string`, `max_items?: number`, `max_string_length?: number` | **Token-Efficient JSON Navigator.** Queries large payloads/streams/files via dot/bracket paths (`items[0..3].price`), extracts schemas, searches keys, and applies filters without context-window blowup. |
 | | `clear_network_traffic` | _none_ | Resets and clears the in-memory network traffic ring buffer. |
+| | `export_har` | `pattern?: string`, `limit?: number`, `save?: boolean` | Exports captured traffic as a **HAR 1.2** log (request/response headers + body previews). `save: true` writes `data/har/har_<ts>.har` and returns the path. |
 | | `list_realtime_streams` | `type?: 'websocket' \| 'sse'`, `active_only?: boolean` | Lists active WebSocket connections and open SSE channels in compact 1-line format. |
 | | `get_stream_messages` | `stream_id?: string`, `type?: string`, `direction?: string`, `limit?: number` | Inspects captured incoming/outgoing frames from WebSockets and SSE token streams. |
 | | `clear_stream_messages` | `stream_id?: string` | Clears the in-memory WebSocket and SSE message frame buffer. |
@@ -270,7 +323,22 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `get_human_intervention_status` | _none_ | Checks active intervention status and history log. |
 | | `send_notification` | `title: string`, `message: string`, `urgency?: string`, `sound?: boolean` | Emits non-blocking OS native desktop banner notification to user. |
 | | `send_desktop_notification` | `message: string`, `title?: string`, `urgency?: string`, `sound?: boolean` | Dedicated HIL notification tool to summon the human operator with high-priority desktop sound and alert banner. |
-| **Assistance & Discovery** | `help` | _none_ | Returns a comprehensive operational manual and cheatsheet of all available browser automation capabilities. |
+| **Primitives & Abstraction** | `wait_for` | `conditions: object[]`, `require?: 'any' \| 'all'`, `timeout_ms?: number`, `poll_ms?: number` | Declarative readiness gate — polls until every/any condition holds, then returns. The primitive that replaces blind sleeps. |
+| | `observe` | `as?: 'markdown' \| 'text' \| 'ax' \| 'som' \| 'list' \| 'table' \| 'app_data'`, `region?: number \| string`, `budget?: number`, `cursor?: string`, `include_offscreen?: boolean`, `limit?: number` | One budgeted observation model with projections. Use `budget` + `next_cursor` to page a large page instead of truncating. |
+| | `extract` | `kind?: 'list' \| 'table' \| 'app_data'`, `ref?: number`, `selector?: string`, `limit?: number` | Structured, read-only extraction: repeating rows, table records, or embedded app JSON (`__NEXT_DATA__`/JSON-LD). |
+| | `collect_all` | `selector?: string`, `ref?: number`, `scroll?: 'container' \| 'window'`, `step?: number`, `delay_ms?: number`, `max_scrolls?: number`, `max?: number` | Scrolls a virtualized/lazy list to the end and collects every distinct row (deduped by text+href) in **one call**, with scroll diagnostics. |
+| | `find` | `role?: string`, `name?: string`, `contains?: string`, `regex?: string`, `tag?: string`, `selector?: string`, `limit?: number`, `include_offscreen?: boolean` | Semantic element search returning Set-of-Marks **refs** (mark ids) instead of pixels. Feed ids straight into `act`/`click_mark`. |
+| | `expect` | `conditions: object[]` | Immediate assertion (no polling) over the same vocabulary as `wait_for`; returns pass/fail plus per-condition evidence. |
+| | `act` | `mark_id?: number`, `action?: 'click' \| 'focus' \| 'hover' \| 'type' \| 'press'`, `text?: string`, `secret?: boolean`, `await_conditions?: object[]`, `timeout_ms?: number`, `dry_run?: boolean` | Unified humanlike action on a ref with optional post-conditions and a delta report. `secret: true` redacts typed text from logs; `dry_run: true` resolves without acting. |
+| | `page_state` | _none_ | Cheap monotonic state signature (`revision`, `url`, `marks`, `nodeCount`, `height`, `scrollY`, `textLen`, `textHash`) for change detection without re-reading the page. |
+| | `diff` | `since?: number` | Field-by-field diff between the current state and a previously observed revision — shows exactly what changed. |
+| | `bridge_health` | _none_ | Liveness + capability discovery: `version`, `revision`, `capabilities[]`, `window {visible, focused}`, `input {transport}`, `lastActionAt`. |
+| | `context_save` | `name?: string` | Saves the current browsing context (cookies + storage) as a named profile. |
+| | `context_open` | `name: string` | Restores (switches to) a named browsing context/profile. |
+| | `context_list` | _none_ | Lists saved browsing contexts (cookie/storage profiles). |
+| | `context_delete` | `name: string` | Deletes a saved browsing context/profile. |
+| | `focus_window` | _none_ | Brings the Cyberdeck window to the foreground (HIL visibility, or the legacy `native` input fallback). Input is CDP-delivered and focus-independent by default. |
+| **Assistance & Discovery** | `help` | `category?: 'all' \| 'navigation' \| 'interaction' \| 'primitives' \| 'inspection' \| 'tabs' \| 'memory' \| 'macros' \| 'network' \| 'system'` | Returns a categorized operational cheatsheet of all available browser automation capabilities (served directly in OKF). |
 
 ---
 
@@ -293,6 +361,8 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`src/main/session/`** | [src/main/session/README.md](./src/main/session/README.md) | Persistent cookie jar and session snapshot vault for cross-run auth persistence. |
 | **`src/main/network/`** | [src/main/network/README.md](./src/main/network/README.md) | Chrome DevTools Protocol wire interceptor capturing background XHR/Fetch JSON streams. |
 | **`src/main/marks/`** | [src/main/marks/README.md](./src/main/marks/README.md) | Set-of-Marks visual grounding engine injecting numbered neon badges for zero-ambiguity LLM actuation. |
+| **`src/main/primitives/`** | [src/main/primitives/README.md](./src/main/primitives/README.md) | Orthogonal primitive layer (`observe` · `act` · `wait_for` · `expect` · `find` · `extract` · `collect_all` · `page_state`/`diff` · `export_har`) with structured error codes and injected DOM probes. |
+| **`kuang_docs/`** | [kuang_docs/okf.json](./kuang_docs/okf.json) | OKF (Open Knowledge Format) bundle `kuang_browser_docs` — playbook/reference partitions exposed as MCP resources. |
 | **`src/main/scripts/`** | [src/main/scripts/README.md](./src/main/scripts/README.md) | Persistent script vault and LanceDB semantic macro recall engine with parameter injection. |
 | **`src/main/tray/`** | [src/main/tray/README.md](./src/main/tray/README.md) | Windows System Tray integration and close-to-tray background minimization. |
 | **`src/main/hil/`** | [src/main/hil/README.md](./src/main/hil/README.md) | Human-In-The-Loop cooperative intervention protocol, OS notifications, and in-page alert banners. |
@@ -333,6 +403,33 @@ Add this to your MCP configuration (`claude_desktop_config.json` / `mcp_config.j
 }
 ```
 > **Note:** The Mark Eleven Cyberdeck application must be running in the background (`pnpm run dev` or `pnpm start`) so the MCP stdio bridge runner can communicate with the active browser instance on `http://127.0.0.1:4111`.
+
+---
+
+## 🧪 Testing
+
+All suites run against the live Cyberdeck on `http://127.0.0.1:4111` (start the app first):
+
+| Command | Suite | What it proves |
+| :--- | :--- | :--- |
+| `npm run test:harvest` | Harvest regression (4 checks) | Markdown extraction, marks, off-screen marks still work end-to-end. |
+| `npm run test:primitives` | Offline primitives (25 checks) | `wait_for`, `extract`, `observe` budget/cursor, `collect_all`, `find`+`act`+delta, `expect`, `page_state`/`diff`, `bridge_health` capabilities. |
+| `npm run test:mcp:primitives` | MCP stdio primitives (14 checks) | The same primitives through a real MCP client — tool schemas, viewport gating, `find`→`act`, contexts, `focus_window`. |
+| `npm run test:focus` | Focus independence (4 checks) | Hands the OS foreground to another app (Notepad) and asserts typing/clicks/wheel still land **and** that `input.transport === 'cdp'`. |
+
+Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`.
+
+---
+
+## 📚 Documentation & Knowledge (OKF)
+
+- **[`docs/`](./docs/README.md)** — the documentation hub: concept lore, subsystem specs, field notes, and the abstraction roadmap.
+- **[`docs/PROPOSED_ABSTRACTIONS.md`](./docs/PROPOSED_ABSTRACTIONS.md)** — the primitive-layer design and its status (A1–A6, B, C, D).
+- **[`docs/FIELD_NOTES_2026-10-18.md`](./docs/FIELD_NOTES_2026-10-18.md)** — root-caused findings from hardening the TIER-1 path on real SPAs.
+- **[`kuang_docs/`](./kuang_docs/okf.json)** — the **OKF bundle** (`kuang_browser_docs`): playbook/reference partitions, also served to agents as standard MCP resources:
+  - `mark-eleven://skills/guide` — the full operational manual.
+  - `mark-eleven://okf/manifest` — the bundle manifest.
+  - `mark-eleven://okf/partitions/selector-and-som` · `captcha-and-anti-bot` · `browser-navigation` · `primitives-and-workflows`.
 
 ---
 

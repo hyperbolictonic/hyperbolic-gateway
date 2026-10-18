@@ -48,8 +48,13 @@ export class MarksOverlay {
    * elementFromPoint occlusion check, and elements inside open popups are numbered first so
    * dropdown options are never crowded out by the 99-mark cap.
    * Labels use the accessible-name algorithm (aria-label, aria-labelledby, <label>, text, alt...).
+   *
+   * @param opts.includeOffscreen Also mark elements outside the current viewport (above/below the
+   *   fold). Off-screen items are numbered *after* popup and on-screen items so the 99-mark cap
+   *   still favours what is visible. Intended for long virtualized result lists; `click_mark`
+   *   scrolls the target into view before clicking.
    */
-  public async injectMarks(wc: WebContents): Promise<MarkItem[]> {
+  public async injectMarks(wc: WebContents, opts: { includeOffscreen?: boolean } = {}): Promise<MarkItem[]> {
     if (!wc || wc.isDestroyed()) return [];
 
     const currentUrl = wc.getURL();
@@ -57,10 +62,12 @@ export class MarksOverlay {
 
     // Pass existing static anchors so the injected script can reuse sticky IDs
     const existingAnchors = Object.fromEntries(this.staticAnchorMap.entries());
+    const includeOffscreen = opts.includeOffscreen === true;
 
     const script = `
       (() => {
         const existingAnchors = ${JSON.stringify(existingAnchors)};
+        const includeOffscreen = ${JSON.stringify(includeOffscreen)};
 
         // Remove existing visual overlay container if present (leave data-mark-id for sticky cache)
         const old = document.getElementById('mark-eleven-som-container');
@@ -77,10 +84,22 @@ export class MarksOverlay {
         const DYNAMIC_CONTAINERS = '[aria-live], [role="feed"], [role="log"], [data-results], .results, tbody, .infinite-scroll';
         const clean = (s) => (s || '').replace(/\\s+/g, ' ').trim();
 
+        // A hidden/minimized window reports innerHeight/innerWidth of 0, which would make the
+        // viewport filter below reject every element and let list_marks() return nothing.
+        // Fall back to the document box so marks still resolve when the window is off-screen.
+        const vpW = window.innerWidth || document.documentElement.clientWidth || 0;
+        const vpH = window.innerHeight || document.documentElement.clientHeight || 0;
+        const canHitTest = vpW > 0 && vpH > 0;
+        const boundW = vpW || document.documentElement.scrollWidth || 0;
+        const boundH = vpH || document.documentElement.scrollHeight || 0;
+
         const isVisible = (el, rect) => {
           if (rect.width < 6 || rect.height < 6) return false;
-          if (rect.bottom < 0 || rect.top > window.innerHeight) return false;
-          if (rect.right < 0 || rect.left > window.innerWidth) return false;
+          // When includeOffscreen is off, reject anything outside the (best-known) viewport.
+          if (!includeOffscreen) {
+            if (rect.bottom < 0 || rect.top > boundH) return false;
+            if (rect.right < 0 || rect.left > boundW) return false;
+          }
           const style = window.getComputedStyle(el);
           if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
           if (el.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
@@ -209,17 +228,25 @@ export class MarksOverlay {
         for (const el of candidates) {
           const rect = el.getBoundingClientRect();
           if (!isVisible(el, rect)) continue;
-          const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
-          const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
-          const hit = document.elementFromPoint(cx, cy);
-          if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) continue; // covered by something else
+          const onScreen = rect.bottom > 0 && rect.top < boundH && rect.right > 0 && rect.left < boundW;
+          if (onScreen && canHitTest) {
+            const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), vpW - 1);
+            const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), vpH - 1);
+            const hit = document.elementFromPoint(cx, cy);
+            if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) continue; // covered by something else
+          }
           const popup = !!el.closest(POPUP);
           const isStatic = isStaticAnchor(el);
-          items.push({ el, rect, popup, isStatic });
+          items.push({ el, rect, popup, isStatic, onScreen });
         }
 
-        // 3. Popup contents first, then normal order
-        items.sort((a, b) => (a.popup === b.popup ? 0 : a.popup ? -1 : 1));
+        // 3. Popup contents first, then on-screen items, then off-screen items. Keeping visible
+        // elements ahead of off-screen ones means the 99-mark cap never starves what you can see.
+        items.sort((a, b) => {
+          if (a.popup !== b.popup) return a.popup ? -1 : 1;
+          if (a.onScreen !== b.onScreen) return a.onScreen ? -1 : 1;
+          return 0;
+        });
 
         // 4. Stable assignment: Reserve numbers for sticky static anchors first
         const usedIds = new Set();
@@ -390,7 +417,15 @@ export class MarksOverlay {
           (() => {
             const el = document.querySelector('[data-mark-id="${markId}"]');
             if (!el) return null;
-            const rect = el.getBoundingClientRect();
+            let rect = el.getBoundingClientRect();
+            const offscreen = rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth;
+            if (offscreen) {
+              // Marks created with include_offscreen may sit above/below the fold; bring them
+              // into view so the humanised click lands on real pixels. Instant (non-smooth) so
+              // the re-measured centre below is already final.
+              try { el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); } catch {}
+              rect = el.getBoundingClientRect();
+            }
             return {
               x: Math.round(rect.left + rect.width / 2),
               y: Math.round(rect.top + rect.height / 2),

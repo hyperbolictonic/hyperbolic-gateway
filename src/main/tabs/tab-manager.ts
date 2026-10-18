@@ -68,6 +68,11 @@ export class TabManager {
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
+        // An automated browser is routinely occluded (the human's editor/terminal owns the
+        // foreground), and Chromium then reports the page as hidden and throttles its timers
+        // to >=1s. That silently breaks lazy-loading harvests and 'infinite' feeds. Keep
+        // browsing tabs running at full speed while we drive them.
+        backgroundThrottling: false,
       },
     });
 
@@ -76,6 +81,10 @@ export class TabManager {
     this.options.mainWindow.contentView.addChildView(view);
 
     const wc = view.webContents;
+
+    // Also covers reused views (e.g. a prerendered view promoted to a tab), where the
+    // webPreferences above are not re-applied.
+    try { wc.setBackgroundThrottling(false); } catch {}
 
     // Apply Host Browser Stealth Profile
     wc.setUserAgent(this.options.hostProfile.userAgent);

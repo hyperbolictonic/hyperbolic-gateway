@@ -8,9 +8,17 @@ This directory contains utility scripts, automated test harnesses, and the stand
 
 ### 1. Model Context Protocol Server
 - **[`mcp-server.js`](./mcp-server.js)** & **[`bin/mcp-server.cjs`](../bin/mcp-server.cjs)**:
-  The standalone MCP stdio server executable communicating with LLM clients (Claude Desktop, Cursor, Antigravity, Agent-Orcha) over standard I/O (`stdio`). Exposes all 52 standardized browser navigation, multimodal vision, visual grounding, tab management, session vault, network stream interception, script recall, system tray, and human-in-the-loop tools by translating them into HTTP calls against the chassis bridge (`http://127.0.0.1:4111`).
+  The standalone MCP stdio server executable communicating with LLM clients (Claude Desktop, Cursor, Antigravity, Agent-Orcha) over standard I/O (`stdio`). Exposes all 74 standardized browser navigation, multimodal vision, visual grounding, orthogonal primitives, tab management, session/context vault, network stream interception, script recall, system tray, and human-in-the-loop tools by translating them into HTTP calls against the chassis bridge (`http://127.0.0.1:4111`).
 
 ### 2. Automated Test Suites
+- **[`test-primitives.mjs`](./test-primitives.mjs)** (`npm run test:primitives`):
+  Offline fixture suite (25 checks) for the orthogonal primitive layer: `wait_for` (selector/text/delayed), `extract` list/table/app_data, `observe` budget+cursor+text, `collect_all` over a virtualized list, `find` + `act` (type/click) + delta, `expect`, `page_state`/`diff`, and `bridge_health` capabilities.
+- **[`test-mcp-primitives.mjs`](./test-mcp-primitives.mjs)** (`npm run test:mcp:primitives`):
+  Drives the same primitives through a real MCP stdio client (tool schemas, viewport gating, `find`→`act`, `context_*`, `focus_window`).
+- **[`test-input-focus-independence.mjs`](./test-input-focus-independence.mjs)** (`npm run test:focus`):
+  Hands the OS foreground to another application (Notepad) and asserts typing/clicks/wheel still land **and** that the active transport is `cdp`.
+- **[`test-harvest-regression.mjs`](./test-harvest-regression.mjs)** (`npm run test:harvest`):
+  End-to-end markdown/marks harvest regression (including off-screen marks).
 - **[`test-chaos-engine.js`](./test-chaos-engine.js)**:
   Benchmarking and live verification suite for the Bio-Kinematic Chaos Engine. Validates lag-1 autocorrelation ($1/f$ pink noise tremor), asymmetric minimum-jerk acceleration curves, ballistic target overshoots, and saccadic micro-corrections.
 - **[`test-tray-and-hil.js`](./test-tray-and-hil.js)**:
@@ -19,17 +27,17 @@ This directory contains utility scripts, automated test harnesses, and the stand
   Connects to a real WebSocket echo feed (`wss://ws.postman-echo.com/raw`) and tests live CDP WebSocket/SSE duplex message frame interception, message limits, and buffer clearing.
 - **[`test-script-vault.js`](./test-script-vault.js)**:
   Saves DOM extraction macros, verifies LanceDB semantic vector embedding, tests natural language macro recall (`recall_script`), and validates runtime parameter injection (`run_script`).
-- **[`test-marks.js`](./test-marks.js)**:
+- **[`test-set-of-marks.js`](./test-set-of-marks.js)**:
   Tests Set-of-Marks (SoM) visual grounding by injecting numbered neon badges over interactable DOM nodes, taking annotated screenshots, and actuating Bézier clicks on badge IDs.
-- **[`test-network.js`](./test-network.js)**:
+- **[`test-network-interceptor.js`](./test-network-interceptor.js)**:
   Attaches CDP network listeners, captures background XHR/Fetch JSON API responses, and verifies `get_network_traffic` and `get_api_payload`.
-- **[`test-session.js`](./test-session.js)**:
+- **[`test-session-vault.js`](./test-session-vault.js)**:
   Tests snapshotting cookies and localStorage into persistent JSON files and rehydrating them across browser sessions.
 - **[`test-downloads.js`](./test-downloads.js)**:
   Verifies download interception into `./data/downloads/`, PDF/CSV/JSON text extraction, and automatic ingestion into LanceDB Cortex.
-- **[`test-form.js`](./test-form.js)**:
+- **[`test-fill-form.js`](./test-fill-form.js)**:
   Tests single-turn batch form population (`fill_form`) across text inputs, selects, checkboxes, and radios with human typing cadence.
-- **[`test-shield.js`](./test-shield.js)**:
+- **[`test-shield-breaker.js`](./test-shield-breaker.js)**:
   Validates autonomous OneTrust, Cookiebot, and Google GDPR consent banner detection and dismissal.
 - **[`test-mcp-cortex.js`](./test-mcp-cortex.js)**:
   Connects a test client to `mcp-server.js` over stdio and executes `recall_memory`, `get_history`, `list_bookmarks`, and `add_bookmark` calls to verify end-to-end LanceDB vector recall.

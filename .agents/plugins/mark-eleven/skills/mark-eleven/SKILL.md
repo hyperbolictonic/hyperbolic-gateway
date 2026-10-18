@@ -139,4 +139,23 @@ To maximize speed, minimize token burn, and eliminate bot shadowbans, ALWAYS fol
    - Call `send_notification({ title, message, urgency, sound })` to emit non-blocking desktop notifications.
    - Call `send_desktop_notification({ message, title, urgency, sound })` to summon human operator with critical sound/banner.
 19. **Operational Manual & Tool Discovery:**
-   - Call `help()` to query a complete, detailed operational cheatsheet of all 57 available tools, parameters, and design principles.
+   - Call `help({ category })` to query a complete, detailed operational cheatsheet of all 74 available tools, parameters, and design principles.
+   - Call `bridge_health()` once per session to read `capabilities[]`, `revision`, `window`, and `input.transport` (`cdp` = focus-independent delivery, `native` = legacy fallback).
+   - Prefer the **orthogonal primitives** below over blind sleeps and guessy selectors. The full recipe set (R1–R5), wait vocabulary and error catalogue is available as the OKF resource `mark-eleven://okf/partitions/primitives-and-workflows`.
+
+## Orthogonal Primitive Layer (prefer these)
+
+One observation model, one action model, one wait model — the flat verbs above become projections.
+
+- `wait_for(conditions[], require?, timeout_ms?, poll_ms?)` — declarative readiness gate; replaces every sleep. Condition types: `selector`, `gone`, `text`/`regex`, `url`, `role_name`, `count(min/equals/max)`, `network_idle`, `stable(target:"marks"|"height"|"text"|"nodes")`, `revision`. **Warning:** skeletons can satisfy a naive `selector` early — prefer `stable`/`count` for lazily-rendered lists.
+- `act(mark_id, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?)` — unified humanlike `click`/`focus`/`hover`/`type`/`press` with optional post-conditions and a delta report. `dry_run:true` resolves without acting; `secret:true` redacts credentials from logs. Do "act then wait" in one round trip.
+- `find(role?, name?, contains?, regex?, tag?, selector?)` — semantic search → **mark refs**; feed ids straight into `act`/`click_mark`.
+- `extract(kind:"list"|"table"|"app_data", ref?, selector?)` — structured reads: repeating rows, table records, embedded app JSON (`__NEXT_DATA__`/JSON-LD).
+- `collect_all(selector?, ref?, scroll?, max_scrolls?, max?)` — scroll a lazy/infinite list to the end and dedupe rows (by text+href) in **one call**, with scroll diagnostics. Use `scroll:"window"` for page-level infinite scroll.
+- `observe(as:"markdown"|"text"|"ax"|"som"|"list"|"table"|"app_data", region?, budget?, cursor?)` — one observation model; page a huge page with `budget` + `next_cursor` instead of truncating.
+- `expect(conditions[])` — immediate assertion (no polling) with per-condition evidence.
+- `page_state()` / `diff(since?)` — cheap change signature + field-by-field diff for loops (no full re-reads).
+- `export_har(pattern?, limit?, save?)` — HAR 1.2 export of captured traffic; `get_network_traffic({ since:"last_action" })` returns only what the last mutating action fired.
+- `context_save/open/list/delete(name)` — named cookie/storage profiles (thin aliases over the session vault).
+- **Structured errors** (HTTP 400): `STALE_REF` (re-scan the page and re-issue), `TIMEOUT`, `NO_TARGET`, `BAD_REQUEST`, `NOT_SUPPORTED`.
+- **Input is focus-independent:** clicks/typing/wheel are delivered over CDP and land even when another app owns the OS foreground. If a tab reports a `0x0` viewport, call `set_window_visibility({visible:true})` and wait for a non-zero viewport before acting.
