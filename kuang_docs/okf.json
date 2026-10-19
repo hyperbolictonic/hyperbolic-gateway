@@ -3,8 +3,8 @@
   "okfVersion": "1.0.0",
   "bundleId": "kuang_browser_docs",
   "name": "Kuang Grade Mark Eleven Playbooks & Knowledge",
-  "version": "1.1.0",
-  "description": "Standard operating procedures, orthogonal primitive workflows, Set-of-Marks strategies, HIL protocols, and anti-bot handling for Kuang browser automation.",
+  "version": "1.2.0",
+  "description": "Standard operating procedures, orthogonal primitive workflows, Set-of-Marks strategies, HIL protocols, LLM-friendly discovery (llms.txt / Markdown negotiation), web search, deep crawl, and anti-bot handling for Kuang browser automation.",
   "engineCompatibility": {
     "supportedEngines": ["orcha_graph", "eve_vfs", "codex_cli", "antigravity_cli"]
   },
@@ -31,7 +31,7 @@
       "name": "Orthogonal Primitives & Workflow Recipes",
       "path": "partitions/primitives_and_workflows.md",
       "type": "reference",
-      "summary": "The primitive layer (observe/act/wait_for/expect/find/extract/collect_all/page_state/diff/export_har/contexts), the shared wait-condition vocabulary, structured error codes, and focus-independent input / background-rendering guarantees."
+      "summary": "The primitive layer (observe/act/wait_for/expect/find/extract/collect_all/page_state/diff/export_har/contexts) and the discovery layer (llm_surface/llm_fetch/search_web/deep_crawl/research_topic), the shared wait-condition vocabulary, structured error codes, and focus-independent input / background-rendering guarantees."
     }
   ]
 }

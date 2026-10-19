@@ -36798,7 +36798,7 @@ var TOOLS_CATALOG = [
   },
   {
     name: "evaluate_javascript",
-    description: "Executes a JavaScript expression or script in the isolated context of the active web page and returns the serialized result.",
+    description: "Executes a JavaScript expression or script in the active page context and returns the serialized result. A powerful tool that can read AND mutate the page \u2014 reach for it deliberately: observe/extract cover most reads and act covers clicks and typing, and heavy injected JS is a bot-detection signal.",
     parameters: {
       script: external_exports.string().describe('JavaScript code to evaluate in the page context (e.g. "document.title" or "1+1")')
     },
@@ -38027,7 +38027,7 @@ for (const [legacy, canonical] of LEGACY_ALIASES) {
 var TIER_LABELS = {
   1: "TIER 1 \xB7 prefer",
   2: "TIER 2 \xB7 fallback",
-  3: "TIER 3 \xB7 last resort"
+  3: "TIER 3 \xB7 use deliberately"
 };
 var TOOL_TIERS = {
   // TIER 1 — first choice for the job.
@@ -38044,7 +38044,8 @@ var TOOL_TIERS = {
   take_screenshot: 2,
   snapshot_rendered_page: 2,
   press_key: 2,
-  // TIER 3 — last resort (read-only inspection only).
+  // TIER 3 — a powerful tool, not a last resort: reach for it deliberately
+  // (prefer the primitives when they fit; injected JS is a bot-detection signal).
   evaluate_javascript: 3
 };
 
@@ -38281,7 +38282,7 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
   - PREFERENTIAL SEQUENCE (Tokens & Anti-Shadowban):
     * TIER 1 (First Choice): observe(as:"markdown") -> clean text with inline [#ID] marks. Actuate via act(mark_id, action) (or act(selector) / act(x, y) when you have no badge). Zero vision tokens burned!
     * TIER 2 (Fallback): take_screenshot(marks:true, detail:"economy") -> downscaled 640px JPEG Set-of-Marks. Use ONLY when visual layout/CAPTCHA requires vision.
-    * TIER 3 (Last Resort): evaluate_javascript() -> strictly for READ-ONLY inspection. NEVER mutate DOM or click via JS to avoid bot shadowbans (isTrusted: false).
+    * TIER 3 (Use deliberately): evaluate_javascript() -> arbitrary page JS that can read AND mutate. A powerful tool for what the primitives cannot express \u2014 prefer observe/extract for reads and act for clicks/typing, since heavy injected JS is a bot-detection signal (untrusted events).
   - Start non-trivial sessions with bridge_health() to read capabilities[], revision and input.transport.
   - QUICK DECISION ORDER (5 common jobs): read a page -> observe(as:"markdown"); find an element -> find(); act -> act(mark_id | selector | x,y, action); wait -> wait_for(conditions[]); harvest a lazy list -> collect_all(). Full detail: mark-eleven://tools/recommended.
 
@@ -38476,7 +38477,7 @@ Reach for these first; anything whose description starts with \`[TIER n]\` is a 
 
 Rules of thumb:
 - Never \`sleep\`; use \`wait_for\` or \`act(await_conditions=[...])\`.
-- Never set values or click via \`evaluate_javascript\` (TIER 3, read-only) \u2014 it trips bot sensors.
+- Prefer act() over \`evaluate_javascript\` (TIER 3): CDP input is the humanlike path, and heavy injected JS is a bot-detection signal \u2014 it stays available for what the primitives cannot express.
 - Prefer \`observe\` over screenshots; prefer a mark id over a CSS selector.
 - Use \`expect(...)\` to assert now, \`page_state()\`/\`diff(since)\` to confirm change cheaply.
 `;
@@ -38538,7 +38539,7 @@ Rules of thumb:
 - take_screenshot(marks?, detail?, include_offscreen?, max_width?, format?, quality?): plain viewport image, or Set-of-Marks when marks=true with detail "full"|"economy"|"markdown".
 - snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?): Freezes dynamic post-hydration JS-heavy pages (AX tree outline, rendered markdown, or HTML).
 - prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?): Pre-executes and hydrates candidate links in background views for 0ms navigation and Cortex pre-harvest.
-- evaluate_javascript(script): Evaluates arbitrary JS in the active tab (read-only).
+- evaluate_javascript(script): Evaluates arbitrary JS in the active tab (can read AND mutate). Powerful \u2014 reach for it deliberately; observe/extract cover most reads and act covers clicks/typing, and injected JS is a bot-detection signal.
 - bridge_health(): version, revision, capabilities, window, input.transport (replaces get_page_info).
 - get_console_logs(limit?): Returns live browser console logs.
 - act(mark_id | selector | x,y, action): the single interaction entry point; address by Set-of-Marks badge, CSS selector, or viewport coordinates.

@@ -16,8 +16,8 @@ This is the one-release compatibility window agreed in
 [`TOOL_CATALOG_REVIEW.md`](./TOOL_CATALOG_REVIEW.md) §6.3. **v1.2 closes it**: the 23
 aliases are removed from the catalog entirely.
 
-Advertised surface today: **54 tools** (76 registered; 23 hidden). After removal:
-**53 registered, 0 hidden, 54 advertised** (the built-in `help` remains).
+Advertised surface today: **59 tools** (81 registered; 23 hidden). After removal:
+**58 registered, 0 hidden, 59 advertised** (the built-in `help` remains).
 
 ## Alias inventory (23)
 

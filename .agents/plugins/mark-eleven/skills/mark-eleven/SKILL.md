@@ -25,12 +25,12 @@ To maximize speed, minimize token burn, and eliminate bot shadowbans, ALWAYS fol
 │ • Downscaled 640px JPEG (~15x lighter than full PNG).                  │
 │ • Mark IDs match the markdown marks identically.                       │
 ├────────────────────────────────────────────────────────────────────────┤
-│ TIER 3 (LAST RESORT): Script Inspection (`evaluate_javascript`)        │
-│ • Use STRICTLY for read-only DOM inspection, calculating values, or    │
-│   querying hidden attributes.                                          │
-│ • NEVER use JS to artificially set input values (`el.value = ...`) or  │
-│   dispatch synthetic clicks (`el.click()`) on protected sites! That   │
-│   sets `isTrusted: false` and triggers silent bot shadowbans.          │
+│ TIER 3 (USE DELIBERATELY): Script Inspection (`evaluate_javascript`)   │
+│ • A powerful tool: arbitrary page JS that can read AND mutate.         │
+│   Reach for it deliberately — observe/extract cover most reads         │
+│   and act covers clicks and typing.                                    │
+│ • Heavy injected JS is a bot-detection signal (untrusted events),      │
+│   so keep it purposeful, not routine.                                  │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,8 +51,8 @@ To maximize speed, minimize token burn, and eliminate bot shadowbans, ALWAYS fol
    - Call `press_key({ key })` for single keypresses (`Enter`, `Tab`, `Escape`, `Backspace`).
    - Call `scroll_page({ direction, amount })` to simulate inertia mousewheel scrolling.
 5. **Console & Script Execution vs. Hardware Trust (Tier 3):**
-   - **BEHAVIORAL TRUST & SHADOWBAN PREVENTION:** Avoid using `evaluate_javascript` to artificially mutate form values or trigger synthetic clicks on protected sites (e.g. Skyscanner, Google, Cloudflare). Synthetic DOM mutations set `isTrusted: false` and can trigger silent shadow-bans.
-   - Use `evaluate_javascript` strictly for **read-only DOM inspection**, querying computed styles, or checking JSON state.
+   - **BEHAVIORAL TRUST & SHADOWBAN PREVENTION:** For clicks, typing and value changes prefer `act(...)` (genuine hardware events, `isTrusted: true`) over driving them from `evaluate_javascript` on protected sites (e.g. Skyscanner, Google, Cloudflare) — synthetic DOM mutations set `isTrusted: false` and can trigger silent shadow-bans.
+   - `evaluate_javascript` remains a powerful tool for what the primitives cannot express — querying computed styles, reading hidden JSON state, calculating values — and it can also mutate. Reach for it deliberately rather than by default.
    - For all interactions, use `act(...)` — it drives genuine hardware events (`isTrusted: true`).
    - Call `get_console_logs({ limit })` to inspect page errors and network responses.
 6. **Multi-Tab Orchestration:**
@@ -148,6 +148,8 @@ To maximize speed, minimize token burn, and eliminate bot shadowbans, ALWAYS fol
 ## Orthogonal Primitive Layer (prefer these)
 
 One observation model, one action model, one wait model — the flat verbs above become projections.
+
+**Tiers** (mirrors the `[TIER n]` prefixes on the advertised descriptions). **TIER 1 · prefer:** `observe`, `act`, `wait_for`, `expect`, `find`, `extract`, `collect_all`, `page_state`, `diff`. **TIER 2 · fallback:** `take_screenshot`, `snapshot_rendered_page`, `press_key`. **TIER 3 · use deliberately:** `evaluate_javascript` (powerful, just not the default). Every other tool is unprefixed — it is the only way to do its job.
 
 - `wait_for(conditions[], require?, timeout_ms?, poll_ms?)` — declarative readiness gate; replaces every sleep. Condition types: `selector`, `gone`, `text`/`regex`, `url`, `role_name`, `count(min/equals/max)`, `network_idle`, `stable(target:"marks"|"height"|"text"|"nodes")`, `revision`. **Warning:** skeletons can satisfy a naive `selector` early — prefer `stable`/`count` for lazily-rendered lists.
 - `act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?)` — the one humanlike interaction verb (`click`/`focus`/`hover`/`type`/`press`), addressed by mark badge, CSS selector, or coordinates, with optional post-conditions and a delta report. `dry_run:true` resolves without acting; `secret:true` redacts credentials from logs. Do "act then wait" in one round trip.

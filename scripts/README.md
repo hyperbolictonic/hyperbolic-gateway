@@ -58,6 +58,8 @@ This directory contains utility scripts, automated test harnesses, and the stand
   Basic smoke test for the initial MCP navigation and click toolset.
 
 ### 3. Build & Visual Verification Helpers
+- **[`gen-manual-tools.mjs`](./gen-manual-tools.mjs)** (`npm run manual:tools`):
+  Regenerates the collapsible **"Complete tool list (all 59)"** block in the default-tab Manual ([`public/welcome.html`](../public/welcome.html)) from the tool table in [`README.md`](../README.md), so the two can never drift. **Idempotent** — it replaces the generated block (delimited by `BEGIN/END GENERATED` markers) in place, and upgrades the original marker-less block. It refuses to write if the README's stated advertised count disagrees with its own table. Run it after editing the README tool table.
 - **[`embed-logos.js`](./embed-logos.js)**:
   Encodes tactical PNG emblems (`ono-sendai.png`, `kuang-grade.png`, `mark-eleven.png`) into base64 data URIs and embeds them into the offline welcome screen to bypass Chromium sandbox local file restrictions.
 - **[`scroll-top.js`](./scroll-top.js)**:

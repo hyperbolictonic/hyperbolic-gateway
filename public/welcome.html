@@ -360,11 +360,20 @@
 
       <!-- Semantic MCP Tools Table -->
       <section class="section-card">
-        <h2>🔌 Standardized Semantic MCP Tools (57 Advertised)</h2>
+        <h2>🔌 Standardized Semantic MCP Tools (59 Advertised)</h2>
         <p>
-          57 advertised tools (75 registered entries; 19 deprecated aliases stay callable by name but are hidden from
+          59 advertised tools (81 registered entries; 23 deprecated aliases stay callable by name but are hidden from
           <code>tools/list</code>), plus 7 OKF resources
           (<code>mark-eleven://skills/guide</code>, <code>mark-eleven://tools/recommended</code>, <code>mark-eleven://okf/manifest</code>, and four partition playbooks).
+        </p>
+        <p style="border-left: 3px solid var(--accent); background: #f8fafc; padding: 10px 14px; border-radius: 0 8px 8px 0;">
+          <strong>Start here.</strong> Read with <code>observe</code>, interact with <code>act</code>, wait with <code>wait_for</code>,
+          locate with <code>find</code>, and pull structured data with <code>extract</code> / <code>collect_all</code>.
+          Reach for <code>take_screenshot</code> (TIER 2) or <code>evaluate_javascript</code> (TIER 3) only as fallbacks.
+        </p>
+        <p style="font-size:12px; color:var(--text-muted);">
+          <em>The table below groups the tools you will reach for most by tier; the complete advertised set (with full
+          parameter schemas) is available at runtime via <code>help()</code> and <code>tools/list</code>.</em>
         </p>
         <table>
           <thead>
@@ -376,14 +385,58 @@
           </thead>
           <tbody>
             <tr>
+              <td colspan="3" style="background:#f1f5f9;color:#475569;font-family:'JetBrains Mono',Menlo,monospace;font-size:11px;letter-spacing:1.5px;"><strong>PREREQUISITE — NAVIGATE FIRST</strong></td>
+            </tr>
+            <tr>
               <td><code>navigate_to</code></td>
               <td><code>url: string</code></td>
               <td>Navigates the active tab to destination URL. *(alias: <code>go_to_url</code>)*</td>
             </tr>
             <tr>
+              <td colspan="3" style="background:#f0fdf4;color:#166534;font-family:'JetBrains Mono',Menlo,monospace;font-size:11px;letter-spacing:1.5px;"><strong>TIER 1 · PREFER — START HERE</strong></td>
+            </tr>
+            <tr>
+              <td><code>observe</code></td>
+              <td><code>as?, region?, budget?, cursor?</code></td>
+              <td><strong>The page read.</strong> One budgeted observation model — <code>as:"markdown"</code> (default: clean Markdown with inline <code>[#id]</code> marks), <code>"text"</code>, <code>"ax"</code>, <code>"som"</code>. Pages large pages via <code>budget</code> + <code>next_cursor</code>. Absorbed <code>get_page_markdown</code> / <code>harvest_markdown</code> / <code>list_marks</code>; structured reads live on <code>extract</code>.</td>
+            </tr>
+            <tr>
               <td><code>act</code></td>
-              <td><code>mark_id? | selector? | x?, y?, action?, text?</code></td>
-              <td>The single interaction entry point — click / focus / hover / type / press on a mark badge, CSS selector, or coordinate. Glides the Bézier ghost cursor and depresses the physical switch.</td>
+              <td><code>mark_id? | selector? | x?, y?, action?, text?, secret?, await_conditions?, timeout_ms?, dry_run?</code></td>
+              <td>The single interaction entry point — <code>click</code> / <code>focus</code> / <code>hover</code> / <code>type</code> / <code>press</code> on a mark badge (preferred), a CSS selector, or x/y coordinates. Glides the Bézier ghost cursor and depresses the physical switch, then returns a before/after delta. <code>await_conditions</code> does "act then wait" in one round trip; <code>dry_run</code> resolves without acting; <code>secret</code> redacts typed text. <strong>Not</strong> for navigation (<code>navigate_to</code>) or scrolling (<code>scroll_page</code>).</td>
+            </tr>
+            <tr>
+              <td><code>wait_for</code></td>
+              <td><code>conditions[], require?, timeout_ms?</code></td>
+              <td>Declarative readiness gate (selector/gone/text/url/role_name/count/network_idle/stable/revision) &mdash; replaces blind sleeps.</td>
+            </tr>
+            <tr>
+              <td><code>find</code></td>
+              <td><code>role?, name?, contains?, regex?, tag?, selector?</code></td>
+              <td>Semantic element search returning Set-of-Marks refs (mark ids) instead of pixels.</td>
+            </tr>
+            <tr>
+              <td><code>extract</code></td>
+              <td><code>kind?, ref?, selector?, type?, limit?</code></td>
+              <td>Structured reads: <code>"list"</code> rows, one <code>"table"</code>, <strong>every</strong> <code>"tables"</code>, embedded app JSON (<code>"app_data"</code>), or typed JSON-LD (<code>"schema_org"</code>, filter with <code>type:"Recipe"</code>).</td>
+            </tr>
+            <tr>
+              <td><code>collect_all</code></td>
+              <td><code>selector?, scroll?, max_scrolls?</code></td>
+              <td>Scrolls a lazy/infinite list to the end and dedupes every row in one call, with scroll diagnostics.</td>
+            </tr>
+            <tr>
+              <td><code>expect</code></td>
+              <td><code>conditions[]</code></td>
+              <td>Immediate assertion (no polling) with per-condition evidence.</td>
+            </tr>
+            <tr>
+              <td><code>page_state</code> / <code>diff</code></td>
+              <td><code>since?</code></td>
+              <td>Cheap monotonic state signature and field-by-field diff for change-detection loops.</td>
+            </tr>
+            <tr>
+              <td colspan="3" style="background:#fffbeb;color:#92400e;font-family:'JetBrains Mono',Menlo,monospace;font-size:11px;letter-spacing:1.5px;"><strong>TIER 2 · FALLBACK — when the preferred path cannot do it</strong></td>
             </tr>
             <tr>
               <td><code>press_key</code></td>
@@ -391,24 +444,30 @@
               <td>Sends hardware keyboard event (Enter, Tab, Escape, etc.).</td>
             </tr>
             <tr>
-              <td><code>scroll_page</code></td>
-              <td><code>direction, amount?</code></td>
-              <td>Scrolls page using natural mousewheel inertia chunks.</td>
-            </tr>
-            <tr>
               <td><code>take_screenshot</code></td>
-              <td><em>none</em></td>
-              <td>Captures live viewport image for multimodal vision inspection.</td>
+              <td><code>marks?, detail?, include_offscreen?, format?, quality?</code></td>
+              <td>Captures the live viewport image — a plain screenshot, or Set-of-Marks (<code>marks:true</code> with <code>detail:"full"|"economy"|"markdown"</code>).</td>
             </tr>
             <tr>
-              <td><code>observe(as: "markdown")</code></td>
-              <td><code>as?: string</code></td>
-              <td>Extracts clean Markdown with token estimation metadata (replaces get_page_markdown).</td>
+              <td><code>snapshot_rendered_page</code></td>
+              <td><code>format?, wait_until_idle_ms?, pierce_shadow_dom?, save_to_disk?</code></td>
+              <td>Freezes dynamic/hydrated SPAs and extracts an AX-tree outline, rendered Markdown, or unrendered HTML — the one read that also covers shadow DOM and can save to disk.</td>
+            </tr>
+            <tr>
+              <td colspan="3" style="background:#fef2f2;color:#b91c1c;font-family:'JetBrains Mono',Menlo,monospace;font-size:11px;letter-spacing:1.5px;"><strong>TIER 3 · USE DELIBERATELY — powerful, not the default</strong></td>
             </tr>
             <tr>
               <td><code>evaluate_javascript</code></td>
               <td><code>script: string</code></td>
-              <td>Evaluates arbitrary JS expression in active page context.</td>
+              <td>Evaluates arbitrary JS in the active page context and returns the result. A powerful tool that <strong>can read and mutate</strong> — reach for it deliberately: <code>observe</code> / <code>extract</code> cover most reads and <code>act</code> covers clicks and typing, and heavy injected JS is a <strong>bot-detection signal</strong>.</td>
+            </tr>
+            <tr>
+              <td colspan="3" style="background:#eff6ff;color:#1d4ed8;font-family:'JetBrains Mono',Menlo,monospace;font-size:11px;letter-spacing:1.5px;"><strong>NO TIER — THE ONLY TOOL FOR THE JOB</strong></td>
+            </tr>
+            <tr>
+              <td><code>scroll_page</code></td>
+              <td><code>direction, amount?</code></td>
+              <td>Scrolls page using natural mousewheel inertia chunks.</td>
             </tr>
             <tr>
               <td><code>new_tab</code></td>
@@ -431,49 +490,42 @@
               <td>Returns structured list of all open tabs in Cyberdeck.</td>
             </tr>
             <tr>
-              <td><code>wait_for</code></td>
-              <td><code>conditions[], require?, timeout_ms?</code></td>
-              <td>Declarative readiness gate (selector/gone/text/url/role_name/count/network_idle/stable/revision) &mdash; replaces blind sleeps.</td>
-            </tr>
-            <tr>
-              <td><code>observe</code></td>
-              <td><code>as?, region?, budget?, cursor?</code></td>
-              <td>One budgeted observation model (markdown/text/ax/som/list/table/app_data); pages large pages via <code>budget</code> + <code>next_cursor</code>.</td>
-            </tr>
-            <tr>
-              <td><code>act</code></td>
-              <td><code>mark_id, action, text?, secret?, await_conditions?, dry_run?</code></td>
-              <td>Unified humanlike click/focus/hover/type/press on a mark ref, with optional post-conditions and a delta report.</td>
-            </tr>
-            <tr>
-              <td><code>find</code></td>
-              <td><code>role?, name?, contains?, regex?, tag?, selector?</code></td>
-              <td>Semantic element search returning Set-of-Marks refs (mark ids) instead of pixels.</td>
-            </tr>
-            <tr>
-              <td><code>extract</code></td>
-              <td><code>kind?, ref?, selector?</code></td>
-              <td>Structured reads: repeating list rows, table records, or embedded app JSON (<code>__NEXT_DATA__</code>/JSON-LD).</td>
-            </tr>
-            <tr>
-              <td><code>collect_all</code></td>
-              <td><code>selector?, scroll?, max_scrolls?</code></td>
-              <td>Scrolls a lazy/infinite list to the end and dedupes every row in one call, with scroll diagnostics.</td>
-            </tr>
-            <tr>
-              <td><code>expect</code></td>
-              <td><code>conditions[]</code></td>
-              <td>Immediate assertion (no polling) with per-condition evidence.</td>
-            </tr>
-            <tr>
-              <td><code>page_state</code> / <code>diff</code></td>
-              <td><code>since?</code></td>
-              <td>Cheap monotonic state signature and field-by-field diff for change-detection loops.</td>
+              <td colspan="3" style="background:#eff6ff;color:#1d4ed8;font-family:'JetBrains Mono',Menlo,monospace;font-size:11px;letter-spacing:1.5px;"><strong>NO TIER (CONT.) — DISCOVERY &amp; SESSION</strong></td>
             </tr>
             <tr>
               <td><code>bridge_health</code></td>
               <td><em>none</em></td>
               <td>Liveness + capability discovery: version, revision, capabilities, window, <code>input.transport</code>.</td>
+            </tr>
+            <tr>
+              <td><code>get_console_logs</code></td>
+              <td><code>limit?</code></td>
+              <td>Recent page console logs (<code>log</code> / <code>warn</code> / <code>error</code> / <code>info</code>) — the runtime-error and API-output view.</td>
+            </tr>
+            <tr>
+              <td><code>llm_surface</code></td>
+              <td><code>url?: string</code></td>
+              <td><strong>Discovery:</strong> checks whether a site publishes Markdown/Text (<code>/llms.txt</code>, <code>/sitemap.xml</code>, <code>&lt;link rel="alternate"&gt;</code>, or content negotiation) and reports <code>recommended</code>.</td>
+            </tr>
+            <tr>
+              <td><code>llm_fetch</code></td>
+              <td><code>url?, as?</code></td>
+              <td>Reads that advertised representation (~5–10× cheaper than a render). <strong>Gated:</strong> refuses (<code>NO_LLM_SURFACE</code>) unless the site advertises a surface.</td>
+            </tr>
+            <tr>
+              <td><code>search_web</code></td>
+              <td><code>query, engine?, engines?, url_template?, max_results?</code></td>
+              <td><strong>Discovery:</strong> multi-engine web search in a detached view (your active tab is untouched) with automatic fallback; returns ranked <code>{title,url,snippet}</code>.</td>
+            </tr>
+            <tr>
+              <td><code>deep_crawl</code></td>
+              <td><code>url, max_depth?, max_pages?, match_patterns?, …</code></td>
+              <td><strong>Discovery:</strong> autonomous BFS crawl that distills each page and indexes it into LanceDB Cortex (cheap Markdown path first).</td>
+            </tr>
+            <tr>
+              <td><code>research_topic</code></td>
+              <td><code>query, max_sources?, engine?, …</code></td>
+              <td><strong>Discovery:</strong> search → gather → distill → index; returns cited <strong>extractive</strong> evidence (no prose — you synthesize).</td>
             </tr>
             <tr>
               <td><code>export_har</code></td>
@@ -487,6 +539,384 @@
             </tr>
           </tbody>
         </table>
+        <!-- BEGIN GENERATED: complete tool list — regenerate with `npm run manual:tools` -->
+        <details style="margin-top:18px;">
+          <summary style="cursor:pointer; font-weight:700; font-size:15px; color:var(--accent); padding:6px 0;">
+            Complete tool list — all 59 advertised (click to expand)
+          </summary>
+          <p style="font-size:12px; color:var(--text-muted);">
+            Every advertised tool grouped by area. 23 deprecated aliases (e.g. <code>go_to_url</code>,
+            <code>get_page_markdown</code>, <code>click_element</code>) remain callable by name but are hidden from
+            <code>tools/list</code>.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th>Tool</th>
+                <th>Parameters</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Primitives &amp; Abstraction</strong></td>
+                <td><code>observe</code></td>
+                <td><code>as?: 'markdown' | 'text' | 'ax' | 'som'</code>, <code>region?: number | string</code>, <code>budget?: number</code>, <code>cursor?: string</code>, <code>include_offscreen?: boolean</code>, <code>limit?: number</code></td>
+                <td><strong>The page read (TIER 1).</strong> One budgeted observation model with projections. Use <code>budget</code> + <code>next_cursor</code> to page a large page instead of truncating. Absorbed <code>get_page_markdown</code> / <code>harvest_markdown</code> / <code>list_marks</code>; structured reads live on <code>extract</code>.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>act</code></td>
+                <td><code>mark_id?: number</code>, <code>selector?: string</code>, <code>x?: number</code>, <code>y?: number</code>, <code>action?: 'click' | 'focus' | 'hover' | 'type' | 'press'</code>, <code>text?: string</code>, <code>secret?: boolean</code>, <code>await_conditions?: object[]</code>, <code>timeout_ms?: number</code>, <code>dry_run?: boolean</code></td>
+                <td><strong>The</strong> interaction entry point: one humanlike action addressed by mark ref, CSS selector, or coordinates, with optional post-conditions and a delta report. <code>secret: true</code> redacts typed text from logs; <code>dry_run: true</code> resolves without acting.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>wait_for</code></td>
+                <td><code>conditions: object[]</code>, <code>require?: 'any' | 'all'</code>, <code>timeout_ms?: number</code>, <code>poll_ms?: number</code></td>
+                <td>Declarative readiness gate — polls until every/any condition holds, then returns. The primitive that replaces blind sleeps.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>find</code></td>
+                <td><code>role?: string</code>, <code>name?: string</code>, <code>contains?: string</code>, <code>regex?: string</code>, <code>tag?: string</code>, <code>selector?: string</code>, <code>limit?: number</code>, <code>include_offscreen?: boolean</code></td>
+                <td>Semantic element search returning Set-of-Marks <strong>refs</strong> (mark ids) instead of pixels. Feed ids straight into <code>act</code>.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>extract</code></td>
+                <td><code>kind?: 'list' | 'table' | 'tables' | 'app_data' | 'schema_org'</code>, <code>ref?: number</code>, <code>selector?: string</code>, <code>type?: string</code>, <code>limit?: number</code></td>
+                <td>Structured, read-only extraction: repeating rows, one table, <strong>every</strong> table, embedded app JSON (<code>__NEXT_DATA__</code>/JSON-LD), or <strong>typed schema.org items</strong> (<code>kind:"schema_org"</code> flattens <code>@graph</code>; <code>type</code> filters to e.g. <code>"Recipe"</code>). Article extraction is <code>observe(as:"markdown")</code> (Readability).</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>collect_all</code></td>
+                <td><code>selector?: string</code>, <code>ref?: number</code>, <code>scroll?: 'container' | 'window'</code>, <code>step?: number</code>, <code>delay_ms?: number</code>, <code>max_scrolls?: number</code>, <code>max?: number</code></td>
+                <td>Scrolls a virtualized/lazy list to the end and collects every distinct row (deduped by text+href) in <strong>one call</strong>, with scroll diagnostics.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>expect</code></td>
+                <td><code>conditions: object[]</code></td>
+                <td>Immediate assertion (no polling) over the same vocabulary as <code>wait_for</code>; returns pass/fail plus per-condition evidence.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>page_state</code></td>
+                <td>_none_</td>
+                <td>Cheap monotonic state signature (<code>revision</code>, <code>url</code>, <code>marks</code>, <code>nodeCount</code>, <code>height</code>, <code>scrollY</code>, <code>textLen</code>, <code>textHash</code>) for change detection without re-reading the page.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>diff</code></td>
+                <td><code>since?: number</code></td>
+                <td>Field-by-field diff between the current state and a previously observed revision — shows exactly what changed.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>llm_surface</code></td>
+                <td><code>url?: string</code></td>
+                <td>Checks whether a site publishes an LLM-friendly representation (<code>/llms.txt</code> / <code>/llms-full.txt</code>, <code>/sitemap.xml</code>, a <code>&lt;link rel="alternate"&gt;</code>, or Markdown content negotiation) and returns <code>recommended</code>. Well-known paths only; cached per origin.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>llm_fetch</code></td>
+                <td><code>url?: string</code>, <code>as?: 'llms_txt' | 'llms_full' | 'markdown' | 'text'</code></td>
+                <td>Fetches that advertised Markdown/Text representation (~5–10× cheaper than a render). <strong>Gated:</strong> refuses (<code>NO_LLM_SURFACE</code>) unless the site advertises a surface. Per-page alternates load via a real navigation, not a synthetic fetch.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>search_web</code></td>
+                <td><code>query: string</code>, <code>engine?: 'google' | 'duckduckgo' | 'bing' | 'brave' | 'startpage' | 'custom'</code>, <code>engines?: string[]</code>, <code>url_template?: string</code>, <code>max_results?: number</code></td>
+                <td>Multi-engine web search run in a <strong>detached view</strong> (your active tab is untouched) with automatic fallback when an engine bot-checks. Returns ranked <code>{title, url, snippet}</code> to feed <code>navigate_to</code>/<code>collect_all</code>. <code>custom</code> takes a <code>{query}</code> template (e.g. SearXNG).</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>deep_crawl</code></td>
+                <td><code>url: string</code>, <code>max_depth?: number</code>, <code>max_pages?: number</code>, <code>match_patterns?: string[]</code>, <code>same_origin?: boolean</code>, <code>prefer_llm?: boolean</code>, <code>harvest_to_cortex?: boolean</code>, <code>selector?: string</code>, <code>delay_ms?: number</code></td>
+                <td><strong>Autonomous BFS crawl</strong> from a seed: follows same-origin links within depth/page budgets, distills each page to Markdown, and <strong>indexes it into LanceDB Cortex</strong>. Each page takes the cheap path first (content-negotiated Markdown/Text, else a detached render). <code>match_patterns</code> scopes by glob or <code>/regex/</code>.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>research_topic</code></td>
+                <td><code>query: string</code>, <code>max_sources?: number</code>, <code>engine?</code>, <code>engines?: string[]</code>, <code>url_template?: string</code>, <code>excerpt_chars?: number</code>, <code>harvest_to_cortex?: boolean</code>, <code>prefer_llm?: boolean</code></td>
+                <td><strong>Autonomous research mode:</strong> searches, gathers the top sources (cheap Markdown path first), distills them, and indexes them into Cortex. Returns <strong>extractive, cited evidence</strong> — each highlight is a real paragraph mentioning the query terms. It does <strong>not</strong> write prose; you synthesize the answer.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>bridge_health</code></td>
+                <td>_none_</td>
+                <td>Liveness + capability discovery: <code>version</code>, <code>revision</code>, <code>capabilities[]</code>, <code>window {visible, focused}</code>, <code>input {transport}</code>, <code>lastActionAt</code>.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>context_save</code></td>
+                <td><code>name?: string</code></td>
+                <td>Saves the current browsing context (cookies + storage) as a named profile.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>context_open</code></td>
+                <td><code>name: string</code></td>
+                <td>Restores (switches to) a named browsing context/profile.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>context_list</code></td>
+                <td>_none_</td>
+                <td>Lists saved browsing contexts (cookie/storage profiles).</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>context_delete</code></td>
+                <td><code>name: string</code></td>
+                <td>Deletes a saved browsing context/profile.</td>
+              </tr>
+              <tr>
+                <td><strong>Navigation</strong></td>
+                <td><code>navigate_to</code></td>
+                <td><code>url: string</code>, <code>auto_dismiss_consent?: boolean</code></td>
+                <td>Navigates active tab to URL. Auto-dismisses GDPR/cookie overlays by default. Supports 0ms instant elevation if pre-rendered.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>navigate_history</code></td>
+                <td><code>action: 'back' | 'forward' | 'reload'</code></td>
+                <td>Browser history navigation and reload controls.</td>
+              </tr>
+              <tr>
+                <td><strong>Shield &amp; Defense</strong></td>
+                <td><code>dismiss_consent</code></td>
+                <td>_none_</td>
+                <td>Autonomously detects and dismisses GDPR/cookie banners via Bézier mouse click.</td>
+              </tr>
+              <tr>
+                <td><strong>Interaction</strong></td>
+                <td><code>fill_form</code></td>
+                <td><code>fields: Record&lt;string, string | boolean | number&gt;</code>, <code>submit_selector?: string</code></td>
+                <td>Fills multiple form inputs, selects, and checkboxes in a single turn.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>press_key</code></td>
+                <td><code>key: string</code></td>
+                <td>Presses specific key (e.g. <code>Enter</code>, <code>Tab</code>, <code>Escape</code>, <code>Backspace</code>).</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>scroll_page</code></td>
+                <td><code>direction: 'up' | 'down'</code>, <code>amount?: number</code></td>
+                <td>Incremental momentum wheel scrolling.</td>
+              </tr>
+              <tr>
+                <td><strong>Observation &amp; Vision</strong></td>
+                <td><code>take_screenshot</code></td>
+                <td><code>marks?: boolean</code>, <code>detail?: 'full' | 'economy' | 'markdown'</code>, <code>include_offscreen?: boolean</code>, <code>max_width?: number</code>, <code>format?: 'jpeg' | 'png'</code>, <code>quality?: number</code></td>
+                <td>Viewport capture. Plain mode (default) returns a <strong>bounded 768px fast JPEG</strong> (~15ms encode, tiny wire payload); <code>marks: true</code> returns Set-of-Marks with <code>detail: 'full'</code> (PNG), <code>'economy'</code> (640px JPEG), or <code>'markdown'</code> (marks table, no image). Returns file path text &amp; native MCP image block. Saved to <code>data/screenshots/</code> with automatic retention pruning.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>snapshot_rendered_page</code></td>
+                <td><code>format?: 'ax_tree' | 'markdown' | 'html' | 'unrendered_html'</code>, <code>wait_until_idle_ms?: number</code>, <code>pierce_shadow_dom?: boolean</code>, <code>force_rerender?: boolean</code>, <code>save_to_disk?: boolean</code></td>
+                <td><strong>Rendered Point-in-Time Snapshot.</strong> Freezes dynamic SPAs, pierces Shadow DOM, and extracts ultra-token-efficient Accessibility (AX) Trees, rendered Markdown, or unrendered source HTML.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>prerender_links</code></td>
+                <td><code>urls?: string[]</code>, <code>selector?: string</code>, <code>max_pages?: number</code>, <code>harvest_to_cortex?: boolean</code>, <code>wait_until_idle_ms?: number</code></td>
+                <td><strong>Speculative Pre-rendering Engine.</strong> Pre-hydrates candidate links in background views for <strong>0ms instant navigation</strong>, and auto-indexes into LanceDB Cortex memory.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>evaluate_javascript</code></td>
+                <td><code>script: string</code></td>
+                <td>Evaluates custom JS expression in page context and returns serialized JSON. Accepts <code>script</code>, <code>code</code>, or <code>expression</code>. A powerful tool that can read <strong>and</strong> mutate — reach for it deliberately (<code>observe</code>/<code>act</code> cover the common cases, and injected JS is a bot-detection signal).</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>get_console_logs</code></td>
+                <td><code>limit?: number</code></td>
+                <td>Returns recent web page and script console logs, warnings, and errors.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>get_fingerprint_profile</code></td>
+                <td>_none_</td>
+                <td>Returns active stealth host browser fingerprint and spoofed headers.</td>
+              </tr>
+              <tr>
+                <td><strong>Multi-Tab</strong></td>
+                <td><code>new_tab</code></td>
+                <td><code>url?: string</code></td>
+                <td>Spawns a new independent browser tab instance.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>switch_tab</code></td>
+                <td><code>tab_id: string</code></td>
+                <td>Activates and focuses the specified tab.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>close_tab</code></td>
+                <td><code>tab_id?: string</code></td>
+                <td>Closes tab and reclaims memory resources.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>list_tabs</code></td>
+                <td>_none_</td>
+                <td>Returns structured array of all open tabs (IDs, titles, URLs, active status).</td>
+              </tr>
+              <tr>
+                <td><strong>LanceDB Memory</strong></td>
+                <td><code>recall_memory</code></td>
+                <td><code>query: string</code>, <code>limit?: number</code>, <code>domain?: string</code></td>
+                <td>Performs hybrid vector and BM25 full-text search across visited pages and markdown.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>browsing_history</code></td>
+                <td><code>limit?: number</code>, <code>domain?: string</code></td>
+                <td>Chronological browsing history from persistent LanceDB cortex.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>browsing_history_clear</code></td>
+                <td><code>older_than?: string</code></td>
+                <td>Prunes or purges browsing history from persistent storage.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>add_bookmark</code></td>
+                <td><code>url?: string</code>, <code>title?: string</code>, <code>notes?: string</code>, <code>tags?: string[]</code></td>
+                <td>Saves active or specified page with tags and notes in LanceDB.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>list_bookmarks</code></td>
+                <td><code>query?: string</code>, <code>tag?: string</code>, <code>limit?: number</code></td>
+                <td>Retrieves or filters saved bookmarks by query terms (title/notes/URL/tags) or exact tag.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>delete_bookmark</code></td>
+                <td><code>url_or_id: string</code></td>
+                <td>Deletes bookmark by URL or unique ID.</td>
+              </tr>
+              <tr>
+                <td><strong>Downloads &amp; Docs</strong></td>
+                <td><code>list_downloads</code></td>
+                <td>_none_</td>
+                <td>Lists all files downloaded into <code>data/downloads/</code> with sizes, state, and timestamps.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>read_download</code></td>
+                <td><code>filename_or_id: string</code></td>
+                <td>Parses downloaded file (PDF, CSV, JSON, text) into token-efficient markdown.</td>
+              </tr>
+              <tr>
+                <td><strong>Network Intelligence</strong></td>
+                <td><code>get_network_traffic</code></td>
+                <td><code>url_pattern?: string</code>, <code>method?: string</code>, <code>resource_type?: string</code>, <code>limit?: number</code>, <code>since?: number | 'last_action'</code></td>
+                <td>Inspects live HTTP/XHR/Fetch requests captured via Chrome DevTools Protocol (returns compact 1-line markdown summaries). <code>since</code> narrows to requests after an epoch-ms timestamp, a page revision, or the last mutating action.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>query_json_data</code></td>
+                <td><code>source: string</code>, <code>source_id?: string</code>, <code>path?: string</code>, <code>view?: string</code>, <code>filter_predicate?: string</code>, <code>max_items?: number</code>, <code>max_string_length?: number</code></td>
+                <td><strong>Token-Efficient JSON Navigator.</strong> Queries large payloads/streams/files via dot/bracket paths (<code>items[0..3].price</code>), extracts schemas, searches keys, and applies filters without context-window blowup.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>export_har</code></td>
+                <td><code>pattern?: string</code>, <code>limit?: number</code>, <code>save?: boolean</code></td>
+                <td>Exports captured traffic as a <strong>HAR 1.2</strong> log (request/response headers + body previews). <code>save: true</code> writes <code>data/har/har_&lt;ts&gt;.har</code> and returns the path.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>list_realtime_streams</code></td>
+                <td><code>type?: 'websocket' | 'sse'</code>, <code>active_only?: boolean</code></td>
+                <td>Lists active WebSocket connections and open SSE channels in compact 1-line format.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>clear_capture</code></td>
+                <td><code>scope?: 'network' | 'streams' | 'all'</code></td>
+                <td>Clears the in-memory capture ring buffers: HTTP traffic (<code>"network"</code>), WebSocket/SSE frames (<code>"streams"</code>), or both (<code>"all"</code>, default).</td>
+              </tr>
+              <tr>
+                <td><strong>Script Vault &amp; Macros</strong></td>
+                <td><code>save_script</code></td>
+                <td><code>name: string</code>, <code>code: string</code>, <code>description?: string</code>, <code>domain?: string</code>, <code>tags?: string[]</code></td>
+                <td>Saves and embeds a custom JavaScript macro into LanceDB Cortex.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>run_script</code></td>
+                <td><code>name: string</code>, <code>args?: object</code></td>
+                <td>Executes a saved script in active tab with dynamic runtime arguments.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>list_scripts</code></td>
+                <td><code>query?: string</code>, <code>tag?: string</code>, <code>limit?: number</code></td>
+                <td>Lists or semantically searches registered macros in the persistent vault (<code>query</code> ranks by relevance).</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>delete_script</code></td>
+                <td><code>name: string</code></td>
+                <td>Removes a script from the persistent vault and vector index.</td>
+              </tr>
+              <tr>
+                <td><strong>Desktop &amp; System Tray</strong></td>
+                <td><code>set_window_visibility</code></td>
+                <td><code>visible?: boolean</code>, <code>focus?: boolean</code></td>
+                <td>Shows/restores the window (and focuses it by default) to make it visible to a human, or minimizes it to the Windows notification tray.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>configure_system_tray</code></td>
+                <td><code>close_to_tray?: boolean</code></td>
+                <td>Configures tray options such as close-to-tray background operation.</td>
+              </tr>
+              <tr>
+                <td><strong>Human-In-The-Loop &amp; Alert</strong></td>
+                <td><code>request_human_intervention</code></td>
+                <td><code>reason: string</code>, <code>timeout_seconds?: number</code>, <code>bring_to_front?: boolean</code></td>
+                <td>Halts agent, triggers native OS alert, unhides window, and injects interactive banner for CAPTCHAs/credentials.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>resolve_human_intervention</code></td>
+                <td><code>id?: string</code>, <code>notes?: string</code></td>
+                <td>Resolves active intervention request and resumes agent execution.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>get_human_intervention_status</code></td>
+                <td>_none_</td>
+                <td>Checks active intervention status and history log.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>send_notification</code></td>
+                <td><code>title: string</code>, <code>message: string</code>, <code>urgency?: string</code>, <code>sound?: boolean</code></td>
+                <td>Emits non-blocking OS native desktop banner notification to user.</td>
+              </tr>
+              <tr>
+                <td><strong>Assistance &amp; Discovery</strong></td>
+                <td><code>help</code></td>
+                <td><code>category?: 'all' | 'recommended' | 'navigation' | 'interaction' | 'primitives' | 'inspection' | 'tabs' | 'memory' | 'macros' | 'network' | 'system'</code></td>
+                <td>Returns a categorized operational cheatsheet of all available browser automation capabilities (served directly in OKF).</td>
+              </tr>
+            </tbody>
+          </table>
+        </details>
+        <!-- END GENERATED: complete tool list -->
       </section>
 
       <div class="footer-note">

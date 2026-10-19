@@ -18,12 +18,12 @@ To maximize execution speed, minimize token burn, and eliminate bot shadowbans, 
 │ • Downscaled 640px JPEG (~15x lighter than full PNG).                  │
 │ • Mark IDs match the markdown marks identically.                       │
 ├────────────────────────────────────────────────────────────────────────┤
-│ TIER 3 (LAST RESORT): Script Inspection (`evaluate_javascript`)        │
-│ • Use STRICTLY for read-only DOM inspection, calculating values, or    │
-│   querying hidden attributes.                                          │
-│ • NEVER use JS to artificially set input values (`el.value = ...`) or  │
-│   dispatch synthetic clicks (`el.click()`) on protected sites! That   │
-│   sets `isTrusted: false` and triggers silent bot shadowbans.          │
+│ TIER 3 (USE DELIBERATELY): Script Inspection (`evaluate_javascript`)   │
+│ • A powerful tool: arbitrary page JS that can read AND mutate.         │
+│   Reach for it deliberately — observe/extract cover most reads         │
+│   and act covers clicks and typing.                                    │
+│ • Heavy injected JS is a bot-detection signal (untrusted events),      │
+│   so keep it purposeful, not routine.                                  │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 

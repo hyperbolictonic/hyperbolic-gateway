@@ -140,7 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Descriptions now carry discoverability guidance.** A `TOOL_TIERS` map drives an auto-generated
   prefix on the 13 tools that have a preferred alternative — `[TIER 1 · prefer]` (observe, act,
   wait_for, expect, find, extract, collect_all, page_state, diff), `[TIER 2 · fallback]`
-  (take_screenshot, snapshot_rendered_page, press_key), `[TIER 3 · last resort]` (evaluate_javascript).
+  (take_screenshot, snapshot_rendered_page, press_key), `[TIER 3 · use deliberately]` (evaluate_javascript).
   Hidden aliases show `[DEPRECATED → use "X"]`; tools that are the only way to do their job stay
   unprefixed.
 

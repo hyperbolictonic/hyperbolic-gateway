@@ -12,6 +12,8 @@ mutation beyond Mark Eleven's own `data-mark-id` stamp), so they do **not** trip
 
 ## 1. The Primitive Map
 
+**Tier map** (mirrors the `[TIER n]` prefixes on the advertised descriptions): **TIER 1 · prefer** — this whole map (`observe`, `act`, `wait_for`, `expect`, `find`, `extract`, `collect_all`, `page_state`, `diff`); **TIER 2 · fallback** — `take_screenshot`, `snapshot_rendered_page`, `press_key`; **TIER 3 · use deliberately** — `evaluate_javascript` (powerful, just not the default). Every other tool is unprefixed (the only tool for the job).
+
 | Primitive | Job | Returns | Replaces |
 | :--- | :--- | :--- | :--- |
 | `observe(as, region, budget, cursor, include_offscreen)` | One observation model with projections | `{text, total, offset, next_cursor, truncated}` or structured rows | `get_page_markdown` + `snapshot_rendered_page` + `list_marks` |

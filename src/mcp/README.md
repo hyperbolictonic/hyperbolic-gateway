@@ -14,6 +14,8 @@ The standalone stdio server executable ([`scripts/mcp-server.js`](../../scripts/
 
 Deprecated aliases are hidden from `tools/list` (they still work by name); the canonical name is listed here.
 
+**Tier map** (mirrors the `[TIER n]` prefixes on the advertised descriptions): **TIER 1 · prefer** — `observe`, `act`, `wait_for`, `expect`, `find`, `extract`, `collect_all`, `page_state`, `diff`; **TIER 2 · fallback** — `take_screenshot`, `snapshot_rendered_page`, `press_key`; **TIER 3 · use deliberately** — `evaluate_javascript` (powerful, just not the default). Every other tool is **unprefixed** (the only tool for the job). Start with `observe` → `act` → `wait_for` → `find` → `extract` / `collect_all`.
+
 1. **Navigation & History (2 Tools):** `navigate_to`, `navigate_history`.
 2. **Autonomous Shield & Consent (1 Tool):** `dismiss_consent`.
 3. **Hardware-Level Input Simulation (3 Tools):** `fill_form`, `press_key`, `scroll_page`. (`act` is the single interaction entry point — see the primitives below — addressable by mark id, CSS selector, or coordinates; `click_element` / `type_text` / `click_mark` / `type_mark` are hidden aliases of `act`.)

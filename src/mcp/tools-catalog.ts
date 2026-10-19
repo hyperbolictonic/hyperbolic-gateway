@@ -207,7 +207,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'evaluate_javascript',
-    description: 'Executes a JavaScript expression or script in the isolated context of the active web page and returns the serialized result.',
+    description: 'Executes a JavaScript expression or script in the active page context and returns the serialized result. A powerful tool that can read AND mutate the page — reach for it deliberately: observe/extract cover most reads and act covers clicks and typing, and heavy injected JS is a bot-detection signal.',
     parameters: {
       script: z.string().describe('JavaScript code to evaluate in the page context (e.g. "document.title" or "1+1")'),
     },
@@ -1451,7 +1451,7 @@ for (const [legacy, canonical] of LEGACY_ALIASES) {
 export const TIER_LABELS: Record<1 | 2 | 3, string> = {
   1: 'TIER 1 · prefer',
   2: 'TIER 2 · fallback',
-  3: 'TIER 3 · last resort',
+  3: 'TIER 3 · use deliberately',
 };
 
 export const TOOL_TIERS: Record<string, 1 | 2 | 3> = {
@@ -1469,6 +1469,7 @@ export const TOOL_TIERS: Record<string, 1 | 2 | 3> = {
   take_screenshot: 2,
   snapshot_rendered_page: 2,
   press_key: 2,
-  // TIER 3 — last resort (read-only inspection only).
+  // TIER 3 — a powerful tool, not a last resort: reach for it deliberately
+  // (prefer the primitives when they fit; injected JS is a bot-detection signal).
   evaluate_javascript: 3,
 };

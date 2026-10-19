@@ -116,7 +116,7 @@ function main() {
   const served = totalChecks - missing.length - methodOnly.length;
   console.log(`  matched            ${served}/${totalChecks} route checks (${catalog.length} tools)`);
   console.log(`  hidden aliases     ${hidden} (+${legacyPairs.length} runtime-cloned legacy names)`);
-  console.log(`  tiered tools       ${tiered.length} (prefer ${tiered.filter((t) => t.tier === 1).length} · fallback ${tiered.filter((t) => t.tier === 2).length} · last-resort ${tiered.filter((t) => t.tier === 3).length})`);
+  console.log(`  tiered tools       ${tiered.length} (prefer ${tiered.filter((t) => t.tier === 1).length} · fallback ${tiered.filter((t) => t.tier === 2).length} · deliberate ${tiered.filter((t) => t.tier === 3).length})`);
   if (badTiers.length) {
     console.log(`\n❌ BAD TIER (${badTiers.length}) — tier map names a missing or hidden tool:`);
     for (const t of badTiers) console.log(`   ${pad(t.name, 26)} [TIER ${t.tier}]`);

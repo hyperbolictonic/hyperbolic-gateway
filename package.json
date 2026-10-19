@@ -32,6 +32,7 @@
     "test:search": "node scripts/test-search-web.mjs",
     "test:crawl": "node scripts/test-deep-crawl.mjs",
     "test:research": "node scripts/test-research-topic.mjs",
+    "manual:tools": "node scripts/gen-manual-tools.mjs",
     "preview": "vite preview"
   },
   "keywords": [

@@ -1,8 +1,8 @@
 # MCP Tool Catalog Review — consolidation & discoverability
 
 **Date:** 2026-10-19
-**Scope:** `src/mcp/tools-catalog.ts` (76 registered entries: 53 advertised + 23 hidden deprecated aliases, plus the built-in `help` = **54 advertised**), `src/main/http-bridge.ts` (route table).
-**Status:** Phases 1–7 implemented 2026-10-19 (see §5).
+**Scope:** `src/mcp/tools-catalog.ts` (81 registered entries: 58 advertised + 23 hidden deprecated aliases, plus the built-in `help` = **59 advertised**), `src/main/http-bridge.ts` (route table).
+**Status:** Phases 1–8 implemented 2026-10-19 (see §5).
 
 ---
 
@@ -187,7 +187,7 @@ into the surface itself:
    `[TIER 1 · prefer]` (9 tools: `observe`, `act`, `wait_for`, `expect`, `find`, `extract`,
    `collect_all`, `page_state`, `diff`), `[TIER 2 · fallback]` (3: `take_screenshot`,
    `snapshot_rendered_page`, `press_key` — the four click/type verbs left the map in Phase 5 when
-   they became hidden aliases of `act`), `[TIER 3 · last resort]` (`evaluate_javascript`). Hidden aliases get
+   they became hidden aliases of `act`), `[TIER 3 · use deliberately]` (`evaluate_javascript`). Hidden aliases get
    `[DEPRECATED → use "X"]`. Tools that are the only way to do their job stay **unprefixed** — a
    forced tier on `list_tabs` would be noise, not guidance.
 2. ✅ **One "what to use when" place.** New resource `mark-eleven://tools/recommended` (and the
