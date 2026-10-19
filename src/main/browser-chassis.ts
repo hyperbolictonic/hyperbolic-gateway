@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { BrowserWindow, nativeImage, ipcMain } from 'electron';
+import { BrowserWindow, nativeImage, ipcMain, WebContentsView, type WebContents } from 'electron';
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { ConstructHarvester } from './harvester/markdown.js';
@@ -31,6 +31,10 @@ import {
 import { JsonNavigator, type JsonQueryOptions, type JsonQueryResult } from './utils/json-navigator.js';
 import { RenderedSnapshotEngine, type RenderedSnapshotOptions, type RenderedSnapshotResult } from './snapshots/rendered-snapshot.js';
 import { PrerenderEngine, type PrerenderOptions } from './prerender/prerender-engine.js';
+import { LlmSurface, type LlmSurfaceReport, type LlmSurfaceKind, type LlmFetchResult } from './llm/llm-surface.js';
+import { SearchHub, type SearchOutcome } from './search/search-engine.js';
+import { Crawler, type CrawlOptions, type CrawlOutcome } from './crawl/crawler.js';
+import { Researcher, type ResearchOptions, type ResearchOutcome } from './research/researcher.js';
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
@@ -48,6 +52,13 @@ export class BrowserChassis {
   private prerenderEngine: PrerenderEngine;
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
   private primitives: Primitives;
+  private llmSurface: LlmSurface;
+  private searchHub: SearchHub;
+  private crawler: Crawler;
+  private researcher: Researcher;
+  /** Reused off-screen view for detached reads (SERPs, Markdown alternates, crawls). */
+  private utilView: WebContentsView | null = null;
+  private utilQueue: Promise<void> = Promise.resolve();
   /** Monotonic page revision: bumped on navigation and every mutating action. */
   private revision = 0;
 
@@ -169,6 +180,52 @@ export class BrowserChassis {
       getPageInfo: () => this.getPageInfo(),
       revision: () => this.revision,
       windowFocused: () => this.isWindowFocused(),
+    });
+
+    // LLM-friendly site discovery (TODO_RESEARCH_CRAWL.md §5, Feature 6).
+    // `net.fetch` runs on Chromium's network stack (session cookies/UA/TLS); per-page
+    // alternates go through a real document navigation instead of a synthetic fetch.
+    this.llmSurface = new LlmSurface({
+      getSession: () => this.getActiveWebContents().session,
+      getActiveWebContents: () => {
+        try {
+          return this.getActiveWebContents();
+        } catch {
+          return null;
+        }
+      },
+      navigateForText: (url) => this.navigateForText(url),
+      userAgent: this.hostProfile.userAgent,
+      log: (level, msg) => this.addLog(level, msg),
+    });
+
+    // Multi-engine web search (TODO_RESEARCH_CRAWL.md §5, Feature 5).
+    this.searchHub = new SearchHub({
+      load: (url, script, opts) => this.loadDetached(url, script, opts),
+      log: (level, msg) => this.addLog(level, msg),
+    });
+
+    // Autonomous multi-page crawl (TODO_RESEARCH_CRAWL.md §5, Feature 1).
+    // Cheap path first: content-negotiated Markdown/Text, else a detached render.
+    this.crawler = new Crawler({
+      tryLlm: async (url) => {
+        const report = await this.llmSurface.probe(url);
+        if (!report.content_negotiation?.accepts_markdown) return null;
+        const r = await this.llmSurface.fetch({ url, as: 'markdown' });
+        return { content: r.content, via: r.via };
+      },
+      renderPage: (url, pageOpts) => this.crawlRenderPage(url, pageOpts),
+      indexPage: async (url, title, content) => {
+        await cortex.indexPage(url, title, content);
+      },
+      log: (level, msg) => this.addLog(level, msg),
+    });
+
+    // Autonomous research mode (TODO_RESEARCH_CRAWL.md §5, Feature 3).
+    this.researcher = new Researcher({
+      search: (q, o) => this.searchHub.search(q, o),
+      crawl: (o) => this.crawler.crawl(o),
+      log: (level, msg) => this.addLog(level, msg),
     });
 
     setInterval(() => {
@@ -1049,6 +1106,181 @@ export class BrowserChassis {
     return await this.prerenderEngine.prerender(wc, options);
   }
 
+  // ---- LLM-friendly site discovery (TODO_RESEARCH_CRAWL.md §5, Feature 6) ----
+
+  public async probeLlmSurface(url?: string): Promise<LlmSurfaceReport> {
+    this.addLog('action', `MCP Directive: llm_surface(${url || 'active tab'})`);
+    return await this.llmSurface.probe(url);
+  }
+
+  public async fetchLlmSurface(opts: { url?: string; as?: LlmSurfaceKind } = {}): Promise<LlmFetchResult> {
+    this.addLog('action', `MCP Directive: llm_fetch(${opts.url || 'active tab'}, as=${opts.as || 'auto'})`);
+    return await this.llmSurface.fetch(opts);
+  }
+
+  /**
+   * Loads a URL in a *detached* WebContentsView (real Chromium, host fingerprint) and returns the
+   * result of `script`. Used for reading advertised Markdown/Text alternates and for `search_web`
+   * SERPs — without hijacking the active tab. Optionally waits for `readyScript` to become truthy.
+   */
+  private async loadDetached<T = any>(
+    url: string,
+    script: string,
+    opts: { timeoutMs?: number; settleMs?: number; readyScript?: string; readyMs?: number; after?: (wc: WebContents) => Promise<any> } = {},
+  ): Promise<{ result: T | null; after: any; status: number; contentType: string | null }> {
+    // Serialize every detached operation through ONE reusable, off-screen view. Creating and
+    // destroying a WebContentsView per call churns renderer processes (Electron 44 has no reliable
+    // public destroy), which made repeated crawls/searches flaky.
+    const run = (): Promise<{ result: T | null; after: any; status: number; contentType: string | null }> =>
+      new Promise((resolve) => {
+        const wc = this.getUtilView().webContents;
+        let settled = false;
+        let status = 0;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+
+        const finish = async () => {
+          if (settled) return;
+          settled = true;
+          if (timer) clearTimeout(timer);
+          let result: T | null = null;
+          let after: any = null;
+          let contentType: string | null = null;
+          try {
+            contentType = await wc.executeJavaScript('document.contentType || ""').catch(() => '');
+            result = (await wc.executeJavaScript(script).catch(() => null)) as T | null;
+            if (opts.after) after = await opts.after(wc).catch(() => null);
+          } catch {
+            /* navigation may have replaced the frame */
+          }
+          resolve({ result, after, status, contentType: contentType || null });
+        };
+
+        const deadlineMs = opts.timeoutMs ?? 12000;
+        timer = setTimeout(() => void finish(), deadlineMs);
+
+        const onNav = (_e: unknown, _u: string, code?: number) => {
+          status = code || status;
+        };
+        wc.on('did-navigate', onNav as any);
+
+        void (async () => {
+          // `loadURL` resolves when the navigation *it* started finishes — unlike a bare
+          // `did-finish-load` listener, which the initial about:blank document also triggers.
+          try {
+            await wc.loadURL(url);
+          } catch {
+            /* load error: read whatever committed */
+          }
+          wc.removeListener('did-navigate', onNav as any);
+
+          // Bounded readiness poll: the committed document must be complete and non-empty, and
+          // `readyScript` (if any) must be truthy.
+          const deadline = Date.now() + Math.min(opts.readyMs ?? 4000, deadlineMs);
+          while (!settled && Date.now() < deadline) {
+            const st = await wc
+              .executeJavaScript('(() => ({ href: location.href, ready: document.readyState, len: document.body ? document.body.innerHTML.length : 0 }))()')
+              .catch(() => null);
+            if (st && /^https?:/i.test(st.href) && st.ready === 'complete' && st.len > 0) {
+              if (!opts.readyScript) break;
+              const extra = await wc.executeJavaScript(opts.readyScript).catch(() => false);
+              if (extra) break;
+            }
+            await new Promise((r) => setTimeout(r, 150));
+          }
+
+          if (settled) return;
+          if (opts.settleMs) await new Promise((r) => setTimeout(r, opts.settleMs));
+          void finish();
+        })();
+      });
+
+    const p = this.utilQueue.then(run, run);
+    this.utilQueue = p.then(
+      () => undefined,
+      () => undefined,
+    );
+    return await p;
+  }
+
+  /** Lazily created, reused off-screen view for detached reads (SERPs, alternates, crawls). */
+  private getUtilView(): WebContentsView {
+    if (!this.utilView) {
+      const view = new WebContentsView({
+        webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false },
+      });
+      try {
+        view.webContents.setUserAgent(this.hostProfile.userAgent);
+      } catch {
+        /* profile optional */
+      }
+      view.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      this.utilView = view;
+    }
+    return this.utilView;
+  }
+
+  /**
+   * Loads a URL as a *real document navigation* in a detached view and returns its text.
+   * Used for advertised per-page Markdown/Text alternates so the request carries the full
+   * Chromium header + renderer fingerprint (rather than a synthetic fetch profile).
+   */
+  public async navigateForText(url: string): Promise<{ body: string | null; contentType: string | null; status: number }> {
+    const r = await this.loadDetached<{ contentType: string; text: string }>(
+      url,
+      '(() => { const b = document.body; const t = b ? b.innerText : (document.documentElement ? document.documentElement.innerText : ""); return { contentType: document.contentType || "", text: t }; })()',
+      { timeoutMs: 10000 },
+    );
+    return { body: r.result?.text ?? null, contentType: r.result?.contentType ?? null, status: r.status };
+  }
+
+  /**
+   * Runs a web search across a configurable engine chain (TODO_RESEARCH_CRAWL.md §5, Feature 5).
+   * Each engine is loaded in a detached view; if it yields nothing (bot-check/consent) the hub
+   * falls back to the next. Results are plain URLs for `navigate_to` / `collect_all`.
+   */
+  public async searchWeb(
+    query: string,
+    opts: { engine?: string; engines?: string[]; urlTemplate?: string; max?: number } = {},
+  ): Promise<SearchOutcome> {
+    this.addLog('action', `MCP Directive: search_web("${query}", engine=${opts.engine || (opts.engines ? opts.engines.join('>') : 'auto')})`);
+    return await this.searchHub.search(query, opts);
+  }
+
+  /** Renders a page in a detached view and returns its Markdown + outgoing links (for deep_crawl). */
+  public async crawlRenderPage(
+    url: string,
+    opts: { selector?: string; waitUntilIdleMs?: number } = {},
+  ): Promise<{ title: string; markdown: string; links: string[]; status: number }> {
+    const sel = opts.selector ? JSON.stringify(opts.selector) : "'a[href]'";
+    const script = `(() => {
+      const out = new Set();
+      for (const a of document.querySelectorAll(${sel})) {
+        const href = a.href;
+        if (!href || !/^https?:/i.test(href)) continue;
+        out.add(href.split('#')[0]);
+      }
+      return { title: document.title || '', links: Array.from(out).slice(0, 400) };
+    })()`;
+    const r = await this.loadDetached<{ title: string; links: string[] }>(url, script, {
+      timeoutMs: 25000,
+      after: async (wc) =>
+        (await RenderedSnapshotEngine.capture(wc, { format: 'markdown', waitUntilIdleMs: opts.waitUntilIdleMs ?? 400 })).content,
+    });
+    return { title: r.result?.title || url, links: r.result?.links || [], markdown: r.after || '', status: r.status };
+  }
+
+  /** Depth/page-budgeted BFS crawl that indexes each page into Cortex (Feature 1). */
+  public async deepCrawl(opts: CrawlOptions): Promise<CrawlOutcome> {
+    this.addLog('action', `MCP Directive: deep_crawl(${opts.startUrl}, depth=${opts.maxDepth ?? 2}, pages=${opts.maxPages ?? 5})`);
+    return await this.crawler.crawl(opts);
+  }
+
+  /** search → gather top sources → distill → index; returns cited extractive evidence (Feature 3). */
+  public async researchTopic(opts: ResearchOptions): Promise<ResearchOutcome> {
+    this.addLog('action', `MCP Directive: research_topic("${opts.query}", maxSources=${opts.maxSources ?? 5})`);
+    return await this.researcher.research(opts);
+  }
+
   public async takeAnnotatedScreenshot(opts: { economy?: boolean; textOnly?: boolean; includeOffscreen?: boolean } = {}): Promise<{
     screenshot: { base64Image: string; filePath: string; width: number; height: number; mimeType: string };
     marks: MarkItem[];
@@ -1391,6 +1623,11 @@ export class BrowserChassis {
       'export_har',
       'contexts',
       'marks_offscreen',
+      'llm_surface',
+      'llm_fetch',
+      'search_web',
+      'deep_crawl',
+      'research_topic',
     ];
   }
 }

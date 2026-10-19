@@ -28,6 +28,10 @@
     "test:mcp:surface": "node scripts/test-mcp-surface.mjs",
     "test:focus": "node scripts/test-input-focus-independence.mjs",
     "test:cortex:bookmarks": "node scripts/test-bookmarks-search.mjs",
+    "test:llm": "node scripts/test-llm-surface.mjs",
+    "test:search": "node scripts/test-search-web.mjs",
+    "test:crawl": "node scripts/test-deep-crawl.mjs",
+    "test:research": "node scripts/test-research-topic.mjs",
     "preview": "vite preview"
   },
   "keywords": [

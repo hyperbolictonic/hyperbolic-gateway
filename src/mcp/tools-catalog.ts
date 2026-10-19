@@ -1028,16 +1028,19 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'extract',
     description:
-      'Structured extraction (read-only, no JS injection into page logic). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. ' +
-      'kind="table" returns {headers, rows, records} from a <table> or ARIA grid. kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs.',
+      'Structured, read-only extraction (no page JS injection). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. ' +
+      'kind="table" returns {headers, rows, records} from one <table> or ARIA grid; kind="tables" returns EVERY table on the page. ' +
+      'kind="schema_org" parses <script type="application/ld+json"> into typed items (flattens @graph; pass `type` to keep just e.g. "Recipe"/"Product"/"FAQPage"/"HowTo"). ' +
+      'kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs.',
     parameters: {
-      kind: z.enum(['list', 'table', 'app_data']).default('list').describe('Extraction kind'),
+      kind: z.enum(['list', 'table', 'tables', 'app_data', 'schema_org']).default('list').describe('Extraction kind'),
       ref: z.coerce.number().optional().describe('Scope to a mark id (from list_marks/find)'),
       selector: z.string().optional().describe('Scope to a CSS selector (default: whole page)'),
-      limit: z.coerce.number().optional().default(200).describe('Max rows/sources'),
+      type: z.string().optional().describe('schema_org only: filter to one schema.org @type (e.g. "Recipe")'),
+      limit: z.coerce.number().optional().default(200).describe('Max rows/sources/items'),
     },
     endpoint: '/extract',
-    payload: (args) => ({ kind: args?.kind || 'list', ref: args?.ref, selector: args?.selector, limit: args?.limit }),
+    payload: (args) => ({ kind: args?.kind || 'list', ref: args?.ref, selector: args?.selector, type: args?.type, limit: args?.limit }),
     format: (data) => {
       if (data.error) return `extract failed: ${data.error}`;
       if (data.kind === 'table') {
@@ -1045,11 +1048,173 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
         const rows = (data.rows || []).map((r: any[]) => r.join(' | ')).join('\n');
         return `# table (${data.count} rows)\n${head}\n${rows}`;
       }
+      if (data.kind === 'tables') {
+        const tables = data.tables || [];
+        if (!tables.length) return 'No <table>/ARIA grid found on the page.';
+        return tables
+          .map((t: any) => `# table ${t.index} (${t.count} rows)\n${(t.headers || []).join(' | ')}\n${(t.records || []).map((r: any) => Object.values(r).join(' | ')).join('\n')}`)
+          .join('\n\n');
+      }
+      if (data.kind === 'schema_org') {
+        const items = data.items || [];
+        const types = (data.types || []).join(', ') || 'n/a';
+        if (!items.length) return `No JSON-LD (schema.org) items matched (types present: ${types}).`;
+        const lines = items.map((it: any, i: number) => `${i + 1}. **${it.type}**${it.types?.length > 1 ? ` (${it.types.join('+')})` : ''}: ${JSON.stringify(it.data).slice(0, 600)}`);
+        return `# schema_org (${data.count}/${data.total} items; types: ${types})\n${lines.join('\n')}`;
+      }
       if (data.kind === 'app_data') {
         return `# app_data (${data.count} sources)\n` + (data.sources || []).map((s: any) => `${s.source} (${s.bytes}B, parsed=${s.parsed})`).join('\n');
       }
       const rows = (data.rows || []).map((r: any, i: number) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ''}${r.mark ? ` [#${r.mark}]` : ''}`);
       return `# list (${data.count} items${data.container?.sig ? `, container="${data.container.sig}"` : ''})\n${rows.join('\n')}`;
+    },
+  },
+  {
+    name: 'llm_surface',
+    description:
+      'Checks whether a site publishes an LLM-friendly representation — a `/llms.txt` / `/llms-full.txt` index, a `/sitemap.xml`, a page-level `<link rel="alternate" type="text/markdown|text/plain">`, or Markdown content negotiation — so you can read it as text instead of rendering. ' +
+      'Returns `recommended`: "llms_txt" | "llms_full" | "markdown" | "text" | "rendered". When it is "rendered", read the page the normal way with `observe(as:"markdown")`. Only well-known paths are probed; results are cached per origin. url defaults to the active tab.',
+    parameters: {
+      url: z.string().optional().describe('Site or page URL to inspect (default: the active tab)'),
+    },
+    endpoint: '/llm/surface',
+    payload: (args) => ({ url: args?.url }),
+    format: (data) => {
+      const lines = [
+        `### LLM surface — ${data.origin || data.url}`,
+        `- recommended: **${data.recommended}**`,
+        `- llms.txt: ${data.llms_txt?.found ? `${data.llms_txt.url} (${data.llms_txt.bytes}B)` : '—'}`,
+        `- llms-full.txt: ${data.llms_full?.found ? `${data.llms_full.url} (${data.llms_full.bytes}B)` : '—'}`,
+        `- sitemap.xml: ${data.sitemap?.found ? `${data.sitemap.url} (${data.sitemap.entries ?? 0} urls)` : '—'}`,
+        `- markdown alternates: ${data.markdown_alternates?.length ? data.markdown_alternates.map((a: any) => a.href).join(', ') : '—'}`,
+        `- accepts markdown (negotiation): ${data.content_negotiation?.accepts_markdown ? 'yes' : 'no'}`,
+      ];
+      if (data.recommended === 'rendered') lines.push('', 'No LLM surface found — read it with `observe(as:"markdown")`.');
+      return lines.join('\n');
+    },
+  },
+  {
+    name: 'llm_fetch',
+    description:
+      'Fetches a site-provided Markdown/Text representation that `llm_surface` found — an `/llms.txt` index, a page-level Markdown/Text alternate, or a negotiated Markdown body. ' +
+      'GATED: it refuses with NO_LLM_SURFACE unless the site actually advertises a surface, and never fetches arbitrary URLs or guesses paths. For a normal rendered page use `observe(as:"markdown")` instead.',
+    parameters: {
+      url: z.string().optional().describe('Site or page URL (default: the active tab)'),
+      as: z.enum(['llms_txt', 'llms_full', 'markdown', 'text']).optional().describe('Which advertised representation to fetch (default: the probe\'s recommended)'),
+    },
+    endpoint: '/llm/fetch',
+    payload: (args) => ({ url: args?.url, as: args?.as }),
+    format: (data) => `### llm_fetch ${data.as} · ${data.url} (${data.contentType || 'unknown'}, ${data.bytes} bytes, via ${data.via})\n\n${data.content || ''}`,
+  },
+  {
+    name: 'search_web',
+    description:
+      'Runs a web search and returns ranked results {rank, title, url, snippet}. Each engine loads in a detached view (your active tab is NOT disturbed) and the hub falls back across engines when one returns nothing (bot-check/consent wall). ' +
+      'engines: google | duckduckgo | bing | brave | startpage | custom (custom needs url_template containing {query}, e.g. a SearXNG instance). Results are plain URLs to feed navigate_to or collect_all.',
+    parameters: {
+      query: z.string().describe('Search query'),
+      engine: z.enum(['google', 'duckduckgo', 'bing', 'brave', 'startpage', 'custom']).optional().describe('Pin a single engine (default: auto chain google → duckduckgo → brave)'),
+      engines: z.array(z.string()).optional().describe('Explicit ordered fallback chain (overrides engine)'),
+      url_template: z.string().optional().describe('URL template containing {query} for a custom/SearXNG engine'),
+      max_results: z.coerce.number().optional().default(8).describe('Max results to return'),
+    },
+    endpoint: '/search/web',
+    payload: (args) => ({
+      query: args?.query,
+      engine: args?.engine,
+      engines: args?.engines,
+      url_template: args?.url_template,
+      max_results: args?.max_results,
+    }),
+    format: (data) => {
+      const results = Array.isArray(data.results) ? data.results : [];
+      if (results.length === 0) {
+        const tried = (data.attempts || [])
+          .map((a: any) => `${a.engine}${a.error ? `(${a.error})` : a.blocked ? '(blocked)' : '(0)'}`)
+          .join(', ');
+        return `### Search "${data.query}" — no results\nTried: ${tried || 'none'}\n${data.notes || ''}`.trim();
+      }
+      const lines = results.map((r: any) => `${r.rank}. [${r.title}](${r.url})${r.snippet ? `\n   ${r.snippet}` : ''}`);
+      return `### Search "${data.query}" — ${results.length} results (${data.engine})\n${lines.join('\n')}`;
+    },
+  },
+  {
+    name: 'deep_crawl',
+    description:
+      'Breadth-first crawl from a seed URL: follows same-origin links up to max_depth / max_pages, distills every page to Markdown, and indexes it into LanceDB Cortex. ' +
+      'Each page takes the cheap path first — content-negotiated Markdown/Text when the site advertises it, otherwise a detached render (your active tab is not disturbed). ' +
+      'Use match_patterns (glob "…/docs/*" or /regex/) to scope, and same_origin=false to allow cross-site hops. Returns a per-page summary.',
+    parameters: {
+      url: z.string().describe('Seed URL (http/https)'),
+      max_depth: z.coerce.number().optional().default(2).describe('Link depth from the seed (0 = seed only; max 5)'),
+      max_pages: z.coerce.number().optional().default(5).describe('Hard page budget (max 25)'),
+      match_patterns: z.array(z.string()).optional().describe('Glob or /regex/ allow-list applied to child URLs (e.g. ["/docs/*", "/builds/*"])'),
+      same_origin: z.coerce.boolean().optional().describe('Stay on the seed origin (default true)'),
+      prefer_llm: z.coerce.boolean().optional().describe('Try content-negotiated Markdown/Text before rendering (default true)'),
+      harvest_to_cortex: z.coerce.boolean().optional().describe('Index each page into LanceDB Cortex (default true)'),
+      selector: z.string().optional().describe('Scope link extraction to a CSS selector'),
+      delay_ms: z.coerce.number().optional().default(300).describe('Politeness delay between pages in ms'),
+    },
+    endpoint: '/crawl/deep',
+    payload: (args) => ({
+      url: args?.url,
+      start_url: args?.url,
+      max_depth: args?.max_depth,
+      max_pages: args?.max_pages,
+      match_patterns: args?.match_patterns,
+      same_origin: args?.same_origin,
+      prefer_llm: args?.prefer_llm,
+      harvest_to_cortex: args?.harvest_to_cortex,
+      selector: args?.selector,
+      delay_ms: args?.delay_ms,
+    }),
+    format: (data) => {
+      const pages = Array.isArray(data.pages) ? data.pages : [];
+      const head = `### deep_crawl — ${data.startUrl}\n- ${data.pageCount} page(s) · depth ${data.depthReached} · ${data.cortexIndexed} indexed into Cortex${data.truncated ? ' · truncated at budget' : ''}`;
+      const rows = pages.map(
+        (p: any, i: number) => `${i + 1}. [d${p.depth} · ${p.via}${p.indexed ? '' : ' · unindexed'}] ${p.title} — ${p.url}${p.error ? ` (error: ${p.error})` : ''}`,
+      );
+      const notes = (data.notes || []).length ? `\n\nNotes:\n- ${(data.notes || []).join('\n- ')}` : '';
+      return `${head}\n${rows.join('\n')}${notes}`;
+    },
+  },
+  {
+    name: 'research_topic',
+    description:
+      'Autonomous research mode: searches the web, gathers the top sources (content-negotiated Markdown/Text when advertised, else a detached render), distills each to Markdown, and indexes them into LanceDB Cortex. ' +
+      'Returns EXTRACTIVE, CITED evidence — each source highlight is a real paragraph that mentions the query terms — plus the ranked source list. It does NOT write prose: YOU synthesize the answer (and can follow up with recall_memory over the indexed pages).',
+    parameters: {
+      query: z.string().describe('Research topic / question'),
+      max_sources: z.coerce.number().optional().default(5).describe('Distinct sources to gather (max 8)'),
+      engine: z.enum(['google', 'duckduckgo', 'bing', 'brave', 'startpage', 'custom']).optional().describe('Pin one search engine (default: auto chain)'),
+      engines: z.array(z.string()).optional().describe('Explicit ordered search-engine fallback chain'),
+      url_template: z.string().optional().describe('URL template with {query} for a custom/SearXNG engine'),
+      excerpt_chars: z.coerce.number().optional().default(1200).describe('Chars of each source kept for highlighting (max 4000)'),
+      harvest_to_cortex: z.coerce.boolean().optional().describe('Index each source into LanceDB Cortex (default true)'),
+      prefer_llm: z.coerce.boolean().optional().describe('Try content-negotiated Markdown/Text before rendering (default true)'),
+    },
+    endpoint: '/research/topic',
+    payload: (args) => ({
+      query: args?.query,
+      max_sources: args?.max_sources,
+      engine: args?.engine,
+      engines: args?.engines,
+      url_template: args?.url_template,
+      excerpt_chars: args?.excerpt_chars,
+      harvest_to_cortex: args?.harvest_to_cortex,
+      prefer_llm: args?.prefer_llm,
+    }),
+    format: (data) => {
+      const sources = Array.isArray(data.sources) ? data.sources : [];
+      const head = `### Research: "${data.query}"\n- ${data.sourceCount} source(s) · ${data.cortexIndexed} indexed into Cortex${data.engine ? ` · via ${data.engine}` : ''}`;
+      const body = sources
+        .map((s: any, i: number) => {
+          const hls = (s.highlights || []).map((h: string) => `   • ${h}`).join('\n');
+          return `${i + 1}. [${s.title}](${s.url}) [${s.via}${s.indexed ? '' : ' · unindexed'}]${s.snippet ? `\n   ${s.snippet}` : ''}${hls ? `\n${hls}` : ''}${s.error ? `\n   (error: ${s.error})` : ''}`;
+        })
+        .join('\n');
+      const notes = (data.notes || []).length ? `\n\nNotes:\n- ${(data.notes || []).join('\n- ')}` : '';
+      return `${head}\n${body}${notes}`;
     },
   },
   {

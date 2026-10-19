@@ -13,7 +13,7 @@
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-1.1.1-22d3ee" />
-  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-54-a3e635" />
+  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-59-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20x64-64748b" />
@@ -261,9 +261,9 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (54 Advertised)
+## 🔌 Standardized Semantic MCP Tools (59 Advertised)
 
-> **54 advertised tools** (76 registered entries; **23 deprecated aliases are hidden from `tools/list`** but stay callable by name and return a `deprecated → use "X"` notice — rows marked `†` below). Seven MCP **resources** are also exposed: `mark-eleven://skills/guide`, `mark-eleven://tools/recommended`, `mark-eleven://okf/manifest`, and four partition playbooks.
+> **59 advertised tools** (81 registered entries; **23 deprecated aliases are hidden from `tools/list`** but stay callable by name and return a `deprecated → use "X"` notice — rows marked `†` below). Seven MCP **resources** are also exposed: `mark-eleven://skills/guide`, `mark-eleven://tools/recommended`, `mark-eleven://okf/manifest`, and four partition playbooks.
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
@@ -328,7 +328,12 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | † `send_desktop_notification` | `message: string`, `title?: string`, `urgency?: string`, `sound?: boolean` | Dedicated HIL notification tool to summon the human operator with high-priority desktop sound and alert banner. |
 | **Primitives & Abstraction** | `wait_for` | `conditions: object[]`, `require?: 'any' \| 'all'`, `timeout_ms?: number`, `poll_ms?: number` | Declarative readiness gate — polls until every/any condition holds, then returns. The primitive that replaces blind sleeps. |
 | | `observe` | `as?: 'markdown' \| 'text' \| 'ax' \| 'som'`, `region?: number \| string`, `budget?: number`, `cursor?: string`, `include_offscreen?: boolean`, `limit?: number` | One budgeted observation model with projections. Use `budget` + `next_cursor` to page a large page instead of truncating. For structured list/table/app-data reads use `extract`. |
-| | `extract` | `kind?: 'list' \| 'table' \| 'app_data'`, `ref?: number`, `selector?: string`, `limit?: number` | Structured, read-only extraction: repeating rows, table records, or embedded app JSON (`__NEXT_DATA__`/JSON-LD). |
+| | `extract` | `kind?: 'list' \| 'table' \| 'tables' \| 'app_data' \| 'schema_org'`, `ref?: number`, `selector?: string`, `type?: string`, `limit?: number` | Structured, read-only extraction: repeating rows, one table, **every** table, embedded app JSON (`__NEXT_DATA__`/JSON-LD), or **typed schema.org items** (`kind:"schema_org"` flattens `@graph`; `type` filters to e.g. `"Recipe"`). Article extraction is `observe(as:"markdown")` (Readability). |
+| | `llm_surface` | `url?: string` | Checks whether a site publishes an LLM-friendly representation (`/llms.txt` / `/llms-full.txt`, `/sitemap.xml`, a `<link rel="alternate">`, or Markdown content negotiation) and returns `recommended`. Well-known paths only; cached per origin. |
+| | `llm_fetch` | `url?: string`, `as?: 'llms_txt' \| 'llms_full' \| 'markdown' \| 'text'` | Fetches that advertised Markdown/Text representation (~5–10× cheaper than a render). **Gated:** refuses (`NO_LLM_SURFACE`) unless the site advertises a surface. Per-page alternates load via a real navigation, not a synthetic fetch. |
+| | `search_web` | `query: string`, `engine?: 'google' \| 'duckduckgo' \| 'bing' \| 'brave' \| 'startpage' \| 'custom'`, `engines?: string[]`, `url_template?: string`, `max_results?: number` | Multi-engine web search run in a **detached view** (your active tab is untouched) with automatic fallback when an engine bot-checks. Returns ranked `{title, url, snippet}` to feed `navigate_to`/`collect_all`. `custom` takes a `{query}` template (e.g. SearXNG). |
+| | `deep_crawl` | `url: string`, `max_depth?: number`, `max_pages?: number`, `match_patterns?: string[]`, `same_origin?: boolean`, `prefer_llm?: boolean`, `harvest_to_cortex?: boolean`, `selector?: string`, `delay_ms?: number` | **Autonomous BFS crawl** from a seed: follows same-origin links within depth/page budgets, distills each page to Markdown, and **indexes it into LanceDB Cortex**. Each page takes the cheap path first (content-negotiated Markdown/Text, else a detached render). `match_patterns` scopes by glob or `/regex/`. |
+| | `research_topic` | `query: string`, `max_sources?: number`, `engine?`, `engines?: string[]`, `url_template?: string`, `excerpt_chars?: number`, `harvest_to_cortex?: boolean`, `prefer_llm?: boolean` | **Autonomous research mode:** searches, gathers the top sources (cheap Markdown path first), distills them, and indexes them into Cortex. Returns **extractive, cited evidence** — each highlight is a real paragraph mentioning the query terms. It does **not** write prose; you synthesize the answer. |
 | | `collect_all` | `selector?: string`, `ref?: number`, `scroll?: 'container' \| 'window'`, `step?: number`, `delay_ms?: number`, `max_scrolls?: number`, `max?: number` | Scrolls a virtualized/lazy list to the end and collects every distinct row (deduped by text+href) in **one call**, with scroll diagnostics. |
 | | `find` | `role?: string`, `name?: string`, `contains?: string`, `regex?: string`, `tag?: string`, `selector?: string`, `limit?: number`, `include_offscreen?: boolean` | Semantic element search returning Set-of-Marks **refs** (mark ids) instead of pixels. Feed ids straight into `act`. |
 | | `expect` | `conditions: object[]` | Immediate assertion (no polling) over the same vocabulary as `wait_for`; returns pass/fail plus per-condition evidence. |

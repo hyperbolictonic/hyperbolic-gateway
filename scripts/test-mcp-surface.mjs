@@ -55,6 +55,11 @@ const CANONICAL = [
   'list_scripts',
   'set_window_visibility',
   'clear_capture',
+  'llm_surface',
+  'llm_fetch',
+  'search_web',
+  'deep_crawl',
+  'research_topic',
 ];
 
 const results = [];

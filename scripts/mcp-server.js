@@ -37624,15 +37624,16 @@ ${data.text || "(no content)"}`;
   },
   {
     name: "extract",
-    description: 'Structured extraction (read-only, no JS injection into page logic). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. kind="table" returns {headers, rows, records} from a <table> or ARIA grid. kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs.',
+    description: 'Structured, read-only extraction (no page JS injection). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. kind="table" returns {headers, rows, records} from one <table> or ARIA grid; kind="tables" returns EVERY table on the page. kind="schema_org" parses <script type="application/ld+json"> into typed items (flattens @graph; pass `type` to keep just e.g. "Recipe"/"Product"/"FAQPage"/"HowTo"). kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs.',
     parameters: {
-      kind: external_exports.enum(["list", "table", "app_data"]).default("list").describe("Extraction kind"),
+      kind: external_exports.enum(["list", "table", "tables", "app_data", "schema_org"]).default("list").describe("Extraction kind"),
       ref: external_exports.coerce.number().optional().describe("Scope to a mark id (from list_marks/find)"),
       selector: external_exports.string().optional().describe("Scope to a CSS selector (default: whole page)"),
-      limit: external_exports.coerce.number().optional().default(200).describe("Max rows/sources")
+      type: external_exports.string().optional().describe('schema_org only: filter to one schema.org @type (e.g. "Recipe")'),
+      limit: external_exports.coerce.number().optional().default(200).describe("Max rows/sources/items")
     },
     endpoint: "/extract",
-    payload: (args) => ({ kind: args?.kind || "list", ref: args?.ref, selector: args?.selector, limit: args?.limit }),
+    payload: (args) => ({ kind: args?.kind || "list", ref: args?.ref, selector: args?.selector, type: args?.type, limit: args?.limit }),
     format: (data) => {
       if (data.error) return `extract failed: ${data.error}`;
       if (data.kind === "table") {
@@ -37642,6 +37643,21 @@ ${data.text || "(no content)"}`;
 ${head}
 ${rows2}`;
       }
+      if (data.kind === "tables") {
+        const tables = data.tables || [];
+        if (!tables.length) return "No <table>/ARIA grid found on the page.";
+        return tables.map((t) => `# table ${t.index} (${t.count} rows)
+${(t.headers || []).join(" | ")}
+${(t.records || []).map((r) => Object.values(r).join(" | ")).join("\n")}`).join("\n\n");
+      }
+      if (data.kind === "schema_org") {
+        const items = data.items || [];
+        const types = (data.types || []).join(", ") || "n/a";
+        if (!items.length) return `No JSON-LD (schema.org) items matched (types present: ${types}).`;
+        const lines = items.map((it, i) => `${i + 1}. **${it.type}**${it.types?.length > 1 ? ` (${it.types.join("+")})` : ""}: ${JSON.stringify(it.data).slice(0, 600)}`);
+        return `# schema_org (${data.count}/${data.total} items; types: ${types})
+${lines.join("\n")}`;
+      }
       if (data.kind === "app_data") {
         return `# app_data (${data.count} sources)
 ` + (data.sources || []).map((s) => `${s.source} (${s.bytes}B, parsed=${s.parsed})`).join("\n");
@@ -37649,6 +37665,158 @@ ${rows2}`;
       const rows = (data.rows || []).map((r, i) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ""}${r.mark ? ` [#${r.mark}]` : ""}`);
       return `# list (${data.count} items${data.container?.sig ? `, container="${data.container.sig}"` : ""})
 ${rows.join("\n")}`;
+    }
+  },
+  {
+    name: "llm_surface",
+    description: 'Checks whether a site publishes an LLM-friendly representation \u2014 a `/llms.txt` / `/llms-full.txt` index, a `/sitemap.xml`, a page-level `<link rel="alternate" type="text/markdown|text/plain">`, or Markdown content negotiation \u2014 so you can read it as text instead of rendering. Returns `recommended`: "llms_txt" | "llms_full" | "markdown" | "text" | "rendered". When it is "rendered", read the page the normal way with `observe(as:"markdown")`. Only well-known paths are probed; results are cached per origin. url defaults to the active tab.',
+    parameters: {
+      url: external_exports.string().optional().describe("Site or page URL to inspect (default: the active tab)")
+    },
+    endpoint: "/llm/surface",
+    payload: (args) => ({ url: args?.url }),
+    format: (data) => {
+      const lines = [
+        `### LLM surface \u2014 ${data.origin || data.url}`,
+        `- recommended: **${data.recommended}**`,
+        `- llms.txt: ${data.llms_txt?.found ? `${data.llms_txt.url} (${data.llms_txt.bytes}B)` : "\u2014"}`,
+        `- llms-full.txt: ${data.llms_full?.found ? `${data.llms_full.url} (${data.llms_full.bytes}B)` : "\u2014"}`,
+        `- sitemap.xml: ${data.sitemap?.found ? `${data.sitemap.url} (${data.sitemap.entries ?? 0} urls)` : "\u2014"}`,
+        `- markdown alternates: ${data.markdown_alternates?.length ? data.markdown_alternates.map((a) => a.href).join(", ") : "\u2014"}`,
+        `- accepts markdown (negotiation): ${data.content_negotiation?.accepts_markdown ? "yes" : "no"}`
+      ];
+      if (data.recommended === "rendered") lines.push("", 'No LLM surface found \u2014 read it with `observe(as:"markdown")`.');
+      return lines.join("\n");
+    }
+  },
+  {
+    name: "llm_fetch",
+    description: 'Fetches a site-provided Markdown/Text representation that `llm_surface` found \u2014 an `/llms.txt` index, a page-level Markdown/Text alternate, or a negotiated Markdown body. GATED: it refuses with NO_LLM_SURFACE unless the site actually advertises a surface, and never fetches arbitrary URLs or guesses paths. For a normal rendered page use `observe(as:"markdown")` instead.',
+    parameters: {
+      url: external_exports.string().optional().describe("Site or page URL (default: the active tab)"),
+      as: external_exports.enum(["llms_txt", "llms_full", "markdown", "text"]).optional().describe("Which advertised representation to fetch (default: the probe's recommended)")
+    },
+    endpoint: "/llm/fetch",
+    payload: (args) => ({ url: args?.url, as: args?.as }),
+    format: (data) => `### llm_fetch ${data.as} \xB7 ${data.url} (${data.contentType || "unknown"}, ${data.bytes} bytes, via ${data.via})
+
+${data.content || ""}`
+  },
+  {
+    name: "search_web",
+    description: "Runs a web search and returns ranked results {rank, title, url, snippet}. Each engine loads in a detached view (your active tab is NOT disturbed) and the hub falls back across engines when one returns nothing (bot-check/consent wall). engines: google | duckduckgo | bing | brave | startpage | custom (custom needs url_template containing {query}, e.g. a SearXNG instance). Results are plain URLs to feed navigate_to or collect_all.",
+    parameters: {
+      query: external_exports.string().describe("Search query"),
+      engine: external_exports.enum(["google", "duckduckgo", "bing", "brave", "startpage", "custom"]).optional().describe("Pin a single engine (default: auto chain google \u2192 duckduckgo \u2192 brave)"),
+      engines: external_exports.array(external_exports.string()).optional().describe("Explicit ordered fallback chain (overrides engine)"),
+      url_template: external_exports.string().optional().describe("URL template containing {query} for a custom/SearXNG engine"),
+      max_results: external_exports.coerce.number().optional().default(8).describe("Max results to return")
+    },
+    endpoint: "/search/web",
+    payload: (args) => ({
+      query: args?.query,
+      engine: args?.engine,
+      engines: args?.engines,
+      url_template: args?.url_template,
+      max_results: args?.max_results
+    }),
+    format: (data) => {
+      const results = Array.isArray(data.results) ? data.results : [];
+      if (results.length === 0) {
+        const tried = (data.attempts || []).map((a) => `${a.engine}${a.error ? `(${a.error})` : a.blocked ? "(blocked)" : "(0)"}`).join(", ");
+        return `### Search "${data.query}" \u2014 no results
+Tried: ${tried || "none"}
+${data.notes || ""}`.trim();
+      }
+      const lines = results.map((r) => `${r.rank}. [${r.title}](${r.url})${r.snippet ? `
+   ${r.snippet}` : ""}`);
+      return `### Search "${data.query}" \u2014 ${results.length} results (${data.engine})
+${lines.join("\n")}`;
+    }
+  },
+  {
+    name: "deep_crawl",
+    description: 'Breadth-first crawl from a seed URL: follows same-origin links up to max_depth / max_pages, distills every page to Markdown, and indexes it into LanceDB Cortex. Each page takes the cheap path first \u2014 content-negotiated Markdown/Text when the site advertises it, otherwise a detached render (your active tab is not disturbed). Use match_patterns (glob "\u2026/docs/*" or /regex/) to scope, and same_origin=false to allow cross-site hops. Returns a per-page summary.',
+    parameters: {
+      url: external_exports.string().describe("Seed URL (http/https)"),
+      max_depth: external_exports.coerce.number().optional().default(2).describe("Link depth from the seed (0 = seed only; max 5)"),
+      max_pages: external_exports.coerce.number().optional().default(5).describe("Hard page budget (max 25)"),
+      match_patterns: external_exports.array(external_exports.string()).optional().describe('Glob or /regex/ allow-list applied to child URLs (e.g. ["/docs/*", "/builds/*"])'),
+      same_origin: external_exports.coerce.boolean().optional().describe("Stay on the seed origin (default true)"),
+      prefer_llm: external_exports.coerce.boolean().optional().describe("Try content-negotiated Markdown/Text before rendering (default true)"),
+      harvest_to_cortex: external_exports.coerce.boolean().optional().describe("Index each page into LanceDB Cortex (default true)"),
+      selector: external_exports.string().optional().describe("Scope link extraction to a CSS selector"),
+      delay_ms: external_exports.coerce.number().optional().default(300).describe("Politeness delay between pages in ms")
+    },
+    endpoint: "/crawl/deep",
+    payload: (args) => ({
+      url: args?.url,
+      start_url: args?.url,
+      max_depth: args?.max_depth,
+      max_pages: args?.max_pages,
+      match_patterns: args?.match_patterns,
+      same_origin: args?.same_origin,
+      prefer_llm: args?.prefer_llm,
+      harvest_to_cortex: args?.harvest_to_cortex,
+      selector: args?.selector,
+      delay_ms: args?.delay_ms
+    }),
+    format: (data) => {
+      const pages = Array.isArray(data.pages) ? data.pages : [];
+      const head = `### deep_crawl \u2014 ${data.startUrl}
+- ${data.pageCount} page(s) \xB7 depth ${data.depthReached} \xB7 ${data.cortexIndexed} indexed into Cortex${data.truncated ? " \xB7 truncated at budget" : ""}`;
+      const rows = pages.map(
+        (p, i) => `${i + 1}. [d${p.depth} \xB7 ${p.via}${p.indexed ? "" : " \xB7 unindexed"}] ${p.title} \u2014 ${p.url}${p.error ? ` (error: ${p.error})` : ""}`
+      );
+      const notes = (data.notes || []).length ? `
+
+Notes:
+- ${(data.notes || []).join("\n- ")}` : "";
+      return `${head}
+${rows.join("\n")}${notes}`;
+    }
+  },
+  {
+    name: "research_topic",
+    description: "Autonomous research mode: searches the web, gathers the top sources (content-negotiated Markdown/Text when advertised, else a detached render), distills each to Markdown, and indexes them into LanceDB Cortex. Returns EXTRACTIVE, CITED evidence \u2014 each source highlight is a real paragraph that mentions the query terms \u2014 plus the ranked source list. It does NOT write prose: YOU synthesize the answer (and can follow up with recall_memory over the indexed pages).",
+    parameters: {
+      query: external_exports.string().describe("Research topic / question"),
+      max_sources: external_exports.coerce.number().optional().default(5).describe("Distinct sources to gather (max 8)"),
+      engine: external_exports.enum(["google", "duckduckgo", "bing", "brave", "startpage", "custom"]).optional().describe("Pin one search engine (default: auto chain)"),
+      engines: external_exports.array(external_exports.string()).optional().describe("Explicit ordered search-engine fallback chain"),
+      url_template: external_exports.string().optional().describe("URL template with {query} for a custom/SearXNG engine"),
+      excerpt_chars: external_exports.coerce.number().optional().default(1200).describe("Chars of each source kept for highlighting (max 4000)"),
+      harvest_to_cortex: external_exports.coerce.boolean().optional().describe("Index each source into LanceDB Cortex (default true)"),
+      prefer_llm: external_exports.coerce.boolean().optional().describe("Try content-negotiated Markdown/Text before rendering (default true)")
+    },
+    endpoint: "/research/topic",
+    payload: (args) => ({
+      query: args?.query,
+      max_sources: args?.max_sources,
+      engine: args?.engine,
+      engines: args?.engines,
+      url_template: args?.url_template,
+      excerpt_chars: args?.excerpt_chars,
+      harvest_to_cortex: args?.harvest_to_cortex,
+      prefer_llm: args?.prefer_llm
+    }),
+    format: (data) => {
+      const sources = Array.isArray(data.sources) ? data.sources : [];
+      const head = `### Research: "${data.query}"
+- ${data.sourceCount} source(s) \xB7 ${data.cortexIndexed} indexed into Cortex${data.engine ? ` \xB7 via ${data.engine}` : ""}`;
+      const body = sources.map((s, i) => {
+        const hls = (s.highlights || []).map((h) => `   \u2022 ${h}`).join("\n");
+        return `${i + 1}. [${s.title}](${s.url}) [${s.via}${s.indexed ? "" : " \xB7 unindexed"}]${s.snippet ? `
+   ${s.snippet}` : ""}${hls ? `
+${hls}` : ""}${s.error ? `
+   (error: ${s.error})` : ""}`;
+      }).join("\n");
+      const notes = (data.notes || []).length ? `
+
+Notes:
+- ${(data.notes || []).join("\n- ")}` : "";
+      return `${head}
+${body}${notes}`;
     }
   },
   {
@@ -38122,9 +38290,13 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
   - act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified humanlike click/focus/hover/type/press on a mark badge, a CSS selector, or viewport coordinates + optional post-conditions + delta report. dry_run resolves without acting; secret redacts credentials from logs.
   - expect(conditions[]): immediate assertion (no polling) with per-condition evidence.
   - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs (feed them to act).
-  - extract(kind:"list"|"table"|"app_data", ref?, selector?): structured read (repeating rows, tables, embedded __NEXT_DATA__/JSON-LD).
+  - extract(kind:"list"|"table"|"tables"|"app_data"|"schema_org", ref?, selector?, type?): structured read (repeating rows, one table, every table, embedded __NEXT_DATA__/JSON-LD, or typed schema.org items \u2014 pass type to keep just e.g. "Recipe").
   - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): scroll a lazy/infinite list to the end and dedupe rows in ONE call, with scroll diagnostics.
   - observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): one observation model; page huge pages with budget + next_cursor.
+  - llm_surface(url?) / llm_fetch(url?, as?): a site's OWN Markdown/Text (llms.txt, <link rel=alternate>, or negotiated) instead of a render \u2014 GATED on an advertised surface; fall back to observe(as:"markdown").
+  - search_web(query, engine?, engines?, url_template?, max_results?): multi-engine search in a detached view with automatic fallback \u2192 ranked {title,url,snippet}; feed the URLs to navigate_to / collect_all.
+  - deep_crawl(url, max_depth?, max_pages?, match_patterns?, same_origin?, prefer_llm?, harvest_to_cortex?): autonomous BFS crawl that distills + indexes each page into Cortex (cheap llm path first); scope with match_patterns.
+  - research_topic(query, max_sources?, engine?, url_template?, excerpt_chars?, harvest_to_cortex?): autonomous search \u2192 gather top sources \u2192 distill \u2192 index into Cortex; returns cited EXTRACTIVE evidence (no prose \u2014 you synthesize).
   - page_state() / diff(since?): cheap change signature + field-by-field diff for loops (no full re-reads).
   - Condition vocabulary: selector / gone / text(regex) / url / role_name / count(min/equals/max) / network_idle / stable(target:"marks"|"height"|"text"|"nodes") / revision. WARNING: skeletons can satisfy a naive selector early \u2014 prefer stable/count for lazily-rendered lists.
   - Errors are machine-coded (HTTP 400): STALE_REF (re-scan), TIMEOUT, NO_TARGET, BAD_REQUEST, NOT_SUPPORTED. See resource mark-eleven://okf/partitions/primitives-and-workflows for recipes R1-R5.
@@ -38353,12 +38525,14 @@ Rules of thumb:
 - act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press (mark badge, CSS selector, or coordinates) + post-conditions + delta.
 - expect(conditions[]): immediate assertion with per-condition evidence.
 - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs.
-- extract(kind:"list"|"table"|"app_data", ref?, selector?): structured reads.
+- extract(kind:"list"|"table"|"tables"|"app_data"|"schema_org", ref?, selector?, type?): structured reads (rows, tables, every table, embedded JSON, typed JSON-LD).
 - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): harvest a lazy/infinite list in one call.
 - observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): budgeted, cursor-paged observation.
+- llm_surface(url?): checks whether a site publishes an LLM-friendly Markdown/Text surface (/llms.txt, /sitemap.xml, <link rel=alternate>, or content negotiation) and returns recommended ("llms_txt"|"llms_full"|"markdown"|"text"|"rendered").
+- llm_fetch(url?, as?): fetches that advertised representation (GATED \u2014 NO_LLM_SURFACE when nothing is advertised). For a normal rendered page use observe(as:"markdown").
 - page_state() / diff(since?): cheap change detection for loops.
 - export_har(pattern?, limit?, save?): HAR 1.2 export. context_save/open/list/delete(name): cookie+storage profiles.
-- Condition vocabulary: selector/gone/text/regex/url/role_name/count/network_idle/stable/revision. Errors: STALE_REF|TIMEOUT|NO_TARGET|BAD_REQUEST|NOT_SUPPORTED.`,
+- Condition vocabulary: selector/gone/text/regex/url/role_name/count/network_idle/stable/revision. Errors: STALE_REF|TIMEOUT|NO_TARGET|BAD_REQUEST|NOT_SUPPORTED|NO_LLM_SURFACE|FETCH_BLOCKED.`,
           inspection: `### Visual & Content Inspection
 - observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): primary budgeted read/projection (preferred over get_page_markdown).
 - take_screenshot(marks?, detail?, include_offscreen?, max_width?, format?, quality?): plain viewport image, or Set-of-Marks when marks=true with detail "full"|"economy"|"markdown".
@@ -38367,7 +38541,11 @@ Rules of thumb:
 - evaluate_javascript(script): Evaluates arbitrary JS in the active tab (read-only).
 - bridge_health(): version, revision, capabilities, window, input.transport (replaces get_page_info).
 - get_console_logs(limit?): Returns live browser console logs.
-- act(mark_id | selector | x,y, action): the single interaction entry point; address by Set-of-Marks badge, CSS selector, or viewport coordinates.`,
+- act(mark_id | selector | x,y, action): the single interaction entry point; address by Set-of-Marks badge, CSS selector, or viewport coordinates.
+- llm_surface(url?) / llm_fetch(url?, as?): read a site's OWN Markdown/Text (llms.txt, sitemap, <link rel=alternate>, or negotiated) instead of rendering the page \u2014 gated on an advertised surface; otherwise use observe(as:"markdown").
+- search_web(query, engine?, engines?, url_template?, max_results?): multi-engine web search (google|duckduckgo|bing|brave|startpage|custom) run in a detached view with automatic fallback; returns ranked {title,url,snippet}.
+- deep_crawl(url, max_depth?, max_pages?, match_patterns?, same_origin?, prefer_llm?, harvest_to_cortex?): autonomous BFS crawl; distills each page to Markdown and indexes it into Cortex (cheap llm path first).
+- research_topic(query, max_sources?, engine?, url_template?): autonomous search \u2192 gather top sources \u2192 distill \u2192 index into Cortex; returns cited EXTRACTIVE evidence (you write the answer).`,
           tabs: `### Multi-Tab Orchestration
 - new_tab(url?): Opens a new tab.
 - switch_tab(tab_id): Focuses a specific tab.

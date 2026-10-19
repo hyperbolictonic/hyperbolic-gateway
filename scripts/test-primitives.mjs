@@ -3,7 +3,7 @@
  * Primitives regression test (deterministic, offline).
  *
  * Exercises the new orthogonal layer end-to-end through the Cyberdeck HTTP bridge:
- *   wait_for · expect · observe(budget/cursor) · extract(list/table/app_data)
+ *   wait_for · expect · observe(budget/cursor) · extract(list/table/tables/app_data/schema_org)
  *   collect_all · find · act(+await, +delta, +dry_run, +STALE_REF) · page_state · diff
  *   bridge_health · get_network_traffic(since) · export_har
  *
@@ -241,6 +241,29 @@ async function main() {
     check('extract app_data finds JSON blobs', appOk, names.join(', '));
     const nextSrc = (appData.sources || []).find((s) => s.source === '__NEXT_DATA__');
     check('app_data JSON is parsed', nextSrc?.parsed === true && nextSrc.data?.props?.pageProps?.fares?.[0]?.p === 412);
+
+    // --- extract: schema_org (typed JSON-LD) --------------------------------
+    const so = await bridge('/extract', 'POST', { kind: 'schema_org' });
+    check(
+      'extract schema_org parses typed JSON-LD',
+      (so.items || []).some((it) => it.type === 'ItemList') && (so.types || []).includes('ItemList'),
+      `count=${so.count} types=${(so.types || []).join(',')}`
+    );
+    const soFiltered = await bridge('/extract', 'POST', { kind: 'schema_org', type: 'Recipe' });
+    const soMatch = await bridge('/extract', 'POST', { kind: 'schema_org', type: 'ItemList' });
+    check(
+      'extract schema_org type filter selects/excludes by @type',
+      (soFiltered.items || []).length === 0 && (soMatch.items || []).length === 1,
+      `Recipe=${soFiltered.count}, ItemList=${soMatch.count}`
+    );
+
+    // --- extract: tables (every table) --------------------------------------
+    const tables = await bridge('/extract', 'POST', { kind: 'tables' });
+    check(
+      'extract tables returns every table on the page',
+      tables.count >= 1 && (tables.tables || []).some((t) => (t.headers || []).join(',') === 'Route,Airline,Price'),
+      `${tables.count} table(s)`
+    );
 
     // --- observe: markdown --------------------------------------------------
     const md = await bridge('/observe', 'POST', { as: 'markdown' });

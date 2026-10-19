@@ -723,14 +723,74 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
 
       if (req.method === 'POST' && pathname === '/extract') {
         const body = await readBody();
-        const kind = body?.kind || body?.type || 'list';
+        const kind = body?.kind || 'list';
         const data = await chassis.getPrimitives().extract({
           kind,
           ref: body?.ref !== undefined && body.ref !== null ? Number(body.ref) : undefined,
           selector: body?.selector,
+          type: body?.type,
           limit: body?.limit !== undefined ? Number(body.limit) : undefined,
         });
         sendJson({ success: true, ...data });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/llm/surface') {
+        const body = await readBody();
+        const report = await chassis.probeLlmSurface(body?.url);
+        sendJson({ success: true, ...report });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/llm/fetch') {
+        const body = await readBody();
+        const result = await chassis.fetchLlmSurface({ url: body?.url, as: body?.as });
+        sendJson({ success: true, ...result });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/search/web') {
+        const body = await readBody();
+        const outcome = await chassis.searchWeb(body?.query, {
+          engine: body?.engine,
+          engines: Array.isArray(body?.engines) ? body.engines : undefined,
+          urlTemplate: body?.url_template ?? body?.urlTemplate,
+          max: body?.max_results ?? body?.max,
+        });
+        sendJson({ success: true, ...outcome });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/crawl/deep') {
+        const body = await readBody();
+        const outcome = await chassis.deepCrawl({
+          startUrl: body?.url || body?.start_url || body?.startUrl,
+          maxDepth: body?.max_depth ?? body?.maxDepth,
+          maxPages: body?.max_pages ?? body?.maxPages,
+          matchPatterns: body?.match_patterns ?? body?.matchPatterns,
+          sameOrigin: body?.same_origin ?? body?.sameOrigin,
+          preferLlm: body?.prefer_llm ?? body?.preferLlm,
+          harvestToCortex: body?.harvest_to_cortex ?? body?.harvestToCortex,
+          selector: body?.selector,
+          delayMs: body?.delay_ms ?? body?.delayMs,
+        });
+        sendJson({ success: true, ...outcome });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/research/topic') {
+        const body = await readBody();
+        const outcome = await chassis.researchTopic({
+          query: body?.query,
+          maxSources: body?.max_sources ?? body?.maxSources,
+          engine: body?.engine,
+          engines: Array.isArray(body?.engines) ? body.engines : undefined,
+          urlTemplate: body?.url_template ?? body?.urlTemplate,
+          excerptChars: body?.excerpt_chars ?? body?.excerptChars,
+          harvestToCortex: body?.harvest_to_cortex ?? body?.harvestToCortex,
+          preferLlm: body?.prefer_llm ?? body?.preferLlm,
+        });
+        sendJson({ success: true, ...outcome });
         return;
       }
 
@@ -841,7 +901,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       sendJson({ error: 'Endpoint not found' }, 404);
     } catch (err: any) {
       const code = err?.code || 'INTERNAL';
-      const client = ['BAD_REQUEST', 'STALE_REF', 'NO_TARGET', 'NOT_SUPPORTED', 'TIMEOUT'].includes(code);
+      const client = ['BAD_REQUEST', 'STALE_REF', 'NO_TARGET', 'NOT_SUPPORTED', 'TIMEOUT', 'NO_LLM_SURFACE', 'FETCH_BLOCKED'].includes(code);
       sendJson({ success: false, error: err?.message || String(err), code }, client ? 400 : 500);
     }
   });

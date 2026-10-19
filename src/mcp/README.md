@@ -10,7 +10,7 @@ The standalone stdio server executable ([`scripts/mcp-server.js`](../../scripts/
 
 ---
 
-## 🧰 Registered MCP Tool Domains (54 Advertised Tools)
+## 🧰 Registered MCP Tool Domains (59 Advertised Tools)
 
 Deprecated aliases are hidden from `tools/list` (they still work by name); the canonical name is listed here.
 
@@ -27,15 +27,16 @@ Deprecated aliases are hidden from `tools/list` (they still work by name); the c
 11. **Desktop System Tray & HIL Intervention (6 Tools):** `set_window_visibility`, `configure_system_tray`, `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, `send_notification`.
 12. **Orthogonal Primitives & Abstraction (11 Tools):** `wait_for`, `observe`, `extract`, `collect_all`, `find`, `expect`, `act`, `page_state`, `diff`, `bridge_health`, `export_har`. (`focus_window` is a hidden alias of `set_window_visibility`.)
 13. **Assistance & Discovery (1 Tool):** `help`.
+14. **Discovery (5 Tools):** `llm_surface` (probes a site for `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, a `<link rel="alternate">`, or Markdown negotiation), `llm_fetch` (fetches that advertised representation; GATED on a confirmed surface), `search_web` (multi-engine web search in a detached view with automatic fallback), `deep_crawl` (autonomous BFS crawl that distills each page and indexes it into Cortex), `research_topic` (search → gather → distill → index; returns cited extractive evidence).
 
-In addition to the 54 advertised tools, `bridge-server.ts` registers **7 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://tools/recommended` (the canonical "what to use when" order across the five common jobs), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
+In addition to the 59 advertised tools, `bridge-server.ts` registers **7 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://tools/recommended` (the canonical "what to use when" order across the five common jobs), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
 
 ---
 
 ## 📄 Key Source Files
 
 - **[`tools-catalog.ts`](./tools-catalog.ts)**:
-  Central repository of the tool definitions (**76 registered**, of which **23 deprecated aliases are hidden from `tools/list`** → **54 advertised** including the built-in `help`), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters. Because the `endpoint`/`method` here must match `src/main/http-bridge.ts` exactly, **run `npm run test:mcp:contract` after editing this file** — it fails if any entry maps to a route the bridge does not serve. `npm run test:mcp:surface` verifies the hidden/canonical split.
+  Central repository of the tool definitions (**81 registered**, of which **23 deprecated aliases are hidden from `tools/list`** → **59 advertised** including the built-in `help`), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters. Because the `endpoint`/`method` here must match `src/main/http-bridge.ts` exactly, **run `npm run test:mcp:contract` after editing this file** — it fails if any entry maps to a route the bridge does not serve. `npm run test:mcp:surface` verifies the hidden/canonical split.
 - **[`bridge-server.ts`](./bridge-server.ts)**:
   Factory `createBridgeMcpServer()` configuring `@modelcontextprotocol/sdk` to forward tool calls to the active browser chassis via `http://127.0.0.1:4111` and package dual text + native base64 PNG image blocks.
 - **[`bin/mcp-server.cjs`](../../bin/mcp-server.cjs)** & **[`scripts/mcp-server.js`](../../scripts/mcp-server.js)**:

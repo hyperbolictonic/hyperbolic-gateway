@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   output to no query at all. `query` is now a real filter: a bookmark matches when every query term
   appears (case-insensitively) in its title, notes, URL, or tags, and matches are then ranked by
   embedding similarity. Covered by `npm run test:cortex:bookmarks`.
+- **Detached `WebContentsView` reads were flaky.** Off-screen reads (`llm_fetch` per-page alternates,
+  `search_web` SERPs, `deep_crawl` page renders) created and destroyed a view per call and trusted
+  `did-finish-load` — which the view's *initial about:blank document* also fires — so reads would
+  intermittently return an empty DOM (missed search results, missing crawl links). All detached
+  operations now share **one reusable off-screen view** (serialized), await the `loadURL()` promise
+  for the navigation they started, and poll the live DOM before reading.
 
 ### Added
 
@@ -56,9 +62,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pointing at their canonical tool; `list_scripts(query)` searches; `clear_capture` clears; and
   `observe` no longer advertises the structured `list|table|app_data` modes (which now live on
   `extract`).
+- **`llm_surface` + `llm_fetch` — LLM-friendly site discovery (Feature 6).** Many sites publish a
+  Markdown/Text representation (`/llms.txt`, `/llms-full.txt`, a `<link rel="alternate">`, or content
+  negotiation). `llm_surface({ url? })` probes for those; `llm_fetch({ url?, as? })` reads the
+  advertised one (~5–10× cheaper than a render). **Gated:** `llm_fetch` refuses (`NO_LLM_SURFACE`)
+  unless the site advertises a surface, and never fetches arbitrary URLs or guesses paths.
+  Well-known paths (`/llms.txt`, `/llms-full.txt`, `/sitemap.xml`) are `net.fetch`ed on Chromium's
+  network stack and cached per origin; a page's advertised alternate is loaded via a **real document
+  navigation**, not a synthetic fetch. A `text/html` response is never mislabelled as Markdown.
+  New: `src/main/llm/llm-surface.ts`, routes `POST /llm/surface` + `POST /llm/fetch`, and
+  `npm run test:llm` (local-fixture regression).
+- **`search_web` — configurable multi-engine search (Feature 5).** Runs each query in a **detached
+  WebContentsView** (real Chromium; the active tab is never hijacked) and falls back across engines
+  when one returns a bot-check/consent wall: `google | duckduckgo | bing | brave | startpage |
+  custom` (default chain `google → duckduckgo → brave`). The `custom` engine takes a `{query}` URL
+  template (e.g. SearXNG, or `KUANG_SEARCH_URL`). Returns ranked `{rank, title, url, snippet}` —
+  plain URLs to feed `navigate_to` / `collect_all`. Unwraps Google `/url?q=`, DDG `/l/?uddg=` and
+  Bing `/ck/a` redirects. New: `src/main/search/search-engine.ts`, route `POST /search/web`, and
+  `npm run test:search`.
+- **`deep_crawl` — autonomous multi-page crawl (Feature 1).** Breadth-first crawl from a seed URL,
+  bounded by `max_depth` / `max_pages`, same-origin by default and scoped by `match_patterns`
+  (glob or `/regex/`). Each page takes the **cheap path first** — content-negotiated Markdown/Text
+  when the site advertises it (see `llm_surface`), otherwise a detached render — and is distilled
+  to Markdown and **indexed into LanceDB Cortex**. Returns a per-page summary (`depth`, `via`,
+  `bytes`, `links`, `indexed`). New: `src/main/crawl/crawler.ts`, route `POST /crawl/deep`, and
+  `npm run test:crawl`.
+- **`research_topic` — autonomous research mode (Feature 3).** Runs `search_web` → gathers the top
+  sources (cheap Markdown path first, else a detached render) → distills them to Markdown → indexes
+  them into LanceDB Cortex. Returns **extractive, cited evidence**: every per-source highlight is a
+  real paragraph that mentions the query terms, plus the ranked source list. It deliberately does
+  **not** synthesize prose (Kuang has no LLM) — the calling agent writes the answer, and can follow up
+  with `recall_memory` over the indexed pages. New: `src/main/research/researcher.ts`, route
+  `POST /research/topic`, and `npm run test:research`.
 
 ### Changed
 
+- **`extract` gained two kinds (Feature 2 — structured data).** `kind:"schema_org"` parses
+  `<script type="application/ld+json">` into **typed** items (flattens `@graph`; `type` filters to e.g.
+  `"Recipe"` / `"Product"` / `"FAQPage"` / `"HowTo"`), and `kind:"tables"` returns **every** table on the
+  page (the existing `table` kind reads only one). The rest of Feature 2 already existed and is unchanged:
+  the clean article body is `observe(as:"markdown")` (Mozilla Readability, with an aggregator fallback), and
+  `kind:"app_data"` already returned parsed JSON-LD / `__NEXT_DATA__`. No new tool was added.
 - **Advertised tool surface trimmed from 74 to 54** with no capability removed. Deprecated names
   are hidden from `tools/list` but still callable by name; calling one returns a
   `⚠ deprecated tool name — use "…"` notice.

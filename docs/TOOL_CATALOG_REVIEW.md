@@ -236,6 +236,11 @@ Docs to update if 2–4 run: `src/mcp/bridge-server.ts` (the `OKF_SKILL_GUIDE` +
 categories), `src/mcp/README.md` (tool count), `README.md` badges/tables, `kuang_docs/` OKF
 partitions, `docs/TODO.md`, and `CHANGELOG.md`.
 
+> **Post-sweep additions:** Feature 6 (LLM-friendly discovery) added `llm_surface` + `llm_fetch`,
+> Feature 5 added `search_web`, Feature 1 added `deep_crawl`, and Feature 3 added `research_topic`,
+> taking the advertised surface to **59** (81 registered). Those tools are opt-in and not TIER-1;
+> `observe(as:"markdown")` stays the default page read.
+
 ---
 
 ## 6. Decisions

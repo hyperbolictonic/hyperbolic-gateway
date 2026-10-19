@@ -129,9 +129,11 @@ export interface ObserveOptions {
 }
 
 export interface ExtractOptions {
-  kind: 'list' | 'table' | 'app_data';
+  kind: 'list' | 'table' | 'tables' | 'app_data' | 'schema_org';
   ref?: number;
   selector?: string;
+  /** schema_org only: filter to a single schema.org @type (case-insensitive, e.g. "Recipe"). */
+  type?: string;
   limit?: number;
 }
 
@@ -339,6 +341,56 @@ function buildExtractScript(opts: ExtractOptions): string {
         if (v && typeof v === 'object') { try { push(key, JSON.stringify(v)); } catch (e) {} }
       }
       return { kind: 'app_data', count: sources.length, sources: sources.slice(0, 20) };
+    }
+
+    if (opts.kind === 'schema_org') {
+      const items = [];
+      const typeCounts = {};
+      const visit = (node) => {
+        if (Array.isArray(node)) { node.forEach(visit); return; }
+        if (!node || typeof node !== 'object') return;
+        const t = node['@type'];
+        if (t) {
+          const tl = Array.isArray(t) ? t : [t];
+          tl.forEach((tt) => { typeCounts[tt] = (typeCounts[tt] || 0) + 1; });
+          items.push({ type: tl[0], types: tl, data: node });
+        }
+        if (node['@graph']) visit(node['@graph']);
+      };
+      let scanned = 0;
+      document.querySelectorAll('script[type="application/ld+json"]').forEach((s) => {
+        if (scanned++ >= 25) return;
+        let parsed = null;
+        try { parsed = JSON.parse(s.textContent); } catch (e) { return; }
+        visit(parsed);
+      });
+      const want = (opts.type || '').toLowerCase();
+      const filtered = want ? items.filter((it) => it.types.some((tt) => String(tt).toLowerCase() === want)) : items;
+      return { kind: 'schema_org', count: filtered.slice(0, limit).length, total: filtered.length, types: Object.keys(typeCounts), items: filtered.slice(0, limit) };
+    }
+
+    if (opts.kind === 'tables') {
+      const tables = [];
+      const collect = (table) => {
+        const headers = Array.from(table.querySelectorAll('thead th')).map((th) => clean(th.innerText));
+        const bodyRows = Array.from(table.querySelectorAll('tr')).filter((tr) => tr.querySelector('td'));
+        const rows = bodyRows.slice(0, limit).map((tr) => Array.from(tr.querySelectorAll('td,th')).map((td) => clean(td.innerText)));
+        if (!rows.length && !headers.length) return;
+        const hs = headers.length ? headers : (rows[0] ? rows[0].map((_, i) => 'col' + i) : []);
+        const records = rows.map((cells) => { const o = {}; cells.forEach((c, i) => { o[hs[i] || ('col' + i)] = c; }); return o; });
+        tables.push({ index: tables.length, headers: hs, count: rows.length, records: records });
+      };
+      Array.from(document.querySelectorAll('table')).forEach(collect);
+      Array.from(document.querySelectorAll('[role="table"],[role="grid"]')).forEach((grid) => {
+        if (grid.closest('table')) return;
+        const headers = Array.from(grid.querySelectorAll('[role="columnheader"]')).map((h) => clean(h.innerText));
+        const rows = Array.from(grid.querySelectorAll('[role="row"]')).map((r) => Array.from(r.querySelectorAll('[role="cell"],[role="gridcell"],[role="columnheader"]')).map((c) => clean(c.innerText))).filter((c) => c.length);
+        if (!rows.length && !headers.length) return;
+        const hs = headers.length ? headers : (rows[0] ? rows[0].map((_, i) => 'col' + i) : []);
+        const records = rows.map((cells) => { const o = {}; cells.forEach((c, i) => { o[hs[i] || ('col' + i)] = c; }); return o; });
+        tables.push({ index: tables.length, headers: hs, count: rows.length, records: records });
+      });
+      return { kind: 'tables', count: tables.length, tables: tables.slice(0, 20) };
     }
 
     if (opts.kind === 'table') {
@@ -727,10 +779,11 @@ export class Primitives {
       kind: opts.kind,
       ref: opts.ref,
       selector: opts.selector,
+      type: opts.type,
       limit: opts.limit,
     });
     const res = await this.host.evaluate(script).catch((e) => ({ error: String(e?.message || e), kind: opts.kind }));
-    this.host.log('action', `MCP Directive: extract(${opts.kind})${opts.ref !== undefined ? ` ref=#${opts.ref}` : ''}${opts.selector ? ` selector=${opts.selector}` : ''}`);
+    this.host.log('action', `MCP Directive: extract(${opts.kind})${opts.type ? ` type=${opts.type}` : ''}${opts.ref !== undefined ? ` ref=#${opts.ref}` : ''}${opts.selector ? ` selector=${opts.selector}` : ''}`);
     return res;
   }
 
