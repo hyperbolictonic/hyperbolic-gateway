@@ -41,3 +41,25 @@ In addition to the 74 tools, `bridge-server.ts` registers **6 MCP resources**: `
   Legacy in-process MCP server binding direct Electron `BrowserChassis` methods (45 hand-written tools, no primitives). It is **imported by `src/main/index.ts` but not currently invoked**; the canonical, fully-featured server is [`bridge-server.ts`](./bridge-server.ts) (74 tools) shipped as `bin/mcp-server.cjs`. Treat `server.ts` as an experimental "unified mode" path pending re-wiring.
 - **[`bin/mcp-server.cjs`](../../bin/mcp-server.cjs)** & **[`scripts/mcp-server.js`](../../scripts/mcp-server.js)**:
   Production bundled standalone stdio executable spawned by AI agents and IDEs.
+
+---
+
+## 🩺 Diagnostics & stdio Discipline
+
+**stdout is the JSON-RPC lifeline; stderr is diagnostics only — never block on it.** A client that
+pipes stderr but never drains it will fill the OS pipe buffer and wedge the process once the buffer
+is full. Because the server used to write ~500 bytes to stderr per tool call, ~125 calls were
+enough to kill the whole tool namespace. See
+[`docs/HANDOFF_ORCHA_MCP_STDERR.md`](../../docs/HANDOFF_ORCHA_MCP_STDERR.md).
+
+The rules enforced by `bridge-server.ts` (do not regress them):
+
+- **Per-call logs go to the file only** (`data/logs/mcp-server.log`), written through a bounded
+  asynchronous queue. Use `logMcp(msg, 'call' | 'boot' | 'error')`; never `console.error`.
+- **stderr carries a short boot banner by default**; writes are dropped (not queued) when the
+  consumer is not reading, and total stderr is hard-capped at 16 KiB.
+- **Env switches:** `KUANG_MCP_LOG=0` (no file log), `KUANG_MCP_STDERR=0` (no stderr),
+  `KUANG_MCP_STDERR=verbose` (per-call stderr for debugging only).
+- **`KUANG_BRIDGE_TIMEOUT_MS`** (default 300 000) caps any single `:4111` round-trip so a wedged
+  Cyberdeck returns an error instead of hanging a tool forever.
+- **stdin `end`/`close` shuts the child down cleanly** (`exit(0)`) so it cannot linger as an orphan.

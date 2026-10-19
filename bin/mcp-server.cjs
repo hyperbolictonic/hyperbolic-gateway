@@ -37386,8 +37386,8 @@ ${lines.join("\n")}`;
       const lines = msgs.map((m) => {
         const dir = (m.direction || "msg").toUpperCase();
         const time3 = m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : "";
-        const preview = typeof m.data === "string" ? m.data.slice(0, 100) : JSON.stringify(m.data || m.jsonData || "").slice(0, 100);
-        return `[${time3}] ${dir} (stream: ${m.streamId || "n/a"}): ${preview}`;
+        const preview2 = typeof m.data === "string" ? m.data.slice(0, 100) : JSON.stringify(m.data || m.jsonData || "").slice(0, 100);
+        return `[${time3}] ${dir} (stream: ${m.streamId || "n/a"}): ${preview2}`;
       });
       return `### Realtime Messages (${msgs.length})
 ${lines.join("\n")}`;
@@ -37772,19 +37772,83 @@ ${lines.join("\n")}`;
   }
 ];
 
+// src/shared/version.ts
+var APP_VERSION = "1.1.1";
+
 // src/mcp/bridge-server.ts
 var BRIDGE_URL = process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111";
-function logMcp(message) {
-  const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-  console.error(`[Mark Eleven MCP ${timestamp}] ${message}`);
+var LOG_TO_FILE = process.env.KUANG_MCP_LOG !== "0";
+var STDERR_MODE = process.env.KUANG_MCP_STDERR === "0" ? "off" : process.env.KUANG_MCP_STDERR === "verbose" ? "verbose" : "boot";
+var STDERR_HARD_CAP_BYTES = 16 * 1024;
+var LOG_DIR = import_node_path.default.resolve(process.cwd(), "data", "logs");
+var logDirReady = false;
+try {
+  import_node_fs.default.mkdirSync(LOG_DIR, { recursive: true });
+  logDirReady = true;
+} catch {
+}
+var logQueue = [];
+var logFlushing = false;
+var LOG_QUEUE_MAX_LINES = 2e3;
+function flushLogQueue() {
+  if (!LOG_TO_FILE || !logDirReady || logFlushing || logQueue.length === 0) return;
+  logFlushing = true;
+  const batch = logQueue.join("");
+  logQueue = [];
+  import_node_fs.default.appendFile(import_node_path.default.join(LOG_DIR, "mcp-server.log"), batch, () => {
+    logFlushing = false;
+    if (logQueue.length > 0) flushLogQueue();
+  });
+}
+function flushLogSync() {
+  if (!LOG_TO_FILE || !logDirReady || logQueue.length === 0) return;
+  const batch = logQueue.join("");
+  logQueue = [];
   try {
-    const logDir = import_node_path.default.resolve(process.cwd(), "data", "logs");
-    if (!import_node_fs.default.existsSync(logDir)) {
-      import_node_fs.default.mkdirSync(logDir, { recursive: true });
-    }
-    import_node_fs.default.appendFileSync(import_node_path.default.join(logDir, "mcp-server.log"), `[${timestamp}] ${message}
-`);
+    import_node_fs.default.appendFileSync(import_node_path.default.join(LOG_DIR, "mcp-server.log"), batch);
   } catch {
+  }
+}
+var stderrBytesWritten = 0;
+var stderrBlocked = false;
+function writeStderr(text) {
+  if (STDERR_MODE === "off" || stderrBlocked) return;
+  if (stderrBytesWritten >= STDERR_HARD_CAP_BYTES) return;
+  const chunk = text.endsWith("\n") ? text : `${text}
+`;
+  try {
+    const accepted = process.stderr.write(chunk);
+    stderrBytesWritten += Buffer.byteLength(chunk);
+    if (!accepted) {
+      stderrBlocked = true;
+      process.stderr.once("drain", () => {
+        stderrBlocked = false;
+      });
+    }
+  } catch {
+    stderrBlocked = true;
+  }
+}
+function preview(value, max = 2e3) {
+  let text;
+  try {
+    text = typeof value === "string" ? value : JSON.stringify(value);
+  } catch {
+    text = String(value);
+  }
+  if (text === void 0) return "";
+  return text.length > max ? `${text.slice(0, max)}\u2026` : text;
+}
+function logMcp(message, level = "call") {
+  const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+  if (LOG_TO_FILE) {
+    if (logQueue.length >= LOG_QUEUE_MAX_LINES) logQueue.shift();
+    logQueue.push(`[${timestamp}] ${message}
+`);
+    flushLogQueue();
+  }
+  if (STDERR_MODE === "verbose" || STDERR_MODE === "boot" && level !== "call") {
+    writeStderr(`[Mark Eleven MCP ${timestamp}] ${message}`);
   }
 }
 var stdoutClosed = false;
@@ -37792,31 +37856,30 @@ process.stdout.on("error", (err) => {
   if (err?.code === "EPIPE" || err?.code === "ERR_STREAM_DESTROYED") {
     if (!stdoutClosed) {
       stdoutClosed = true;
-      try {
-        logMcp("stdout pipe closed by client (EPIPE); shutting down cleanly.");
-      } catch {
-      }
+      logMcp("stdout pipe closed by client (EPIPE); shutting down cleanly.", "boot");
     }
     process.exit(0);
   }
-  try {
-    logMcp(`stdout stream error: ${err?.message || err}`);
-  } catch {
-  }
+  logMcp(`stdout stream error: ${err?.message || err}`, "error");
 });
 process.stderr.on("error", () => {
 });
+var shuttingDown = false;
+function shutdown(reason) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logMcp(reason, "boot");
+  flushLogSync();
+  process.exit(0);
+}
+process.stdin.on("end", () => shutdown("stdin closed by client; shutting down cleanly."));
+process.stdin.on("close", () => shutdown("stdin stream closed; shutting down cleanly."));
+process.on("exit", () => flushLogSync());
 process.on("unhandledRejection", (reason) => {
-  try {
-    logMcp(`Unhandled promise rejection (server kept alive): ${reason?.stack || reason}`);
-  } catch {
-  }
+  logMcp(`Unhandled promise rejection (server kept alive): ${reason?.stack || reason}`, "error");
 });
 process.on("uncaughtException", (err) => {
-  try {
-    logMcp(`Uncaught exception (server kept alive): ${err?.stack || err}`);
-  } catch {
-  }
+  logMcp(`Uncaught exception (server kept alive): ${err?.stack || err}`, "error");
 });
 var MAX_TEXT_CHARS = 6e4;
 function clampText(text) {
@@ -37825,6 +37888,10 @@ function clampText(text) {
 
 ... [Mark Eleven MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
 }
+var BRIDGE_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.KUANG_BRIDGE_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 3e5;
+})();
 async function callBridge(endpoint, method = "GET", body = null) {
   let url2 = `${BRIDGE_URL}${endpoint}`;
   const options = {
@@ -37837,7 +37904,17 @@ async function callBridge(endpoint, method = "GET", body = null) {
   } else if (body && (method === "POST" || method === "PUT")) {
     options.body = JSON.stringify(body);
   }
-  const res = await fetch(url2, options);
+  let res;
+  try {
+    res = await fetch(url2, { ...options, signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS) });
+  } catch (err) {
+    if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+      throw new Error(
+        `Bridge request timed out after ${BRIDGE_TIMEOUT_MS}ms (${method} ${endpoint}). The Cyberdeck may be busy or wedged; retry or call bridge_health().`
+      );
+    }
+    throw err;
+  }
   if (!res.ok) {
     const errorData = await res.json().catch(() => null);
     const detail = errorData?.error || errorData?.message || res.statusText;
@@ -37852,14 +37929,14 @@ function extractCleanBase64(data) {
 function createBridgeMcpServer() {
   const server = new McpServer({
     name: "kuang-grade-mark-eleven",
-    version: "1.0.0"
+    version: APP_VERSION
   });
   for (const tool of TOOLS_CATALOG) {
     server.tool(tool.name, tool.description, tool.parameters, async (args) => {
       try {
-        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${JSON.stringify(args)}`);
+        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
         const body = tool.payload ? tool.payload(args) : args;
-        logMcp(`[HTTP Forward] ${tool.method || "POST"} ${tool.endpoint} body: ${JSON.stringify(body)}`);
+        logMcp(`[HTTP Forward] ${tool.method || "POST"} ${tool.endpoint} body: ${preview(body)}`);
         const data = await callBridge(tool.endpoint, tool.method || "POST", body);
         if (tool.name === "take_screenshot") {
           const rawBase64 = extractCleanBase64(data);
@@ -37920,7 +37997,7 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
         logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
         return { content: [{ type: "text", text }] };
       } catch (err) {
-        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`);
+        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, "error");
         return {
           isError: true,
           content: [
@@ -38244,7 +38321,7 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
     server.server._requestHandlers.set("tools/call", async (request, extra) => {
       if (request?.params) {
         request.params.arguments = normalizeIncomingParams(request.params);
-        console.error(`[Mark Eleven MCP] tools/call: "${request.params.name}" args:`, JSON.stringify(request.params.arguments));
+        logMcp(`tools/call: "${request.params.name}" args: ${preview(request.params.arguments)}`);
       }
       return await rawCallHandler(request, extra);
     });
@@ -38344,11 +38421,11 @@ function normalizeIncomingParams(params) {
   return normalized;
 }
 async function start() {
-  logMcp("Initializing Mark Eleven MCP Server over stdio...");
+  logMcp("Initializing Mark Eleven MCP Server over stdio...", "boot");
   const server = createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logMcp("Connected to stdio transport. Listening for JSON-RPC messages.");
+  logMcp("Connected to stdio transport. Listening for JSON-RPC messages.", "boot");
   const prevSend = transport.send;
   if (typeof prevSend === "function") {
     transport.send = (msg) => {
@@ -38389,8 +38466,8 @@ async function start() {
   }
 }
 start().catch((err) => {
-  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`);
-  console.error("Fatal Mark Eleven MCP Server Error:", err);
+  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`, "error");
+  flushLogSync();
   process.exit(1);
 });
 // Annotate the CommonJS export names for ESM import in node:

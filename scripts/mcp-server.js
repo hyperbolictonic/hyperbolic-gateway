@@ -36600,6 +36600,15 @@ var StdioServerTransport = class {
   }
 };
 
+// src/mcp/format-mark.ts
+function formatMark(m) {
+  const attrs = `${m.type ? ` type="${m.type}"` : ""}${m.role ? ` role=${m.role}` : ""}`;
+  const extras = [];
+  if (m.value) extras.push(`value="${m.value}"`);
+  if (m.state) extras.push(m.state.replace(/,/g, ", "));
+  return `[#${m.id}] <${m.tag}${attrs}> "${m.text || ""}"${extras.length ? ` {${extras.join(", ")}}` : ""}`;
+}
+
 // src/mcp/tools-catalog.ts
 var TOOLS_CATALOG = [
   // 1. Navigation
@@ -36706,34 +36715,65 @@ var TOOLS_CATALOG = [
     payload: (args) => ({ direction: args?.direction || "down", amount: args?.amount !== void 0 ? Number(args.amount) : 400 }),
     format: (data) => data.result || "Scrolled successfully"
   },
-  // 3. Visual & Inspection
   {
     name: "take_screenshot",
-    description: "Captures a full viewport image of the active tab. Saves to data/screenshots/ and returns local file path and native MCP image content.",
-    parameters: {},
+    description: "Captures a full viewport image of the active tab. Defaults to 768px fast JPEG (~15ms encoding, tiny wire payload). Saves to data/screenshots/ and returns local file path and native MCP image content.",
+    parameters: {
+      max_width: external_exports.coerce.number().optional().default(768).describe("Max width in pixels to bound screenshot (default: 768 for optimal token efficiency; pass 0 for full native resolution)"),
+      format: external_exports.enum(["jpeg", "png"]).optional().default("jpeg").describe('Image format (default: "jpeg" for ~13x faster encoding; "png" for lossless)'),
+      quality: external_exports.coerce.number().optional().default(70).describe("JPEG compression quality from 1 to 100 (default: 70)")
+    },
     endpoint: "/screenshot",
     method: "GET",
-    format: (data) => data.screenshot?.filePath ? `Screenshot saved to ${data.screenshot.filePath} (${data.screenshot.width || ""}x${data.screenshot.height || ""}px)` : "Screenshot captured"
+    payload: (args) => {
+      const maxWidth = args?.max_width !== void 0 ? Number(args.max_width) : 768;
+      const format = args?.format || "jpeg";
+      const quality = args?.quality !== void 0 ? Number(args.quality) : 70;
+      return {
+        queryParams: {
+          max_width: String(maxWidth),
+          format,
+          quality: String(quality)
+        }
+      };
+    },
+    format: (data) => data.screenshot?.filePath ? `Screenshot saved to ${data.screenshot.filePath} (${data.screenshot.width || ""}x${data.screenshot.height || ""}px, ${data.screenshot.mimeType || "image/jpeg"})` : "Screenshot captured"
   },
   {
     name: "get_page_markdown",
-    description: "Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). Saves 90%+ context window tokens.",
-    parameters: {},
+    description: "Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). By default includes Set-of-Marks badges ([#1], [#2]...) directly on interactive elements (links, buttons, inputs) so you can call click_mark(id) or type_mark(id) directly from the text without taking screenshots!",
+    parameters: {
+      include_marks: external_exports.coerce.boolean().optional().default(true).describe("Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)"),
+      include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also annotate interactive elements outside the current viewport so their [#ID] badges appear in the markdown (use for long/virtualized result lists; default: false)")
+    },
     endpoint: "/markdown",
     method: "GET",
+    payload: (args) => {
+      const includeMarks = args?.include_marks !== false && args?.marks !== false;
+      const includeOffscreen = args?.include_offscreen === true;
+      return { queryParams: { include_marks: String(includeMarks), include_offscreen: String(includeOffscreen) } };
+    },
     format: (data) => {
-      const md = data.construct?.markdown || JSON.stringify(data, null, 2);
+      const md = data.construct?.content || data.construct?.markdown || JSON.stringify(data, null, 2);
       return md.length > 25e3 ? md.slice(0, 25e3) + "\n\n... [Output truncated to 25000 chars]" : md;
     }
   },
   {
     name: "harvest_markdown",
-    description: "Alias for get_page_markdown. Extracts clean markdown from the active tab.",
-    parameters: {},
+    description: "Alias for get_page_markdown. Extracts clean markdown with inline [#ID] marks from the active tab.",
+    parameters: {
+      include_marks: external_exports.coerce.boolean().optional().default(true).describe("Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)"),
+      include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also annotate interactive elements outside the current viewport (use for long/virtualized result lists; default: false)")
+    },
     endpoint: "/markdown",
     method: "GET",
+    payload: (args) => {
+      const includeMarks = args?.include_marks !== false && args?.marks !== false;
+      const includeOffscreen = args?.include_offscreen === true;
+      return { queryParams: { include_marks: String(includeMarks), include_offscreen: String(includeOffscreen) } };
+    },
     format: (data) => {
-      const md = data.construct?.markdown || JSON.stringify(data, null, 2);
+      const md = data.construct?.content || data.construct?.markdown || JSON.stringify(data, null, 2);
       return md.length > 25e3 ? md.slice(0, 25e3) + "\n\n... [Output truncated to 25000 chars]" : md;
     }
   },
@@ -36779,7 +36819,17 @@ var TOOLS_CATALOG = [
     },
     endpoint: "/console/logs",
     payload: (args) => ({ limit: args.limit }),
-    format: (data) => JSON.stringify(data.logs, null, 2)
+    format: (data) => {
+      const logs = Array.isArray(data.logs) ? data.logs : [];
+      if (logs.length === 0) return "No console logs captured.";
+      const lines = logs.map((l) => {
+        const time3 = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : "";
+        const level = (l.level || "info").toUpperCase().padEnd(5);
+        return `[${time3}] ${level} ${l.message || ""}`;
+      });
+      return `### Console Logs (${logs.length})
+${lines.join("\n")}`;
+    }
   },
   {
     name: "get_fingerprint_profile",
@@ -36845,7 +36895,11 @@ var TOOLS_CATALOG = [
     parameters: {},
     endpoint: "/tabs",
     method: "GET",
-    format: (data) => JSON.stringify(data.tabs, null, 2)
+    format: (data) => {
+      const tabs = Array.isArray(data.tabs) ? data.tabs : [];
+      if (tabs.length === 0) return "No open tabs";
+      return tabs.map((t) => `${t.isActive ? "* " : "- "}[${t.id}] ${t.isLoading ? "(loading) " : ""}"${t.title || "Untitled"}" - ${t.url}`).join("\n");
+    }
   },
   // 5. Memory & Cortex (LanceDB)
   {
@@ -36869,7 +36923,16 @@ var TOOLS_CATALOG = [
     },
     endpoint: "/history/list",
     payload: (args) => ({ limit: args.limit, domain: args.domain }),
-    format: (data) => JSON.stringify(data.history, null, 2)
+    format: (data) => {
+      const hist = Array.isArray(data.history) ? data.history : [];
+      if (hist.length === 0) return "No browsing history entries found.";
+      const lines = hist.map((h) => {
+        const time3 = h.visitedAt ? new Date(h.visitedAt).toLocaleDateString() : "";
+        return `- [${time3}] "${h.title || "Untitled"}" - ${h.url}`;
+      });
+      return `### Browsing History (${hist.length})
+${lines.join("\n")}`;
+    }
   },
   {
     name: "clear_history",
@@ -36901,7 +36964,16 @@ var TOOLS_CATALOG = [
     },
     endpoint: "/bookmarks/list",
     payload: (args) => ({ query: args.query, tag: args.tag, limit: args.limit }),
-    format: (data) => JSON.stringify(data.bookmarks, null, 2)
+    format: (data) => {
+      const bm = Array.isArray(data.bookmarks) ? data.bookmarks : [];
+      if (bm.length === 0) return "No bookmarks found.";
+      const lines = bm.map((b) => {
+        const tags = Array.isArray(b.tags) && b.tags.length > 0 ? ` [${b.tags.join(", ")}]` : "";
+        return `- [${b.id || "bm"}] "${b.title || "Untitled"}" - ${b.url}${tags}`;
+      });
+      return `### Saved Bookmarks (${bm.length})
+${lines.join("\n")}`;
+    }
   },
   {
     name: "delete_bookmark",
@@ -36939,7 +37011,17 @@ var TOOLS_CATALOG = [
     parameters: {},
     endpoint: "/downloads",
     method: "GET",
-    format: (data) => JSON.stringify(data.downloads, null, 2)
+    format: (data) => {
+      const dls = Array.isArray(data.downloads) ? data.downloads : [];
+      if (dls.length === 0) return "No downloaded files found in data/downloads/.";
+      const lines = dls.map((d) => {
+        const sizeKb = d.size ? `${Math.round(d.size / 1024)}KB` : "unknown size";
+        const status = d.state || d.status || "completed";
+        return `- ${d.filename || d.name} (${sizeKb}, ${status}) - path: ${d.path || d.filename}`;
+      });
+      return `### Downloaded Files (${dls.length})
+${lines.join("\n")}`;
+    }
   },
   {
     name: "read_download",
@@ -36978,7 +37060,17 @@ var TOOLS_CATALOG = [
     parameters: {},
     endpoint: "/sessions/list",
     method: "GET",
-    format: (data) => JSON.stringify(data.sessions, null, 2)
+    format: (data) => {
+      const sess = Array.isArray(data.sessions) ? data.sessions : [];
+      if (sess.length === 0) return "No saved sessions found in vault.";
+      const lines = sess.map((s) => {
+        const cookies = s.cookieCount !== void 0 ? `${s.cookieCount} cookies` : "";
+        const savedAt = s.savedAt ? new Date(s.savedAt).toLocaleDateString() : "";
+        return `- "${s.name || s.id}" (${[cookies, savedAt].filter(Boolean).join(", ")})`;
+      });
+      return `### Vault Sessions (${sess.length})
+${lines.join("\n")}`;
+    }
   },
   // 9. Network & API Interception
   {
@@ -36988,16 +37080,31 @@ var TOOLS_CATALOG = [
       url_pattern: external_exports.string().optional().describe("URL substring or regex filter"),
       method: external_exports.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]).optional().describe("Filter by HTTP method"),
       resource_type: external_exports.enum(["xhr", "fetch", "document", "script", "stylesheet", "image", "other"]).optional().describe("Filter by resource type"),
-      limit: external_exports.number().optional().default(50).describe("Max records to return")
+      limit: external_exports.number().optional().default(50).describe("Max records to return"),
+      since: external_exports.union([external_exports.literal("last_action"), external_exports.coerce.number()]).optional().describe('Only requests at/after this epoch-ms timestamp, or the literal "last_action" to correlate XHRs with the most recent action (click/type/navigate/act).')
     },
     endpoint: "/network/traffic",
     payload: (args) => ({
       urlPattern: args.url_pattern,
       method: args.method,
       resourceType: args.resource_type,
-      limit: args.limit
+      limit: args.limit,
+      since: args.since
     }),
-    format: (data) => JSON.stringify(data.traffic, null, 2)
+    format: (data) => {
+      const list = Array.isArray(data.traffic) ? data.traffic : [];
+      if (list.length === 0) return "No matching network requests captured.";
+      const lines = list.map((r) => {
+        const status = r.status ? String(r.status) : "pending";
+        const dur = r.responseDurationMs !== void 0 ? `${r.responseDurationMs}ms` : "";
+        const bodyTag = r.hasBody ? " [HAS_BODY]" : "";
+        return `[${r.requestId}] ${status} ${r.method} ${r.url.slice(0, 80)}${r.url.length > 80 ? "..." : ""} (${r.resourceType}${dur ? `, ${dur}` : ""})${bodyTag}`;
+      });
+      return `### Captured Network Requests (${list.length})
+Use query_json_data({ source: "network_payload", source_id: "<requestId>" }) to inspect JSON bodies.
+
+${lines.join("\n")}`;
+    }
   },
   {
     name: "get_api_payload",
@@ -37016,14 +37123,126 @@ var TOOLS_CATALOG = [
     endpoint: "/network/clear",
     format: (data) => data.message || "Network traffic cleared"
   },
+  {
+    name: "query_json_data",
+    description: 'Token-efficient JSON navigator. Inspects schemas, extracts nested dot/bracket paths (e.g. "items[0..3].price"), searches keys, or runs filters without dumping massive multi-megabyte payloads into the LLM context.',
+    parameters: {
+      source: external_exports.enum(["network_payload", "stream_messages", "download_file", "inline_json"]).default("network_payload").describe('Data source: "network_payload" (from get_network_traffic), "stream_messages" (from list_realtime_streams), "download_file" (from data/downloads/), or "inline_json"'),
+      source_id: external_exports.string().optional().describe("Target request ID, stream ID, or download filename"),
+      path: external_exports.string().optional().describe('JSONPath / dot-notation query, e.g. "itineraries[0..3].pricing", "users[*].email", "items[?price < 300]"'),
+      view: external_exports.enum(["value", "schema", "keys", "summary"]).optional().default("value").describe('Inspection mode: "schema" (types and array lengths without data), "keys" (object keys list), "summary" (high-level structure sample), or "value" (extracted target slice)'),
+      limit: external_exports.coerce.number().optional().default(25).describe("Max array items to return (default: 25)"),
+      filter_predicate: external_exports.string().optional().describe('Filter expression for array elements, e.g. "price < 300", "usesCookies == true". Tip: Apply to object arrays (e.g. path="vendors") rather than leaf string projections (e.g. "vendors.name")'),
+      json_string: external_exports.string().optional().describe('Inline JSON string (when source is "inline_json")')
+    },
+    endpoint: "/json/query",
+    payload: (args) => ({
+      source: args?.source || "network_payload",
+      sourceId: args?.source_id ?? args?.sourceId ?? args?.requestId ?? args?.request_id ?? args?.streamId ?? args?.stream_id ?? args?.filename,
+      path: args?.path ?? args?.query,
+      view: args?.view ?? args?.mode ?? "value",
+      limit: args?.limit !== void 0 ? Number(args.limit) : 25,
+      filterPredicate: args?.filter_predicate ?? args?.filterPredicate ?? args?.filter,
+      jsonString: args?.json_string ?? args?.jsonString ?? args?.json
+    }),
+    format: (data) => {
+      const header = `### JSON Navigator Query [${data.path || "$"}] (view: ${data.view}${data.matchCount !== void 0 ? `, total: ${data.matchCount}` : ""})
+`;
+      if (typeof data.data === "string") return `${header}${data.data}`;
+      return `${header}\`\`\`json
+${JSON.stringify(data.data, null, 2)}
+\`\`\``;
+    }
+  },
+  {
+    name: "snapshot_rendered_page",
+    description: "Captures a post-hydration, rendered point-in-time snapshot of dynamic, JavaScript-heavy pages (React, Next.js, Vue). Freezes live state, pierces Shadow DOM, and extracts ultra-token-efficient Accessibility (AX) Trees or rendered Markdown.",
+    parameters: {
+      format: external_exports.enum(["ax_tree", "markdown", "html", "unrendered_html"]).optional().default("ax_tree").describe('Snapshot format: "ax_tree" (recommended: semantic roles, labels, and states with zero cosmetic div noise), "markdown" (computed DOM markdown with live values), "html" (rendered static HTML), or "unrendered_html" (raw pre-mutation HTML source)'),
+      wait_until_idle_ms: external_exports.coerce.number().optional().default(400).describe("Time in ms to wait for pending network microtasks and React state updates to settle (default: 400)"),
+      pierce_shadow_dom: external_exports.coerce.boolean().optional().default(true).describe("Whether to traverse and unwrap encapsulated Shadow Roots (#shadow-root)"),
+      save_to_disk: external_exports.coerce.boolean().optional().default(false).describe("Whether to persist snapshot to data/snapshots/ for offline re-inspection via query_json_data"),
+      force_rerender: external_exports.coerce.boolean().optional().default(false).describe("Whether to force reflow and dispatch resize events to trigger re-renders before snapshotting")
+    },
+    endpoint: "/snapshot/rendered",
+    payload: (args) => ({
+      format: args?.format || "ax_tree",
+      waitUntilIdleMs: args?.wait_until_idle_ms !== void 0 ? Number(args.wait_until_idle_ms) : 400,
+      pierceShadowDom: args?.pierce_shadow_dom !== void 0 ? Boolean(args.pierce_shadow_dom) : true,
+      saveToDisk: args?.save_to_disk !== void 0 ? Boolean(args.save_to_disk) : false,
+      forceRerender: args?.force_rerender !== void 0 ? Boolean(args.force_rerender) : false
+    }),
+    format: (data) => {
+      const stats = data.stats || {};
+      const fileNotice = data.filePath ? ` (Saved to: ${data.filePath})` : "";
+      const header = `### Rendered Page Snapshot [${data.format?.toUpperCase()}] \u2014 "${data.title}" (${stats.estimatedTokens || 0} est tokens, ${stats.byteLength || 0} bytes)${fileNotice}
+URL: ${data.url}
+
+`;
+      return `${header}${data.content || "Snapshot empty"}`;
+    }
+  },
+  {
+    name: "prerender_links",
+    description: "Speculative Pre-rendering Engine. Pre-executes, hydrates, and caches candidate links in background views so subsequent navigation is 0ms instantaneous. Automatically distills and indexes content into LanceDB Cortex memory.",
+    parameters: {
+      urls: external_exports.array(external_exports.string()).optional().describe("Specific candidate URLs to prerender. If omitted, uses selector or page link heuristics"),
+      selector: external_exports.string().optional().describe('CSS selector to pick candidate links from the active page (e.g. "a.search-result", ".docs-nav a")'),
+      max_pages: external_exports.coerce.number().optional().default(3).describe("Maximum candidate pages to prerender in background pool (max: 3)"),
+      harvest_to_cortex: external_exports.coerce.boolean().optional().default(true).describe("Whether to automatically distill and index pre-rendered pages into LanceDB Cortex memory for instant recall_memory"),
+      wait_until_idle_ms: external_exports.coerce.number().optional().default(500).describe("Hydration wait time per candidate view")
+    },
+    endpoint: "/prerender/links",
+    payload: (args) => ({
+      urls: args?.urls,
+      selector: args?.selector,
+      maxPages: args?.max_pages !== void 0 ? Number(args.max_pages) : 3,
+      harvestToCortex: args?.harvest_to_cortex !== void 0 ? Boolean(args.harvest_to_cortex) : true,
+      waitUntilIdleMs: args?.wait_until_idle_ms !== void 0 ? Number(args.wait_until_idle_ms) : 500
+    }),
+    format: (data) => {
+      const list = Array.isArray(data.prerendered) ? data.prerendered : [];
+      if (list.length === 0) return "No candidate links were pre-rendered.";
+      const lines = list.map((u) => `- [0ms READY] ${u}`);
+      return `### Speculative Pre-rendered Pool (${list.length} pages warm & indexed to Cortex)
+Subsequent navigate_to() calls targeting these URLs will load with 0ms perceived latency.
+
+${lines.join("\n")}`;
+    }
+  },
   // 10. Set-of-Marks (SoM) Grounding
   {
     name: "take_annotated_screenshot",
-    description: "Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping.",
-    parameters: {},
+    description: "Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping. Set include_offscreen=true to also badge elements below/above the fold (long result lists).",
+    parameters: {
+      include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also badge interactive elements outside the current viewport (default: false)")
+    },
     endpoint: "/marks/screenshot",
     method: "GET",
-    format: (data) => JSON.stringify(data.marks, null, 2)
+    payload: (args) => ({ queryParams: { include_offscreen: String(args?.include_offscreen === true) } }),
+    format: (data) => Array.isArray(data.marks) ? data.marks.map((m) => formatMark(m)).join("\n") : JSON.stringify(data)
+  },
+  {
+    name: "take_economy_screenshot",
+    description: "Lightweight Set-of-Marks screenshot: downscaled to 640px wide JPEG (~10-20x smaller than take_annotated_screenshot) plus the same mark mapping. Use for vision models when token/bandwidth cost matters. Set include_offscreen=true to also badge elements below/above the fold.",
+    parameters: {
+      include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also badge interactive elements outside the current viewport (default: false)")
+    },
+    endpoint: "/marks/screenshot",
+    method: "GET",
+    payload: (args) => ({ queryParams: { economy: "1", include_offscreen: String(args?.include_offscreen === true) } }),
+    format: (data) => Array.isArray(data.marks) ? data.marks.map((m) => formatMark(m)).join("\n") : JSON.stringify(data)
+  },
+  {
+    name: "list_marks",
+    description: "Text-only Set-of-Marks: returns the numbered interactive element table with NO image. Use for text-only models or the cheapest possible page scan; click_mark / type_mark work afterwards. On long/virtualized result lists set include_offscreen=true so below-the-fold items are numbered too (click_mark scrolls them into view).",
+    parameters: {
+      include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also number interactive elements outside the current viewport so long result lists are fully listed (default: false)")
+    },
+    endpoint: "/marks/screenshot",
+    method: "GET",
+    payload: (args) => ({ queryParams: { text_only: "1", include_offscreen: String(args?.include_offscreen === true) } }),
+    format: (data) => Array.isArray(data.marks) ? data.marks.map((m) => formatMark(m)).join("\n") : JSON.stringify(data)
   },
   {
     name: "click_mark",
@@ -37084,7 +37303,13 @@ var TOOLS_CATALOG = [
     },
     endpoint: "/scripts/recall",
     payload: (args) => ({ query: args.query, limit: args.limit }),
-    format: (data) => JSON.stringify(data.scripts, null, 2)
+    format: (data) => {
+      const scripts = Array.isArray(data.scripts) ? data.scripts : [];
+      if (scripts.length === 0) return "No matching scripts found in vault.";
+      const lines = scripts.map((s) => `- "${s.name}" (score: ${s.score ? s.score.toFixed(2) : "n/a"}): ${s.description || "No description"}`);
+      return `### Recalled Scripts (${scripts.length})
+${lines.join("\n")}`;
+    }
   },
   {
     name: "run_script",
@@ -37103,7 +37328,13 @@ var TOOLS_CATALOG = [
     parameters: {},
     endpoint: "/scripts/list",
     method: "GET",
-    format: (data) => JSON.stringify(data.scripts, null, 2)
+    format: (data) => {
+      const scripts = Array.isArray(data.scripts) ? data.scripts : [];
+      if (scripts.length === 0) return "No scripts saved in vault.";
+      const lines = scripts.map((s) => `- "${s.name}": ${s.description || "No description"}`);
+      return `### Script Vault (${scripts.length})
+${lines.join("\n")}`;
+    }
   },
   {
     name: "delete_script",
@@ -37125,7 +37356,18 @@ var TOOLS_CATALOG = [
     },
     endpoint: "/streams/list",
     payload: (args) => ({ type: args.type, activeOnly: args.active_only }),
-    format: (data) => JSON.stringify(data.streams, null, 2)
+    format: (data) => {
+      const list = Array.isArray(data.streams) ? data.streams : [];
+      if (list.length === 0) return "No realtime streams (WebSocket/SSE) captured.";
+      const lines = list.map((s) => {
+        const state = s.closed ? "closed" : "OPEN";
+        return `[${s.streamId}] ${s.type.toUpperCase()} ${state} ${s.url} (msgs: ${s.messageCount || 0})`;
+      });
+      return `### Realtime Streams (${list.length})
+Use query_json_data({ source: "stream_messages", source_id: "<streamId>" }) to inspect stream data.
+
+${lines.join("\n")}`;
+    }
   },
   {
     name: "get_stream_messages",
@@ -37138,7 +37380,18 @@ var TOOLS_CATALOG = [
     },
     endpoint: "/streams/messages",
     payload: (args) => ({ streamId: args.stream_id, type: args.type, direction: args.direction, limit: args.limit }),
-    format: (data) => JSON.stringify(data.messages, null, 2)
+    format: (data) => {
+      const msgs = Array.isArray(data.messages) ? data.messages : [];
+      if (msgs.length === 0) return "No stream messages captured.";
+      const lines = msgs.map((m) => {
+        const dir = (m.direction || "msg").toUpperCase();
+        const time3 = m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : "";
+        const preview2 = typeof m.data === "string" ? m.data.slice(0, 100) : JSON.stringify(m.data || m.jsonData || "").slice(0, 100);
+        return `[${time3}] ${dir} (stream: ${m.streamId || "n/a"}): ${preview2}`;
+      });
+      return `### Realtime Messages (${msgs.length})
+${lines.join("\n")}`;
+    }
   },
   {
     name: "clear_stream_messages",
@@ -37174,11 +37427,11 @@ var TOOLS_CATALOG = [
   // 14. Human-In-The-Loop (HIL) Intervention & Desktop Notifications
   {
     name: "request_human_intervention",
-    description: "Halts the agent and requests human assistance when credentials, 2FA, OTP, CAPTCHA, or manual approval are needed. Restores window, flashes taskbar, triggers desktop notification, and injects interactive banner.",
+    description: "PROACTIVELY call this whenever encountering CAPTCHAs, Cloudflare Turnstile, login/2FA prompts, payment checkouts, or unexpected roadblocks. Halts agent execution, triggers audible desktop alerts, unhides and brings window to front, flashes taskbar, and presents an interactive HUD banner for human assistance.",
     parameters: {
-      reason: external_exports.string().describe('Clear explanation of what human action is needed (e.g. "Please solve the CAPTCHA")'),
-      timeout_seconds: external_exports.number().optional().describe("Max seconds to wait (default: 180)"),
-      bring_to_front: external_exports.boolean().optional().default(true).describe("Whether to unhide/restore window from tray (default: true)")
+      reason: external_exports.string().describe('Clear explanation of what human action is needed (e.g. "Please solve the Cloudflare Turnstile challenge" or "Please enter 2FA code")'),
+      timeout_seconds: external_exports.number().optional().describe("Max seconds to wait for human action (default: 180)"),
+      bring_to_front: external_exports.boolean().optional().default(true).describe("Whether to unhide/restore window from tray and bring to front (default: true)")
     },
     endpoint: "/hil/request",
     payload: (args) => {
@@ -37224,33 +37477,444 @@ var TOOLS_CATALOG = [
       return { title, message, urgency: args?.urgency, sound: args?.sound };
     },
     format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Kuang Grade Mark Eleven", message: args?.message || "Notification sent" })
+  },
+  {
+    name: "send_desktop_notification",
+    description: "Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).",
+    parameters: {
+      message: external_exports.string().describe("Specific reason why the user is needed and instructions for what to do in the browser."),
+      title: external_exports.string().optional().default("Kuang Browser: Human Intervention Required").describe("Notification title"),
+      urgency: external_exports.enum(["low", "normal", "critical"]).optional().default("critical").describe("Urgency level of the notification."),
+      sound: external_exports.boolean().optional().default(true).describe("Whether to play notification alert sound (default: true)")
+    },
+    endpoint: "/notify",
+    payload: (args) => {
+      const title = args?.title || "Kuang Browser: Human Intervention Required";
+      const message = args?.message || args?.text || args?.body || "Human intervention required in Kuang browser";
+      return { title, message, urgency: args?.urgency || "critical", sound: args?.sound ?? true };
+    },
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Kuang Browser: Human Intervention Required", message: args?.message || "Notification sent" })
+  },
+  // ---------------------------------------------------------------------------
+  // 14. Primitives Layer — one observe / act / wait / extract model.
+  // These complement the procedural verbs above; nothing is replaced.
+  // ---------------------------------------------------------------------------
+  {
+    name: "wait_for",
+    description: 'Declarative readiness gate. Polls until every (require="all") or any (require="any", default) condition holds, then returns. This is the primitive that replaces blind sleeps. Condition types: {"type":"selector","selector":"...","visible":true} \xB7 {"type":"gone","selector":"..."} \xB7 {"type":"text","text":"..."} (or {"regex":"..."}) \xB7 {"type":"url","pattern":"..."} \xB7 {"type":"role_name","role":"button","name":"Search"} \xB7 {"type":"count","selector":".card","min":5} \xB7 {"type":"network_idle","quietMs":800} \xB7 {"type":"stable","target":"marks|height|text|nodes","holdMs":400} (waits for lazily-rendered lists to stop growing) \xB7 {"type":"revision","version":N}.',
+    parameters: {
+      conditions: external_exports.array(external_exports.record(external_exports.string(), external_exports.any())).describe('Array of condition objects, e.g. [{"type":"selector","selector":".result"}]'),
+      require: external_exports.enum(["any", "all"]).optional().default("any").describe('"all" = every condition must hold; "any" = first one (default)'),
+      timeout_ms: external_exports.coerce.number().optional().default(15e3).describe("Give up after this many ms (default: 15000)"),
+      poll_ms: external_exports.coerce.number().optional().default(250).describe("Poll interval in ms (default: 250)")
+    },
+    endpoint: "/wait-for",
+    payload: (args) => ({
+      conditions: args?.conditions || (args?.condition ? [args.condition] : []),
+      require: args?.require || "any",
+      timeout_ms: args?.timeout_ms,
+      poll_ms: args?.poll_ms
+    }),
+    format: (data) => {
+      const lines = (data.results || []).map((r) => `${r.ok ? "\u2713" : "\u2717"} ${r.type}${r.evidence ? ` \u2014 ${r.evidence}` : ""}`);
+      return `${data.ok ? "READY" : "TIMED OUT"} after ${data.waitedMs}ms (${data.attempts} polls, require=${data.require})
+${lines.join("\n")}`;
+    }
+  },
+  {
+    name: "observe",
+    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 harvest with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table) \xB7 as="list" \xB7 as="table" \xB7 as="app_data" (structured extraction). Use budget + the returned next_cursor to page a large page instead of truncating it. region accepts a mark id (number) or CSS selector.',
+    parameters: {
+      as: external_exports.enum(["markdown", "text", "ax", "som", "list", "table", "app_data"]).optional().default("markdown").describe("Projection to return (default: markdown)"),
+      region: external_exports.union([external_exports.coerce.number(), external_exports.string()]).optional().describe("Scope to a mark id (number) or CSS selector (string)"),
+      budget: external_exports.coerce.number().optional().describe("Max characters to return; page with next_cursor (0/omitted = whole text)"),
+      cursor: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe("next_cursor from a previous observe call"),
+      include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Include below/above-the-fold elements (markdown marks, som, list)"),
+      limit: external_exports.coerce.number().optional().describe("Max rows for list/table projections")
+    },
+    endpoint: "/observe",
+    payload: (args) => ({
+      as: args?.as || "markdown",
+      region: args?.region,
+      budget: args?.budget,
+      cursor: args?.cursor,
+      include_offscreen: args?.include_offscreen === true,
+      limit: args?.limit
+    }),
+    format: (data) => {
+      const head = `# observe(as=${data.as}) ${data.url ? `\u2014 ${data.url}` : ""}`;
+      const meta3 = `chars=${data.text ? data.text.length : 0}/${data.total ?? 0}${data.truncated ? ` \xB7 next_cursor=${data.next_cursor}` : ""}`;
+      return `${head}
+${meta3}
+
+${data.text || "(no content)"}`;
+    }
+  },
+  {
+    name: "extract",
+    description: 'Structured extraction (read-only, no JS injection into page logic). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. kind="table" returns {headers, rows, records} from a <table> or ARIA grid. kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs.',
+    parameters: {
+      kind: external_exports.enum(["list", "table", "app_data"]).default("list").describe("Extraction kind"),
+      ref: external_exports.coerce.number().optional().describe("Scope to a mark id (from list_marks/find)"),
+      selector: external_exports.string().optional().describe("Scope to a CSS selector (default: whole page)"),
+      limit: external_exports.coerce.number().optional().default(200).describe("Max rows/sources")
+    },
+    endpoint: "/extract",
+    payload: (args) => ({ kind: args?.kind || "list", ref: args?.ref, selector: args?.selector, limit: args?.limit }),
+    format: (data) => {
+      if (data.error) return `extract failed: ${data.error}`;
+      if (data.kind === "table") {
+        const head = (data.headers || []).join(" | ");
+        const rows2 = (data.rows || []).map((r) => r.join(" | ")).join("\n");
+        return `# table (${data.count} rows)
+${head}
+${rows2}`;
+      }
+      if (data.kind === "app_data") {
+        return `# app_data (${data.count} sources)
+` + (data.sources || []).map((s) => `${s.source} (${s.bytes}B, parsed=${s.parsed})`).join("\n");
+      }
+      const rows = (data.rows || []).map((r, i) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ""}${r.mark ? ` [#${r.mark}]` : ""}`);
+      return `# list (${data.count} items${data.container?.sig ? `, container="${data.container.sig}"` : ""})
+${rows.join("\n")}`;
+    }
+  },
+  {
+    name: "collect_all",
+    description: 'Scroll a virtualized/lazy list to the bottom and collect every distinct row (deduped by text+href) in ONE call. The abstraction that replaces a manual scroll-and-harvest sweep. Auto-detects the repeating item container; use selector/ref to scope it and scroll="window" for page-level infinite scroll.',
+    parameters: {
+      selector: external_exports.string().optional().describe("CSS selector of the list container (default: auto-detect)"),
+      ref: external_exports.coerce.number().optional().describe("Mark id of the list container (from find/list_marks)"),
+      scroll: external_exports.enum(["container", "window"]).optional().default("container").describe("Scroll the container itself or the whole window"),
+      step: external_exports.coerce.number().optional().default(600).describe("Pixels per scroll step"),
+      delay_ms: external_exports.coerce.number().optional().default(250).describe("Wait after each scroll for lazy content"),
+      max_scrolls: external_exports.coerce.number().optional().default(30).describe("Safety cap on scroll iterations"),
+      max: external_exports.coerce.number().optional().default(300).describe("Max rows to collect")
+    },
+    endpoint: "/collect",
+    payload: (args) => ({
+      selector: args?.selector,
+      ref: args?.ref,
+      scroll: args?.scroll || "container",
+      step: args?.step,
+      delay_ms: args?.delay_ms,
+      max_scrolls: args?.max_scrolls,
+      max: args?.max
+    }),
+    format: (data) => {
+      if (data.error) return `collect_all failed: ${data.error}`;
+      const rows = (data.rows || []).map((r, i) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ""}`);
+      return `# collect_all \u2014 ${data.count} distinct rows after ${data.scrolls} scrolls
+${rows.join("\n")}`;
+    }
+  },
+  {
+    name: "find",
+    description: "Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act()/click_mark().",
+    parameters: {
+      role: external_exports.string().optional().describe('ARIA role or implied role (e.g. "button", "link", "combobox")'),
+      name: external_exports.string().optional().describe("Accessible-name substring (case-insensitive)"),
+      contains: external_exports.string().optional().describe("Text/value substring"),
+      regex: external_exports.string().optional().describe("Regex over text/value"),
+      tag: external_exports.string().optional().describe('Element tag, e.g. "A" or "BUTTON"'),
+      selector: external_exports.string().optional().describe("CSS selector the element must match"),
+      limit: external_exports.coerce.number().optional().default(25).describe("Max refs to return"),
+      include_offscreen: external_exports.coerce.boolean().optional().default(true).describe("Also search below/above the fold (default: true)")
+    },
+    endpoint: "/find",
+    payload: (args) => ({
+      role: args?.role,
+      name: args?.name,
+      contains: args?.contains,
+      regex: args?.regex,
+      tag: args?.tag,
+      selector: args?.selector,
+      limit: args?.limit,
+      include_offscreen: args?.include_offscreen
+    }),
+    format: (data) => {
+      const rows = (data.marks || []).map((m) => formatMark(m));
+      return `# find \u2014 ${data.count} of ${data.total} match(es)
+${rows.join("\n")}`;
+    }
+  },
+  {
+    name: "expect",
+    description: "Immediate assertion (no polling) over the same condition vocabulary as wait_for. Returns pass/fail plus per-condition evidence, so an agent can self-check before proceeding instead of guessing.",
+    parameters: {
+      conditions: external_exports.array(external_exports.record(external_exports.string(), external_exports.any())).describe('Conditions to assert immediately, e.g. [{"type":"text","text":"GBP"},{"type":"url","pattern":"/flights"}]')
+    },
+    endpoint: "/expect",
+    payload: (args) => ({ conditions: args?.conditions || (args?.condition ? [args.condition] : []) }),
+    format: (data) => {
+      const lines = (data.results || []).map((r) => `${r.ok ? "\u2713" : "\u2717"} ${r.type}${r.evidence ? ` \u2014 ${r.evidence}` : ""}`);
+      return `${data.ok ? "PASS" : "FAIL"} (${data.results.filter((r) => r.ok).length}/${data.results.length} conditions)
+${lines.join("\n")}`;
+    }
+  },
+  {
+    name: "act",
+    description: 'Unified, humanlike action on a mark ref with optional post-conditions and a delta report. action="click"|"focus"|"hover"|"type"|"press". Pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs.',
+    parameters: {
+      mark_id: external_exports.coerce.number().optional().describe('Target mark id from find/list_marks/observe (not needed for action="press")'),
+      action: external_exports.enum(["click", "focus", "hover", "type", "press"]).default("click").describe("Action to perform"),
+      text: external_exports.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
+      secret: external_exports.coerce.boolean().optional().default(false).describe("Redact typed text from logs"),
+      await_conditions: external_exports.array(external_exports.record(external_exports.string(), external_exports.any())).optional().describe("wait_for conditions evaluated right after the action"),
+      timeout_ms: external_exports.coerce.number().optional().default(15e3).describe("Timeout for await_conditions"),
+      dry_run: external_exports.coerce.boolean().optional().default(false).describe("Resolve the target but do not act")
+    },
+    endpoint: "/act",
+    payload: (args) => ({
+      mark_id: args?.mark_id,
+      action: args?.action || "click",
+      text: args?.text !== void 0 ? String(args.text) : void 0,
+      secret: args?.secret === true,
+      await: args?.await_conditions,
+      timeout_ms: args?.timeout_ms,
+      dry_run: args?.dry_run === true
+    }),
+    format: (data) => {
+      if (data.dryRun) return `DRY RUN \u2014 would ${data.action} [#${data.markId}] <${data.target?.tag}> "${data.target?.text}"${data.wouldType ? ` typing "${data.wouldType}"` : ""}`;
+      const d = data.delta || {};
+      const parts = [
+        `${data.action} [#${data.markId}] <${data.target?.tag}> "${data.target?.text}"`,
+        d.urlChanged ? `url: ${d.beforeUrl} -> ${d.afterUrl}` : "url unchanged",
+        `revision ${d.revisionBefore}->${d.revisionAfter}`,
+        `marks ${d.marksBefore}->${d.marksAfter}`
+      ];
+      if (data.awaited) parts.push(`await: ${data.awaited.ok ? "READY" : "TIMED OUT"} in ${data.awaited.waitedMs}ms${data.awaited.hint ? ` [${data.awaited.hint}]` : ""}`);
+      return parts.join(" \xB7 ");
+    }
+  },
+  {
+    name: "page_state",
+    description: "Cheap monotonic state signature (revision, url, title, mark count, DOM node count, scroll height, text length/hash). Use with diff() to detect change without re-reading the page.",
+    parameters: {},
+    endpoint: "/page-state",
+    method: "POST",
+    format: (data) => JSON.stringify(data.state, null, 2)
+  },
+  {
+    name: "diff",
+    description: "Field-by-field diff between the current page state and a previously observed revision (from page_state/observe/act). Shows exactly what changed: url, title, marks, nodeCount, height, scrollY, textLen, textHash.",
+    parameters: {
+      since: external_exports.coerce.number().optional().describe("Revision to diff against (default: earliest recorded state)")
+    },
+    endpoint: "/diff",
+    payload: (args) => ({ since: args?.since }),
+    format: (data) => {
+      if (!data.changed) return `No change since revision ${data.from?.revision} (revision ${data.to?.revision}).`;
+      const lines = Object.entries(data.changes || {}).map(([k, v]) => `${k}: ${JSON.stringify(v.from)} -> ${JSON.stringify(v.to)}`);
+      return `Changed ${data.from?.revision} -> ${data.to?.revision}
+${lines.join("\n")}`;
+    }
+  },
+  {
+    name: "bridge_health",
+    description: "Bridge + app liveness and capability discovery: version, page revision, negotiated primitives capabilities, active tab/url, window focused/visible state, the active synthetic-input transport (cdp|native), and the timestamp of the last mutating action.",
+    parameters: {},
+    endpoint: "/health",
+    method: "GET",
+    format: (data) => JSON.stringify({ status: data.status, version: data.version, revision: data.revision, capabilities: data.capabilities, url: data.info?.url, title: data.info?.title, window: data.window, input: data.input, lastActionAt: data.lastActionAt }, null, 2)
+  },
+  {
+    name: "export_har",
+    description: "Exports captured network traffic as a HAR 1.2 log (request/response headers + body previews). Set save=true to write data/har/har_<ts>.har and get the path; otherwise the HAR JSON is returned.",
+    parameters: {
+      pattern: external_exports.string().optional().describe("URL substring filter"),
+      limit: external_exports.coerce.number().optional().default(250).describe("Max entries"),
+      save: external_exports.coerce.boolean().optional().default(false).describe("Write the HAR to data/har/ and return the path instead of the JSON")
+    },
+    endpoint: "/network/har",
+    payload: (args) => ({ pattern: args?.pattern, limit: args?.limit, save: args?.save === true }),
+    format: (data) => data.filePath ? `HAR written to ${data.filePath} (${data.entries} entries)` : JSON.stringify(data.har)
+  },
+  {
+    name: "context_save",
+    description: "Saves the current browsing context (cookies + storage) under a name \u2014 the profile abstraction for authenticated sessions.",
+    parameters: { name: external_exports.string().optional().describe("Context name (auto-generated if omitted)") },
+    endpoint: "/context/save",
+    payload: (args) => ({ name: args?.name }),
+    format: (data) => JSON.stringify(data.result)
+  },
+  {
+    name: "context_open",
+    description: "Restores (switches to) a named browsing context/profile, reloading its cookies and storage.",
+    parameters: { name: external_exports.string().describe("Context name to restore") },
+    endpoint: "/context/open",
+    payload: (args) => ({ name: args?.name }),
+    format: (data) => JSON.stringify(data.result)
+  },
+  {
+    name: "context_list",
+    description: "Lists saved browsing contexts (cookie/storage profiles).",
+    parameters: {},
+    endpoint: "/context/list",
+    method: "GET",
+    format: (data) => JSON.stringify(data.contexts, null, 2)
+  },
+  {
+    name: "context_delete",
+    description: "Deletes a saved browsing context/profile.",
+    parameters: { name: external_exports.string().describe("Context name to delete") },
+    endpoint: "/context/delete",
+    payload: (args) => ({ name: args?.name }),
+    format: (data) => JSON.stringify({ deleted: data.deleted })
+  },
+  {
+    name: "focus_window",
+    description: 'Brings the Cyberdeck window to the foreground and focuses it. Synthetic input is delivered over CDP by default and is focus-independent, so this is only needed to make the window visible to a human (HIL) or when bridge_health.input.transport reports the legacy "native" fallback.',
+    parameters: {},
+    endpoint: "/window/focus",
+    method: "POST",
+    format: (data) => JSON.stringify({ focused: data.focused })
   }
 ];
 
+// src/shared/version.ts
+var APP_VERSION = "1.1.1";
+
 // src/mcp/bridge-server.ts
 var BRIDGE_URL = process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111";
-function logMcp(message) {
-  const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-  console.error(`[Mark Eleven MCP ${timestamp}] ${message}`);
+var LOG_TO_FILE = process.env.KUANG_MCP_LOG !== "0";
+var STDERR_MODE = process.env.KUANG_MCP_STDERR === "0" ? "off" : process.env.KUANG_MCP_STDERR === "verbose" ? "verbose" : "boot";
+var STDERR_HARD_CAP_BYTES = 16 * 1024;
+var LOG_DIR = import_node_path.default.resolve(process.cwd(), "data", "logs");
+var logDirReady = false;
+try {
+  import_node_fs.default.mkdirSync(LOG_DIR, { recursive: true });
+  logDirReady = true;
+} catch {
+}
+var logQueue = [];
+var logFlushing = false;
+var LOG_QUEUE_MAX_LINES = 2e3;
+function flushLogQueue() {
+  if (!LOG_TO_FILE || !logDirReady || logFlushing || logQueue.length === 0) return;
+  logFlushing = true;
+  const batch = logQueue.join("");
+  logQueue = [];
+  import_node_fs.default.appendFile(import_node_path.default.join(LOG_DIR, "mcp-server.log"), batch, () => {
+    logFlushing = false;
+    if (logQueue.length > 0) flushLogQueue();
+  });
+}
+function flushLogSync() {
+  if (!LOG_TO_FILE || !logDirReady || logQueue.length === 0) return;
+  const batch = logQueue.join("");
+  logQueue = [];
   try {
-    const logDir = import_node_path.default.resolve(process.cwd(), "data", "logs");
-    if (!import_node_fs.default.existsSync(logDir)) {
-      import_node_fs.default.mkdirSync(logDir, { recursive: true });
-    }
-    import_node_fs.default.appendFileSync(import_node_path.default.join(logDir, "mcp-server.log"), `[${timestamp}] ${message}
-`);
+    import_node_fs.default.appendFileSync(import_node_path.default.join(LOG_DIR, "mcp-server.log"), batch);
   } catch {
   }
 }
+var stderrBytesWritten = 0;
+var stderrBlocked = false;
+function writeStderr(text) {
+  if (STDERR_MODE === "off" || stderrBlocked) return;
+  if (stderrBytesWritten >= STDERR_HARD_CAP_BYTES) return;
+  const chunk = text.endsWith("\n") ? text : `${text}
+`;
+  try {
+    const accepted = process.stderr.write(chunk);
+    stderrBytesWritten += Buffer.byteLength(chunk);
+    if (!accepted) {
+      stderrBlocked = true;
+      process.stderr.once("drain", () => {
+        stderrBlocked = false;
+      });
+    }
+  } catch {
+    stderrBlocked = true;
+  }
+}
+function preview(value, max = 2e3) {
+  let text;
+  try {
+    text = typeof value === "string" ? value : JSON.stringify(value);
+  } catch {
+    text = String(value);
+  }
+  if (text === void 0) return "";
+  return text.length > max ? `${text.slice(0, max)}\u2026` : text;
+}
+function logMcp(message, level = "call") {
+  const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+  if (LOG_TO_FILE) {
+    if (logQueue.length >= LOG_QUEUE_MAX_LINES) logQueue.shift();
+    logQueue.push(`[${timestamp}] ${message}
+`);
+    flushLogQueue();
+  }
+  if (STDERR_MODE === "verbose" || STDERR_MODE === "boot" && level !== "call") {
+    writeStderr(`[Mark Eleven MCP ${timestamp}] ${message}`);
+  }
+}
+var stdoutClosed = false;
+process.stdout.on("error", (err) => {
+  if (err?.code === "EPIPE" || err?.code === "ERR_STREAM_DESTROYED") {
+    if (!stdoutClosed) {
+      stdoutClosed = true;
+      logMcp("stdout pipe closed by client (EPIPE); shutting down cleanly.", "boot");
+    }
+    process.exit(0);
+  }
+  logMcp(`stdout stream error: ${err?.message || err}`, "error");
+});
+process.stderr.on("error", () => {
+});
+var shuttingDown = false;
+function shutdown(reason) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logMcp(reason, "boot");
+  flushLogSync();
+  process.exit(0);
+}
+process.stdin.on("end", () => shutdown("stdin closed by client; shutting down cleanly."));
+process.stdin.on("close", () => shutdown("stdin stream closed; shutting down cleanly."));
+process.on("exit", () => flushLogSync());
+process.on("unhandledRejection", (reason) => {
+  logMcp(`Unhandled promise rejection (server kept alive): ${reason?.stack || reason}`, "error");
+});
+process.on("uncaughtException", (err) => {
+  logMcp(`Uncaught exception (server kept alive): ${err?.stack || err}`, "error");
+});
+var MAX_TEXT_CHARS = 6e4;
+function clampText(text) {
+  if (typeof text !== "string" || text.length <= MAX_TEXT_CHARS) return text;
+  return `${text.slice(0, MAX_TEXT_CHARS)}
+
+... [Mark Eleven MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
+}
+var BRIDGE_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.KUANG_BRIDGE_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 3e5;
+})();
 async function callBridge(endpoint, method = "GET", body = null) {
+  let url2 = `${BRIDGE_URL}${endpoint}`;
   const options = {
     method,
     headers: { "Content-Type": "application/json" }
   };
-  if (body && (method === "POST" || method === "PUT")) {
+  if (body?.queryParams && (method === "GET" || method === "DELETE")) {
+    const q = new URLSearchParams(body.queryParams).toString();
+    if (q) url2 += (url2.includes("?") ? "&" : "?") + q;
+  } else if (body && (method === "POST" || method === "PUT")) {
     options.body = JSON.stringify(body);
   }
-  const res = await fetch(`${BRIDGE_URL}${endpoint}`, options);
+  let res;
+  try {
+    res = await fetch(url2, { ...options, signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS) });
+  } catch (err) {
+    if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+      throw new Error(
+        `Bridge request timed out after ${BRIDGE_TIMEOUT_MS}ms (${method} ${endpoint}). The Cyberdeck may be busy or wedged; retry or call bridge_health().`
+      );
+    }
+    throw err;
+  }
   if (!res.ok) {
     const errorData = await res.json().catch(() => null);
     const detail = errorData?.error || errorData?.message || res.statusText;
@@ -37265,14 +37929,14 @@ function extractCleanBase64(data) {
 function createBridgeMcpServer() {
   const server = new McpServer({
     name: "kuang-grade-mark-eleven",
-    version: "1.0.0"
+    version: APP_VERSION
   });
   for (const tool of TOOLS_CATALOG) {
     server.tool(tool.name, tool.description, tool.parameters, async (args) => {
       try {
-        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${JSON.stringify(args)}`);
+        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
         const body = tool.payload ? tool.payload(args) : args;
-        logMcp(`[HTTP Forward] ${tool.method || "POST"} ${tool.endpoint} body: ${JSON.stringify(body)}`);
+        logMcp(`[HTTP Forward] ${tool.method || "POST"} ${tool.endpoint} body: ${preview(body)}`);
         const data = await callBridge(tool.endpoint, tool.method || "POST", body);
         if (tool.name === "take_screenshot") {
           const rawBase64 = extractCleanBase64(data);
@@ -37291,27 +37955,27 @@ function createBridgeMcpServer() {
             content.push({
               type: "image",
               data: rawBase64,
-              mimeType: "image/png"
+              mimeType: screenshot.mimeType || (screenshot.filePath?.endsWith(".png") ? "image/png" : "image/jpeg")
             });
           }
           logMcp(`[Tool Success] "take_screenshot" returning text + image part (${rawBase64.length} chars base64, path: ${filePath})`);
           return { content };
         }
-        if (tool.name === "take_annotated_screenshot") {
+        if (tool.name === "take_annotated_screenshot" || tool.name === "take_economy_screenshot" || tool.name === "list_marks") {
           const rawBase64 = extractCleanBase64(data);
           const screenshot = data.screenshot || data;
           const filePath = screenshot.filePath || "";
           const w = screenshot.width || 0;
           const h = screenshot.height || 0;
           const marks = Array.isArray(data.marks) ? data.marks : [];
-          const marksTable = marks.map((m) => `[#${m.id}] <${m.tag}${m.type ? ` type="${m.type}"` : ""}> "${m.text || ""}"`).join("\n");
-          const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.` : `Set-of-Marks Screenshot captured (${w}x${h}px). ${marks.length} interactive elements detected.`;
-          const descriptionText = `${header}
+          const marksTable = marks.map((m) => formatMark(m)).join("\n");
+          const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.` : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
+          const descriptionText = clampText(`${header}
 
 Interactive Elements:
 ${marksTable}
 
-Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
+Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
           const content = [
             {
               type: "text",
@@ -37322,17 +37986,18 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
             content.push({
               type: "image",
               data: rawBase64,
-              mimeType: "image/png"
+              mimeType: screenshot.mimeType || "image/png"
             });
           }
-          logMcp(`[Tool Success] "take_annotated_screenshot" returning text + image part (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
+          logMcp(`[Tool Success] "${tool.name}" returning text${rawBase64 ? " + image part" : " only"} (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
           return { content };
         }
-        const text = tool.format ? tool.format(data, args) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
-        logMcp(`[Tool Success] "${tool.name}" result: ${String(text).slice(0, 100)}`);
+        const rawText = tool.format ? tool.format(data, args) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
+        const text = clampText(typeof rawText === "string" ? rawText : String(rawText ?? ""));
+        logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
         return { content: [{ type: "text", text }] };
       } catch (err) {
-        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`);
+        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, "error");
         return {
           isError: true,
           content: [
@@ -37345,14 +38010,199 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
       }
     });
   }
+  const OKF_SKILL_GUIDE = `# \u{1F9ED} MARK ELEVEN: OPERATIONAL KNOWLEDGE FORMAT (OKF)
+
+1. [CORE ARCHITECTURE & OPERATIONAL SEQUENCE]
+  - Visual Browser: Active visible Chromium window ('headless: false') with B\xE9zier ghost-cursor telemetry.
+  - Zero Context Bleed: Tools return compact 1-line markdown or distilled structures instead of raw JSON.
+  - PREFERENTIAL SEQUENCE (Tokens & Anti-Shadowban):
+    * TIER 1 (First Choice): get_page_markdown() [or observe(as:"markdown")] -> clean text with inline [#ID] marks. Actuate via click_mark(id) / type_mark(id) / act(mark_id). Zero vision tokens burned!
+    * TIER 2 (Fallback): take_economy_screenshot() -> downscaled 640px JPEG Set-of-Marks. Use ONLY when visual layout/CAPTCHA requires vision.
+    * TIER 3 (Last Resort): evaluate_javascript() -> strictly for READ-ONLY inspection. NEVER mutate DOM or click via JS to avoid bot shadowbans (isTrusted: false).
+  - Start non-trivial sessions with bridge_health() to read capabilities[], revision and input.transport.
+
+2. [ORTHOGONAL PRIMITIVES \u2014 PREFER THESE OVER BLIND SLEEPS]
+  - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate; returns {ok, waitedMs, attempts, results[]}. Replaces every sleep.
+  - act(mark_id, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified humanlike click/focus/hover/type/press + optional post-conditions + delta report. dry_run resolves without acting; secret redacts credentials from logs.
+  - expect(conditions[]): immediate assertion (no polling) with per-condition evidence.
+  - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs (feed them to act/click_mark).
+  - extract(kind:"list"|"table"|"app_data", ref?, selector?): structured read (repeating rows, tables, embedded __NEXT_DATA__/JSON-LD).
+  - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): scroll a lazy/infinite list to the end and dedupe rows in ONE call, with scroll diagnostics.
+  - observe(as:"markdown"|"text"|"ax"|"som"|"list"|"table"|"app_data", region?, budget?, cursor?): one observation model; page huge pages with budget + next_cursor.
+  - page_state() / diff(since?): cheap change signature + field-by-field diff for loops (no full re-reads).
+  - Condition vocabulary: selector / gone / text(regex) / url / role_name / count(min/equals/max) / network_idle / stable(target:"marks"|"height"|"text"|"nodes") / revision. WARNING: skeletons can satisfy a naive selector early \u2014 prefer stable/count for lazily-rendered lists.
+  - Errors are machine-coded (HTTP 400): STALE_REF (re-scan), TIMEOUT, NO_TARGET, BAD_REQUEST, NOT_SUPPORTED. See resource mark-eleven://okf/partitions/primitives-and-workflows for recipes R1-R5.
+
+3. [VISUAL GROUNDING & SET-OF-MARKS (SoM)]
+  - Three tiers (all share identical badge IDs):
+    * take_annotated_screenshot(): Marks table + full-resolution PNG (for vision models).
+    * take_economy_screenshot(): Marks table + 640px JPEG (~10-20x lighter, recommended for vision).
+    * list_marks(): Marks table only, NO image (zero token waste, ideal for text-only LLMs).
+  - Actuation:
+    * click_mark(mark_id): B\xE9zier trajectory click on badge number (accepts number or string).
+    * type_mark(mark_id, text, clear_first?): Focuses mark badge and types with human cadence.
+  - Accessibility & States:
+    * Badge tags display roles and state: [role=combobox] {value="...", expanded=false, disabled, required}.
+    * Custom selects / menus: Click mark to expand -> call list_marks() -> click option mark -> verify.
+    * Long/virtualized result lists: pass include_offscreen=true to list_marks()/get_page_markdown()/take_economy_screenshot() so below-the-fold items are numbered too (click_mark scrolls them into view before clicking).
+
+4. [NETWORK INTERCEPTION & JSON NAVIGATOR]
+  - Inspection:
+    * get_network_traffic(resource_type?, url_pattern?, limit?, since?): Compact 1-line HTTP summaries with [HAS_BODY] indicator. since accepts epoch-ms, a revision, or "last_action" (only what the last mutating action fired).
+    * get_api_payload(request_id): Retrieves raw response body.
+    * export_har(pattern?, limit?, save?): HAR 1.2 export (save=true writes data/har/har_<ts>.har).
+  - Token-Efficient JSON Navigator (query_json_data):
+    * Step 1 (Schema): query_json_data({ source: "network_payload", source_id: "<req_id>", view: "schema" }) -> outlines structure and array counts without raw dump.
+    * Step 2 (Path Slice): query_json_data({ ..., path: "results.itineraries[0..3].price" }) -> slices arrays and projects nested properties.
+    * Step 3 (Filter): Filter at object level before leaf projection:
+      - Embedded path style: path: "vendors[?usesCookies = true].name" (filters objects, then projects name).
+      - Parameter style: path: "vendors[0..10]", filter_predicate: "usesCookies == true" (do NOT pass leaf .name before filter_predicate).
+    * Sources: "network_payload" (request_id), "stream_messages" (stream_id), "download_file" (filename), "inline_json" (jsonString).
+    * Views: "value" (default), "schema", "keys", "summary".
+
+5. [RENDERED SNAPSHOTS & SPECULATIVE PRERENDERING]
+  - snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?, save_to_disk?):
+    * Freezes post-hydration DOM in heavy SPAs (React, Next.js, Vue).
+    * format: "ax_tree" (recommended: semantic hierarchy skipping div soup), "markdown" (clean computed text), "html".
+    * Pierces #shadow-root and bakes live input values into attributes.
+  - prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?):
+    * Speculative Pre-rendering: Pre-executes candidate links in background views for 0ms instantaneous navigation.
+    * Automatically distills and embeds pages into LanceDB Cortex memory (recall_memory ready).
+
+6. [MULTI-TAB & SESSION ORCHESTRATION]
+  - Tabs: new_tab(url?) -> switch_tab(tab_id) -> list_tabs() (1-line markdown) -> close_tab(tab_id?).
+  - Sessions: save_session(name) -> restore_session(name) -> list_sessions() (cookies & storage persist).
+  - Context profiles: context_save(name) / context_open(name) / context_list() / context_delete(name) \u2014 thin aliases over the session vault.
+
+7. [LANCEDB CORTEX & KNOWLEDGE RECALL]
+  - recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously visited pages.
+  - Bookmarks: add_bookmark(url, title, notes?, tags?) -> list_bookmarks(query?, tag?) -> delete_bookmark(url_or_id).
+  - History: get_history(limit?, domain?) -> clear_history().
+
+8. [REALTIME WEBSOCKETS & SSE]
+  - list_realtime_streams(type?, active_only?): Lists active wss:// sockets and SSE streams.
+  - get_stream_messages(stream_id?, limit?): Rolling buffer of parsed frames.
+
+9. [INPUT DELIVERY & BACKGROUND RENDERING]
+  - Synthetic input is dispatched over CDP (Input.dispatchMouseEvent / dispatchKeyEvent / mouseWheel) and is FOCUS-INDEPENDENT: clicks/typing land even when another app owns the OS foreground. bridge_health().input.transport reports "cdp" (good) or "native" (legacy fallback that needs the window focused).
+  - Browsing tabs run with backgroundThrottling disabled + occlusion/renderer/timer backgrounding switches, so an occluded Cyberdeck still renders and fires scroll events (lazy-load harvests work while the window is behind your editor).
+  - Viewport gating: real input needs a non-zero viewport. If a fresh/hidden tab reports 0x0, call set_window_visibility({visible:true}) and wait for a non-zero viewport. focus_window() only makes the window visible to a human (HIL).
+
+10. [HUMAN-IN-THE-LOOP & SYSTEM TRAY]
+  - request_human_intervention(reason, timeout_seconds?, bring_to_front?): PROACTIVELY CALL THIS whenever hitting Cloudflare challenges, CAPTCHAs, login/2FA screens, checkout payments, or critical blockers. Halts agent, triggers audible desktop alerts, unhides window, flashes taskbar, and presents HUD banner until user confirms.
+  - set_window_visibility(visible): Minimizes Cyberdeck to tray or restores to screen.
+  - send_notification(title, message, urgency?): Native OS desktop notification.`;
+  server.resource(
+    "mark-eleven-skill",
+    "mark-eleven://skills/guide",
+    {
+      description: "Comprehensive operational manual, Golden Operational Sequence, and workflow skill guide for Mark Eleven in OKF (Outline Knowledge Format).",
+      mimeType: "text/markdown"
+    },
+    async () => ({
+      contents: [
+        {
+          uri: "mark-eleven://skills/guide",
+          mimeType: "text/markdown",
+          text: OKF_SKILL_GUIDE
+        }
+      ]
+    })
+  );
+  server.resource(
+    "okf-manifest",
+    "mark-eleven://okf/manifest",
+    {
+      description: "Open Knowledge Format (OKF) manifest declaring bundleId kuang_browser_docs and all available partitions.",
+      mimeType: "application/json"
+    },
+    async () => {
+      const manifestPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "okf.json");
+      let text = "{}";
+      try {
+        text = import_node_fs.default.readFileSync(manifestPath, "utf8");
+      } catch {
+      }
+      return { contents: [{ uri: "mark-eleven://okf/manifest", mimeType: "application/json", text }] };
+    }
+  );
+  server.resource(
+    "okf-selector-som",
+    "mark-eleven://okf/partitions/selector-and-som",
+    {
+      description: "OKF Playbook: Golden Operational Sequence (Markdown -> Economy Screenshot -> Read-Only JS) and Set-of-Marks visual recipes.",
+      mimeType: "text/markdown"
+    },
+    async () => {
+      const docPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "partitions", "selector_and_som_recipes.md");
+      let text = "";
+      try {
+        text = import_node_fs.default.readFileSync(docPath, "utf8");
+      } catch {
+      }
+      return { contents: [{ uri: "mark-eleven://okf/partitions/selector-and-som", mimeType: "text/markdown", text }] };
+    }
+  );
+  server.resource(
+    "okf-captcha-antibot",
+    "mark-eleven://okf/partitions/captcha-and-anti-bot",
+    {
+      description: "OKF Playbook: Challenge Triage Matrix, Turnstile, text CAPTCHA solving, and HIL trigger rules.",
+      mimeType: "text/markdown"
+    },
+    async () => {
+      const docPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "partitions", "captcha_and_anti_bot_strategies.md");
+      let text = "";
+      try {
+        text = import_node_fs.default.readFileSync(docPath, "utf8");
+      } catch {
+      }
+      return { contents: [{ uri: "mark-eleven://okf/partitions/captcha-and-anti-bot", mimeType: "text/markdown", text }] };
+    }
+  );
+  server.resource(
+    "okf-browser-navigation",
+    "mark-eleven://okf/partitions/browser-navigation",
+    {
+      description: "OKF Playbook: 0ms speculative prerender navigation, multi-tab orchestration, and session persistence.",
+      mimeType: "text/markdown"
+    },
+    async () => {
+      const docPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "partitions", "browser_navigation_playbook.md");
+      let text = "";
+      try {
+        text = import_node_fs.default.readFileSync(docPath, "utf8");
+      } catch {
+      }
+      return { contents: [{ uri: "mark-eleven://okf/partitions/browser-navigation", mimeType: "text/markdown", text }] };
+    }
+  );
+  server.resource(
+    "okf-primitives-workflows",
+    "mark-eleven://okf/partitions/primitives-and-workflows",
+    {
+      description: "OKF Reference: the orthogonal primitive layer (observe/act/wait_for/expect/find/extract/collect_all/page_state/diff/export_har/contexts), wait vocabulary, error codes, recipes R1-R5, and input-delivery guarantees.",
+      mimeType: "text/markdown"
+    },
+    async () => {
+      const docPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "partitions", "primitives_and_workflows.md");
+      let text = "";
+      try {
+        text = import_node_fs.default.readFileSync(docPath, "utf8");
+      } catch {
+      }
+      return { contents: [{ uri: "mark-eleven://okf/partitions/primitives-and-workflows", mimeType: "text/markdown", text }] };
+    }
+  );
   server.tool(
     "help",
-    "Returns a categorized guide, cheatsheet, and workflow tips for all available Mark Eleven MCP tools.",
+    "Returns a categorized guide, cheatsheet, and workflow tips for all available Mark Eleven MCP tools (served directly in OKF).",
     {
       category: external_exports.enum([
         "all",
         "navigation",
         "interaction",
+        "primitives",
         "inspection",
         "tabs",
         "memory",
@@ -37362,64 +38212,76 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`;
       ]).optional().default("all").describe("Optional category to filter help")
     },
     async ({ category }) => {
-      const docs = {
-        navigation: `### Navigation Tools
+      if (category && category !== "all") {
+        const docs = {
+          navigation: `### Navigation Tools
 - navigate_to(url, auto_dismiss_consent?): Navigates active browser window to URL and auto-clears cookie overlays.
 - navigate_history(direction: "back" | "forward"): Moves back or forward in history.`,
-        interaction: `### Interaction & Telemetry Tools
+          interaction: `### Interaction & Telemetry Tools
 - click_element(selector?, x?, y?): Performs organic Bio-Kinematic Chaos mouse movement and switch clicks with visual pointer.
 - type_text(text, selector?): Types with realistic human Gaussian cadence (60-240ms).
 - press_key(key): Dispatches single hardware keys ('Enter', 'Tab', 'Escape', 'Backspace').
 - scroll_page(direction?, amount?): Simulates organic inertial wheel scrolling.
 - fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
-        inspection: `### Visual & Content Inspection
+          primitives: `### Orthogonal Primitives (prefer over blind sleeps)
+- bridge_health(): version, revision, capabilities[], window, input.transport.
+- wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate (replaces sleeps).
+- act(mark_id, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press + post-conditions + delta.
+- expect(conditions[]): immediate assertion with per-condition evidence.
+- find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs.
+- extract(kind:"list"|"table"|"app_data", ref?, selector?): structured reads.
+- collect_all(selector?, ref?, scroll?, max_scrolls?, max?): harvest a lazy/infinite list in one call.
+- observe(as:"markdown"|"text"|"ax"|"som"|"list"|"table"|"app_data", region?, budget?, cursor?): budgeted, cursor-paged observation.
+- page_state() / diff(since?): cheap change detection for loops.
+- export_har(pattern?, limit?, save?): HAR 1.2 export. context_save/open/list/delete(name): cookie+storage profiles.
+- Condition vocabulary: selector/gone/text/regex/url/role_name/count/network_idle/stable/revision. Errors: STALE_REF|TIMEOUT|NO_TARGET|BAD_REQUEST|NOT_SUPPORTED.`,
+          inspection: `### Visual & Content Inspection
 - get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.
+- snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?): Freezes dynamic post-hydration JS-heavy pages (AX tree outline, rendered markdown, or HTML).
+- prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?): Pre-executes and hydrates candidate links in background views for 0ms navigation and Cortex pre-harvest.
 - take_screenshot(): Captures full viewport image.
 - evaluate_javascript(script): Evaluates arbitrary JS in the active tab.
 - get_page_info(): Returns active URL, title, tab ID, loading status.
 - get_console_logs(limit?): Returns live browser console logs.
-- take_annotated_screenshot(): Set-of-Marks visual badges overlay.
+- take_annotated_screenshot(): Set-of-Marks visual badges overlay (full PNG + marks table).
+- take_economy_screenshot(): Same marks table with a small 640px JPEG (~10-20x lighter). Prefer for vision models when cost matters.
+- list_marks(): Marks table only, NO image. Use with text-only models; click_mark/type_mark work afterwards.
 - click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
-        tabs: `### Multi-Tab Orchestration
+          tabs: `### Multi-Tab Orchestration
 - new_tab(url?): Opens a new tab.
 - switch_tab(tab_id): Focuses a specific tab.
 - close_tab(tab_id?): Closes a tab.
 - list_tabs(): Returns all open tabs.`,
-        memory: `### LanceDB Cortex & Bookmarks
+          memory: `### LanceDB Cortex & Bookmarks
 - recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously browsed pages.
 - add_bookmark(url, title, notes?, tags?): Saves a research bookmark to LanceDB.
 - list_bookmarks(query?, tag?, limit?): Searches or lists saved bookmarks.
 - delete_bookmark(url_or_id): Removes a bookmark.
 - get_history(limit?, domain?): Chronological browsing history.`,
-        macros: `### Script Vault & Macro Engine
+          macros: `### Script Vault & Macro Engine
 - save_script(name, description, code, parameters?): Vaults a reusable DOM script into LanceDB.
 - recall_script(query, limit?): Semantically searches for vaulted automation scripts.
 - run_script(name, args?): Executes vaulted script inside the live tab.
 - list_scripts() / delete_script(name): Manages vaulted scripts.`,
-        network: `### Network & Stream Interception
-- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses.
+          network: `### Network & Stream Interception
+- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses (returns compact 1-line markdown summaries).
 - get_api_payload(request_id): Retrieves raw JSON response payload from intercepted API calls.
+- query_json_data(source, source_id?, path?, view?, filter_predicate?, max_items?, max_string_length?): Token-efficient JSON navigator. Extracts nested paths (e.g. "items[0..3].price"), distills schemas, filters arrays, and avoids context blowups. Sources: "network_payload", "stream_messages", "download_file", "inline_json".
 - list_realtime_streams(type?, active_only?): Lists active wss:// WebSockets and SSE streams.
 - get_stream_messages(stream_id?, type?, direction?, limit?): Inspects real-time streaming frames.`,
-        system: `### System Tray & Human-In-The-Loop
+          system: `### System Tray & Human-In-The-Loop
 - set_window_visibility(visible): Minimizes Cyberdeck to system tray or restores to screen.
 - configure_system_tray(close_to_tray?): Configures close-to-tray background mode.
 - request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.
 - send_notification(title, message, urgency?, sound?): Sends native OS notification.`
-      };
-      if (category && category !== "all" && docs[category]) {
-        return { content: [{ type: "text", text: docs[category] }] };
+        };
+        return { content: [{ type: "text", text: docs[category] || "Category not found." }] };
       }
-      const allDocs = Object.values(docs).join("\n\n");
       return {
         content: [
           {
             type: "text",
-            text: `# \u{1F9ED} Kuang Grade Mark Eleven \u2014 MCP Help & Cheatsheet
-
-Total Tools: ${TOOLS_CATALOG.length + 1}
-
-${allDocs}`
+            text: OKF_SKILL_GUIDE
           }
         ]
       };
@@ -37459,7 +38321,7 @@ ${allDocs}`
     server.server._requestHandlers.set("tools/call", async (request, extra) => {
       if (request?.params) {
         request.params.arguments = normalizeIncomingParams(request.params);
-        console.error(`[Mark Eleven MCP] tools/call: "${request.params.name}" args:`, JSON.stringify(request.params.arguments));
+        logMcp(`tools/call: "${request.params.name}" args: ${preview(request.params.arguments)}`);
       }
       return await rawCallHandler(request, extra);
     });
@@ -37559,11 +38421,11 @@ function normalizeIncomingParams(params) {
   return normalized;
 }
 async function start() {
-  logMcp("Initializing Mark Eleven MCP Server over stdio...");
+  logMcp("Initializing Mark Eleven MCP Server over stdio...", "boot");
   const server = createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logMcp("Connected to stdio transport. Listening for JSON-RPC messages.");
+  logMcp("Connected to stdio transport. Listening for JSON-RPC messages.", "boot");
   const prevSend = transport.send;
   if (typeof prevSend === "function") {
     transport.send = (msg) => {
@@ -37604,8 +38466,8 @@ async function start() {
   }
 }
 start().catch((err) => {
-  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`);
-  console.error("Fatal Mark Eleven MCP Server Error:", err);
+  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`, "error");
+  flushLogSync();
   process.exit(1);
 });
 // Annotate the CommonJS export names for ESM import in node:

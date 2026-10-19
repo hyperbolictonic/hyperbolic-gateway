@@ -5,20 +5,114 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { TOOLS_CATALOG } from './tools-catalog.js';
 import { formatMark } from './format-mark.js';
+import { APP_VERSION } from '../shared/version.js';
 
 const BRIDGE_URL = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
 
-function logMcp(message: string) {
-  const timestamp = new Date().toISOString();
-  console.error(`[Mark Eleven MCP ${timestamp}] ${message}`);
+// --- Diagnostics policy ------------------------------------------------------
+// stdout is the JSON-RPC lifeline; stderr is diagnostics only. A client that
+// pipes stderr but never drains it fills the OS pipe buffer and wedges the
+// child. This server used to write ~500 bytes per tool call to stderr, so a
+// normal browsing turn (~125 calls) was enough to kill the whole namespace.
+// See docs/HANDOFF_ORCHA_MCP_STDERR.md.
+//
+//   - the file log is always written, asynchronously and memory-bounded;
+//   - stderr gets a short boot banner by default and nothing per call;
+//   - verbose stderr is opt-in and is backpressure-aware (lines are dropped,
+//     never queued) plus hard-capped, so it can never wedge the process.
+//
+// Env: KUANG_MCP_LOG=0 (no file log), KUANG_MCP_STDERR=0 (no stderr),
+//      KUANG_MCP_STDERR=verbose (per-call stderr, debugging only).
+const LOG_TO_FILE = process.env.KUANG_MCP_LOG !== '0';
+const STDERR_MODE: 'off' | 'boot' | 'verbose' =
+  process.env.KUANG_MCP_STDERR === '0'
+    ? 'off'
+    : process.env.KUANG_MCP_STDERR === 'verbose'
+      ? 'verbose'
+      : 'boot';
+const STDERR_HARD_CAP_BYTES = 16 * 1024;
+
+const LOG_DIR = path.resolve(process.cwd(), 'data', 'logs');
+let logDirReady = false;
+try {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+  logDirReady = true;
+} catch {
+  // Logging is best-effort; never fail startup because of it.
+}
+
+let logQueue: string[] = [];
+let logFlushing = false;
+const LOG_QUEUE_MAX_LINES = 2000;
+
+function flushLogQueue(): void {
+  if (!LOG_TO_FILE || !logDirReady || logFlushing || logQueue.length === 0) return;
+  logFlushing = true;
+  const batch = logQueue.join('');
+  logQueue = [];
+  fs.appendFile(path.join(LOG_DIR, 'mcp-server.log'), batch, () => {
+    logFlushing = false;
+    if (logQueue.length > 0) flushLogQueue();
+  });
+}
+
+/** Synchronous drain used only on shutdown paths, where async I/O cannot run. */
+function flushLogSync(): void {
+  if (!LOG_TO_FILE || !logDirReady || logQueue.length === 0) return;
+  const batch = logQueue.join('');
+  logQueue = [];
   try {
-    const logDir = path.resolve(process.cwd(), 'data', 'logs');
-    if (!fs.existsSync(logDir)) {
-      fs.mkdirSync(logDir, { recursive: true });
-    }
-    fs.appendFileSync(path.join(logDir, 'mcp-server.log'), `[${timestamp}] ${message}\n`);
+    fs.appendFileSync(path.join(LOG_DIR, 'mcp-server.log'), batch);
   } catch {
-    // Ignore logging disk errors
+    // Ignore.
+  }
+}
+
+let stderrBytesWritten = 0;
+let stderrBlocked = false;
+
+/** Bounded, non-queuing stderr write. Dropped lines are intentional. */
+function writeStderr(text: string): void {
+  if (STDERR_MODE === 'off' || stderrBlocked) return;
+  if (stderrBytesWritten >= STDERR_HARD_CAP_BYTES) return;
+  const chunk = text.endsWith('\n') ? text : `${text}\n`;
+  try {
+    const accepted = process.stderr.write(chunk);
+    stderrBytesWritten += Buffer.byteLength(chunk);
+    if (!accepted) {
+      // The consumer is not reading. Stop writing instead of buffering.
+      stderrBlocked = true;
+      process.stderr.once('drain', () => {
+        stderrBlocked = false;
+      });
+    }
+  } catch {
+    stderrBlocked = true;
+  }
+}
+
+type LogLevel = 'boot' | 'call' | 'error';
+
+function preview(value: unknown, max = 2000): string {
+  let text: string;
+  try {
+    text = typeof value === 'string' ? value : JSON.stringify(value);
+  } catch {
+    text = String(value);
+  }
+  if (text === undefined) return '';
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function logMcp(message: string, level: LogLevel = 'call'): void {
+  const timestamp = new Date().toISOString();
+  if (LOG_TO_FILE) {
+    if (logQueue.length >= LOG_QUEUE_MAX_LINES) logQueue.shift();
+    logQueue.push(`[${timestamp}] ${message}\n`);
+    flushLogQueue();
+  }
+  if (STDERR_MODE === 'verbose' || (STDERR_MODE === 'boot' && level !== 'call')) {
+    writeStderr(`[Mark Eleven MCP ${timestamp}] ${message}`);
   }
 }
 
@@ -31,22 +125,36 @@ process.stdout.on('error', (err: any) => {
   if (err?.code === 'EPIPE' || err?.code === 'ERR_STREAM_DESTROYED') {
     if (!stdoutClosed) {
       stdoutClosed = true;
-      try { logMcp('stdout pipe closed by client (EPIPE); shutting down cleanly.'); } catch {}
+      logMcp('stdout pipe closed by client (EPIPE); shutting down cleanly.', 'boot');
     }
     process.exit(0);
   }
-  try { logMcp(`stdout stream error: ${err?.message || err}`); } catch {}
+  logMcp(`stdout stream error: ${err?.message || err}`, 'error');
 });
 process.stderr.on('error', () => { /* never let logging throw */ });
+
+// Explicit lifecycle: if the client closes our stdin, exit rather than linger as
+// an orphan that keeps competing for the single browser session.
+let shuttingDown = false;
+function shutdown(reason: string): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logMcp(reason, 'boot');
+  flushLogSync();
+  process.exit(0);
+}
+process.stdin.on('end', () => shutdown('stdin closed by client; shutting down cleanly.'));
+process.stdin.on('close', () => shutdown('stdin stream closed; shutting down cleanly.'));
+process.on('exit', () => flushLogSync());
 
 // Keep the namespace alive on stray async errors. This server is a stateless
 // HTTP forwarder, so continuing after a rejection is safe and far better than
 // vanishing mid-session.
 process.on('unhandledRejection', (reason: any) => {
-  try { logMcp(`Unhandled promise rejection (server kept alive): ${reason?.stack || reason}`); } catch {}
+  logMcp(`Unhandled promise rejection (server kept alive): ${reason?.stack || reason}`, 'error');
 });
 process.on('uncaughtException', (err: any) => {
-  try { logMcp(`Uncaught exception (server kept alive): ${err?.stack || err}`); } catch {}
+  logMcp(`Uncaught exception (server kept alive): ${err?.stack || err}`, 'error');
 });
 
 // Hard ceiling on any single text tool response so one oversized payload
@@ -57,6 +165,13 @@ function clampText(text: string): string {
   if (typeof text !== 'string' || text.length <= MAX_TEXT_CHARS) return text;
   return `${text.slice(0, MAX_TEXT_CHARS)}\n\n... [Mark Eleven MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
 }
+
+// Ceiling on any single bridge round-trip. Generous enough for HIL waits and
+// long navigations, but guarantees a wedged Cyberdeck cannot hang a tool forever.
+const BRIDGE_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.KUANG_BRIDGE_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 300_000;
+})();
 
 async function callBridge(endpoint: string, method: string = 'GET', body: any = null) {
   let url = `${BRIDGE_URL}${endpoint}`;
@@ -70,7 +185,18 @@ async function callBridge(endpoint: string, method: string = 'GET', body: any = 
   } else if (body && (method === 'POST' || method === 'PUT')) {
     options.body = JSON.stringify(body);
   }
-  const res = await fetch(url, options);
+  let res: Response;
+  try {
+    res = await fetch(url, { ...options, signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS) });
+  } catch (err: any) {
+    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+      throw new Error(
+        `Bridge request timed out after ${BRIDGE_TIMEOUT_MS}ms (${method} ${endpoint}). ` +
+          `The Cyberdeck may be busy or wedged; retry or call bridge_health().`
+      );
+    }
+    throw err;
+  }
   if (!res.ok) {
     const errorData = await res.json().catch(() => null);
     const detail = errorData?.error || errorData?.message || res.statusText;
@@ -87,15 +213,15 @@ function extractCleanBase64(data: any): string {
 export function createBridgeMcpServer() {
   const server = new McpServer({
     name: 'kuang-grade-mark-eleven',
-    version: '1.0.0',
+    version: APP_VERSION,
   });
 
   for (const tool of TOOLS_CATALOG) {
     server.tool(tool.name, tool.description, tool.parameters, async (args) => {
       try {
-        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${JSON.stringify(args)}`);
+        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
         const body = tool.payload ? tool.payload(args) : args;
-        logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${tool.endpoint} body: ${JSON.stringify(body)}`);
+        logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${tool.endpoint} body: ${preview(body)}`);
         const data = await callBridge(tool.endpoint, tool.method || 'POST', body);
 
         // Native MCP Image Content support for multimodal vision LLMs & file-reading agents
@@ -171,7 +297,7 @@ export function createBridgeMcpServer() {
         logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
         return { content: [{ type: 'text', text }] };
       } catch (err: any) {
-        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`);
+        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, 'error');
         return {
           isError: true,
           content: [
@@ -449,7 +575,7 @@ export function createBridgeMcpServer() {
     (server as any).server._requestHandlers.set('tools/call', async (request: any, extra: any) => {
       if (request?.params) {
         request.params.arguments = normalizeIncomingParams(request.params);
-        console.error(`[Mark Eleven MCP] tools/call: "${request.params.name}" args:`, JSON.stringify(request.params.arguments));
+        logMcp(`tools/call: "${request.params.name}" args: ${preview(request.params.arguments)}`);
       }
       return await rawCallHandler(request, extra);
     });
@@ -585,11 +711,11 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
 }
 
 async function start() {
-  logMcp('Initializing Mark Eleven MCP Server over stdio...');
+  logMcp('Initializing Mark Eleven MCP Server over stdio...', 'boot');
   const server = createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logMcp('Connected to stdio transport. Listening for JSON-RPC messages.');
+  logMcp('Connected to stdio transport. Listening for JSON-RPC messages.', 'boot');
 
   // Intercept transport.send to guarantee parameters, input_schema, and schema are NEVER stripped on stdout
   const prevSend = (transport as any).send;
@@ -632,7 +758,7 @@ async function start() {
 }
 
 start().catch((err) => {
-  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`);
-  console.error('Fatal Mark Eleven MCP Server Error:', err);
+  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`, 'error');
+  flushLogSync();
   process.exit(1);
 });

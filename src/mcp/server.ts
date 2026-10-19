@@ -3,11 +3,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import type { BrowserChassis } from '../main/browser-chassis.js';
 import { formatMark } from './format-mark.js';
+import { APP_VERSION } from '../shared/version.js';
 
 export function createMcpServer(chassis: BrowserChassis) {
   const server = new McpServer({
     name: 'kuang-grade-mark-eleven',
-    version: '1.0.0',
+    version: APP_VERSION,
   });
 
   // Tool 1: navigate_to (primary semantic navigation tool)

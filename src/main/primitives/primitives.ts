@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron';
 import type { HarvestedConstruct } from '../../shared/types.js';
+import { APP_VERSION } from '../../shared/version.js';
 import type { MarkItem } from '../marks/marks-overlay.js';
 
 /**
@@ -940,7 +941,7 @@ export class Primitives {
     return {
       log: {
         version: '1.2',
-        creator: { name: 'Mark Eleven Cyberdeck', version: '1.0.0' },
+        creator: { name: 'Mark Eleven Cyberdeck', version: APP_VERSION },
         pages: [{ startedDateTime: new Date().toISOString(), id: 'page_1', title: info.title || '', pageTimings: {} }],
         entries,
       },

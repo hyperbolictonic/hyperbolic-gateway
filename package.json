@@ -1,6 +1,6 @@
 {
   "name": "kuang-grade-mark-eleven",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "license": "MIT",
   "description": "Stateful Visual Matrix Navigator (Electron Chassis + Focus-Independent Telemetry Engine + Orthogonal Primitive Layer)",
   "main": "dist-electron/main/index.js",
@@ -8,8 +8,8 @@
   "scripts": {
     "dev": "vite",
     "start": "electron .",
-    "build": "tsc && vite build && npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=bin/mcp-server.cjs",
-    "build:mcp": "npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=bin/mcp-server.cjs",
+    "build": "tsc && vite build && npm run build:mcp",
+    "build:mcp": "npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=bin/mcp-server.cjs && npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=scripts/mcp-server.js",
     "build:pack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win nsis --x64",
     "build:win:portable": "npm run build && electron-builder --win portable --x64",

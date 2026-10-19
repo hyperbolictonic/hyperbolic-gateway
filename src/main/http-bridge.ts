@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { BrowserChassis } from './browser-chassis.js';
+import { APP_VERSION } from '../shared/version.js';
 
 function logBridge(message: string, isError = false) {
   const timestamp = new Date().toISOString();
@@ -91,7 +92,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         sendJson({
           status: 'ok',
           app: 'kuang-grade-mark-eleven',
-          version: '1.0.0',
+          version: APP_VERSION,
           revision: chassis.getRevision(),
           capabilities: chassis.getCapabilities(),
           lastActionAt,
