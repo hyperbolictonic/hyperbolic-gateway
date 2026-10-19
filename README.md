@@ -13,8 +13,8 @@
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-1.1.1-22d3ee" />
-  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-74-a3e635" />
-  <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-6-f472b6" />
+  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-54-a3e635" />
+  <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20x64-64748b" />
 </p>
@@ -38,7 +38,7 @@ Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP
 
 ### 🎯 Core Architecture Principles
 1. **100% Real Browser Chassis:** No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Mark Eleven runs a full-fledged, visible Chromium instance (`headless: false`) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
-2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can click directly by coordinate or selector (`click_element`).
+2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can act directly by coordinate, selector, or mark badge (`act`).
 3. **Full Developer Console & Script Execution:** Gives the agent full console access (`get_console_logs`) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (`evaluate_javascript`) to interact with complex SPAs.
 4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches **real input events over the Chrome DevTools Protocol** (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `mouseWheel`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence. CDP delivery is **focus-independent** — it lands even when another application owns the OS foreground — with `webContents.sendInputEvent` kept only as a fallback.
 
@@ -86,7 +86,7 @@ Two real-desktop failure modes are handled explicitly so long harvests and HIL f
 
 - **Input is not tied to OS focus.** Synthetic input is delivered over CDP and therefore reaches the renderer even while you work in another application. If the debugger is unavailable the simulator falls back to `webContents.sendInputEvent` and brings the window forward first (that path is the only one that steals the foreground). `bridge_health` exposes `input.transport` so an agent can tell which path is live.
 - **Occluded windows keep rendering.** Browsing tabs run with `backgroundThrottling: false`, and the app boots with `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`, and `--disable-background-timer-throttling`. Without these, Chromium reports the page `hidden`, throttles timers to ≥1s, and stops producing frames — so `scroll` events never fire and `IntersectionObserver`/rAF hydration stalls (the classic "lazy list stops growing" bug).
-- **Viewport gating is explicit.** Real input needs a non-zero viewport; a fresh or hidden tab can briefly report `0x0`. Call `set_window_visibility({ visible: true })` and wait for a non-zero viewport before acting. `focus_window()` is only for making the window visible to a human (HIL).
+- **Viewport gating is explicit.** Real input needs a non-zero viewport; a fresh or hidden tab can briefly report `0x0`. Call `set_window_visibility({ visible: true })` and wait for a non-zero viewport before acting. Showing the window is otherwise only needed to make it visible to a human (HIL).
 
 ---
 
@@ -97,7 +97,7 @@ The older tool list is being consolidated onto **a few orthogonal verbs** — on
 | Primitive | Job | Replaces |
 | :--- | :--- | :--- |
 | `observe(as, region, budget, cursor)` | One budgeted, cursor-paged observation model (`markdown`/`text`/`ax`/`som`/`list`/`table`/`app_data`) | `get_page_markdown` + `snapshot_rendered_page` + `list_marks` |
-| `act(mark_id, action, text, secret, await_conditions, dry_run)` | Unified humanlike click/focus/hover/type/press **+ optional post-conditions + delta report** | `click_mark`/`type_mark` plus a following wait |
+| `act(mark_id \| selector \| x+y, action, text, secret, await_conditions, dry_run)` | Unified humanlike click/focus/hover/type/press on a **mark ref, CSS selector, or coordinate** **+ optional post-conditions + delta report** | `click_mark`/`type_mark`/`click_element`/`type_text` plus a following wait |
 | `wait_for(conditions, require, timeout_ms)` | Declarative readiness gate — the primitive that replaces blind sleeps | every `sleep`/"did it load?" guess |
 | `expect(conditions)` | Immediate assertion (no polling) with per-condition evidence | agent-side guessing |
 | `find(role, name, contains, regex, tag, selector)` | Semantic element search → **refs** (mark ids) | hand-written CSS/XPath |
@@ -107,7 +107,7 @@ The older tool list is being consolidated onto **a few orthogonal verbs** — on
 | `bridge_health()` | Liveness, `capabilities[]`, `revision`, `window`, `input.transport` | assuming the bridge is up |
 | `export_har(pattern, save)` · `context_*` | HAR 1.2 export · named cookie/storage profiles | ad-hoc replay · manual session juggling |
 
-**Refs are marks.** A ref *is* a Set-of-Marks badge id — `find` returns rows carrying the `mark`, and `act(mark_id=…)` consumes it (re-resolving the live centre each time). Nothing about the marks flow changes.
+**Refs are marks.** A ref *is* a Set-of-Marks badge id — `find` returns rows carrying the `mark`, and `act(mark_id=…)` consumes it (re-resolving the live centre each time). When there is no badge, the **same** `act` also takes `selector="…"` or `x=`/`y=` — one action tool, three address modes.
 
 **Wait vocabulary:** `selector` · `gone` · `text`/`regex` · `url` · `role_name` · `count(min/equals/max)` · `network_idle` · `stable(marks|height|text|nodes)` · `revision`.
 
@@ -172,18 +172,18 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Zero Coordinate Hallucination:** Completely eliminates hallucinated pixel coordinates or fragile CSS selectors.
 - **High-Contrast Neon Badges:** Ephemerally injects high-contrast amber neon numbered badges (`[1]`, `[2]`, `[3]`, etc.) over every visible, interactable DOM element (`<a>`, `<button>`, `<input>`, `select`, `[role="button"]`).
 - **Precision Multimodal Actuation:**
-  1. `take_annotated_screenshot()` captures the badge overlay and returns an element lookup table (`{ id: 1, tag: "BUTTON", text: "Submit", bbox: [...] }`).
-  2. `click_mark(1)` moves the Bézier ghost cursor to the element's centroid with sub-pixel accuracy and clicks.
-  3. `type_mark(2, "cyberdeck")` focuses the input and types text with human cadence.
-- **Three cost tiers** (pick the cheapest that fits your model):
+  1. `take_screenshot({ marks: true })` captures the badge overlay and returns an element lookup table (`{ id: 1, tag: "BUTTON", text: "Submit", bbox: [...] }`).
+  2. `act(1)` moves the Bézier ghost cursor to the element's centroid with sub-pixel accuracy and clicks.
+  3. `act(2, action: "type", text: "cyberdeck")` focuses the input and types text with human cadence.
+- **One tool, three cost tiers** via `take_screenshot({ marks: true, detail: … })` (pick the cheapest that fits your model):
 
-  | Tool | Payload | Use when |
+  | `detail` | Payload | Use when |
   | :--- | :--- | :--- |
-  | `take_annotated_screenshot` | Marks table + full-resolution PNG | Vision model, fine visual detail matters |
-  | `take_economy_screenshot` | Marks table + 640px-wide JPEG (q45), roughly 10-20x smaller | Vision model, tokens/bandwidth matter |
-  | `list_marks` | Marks table only, **no image** | Text-only models (e.g. local GGUFs) or the cheapest page scan |
+  | `"full"` (default) | Marks table + full-resolution PNG | Vision model, fine visual detail matters |
+  | `"economy"` | Marks table + 640px-wide JPEG (q45), roughly 10-20x smaller | Vision model, tokens/bandwidth matter |
+  | `"markdown"` | Marks table only, **no image** | Text-only models (e.g. local GGUFs) or the cheapest page scan |
 
-  All three register the same mark IDs, so `click_mark` / `type_mark` work after any of them. Text-only models must not be sent images: a base64 PNG inlined into the prompt can be 100k+ tokens and will stall local inference servers.
+  All three return the same mark IDs, so `act(mark_id, …)` works after any of them. Text-only models must not be sent images: a base64 PNG inlined into the prompt can be 100k+ tokens and will stall local inference servers.
 
 ---
 
@@ -208,8 +208,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 - **Stateful Auth Persistence:** Captures and restores active session cookies, `localStorage`, and `sessionStorage` into encrypted/structured snapshots under `./data/sessions/<name>.json`.
 - **Bypass 2FA & Logins:** Resume authenticated states on GitHub, airline portals, news sites, or internal dashboards across agent sessions without triggering repetitive logins or CAPTCHAs.
-- **MCP Tools:** `save_session(name)`, `restore_session(name)`, and `list_sessions()`.
-- **Context Profiles:** `context_save(name)` / `context_open(name)` / `context_list()` / `context_delete(name)` are thin aliases over the same vault — the profile abstraction for switching authenticated identities mid-session.
+- **MCP Tools:** `context_save(name)`, `context_open(name)`, `context_list()`, and `context_delete(name)`.
+- **Legacy aliases:** `save_session(name)` / `restore_session(name)` / `list_sessions()` still work (same vault) but are hidden from `tools/list`.
 
 ---
 
@@ -217,7 +217,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 - **Direct Chrome DevTools Protocol Wire:** Attaches directly via CDP (`Network.enable`) to monitor all incoming and outgoing network traffic.
 - **Direct JSON Extraction:** Bypasses DOM scraping entirely for modern Single-Page Applications (SPAs like Twitter, Reddit, Skyscanner). Captures completed XHR/Fetch response bodies (`Network.getResponseBody`).
-- **MCP Inspection:** `get_network_traffic` filters requests by URL pattern or method, and `get_api_payload(request_id)` returns parsed JSON directly into the LLM context.
+- **MCP Inspection:** `get_network_traffic` filters requests by URL pattern or method, and `query_json_data({ source: "network_payload", source_id })` returns parsed JSON (sliced by `path`/`view`) directly into the LLM context.
 - **Action-Correlated Capture:** `get_network_traffic({ since: 'last_action' })` returns only the requests fired by the most recent mutating action (also accepts an epoch-ms timestamp or a page revision). `export_har` writes a **HAR 1.2** log of captured traffic for offline replay.
 
 ---
@@ -227,14 +227,14 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Duplex Stream Surveillance:** Captures duplex frames across persistent `wss://` WebSockets and Server-Sent Events (`text/event-stream`).
 - **Auto-Parsed Payloads:** Automatically detects and parses JSON streaming frames from live crypto tickers, chat platforms, financial feeds, and streaming LLM APIs.
 - **In-Memory Ring Buffer:** Rolling buffer of 500 frames with filtering by stream ID, direction (`sent` / `received`), and message limit.
-- **MCP Tools:** `list_realtime_streams`, `get_stream_messages`, `clear_stream_messages`.
+- **MCP Tools:** `list_realtime_streams` and `clear_capture({ scope: "streams" })`; inspect frames with `query_json_data({ source: "stream_messages", source_id })`.
 
 ---
 
 ## 💾 Script Vault & LanceDB Semantic Macro Engine
 
 - **Reusable Automation Macros:** Store, recall, and execute custom JavaScript DOM extraction and automation scripts under `./data/scripts/<name>.json`.
-- **Vector-Indexed Semantic Recall:** Every vaulted script is automatically embedded into the LanceDB `scripts` table. Models can recall scripts using conversational natural language queries (`recall_script("extract table rows as json")`).
+- **Vector-Indexed Semantic Recall:** Every vaulted script is automatically embedded into the LanceDB `scripts` table. Models can recall scripts using conversational natural language queries (`list_scripts({ query: "extract table rows as json" })`).
 - **Parameter Injection:** `run_script(name, args)` executes vaulted scripts inside the active tab with dynamic runtime arguments and closure isolation.
 
 ---
@@ -244,7 +244,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Unobtrusive Background Operation:** Keeps the Cyberdeck running completely out of the way in the Windows notification tray during long-running automated tasks, batch scrapes, and research pipelines.
 - **Single-Click Summon:** Left-clicking or double-clicking the system tray icon toggles window visibility instantly.
 - **Close-to-Tray Protection:** Closing the window (`X`) minimizes to the system tray rather than killing active background tasks and MCP sessions.
-- **MCP Tools:** `set_window_visibility({ visible })` and `configure_system_tray({ close_to_tray })`.
+- **MCP Tools:** `set_window_visibility({ visible?, focus? })` and `configure_system_tray({ close_to_tray })`.
 
 ---
 
@@ -261,25 +261,25 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-## 🔌 Standardized Semantic MCP Tools (74 Tools Total)
+## 🔌 Standardized Semantic MCP Tools (54 Advertised)
 
-> 73 catalog tools + the built-in `help` tool. Six OKF **resources** are also exposed (`mark-eleven://skills/guide`, `mark-eleven://okf/manifest`, and four partition playbooks).
+> **54 advertised tools** (76 registered entries; **23 deprecated aliases are hidden from `tools/list`** but stay callable by name and return a `deprecated → use "X"` notice — rows marked `†` below). Seven MCP **resources** are also exposed: `mark-eleven://skills/guide`, `mark-eleven://tools/recommended`, `mark-eleven://okf/manifest`, and four partition playbooks.
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
 | **Navigation** | `navigate_to` | `url: string`, `auto_dismiss_consent?: boolean` | Navigates active tab to URL. Auto-dismisses GDPR/cookie overlays by default. Supports 0ms instant elevation if pre-rendered. |
-| | `go_to_url` | `url: string`, `auto_dismiss_consent?: boolean` | Primary alias for `navigate_to`. Dispatches visible window navigation. |
+| | † `go_to_url` | `url: string`, `auto_dismiss_consent?: boolean` | Primary alias for `navigate_to`. Dispatches visible window navigation. |
 | | `navigate_history` | `action: 'back' \| 'forward' \| 'reload'` | Browser history navigation and reload controls. |
-| | `get_page_info` | _none_ | Returns current URL, title, and load state without full extraction. |
+| | † `get_page_info` | _none_ | Returns current URL, title, and load state without full extraction. |
 | **Shield & Defense** | `dismiss_consent` | _none_ | Autonomously detects and dismisses GDPR/cookie banners via Bézier mouse click. |
-| **Interaction** | `click_element` | `selector?: string`, `x?: number`, `y?: number` | Clicks element by CSS selector or direct viewport (x, y) coordinates with loose argument normalization (`target`, `element`). |
-| | `type_text` | `text: string`, `selector?: string` | Types text with human Gaussian cadence variance (60–240ms) with loose argument normalization (`value`, `input`). |
+| **Interaction** | † `click_element` | `selector?: string`, `x?: number`, `y?: number` | **Deprecated** — folded into `act(selector: …)` / `act(x: …, y: …)`. Clicks element by CSS selector or direct viewport (x, y) coordinates. |
+| | † `type_text` | `text: string`, `selector?: string` | **Deprecated** — folded into `act(action: "type", text: …, selector: …)`. Types text with human Gaussian cadence variance (60–240ms). |
 | | `fill_form` | `fields: Record<string, string \| boolean \| number>`, `submit_selector?: string` | Fills multiple form inputs, selects, and checkboxes in a single turn. |
 | | `press_key` | `key: string` | Presses specific key (e.g. `Enter`, `Tab`, `Escape`, `Backspace`). |
 | | `scroll_page` | `direction: 'up' \| 'down'`, `amount?: number` | Incremental momentum wheel scrolling. |
-| **Observation & Vision** | `take_screenshot` | `max_width?: number`, `format?: 'jpeg' \| 'png'`, `quality?: number` | Viewport capture. Defaults to a **bounded 768px fast JPEG** (~15ms encode, tiny wire payload); pass `format: 'png'` for full-resolution lossless. Returns file path text & native MCP image block. Saved to `data/screenshots/` with automatic retention pruning. |
-| | `get_page_markdown` | _none_ | Downsamples active DOM to clean token-efficient Markdown with YAML metadata. |
-| | `harvest_markdown` | _none_ | Primary alias for `get_page_markdown`. Extracts clean markdown from the active tab. |
+| **Observation & Vision** | `take_screenshot` | `marks?: boolean`, `detail?: 'full' \| 'economy' \| 'markdown'`, `include_offscreen?: boolean`, `max_width?: number`, `format?: 'jpeg' \| 'png'`, `quality?: number` | Viewport capture. Plain mode (default) returns a **bounded 768px fast JPEG** (~15ms encode, tiny wire payload); `marks: true` returns Set-of-Marks with `detail: 'full'` (PNG), `'economy'` (640px JPEG), or `'markdown'` (marks table, no image). Returns file path text & native MCP image block. Saved to `data/screenshots/` with automatic retention pruning. |
+| | † `get_page_markdown` | _none_ | Downsamples active DOM to clean token-efficient Markdown with YAML metadata. |
+| | † `harvest_markdown` | _none_ | Primary alias for `get_page_markdown`. Extracts clean markdown from the active tab. |
 | | `snapshot_rendered_page` | `format?: 'ax_tree' \| 'markdown' \| 'html' \| 'unrendered_html'`, `wait_until_idle_ms?: number`, `pierce_shadow_dom?: boolean`, `force_rerender?: boolean`, `save_to_disk?: boolean` | **Rendered Point-in-Time Snapshot.** Freezes dynamic SPAs, pierces Shadow DOM, and extracts ultra-token-efficient Accessibility (AX) Trees, rendered Markdown, or unrendered source HTML. |
 | | `prerender_links` | `urls?: string[]`, `selector?: string`, `max_pages?: number`, `harvest_to_cortex?: boolean`, `wait_until_idle_ms?: number` | **Speculative Pre-rendering Engine.** Pre-hydrates candidate links in background views for **0ms instant navigation**, and auto-indexes into LanceDB Cortex memory. |
 | | `evaluate_javascript` | `script: string` | Evaluates custom JS expression in page context and returns serialized JSON. Accepts `script`, `code`, or `expression`. |
@@ -290,48 +290,49 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `close_tab` | `tab_id?: string` | Closes tab and reclaims memory resources. |
 | | `list_tabs` | _none_ | Returns structured array of all open tabs (IDs, titles, URLs, active status). |
 | **LanceDB Memory** | `recall_memory` | `query: string`, `limit?: number`, `domain?: string` | Performs hybrid vector and BM25 full-text search across visited pages and markdown. |
-| | `get_history` | `limit?: number`, `domain?: string` | Chronological browsing history from persistent LanceDB cortex. |
-| | `clear_history` | `older_than?: string` | Prunes or purges browsing history from persistent storage. |
+| | `browsing_history` | `limit?: number`, `domain?: string` | Chronological browsing history from persistent LanceDB cortex. |
+| | `browsing_history_clear` | `older_than?: string` | Prunes or purges browsing history from persistent storage. |
 | | `add_bookmark` | `url?: string`, `title?: string`, `notes?: string`, `tags?: string[]` | Saves active or specified page with tags and notes in LanceDB. |
-| | `list_bookmarks` | `query?: string`, `tag?: string`, `limit?: number` | Retrieves or semantically filters saved bookmarks. |
+| | `list_bookmarks` | `query?: string`, `tag?: string`, `limit?: number` | Retrieves or filters saved bookmarks by query terms (title/notes/URL/tags) or exact tag. |
 | | `delete_bookmark` | `url_or_id: string` | Deletes bookmark by URL or unique ID. |
 | **Downloads & Docs** | `list_downloads` | _none_ | Lists all files downloaded into `data/downloads/` with sizes, state, and timestamps. |
 | | `read_download` | `filename_or_id: string` | Parses downloaded file (PDF, CSV, JSON, text) into token-efficient markdown. |
-| **Session Vault** | `save_session` | `name?: string` | Captures active cookies and localStorage state into persistent JSON vault. |
-| | `restore_session` | `name: string` | Rehydrates cookies and localStorage state into browser session. |
-| | `list_sessions` | _none_ | Lists all stored session snapshots with timestamps and cookie counts. |
+| **Session Vault** | † `save_session` | `name?: string` | Captures active cookies and localStorage state into persistent JSON vault. |
+| | † `restore_session` | `name: string` | Rehydrates cookies and localStorage state into browser session. |
+| | † `list_sessions` | _none_ | Lists all stored session snapshots with timestamps and cookie counts. |
 | **Network Intelligence** | `get_network_traffic` | `url_pattern?: string`, `method?: string`, `resource_type?: string`, `limit?: number`, `since?: number \| 'last_action'` | Inspects live HTTP/XHR/Fetch requests captured via Chrome DevTools Protocol (returns compact 1-line markdown summaries). `since` narrows to requests after an epoch-ms timestamp, a page revision, or the last mutating action. |
-| | `get_api_payload` | `request_id: string` | Retrieves and parses the full raw JSON or text response body for an intercepted request. |
+| | † `get_api_payload` | `request_id: string` | Retrieves and parses the full raw JSON or text response body for an intercepted request. |
 | | `query_json_data` | `source: string`, `source_id?: string`, `path?: string`, `view?: string`, `filter_predicate?: string`, `max_items?: number`, `max_string_length?: number` | **Token-Efficient JSON Navigator.** Queries large payloads/streams/files via dot/bracket paths (`items[0..3].price`), extracts schemas, searches keys, and applies filters without context-window blowup. |
-| | `clear_network_traffic` | _none_ | Resets and clears the in-memory network traffic ring buffer. |
+| | † `clear_network_traffic` | _none_ | **Deprecated** — use `clear_capture({ scope: "network" })`. Resets the in-memory network traffic ring buffer. |
 | | `export_har` | `pattern?: string`, `limit?: number`, `save?: boolean` | Exports captured traffic as a **HAR 1.2** log (request/response headers + body previews). `save: true` writes `data/har/har_<ts>.har` and returns the path. |
 | | `list_realtime_streams` | `type?: 'websocket' \| 'sse'`, `active_only?: boolean` | Lists active WebSocket connections and open SSE channels in compact 1-line format. |
-| | `get_stream_messages` | `stream_id?: string`, `type?: string`, `direction?: string`, `limit?: number` | Inspects captured incoming/outgoing frames from WebSockets and SSE token streams. |
-| | `clear_stream_messages` | `stream_id?: string` | Clears the in-memory WebSocket and SSE message frame buffer. |
-| **Visual Grounding** | `take_annotated_screenshot` | _none_ | Tags all visible interactive elements with numbered neon badges (`[1]`, `[2]`, etc.). Returns dual content: Set-of-Marks table text & native MCP image block (`type: 'image'`). Saved to `data/screenshots/`. |
-| | `take_economy_screenshot` | _none_ | Lightweight variant: same marks table, but the image is downscaled to 640px wide and JPEG-encoded (q45, `image/jpeg`). Saved to `data/screenshots/` as `annotated_eco_*.jpg`. |
-| | `list_marks` | _none_ | Text-only variant: returns the marks table with no image and no file written. Ideal for text-only models. |
-| | `click_mark` | `mark_id: number` | Moves humanized Bézier ghost cursor to mark #ID and clicks with 100% accuracy. Accepts numbers, strings, and aliases (`mark`, `id`). |
-| | `type_mark` | `mark_id: number`, `text: string`, `clear_first?: boolean` | Focuses mark #ID and types text with variable human typing cadence. |
+| | † `get_stream_messages` | `stream_id?: string`, `type?: string`, `direction?: string`, `limit?: number` | Inspects captured incoming/outgoing frames from WebSockets and SSE token streams. |
+| | † `clear_stream_messages` | `stream_id?: string` | **Deprecated** — use `clear_capture({ scope: "streams" })`. Clears the in-memory WebSocket and SSE message frame buffer. |
+| | `clear_capture` | `scope?: 'network' \| 'streams' \| 'all'` | Clears the in-memory capture ring buffers: HTTP traffic (`"network"`), WebSocket/SSE frames (`"streams"`), or both (`"all"`, default). |
+| **Visual Grounding** | † `take_annotated_screenshot` | _none_ | Tags all visible interactive elements with numbered neon badges (`[1]`, `[2]`, etc.). Returns dual content: Set-of-Marks table text & native MCP image block (`type: 'image'`). Saved to `data/screenshots/`. |
+| | † `take_economy_screenshot` | _none_ | Lightweight variant: same marks table, but the image is downscaled to 640px wide and JPEG-encoded (q45, `image/jpeg`). Saved to `data/screenshots/` as `annotated_eco_*.jpg`. |
+| | † `list_marks` | _none_ | Text-only variant: returns the marks table with no image and no file written. Ideal for text-only models. |
+| | † `click_mark` | `mark_id: number` | **Deprecated** — folded into `act(mark_id: …)`. Moves humanized Bézier ghost cursor to mark #ID and clicks with 100% accuracy. |
+| | † `type_mark` | `mark_id: number`, `text: string`, `clear_first?: boolean` | **Deprecated** — folded into `act(mark_id: …, action: "type", text: …)`. Focuses mark #ID and types with variable human typing cadence. |
 | **Script Vault & Macros** | `save_script` | `name: string`, `code: string`, `description?: string`, `domain?: string`, `tags?: string[]` | Saves and embeds a custom JavaScript macro into LanceDB Cortex. |
-| | `recall_script` | `query?: string`, `domain?: string`, `tag?: string`, `limit?: number` | Semantically searches saved scrapers & macros using natural language. |
+| | † `recall_script` | `query?: string`, `domain?: string`, `tag?: string`, `limit?: number` | **Deprecated** — use `list_scripts({ query })`. Semantically searches saved scrapers & macros using natural language. |
 | | `run_script` | `name: string`, `args?: object` | Executes a saved script in active tab with dynamic runtime arguments. |
-| | `list_scripts` | `domain?: string`, `tag?: string` | Lists all registered macros in the persistent vault. |
+| | `list_scripts` | `query?: string`, `tag?: string`, `limit?: number` | Lists or semantically searches registered macros in the persistent vault (`query` ranks by relevance). |
 | | `delete_script` | `name: string` | Removes a script from the persistent vault and vector index. |
-| **Desktop & System Tray** | `set_window_visibility` | `visible: boolean` | Minimizes browser window to Windows notification tray to stay out of the way, or restores to screen. |
+| **Desktop & System Tray** | `set_window_visibility` | `visible?: boolean`, `focus?: boolean` | Shows/restores the window (and focuses it by default) to make it visible to a human, or minimizes it to the Windows notification tray. |
 | | `configure_system_tray` | `close_to_tray?: boolean` | Configures tray options such as close-to-tray background operation. |
 | **Human-In-The-Loop & Alert** | `request_human_intervention` | `reason: string`, `timeout_seconds?: number`, `bring_to_front?: boolean` | Halts agent, triggers native OS alert, unhides window, and injects interactive banner for CAPTCHAs/credentials. |
 | | `resolve_human_intervention` | `id?: string`, `notes?: string` | Resolves active intervention request and resumes agent execution. |
 | | `get_human_intervention_status` | _none_ | Checks active intervention status and history log. |
 | | `send_notification` | `title: string`, `message: string`, `urgency?: string`, `sound?: boolean` | Emits non-blocking OS native desktop banner notification to user. |
-| | `send_desktop_notification` | `message: string`, `title?: string`, `urgency?: string`, `sound?: boolean` | Dedicated HIL notification tool to summon the human operator with high-priority desktop sound and alert banner. |
+| | † `send_desktop_notification` | `message: string`, `title?: string`, `urgency?: string`, `sound?: boolean` | Dedicated HIL notification tool to summon the human operator with high-priority desktop sound and alert banner. |
 | **Primitives & Abstraction** | `wait_for` | `conditions: object[]`, `require?: 'any' \| 'all'`, `timeout_ms?: number`, `poll_ms?: number` | Declarative readiness gate — polls until every/any condition holds, then returns. The primitive that replaces blind sleeps. |
-| | `observe` | `as?: 'markdown' \| 'text' \| 'ax' \| 'som' \| 'list' \| 'table' \| 'app_data'`, `region?: number \| string`, `budget?: number`, `cursor?: string`, `include_offscreen?: boolean`, `limit?: number` | One budgeted observation model with projections. Use `budget` + `next_cursor` to page a large page instead of truncating. |
+| | `observe` | `as?: 'markdown' \| 'text' \| 'ax' \| 'som'`, `region?: number \| string`, `budget?: number`, `cursor?: string`, `include_offscreen?: boolean`, `limit?: number` | One budgeted observation model with projections. Use `budget` + `next_cursor` to page a large page instead of truncating. For structured list/table/app-data reads use `extract`. |
 | | `extract` | `kind?: 'list' \| 'table' \| 'app_data'`, `ref?: number`, `selector?: string`, `limit?: number` | Structured, read-only extraction: repeating rows, table records, or embedded app JSON (`__NEXT_DATA__`/JSON-LD). |
 | | `collect_all` | `selector?: string`, `ref?: number`, `scroll?: 'container' \| 'window'`, `step?: number`, `delay_ms?: number`, `max_scrolls?: number`, `max?: number` | Scrolls a virtualized/lazy list to the end and collects every distinct row (deduped by text+href) in **one call**, with scroll diagnostics. |
-| | `find` | `role?: string`, `name?: string`, `contains?: string`, `regex?: string`, `tag?: string`, `selector?: string`, `limit?: number`, `include_offscreen?: boolean` | Semantic element search returning Set-of-Marks **refs** (mark ids) instead of pixels. Feed ids straight into `act`/`click_mark`. |
+| | `find` | `role?: string`, `name?: string`, `contains?: string`, `regex?: string`, `tag?: string`, `selector?: string`, `limit?: number`, `include_offscreen?: boolean` | Semantic element search returning Set-of-Marks **refs** (mark ids) instead of pixels. Feed ids straight into `act`. |
 | | `expect` | `conditions: object[]` | Immediate assertion (no polling) over the same vocabulary as `wait_for`; returns pass/fail plus per-condition evidence. |
-| | `act` | `mark_id?: number`, `action?: 'click' \| 'focus' \| 'hover' \| 'type' \| 'press'`, `text?: string`, `secret?: boolean`, `await_conditions?: object[]`, `timeout_ms?: number`, `dry_run?: boolean` | Unified humanlike action on a ref with optional post-conditions and a delta report. `secret: true` redacts typed text from logs; `dry_run: true` resolves without acting. |
+| | `act` | `mark_id?: number`, `selector?: string`, `x?: number`, `y?: number`, `action?: 'click' \| 'focus' \| 'hover' \| 'type' \| 'press'`, `text?: string`, `secret?: boolean`, `await_conditions?: object[]`, `timeout_ms?: number`, `dry_run?: boolean` | **The** interaction entry point: one humanlike action addressed by mark ref, CSS selector, or coordinates, with optional post-conditions and a delta report. `secret: true` redacts typed text from logs; `dry_run: true` resolves without acting. |
 | | `page_state` | _none_ | Cheap monotonic state signature (`revision`, `url`, `marks`, `nodeCount`, `height`, `scrollY`, `textLen`, `textHash`) for change detection without re-reading the page. |
 | | `diff` | `since?: number` | Field-by-field diff between the current state and a previously observed revision — shows exactly what changed. |
 | | `bridge_health` | _none_ | Liveness + capability discovery: `version`, `revision`, `capabilities[]`, `window {visible, focused}`, `input {transport}`, `lastActionAt`. |
@@ -339,8 +340,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `context_open` | `name: string` | Restores (switches to) a named browsing context/profile. |
 | | `context_list` | _none_ | Lists saved browsing contexts (cookie/storage profiles). |
 | | `context_delete` | `name: string` | Deletes a saved browsing context/profile. |
-| | `focus_window` | _none_ | Brings the Cyberdeck window to the foreground (HIL visibility, or the legacy `native` input fallback). Input is CDP-delivered and focus-independent by default. |
-| **Assistance & Discovery** | `help` | `category?: 'all' \| 'navigation' \| 'interaction' \| 'primitives' \| 'inspection' \| 'tabs' \| 'memory' \| 'macros' \| 'network' \| 'system'` | Returns a categorized operational cheatsheet of all available browser automation capabilities (served directly in OKF). |
+| | † `focus_window` | _none_ | **Deprecated** — use `set_window_visibility({ visible: true })`. Brings the Cyberdeck window to the foreground (HIL visibility, or the legacy `native` input fallback). |
+| **Assistance & Discovery** | `help` | `category?: 'all' \| 'recommended' \| 'navigation' \| 'interaction' \| 'primitives' \| 'inspection' \| 'tabs' \| 'memory' \| 'macros' \| 'network' \| 'system'` | Returns a categorized operational cheatsheet of all available browser automation capabilities (served directly in OKF). |
 
 ---
 

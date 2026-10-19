@@ -2,7 +2,6 @@ import { app, BrowserWindow, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { BrowserChassis } from './browser-chassis.js';
-import { createMcpServer } from '../mcp/server.js';
 import { startHttpBridge } from './http-bridge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

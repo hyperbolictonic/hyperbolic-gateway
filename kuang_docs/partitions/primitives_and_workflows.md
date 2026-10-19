@@ -15,7 +15,7 @@ mutation beyond Mark Eleven's own `data-mark-id` stamp), so they do **not** trip
 | Primitive | Job | Returns | Replaces |
 | :--- | :--- | :--- | :--- |
 | `observe(as, region, budget, cursor, include_offscreen)` | One observation model with projections | `{text, total, offset, next_cursor, truncated}` or structured rows | `get_page_markdown` + `snapshot_rendered_page` + `list_marks` |
-| `act(mark_id, action, text, secret, await_conditions, timeout_ms, dry_run)` | Unified humanlike action (+ optional post-conditions) | Delta report | `click_mark` / `type_mark` / `hover` + a following `wait_for` |
+| `act(mark_id \| selector \| x+y, action, text, secret, await_conditions, timeout_ms, dry_run)` | Unified humanlike action on a mark ref, CSS selector, or coordinates (+ optional post-conditions) | Delta report | `click_mark` / `type_mark` / `click_element` / `type_text` / `hover` + a following `wait_for` |
 | `wait_for(conditions[], require, timeout_ms, poll_ms)` | Declarative readiness gate | `{ok, waitedMs, attempts, results[]}` | every `sleep` / "did it load?" guess |
 | `expect(conditions[])` | Immediate assertion (no polling) | `{ok, results[]}` with per-condition evidence | agent-side guessing before proceeding |
 | `find(role, name, contains, regex, tag, selector, limit)` | Semantic element search → **refs** | rows carrying `mark` ids | hand-written CSS/XPath |
@@ -36,11 +36,12 @@ truncating it — never let a single read exceed the contraction cap.
 ## 2. Refs = Marks
 
 There is no second element-addressing scheme to learn: a **ref** *is* a mark id
-(`[#7]` in `observe as=markdown`, the number in `list_marks`, the `mark` field from
-`find`/`extract`). Marks remain the on-the-wire format, so `click_mark` / `type_mark`
-keep working and `act(mark_id=…)` / `find → act` are drop-in. `act` re-resolves the
-element's **live** centre from the DOM each time, so a mark stays usable across
-layout shifts. Mark ids are re-assigned on every scan — re-scan after the page changes.
+(`[#7]` in `observe as=markdown`, the number in `observe(as:"som")`, the `mark` field from
+`find`/`extract`). Marks remain the on-the-wire format, so `act(mark_id=…)` / `find → act`
+are drop-in. When you have no mark (e.g. an off-list pseudo-element), the **same** `act`
+accepts `selector="…"` or `x=`/`y=` coordinates — you never need a separate `click_*` tool.
+`act` re-resolves the element's **live** centre from the DOM each time, so a mark stays usable
+across layout shifts. Mark ids are re-assigned on every scan — re-scan after the page changes.
 
 ## 3. Wait Condition Vocabulary
 
@@ -69,7 +70,7 @@ New endpoints return a stable machine code (HTTP 400) alongside the message:
 
 | Code | Meaning | Recovery |
 | :--- | :--- | :--- |
-| `STALE_REF` | the mark/ref no longer resolves | re-scan (`list_marks` / `observe`) and re-issue |
+| `STALE_REF` | the mark/ref no longer resolves | re-scan (`observe`) and re-issue |
 | `TIMEOUT` | `wait_for` exhausted its budget | widen `timeout_ms`, loosen conditions, check the diagnostics |
 | `NO_TARGET` | nothing matched the selector/ref | verify with `find`, or `observe(region=…)` |
 | `BAD_REQUEST` | malformed arguments | fix the call |
@@ -103,7 +104,7 @@ context_save(name="airline")     # snapshot cookies + storage now
 context_open(name="airline")     # later: restore it (also on another tab)
 context_list() / context_delete(name)
 ```
-`context_*` are thin aliases over the session vault (`save_session` / `restore_session`).
+`context_*` are the profile verbs; the legacy `save_session` / `restore_session` are hidden aliases.
 
 ### R4 — Change-detection loop (no full re-reads)
 ```
@@ -135,7 +136,7 @@ also accepts `revision:` for revision-correlated windows.
   lazy-loading harvests work while the Cyberdeck sits behind your editor.
 - **Viewport gating.** Real input needs a non-zero viewport. If a fresh/hidden tab reports
   `0x0`, call `set_window_visibility({visible:true})` (and wait for a non-zero viewport)
-  before acting. `focus_window()` only makes the window visible to a human (HIL).
+  before acting. Showing the window is otherwise only needed to make it visible to a human (HIL).
 
 ## 7. Discovery
 
@@ -152,5 +153,5 @@ Call `bridge_health()` once per session:
   present — narrow with `region`/`budget` for a tight read.
 - `isLoading` can stay `true` on ad-heavy SPAs — prefer `stable`/`network_idle` over load flags.
 - `select` is deliberately **not** an `act` action (setting a native value is a TIER-3 DOM
-  mutation). Use the marks flow instead: click the trigger → `list_marks` → click the option
+  mutation). Use the marks flow instead: click the trigger → `observe(as:"som")` → click the option
   (`role=option`/`menuitem`) → re-scan to confirm.

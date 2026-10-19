@@ -6,14 +6,14 @@ To maximize execution speed, minimize token burn, and eliminate bot shadowbans, 
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│ TIER 1 (FIRST CHOICE): Grounded Markdown (`get_page_markdown`)         │
+│ TIER 1 (FIRST CHOICE): Grounded Markdown (`observe(as="markdown")`)    │
 │ • Downsamples page to clean text with inline [#ID] marks.              │
-│ • You can immediately call `click_mark(id)` or `type_mark(id, text)`.   │
+│ • You can immediately call `act(id)` (click) or `act(id, action="type", text="…")`.│
 │ • ZERO image tokens burned, 100% hardware trusted (isTrusted: true).    │
-│ • Equivalent modern form: `observe(as="markdown")`, which also pages     │
-│   large pages via `budget` + `next_cursor`. See partition 4.            │
+│ • Pages large output via `budget` + `next_cursor`. See partition 4.      │
+│   Legacy `get_page_markdown()` is a hidden alias of this projection.    │
 ├────────────────────────────────────────────────────────────────────────┤
-│ TIER 2 (FALLBACK): Set-of-Marks Screenshot (`take_economy_screenshot`) │
+│ TIER 2 (FALLBACK): Set-of-Marks (`take_screenshot(marks:true)`)        │
 │ • Use ONLY when visual layout, complex maps, or CAPTCHAs require vision.│
 │ • Downscaled 640px JPEG (~15x lighter than full PNG).                  │
 │ • Mark IDs match the markdown marks identically.                       │
@@ -37,14 +37,15 @@ Mark Eleven features a multi-layered Set-of-Marks visual overlay system.
 - **Muted Gray Badges (`#a1a1aa`):** Disabled elements (do not click).
 
 ### Inspection Tools
-1. `get_page_markdown()`: Extracts page text with inline `[#ID]` marks stamped directly on buttons, links, and inputs.
-2. `take_economy_screenshot()`: Downscaled 640px JPEG Set-of-Marks screenshot (~15x lighter than PNG). Recommended for vision.
-3. `take_annotated_screenshot()`: Full-resolution PNG with numbered badges + marks lookup table.
-4. `list_marks()`: Marks table only with NO image. Ideal for fast coordinate checks or text-only models (~15ms, 0 image tokens).
+1. `observe(as="markdown")`: Page text with inline `[#ID]` marks stamped directly on buttons, links, and inputs.
+2. `take_screenshot(marks:true, detail="economy")`: Downscaled 640px JPEG Set-of-Marks screenshot (~15x lighter than PNG). Recommended for vision.
+3. `take_screenshot(marks:true, detail="full")`: Full-resolution PNG with numbered badges + marks lookup table.
+4. `observe(as="som")` (or `take_screenshot(marks:true, detail="markdown")`): Marks table only with NO image. Ideal for fast coordinate checks or text-only models (~15ms, 0 image tokens).
 
 ### Interaction
-- Call `click_mark(mark_id)`: Dispatches human-like Bézier cursor movement and hardware click (`isTrusted: true`). Coordinates are dynamically re-calculated from the live DOM node, tracking layout shifts automatically.
-- Call `type_mark(mark_id, text)`: Clicks the input badge and types with realistic Gaussian cadence (`isTrusted: true`).
+- Call `act(mark_id, action="click")`: Dispatches human-like Bézier cursor movement and hardware click (`isTrusted: true`). Coordinates are dynamically re-calculated from the live DOM node, tracking layout shifts automatically.
+- Call `act(mark_id, action="type", text="…")`: Clicks the input badge and types with realistic Gaussian cadence (`isTrusted: true`).
+- No badge? The same tool addresses a target three ways: `act(selector="…")` or `act(x=…, y=…)`. Mark ids are preferred; selectors and coordinates are escape hatches.
 
 ### Marks are Refs
 The badge index is also the **ref** consumed by the primitive layer: `find(...)` returns
@@ -55,6 +56,6 @@ Workflow Recipes** for `act`, `wait_for`, `expect`, `find`, `extract`, `collect_
 
 ### Off-screen Marks
 On long or virtualized lists pass `include_offscreen=true` to
-`get_page_markdown` / `list_marks` / `take_economy_screenshot` / `take_annotated_screenshot`
-so below-the-fold rows are numbered too — `click_mark` scrolls the element into view before
+`take_screenshot(marks:true)` / `observe(...)`
+so below-the-fold rows are numbered too — `act` scrolls the element into view before
 clicking. To harvest the whole list in one call use `collect_all(..., scroll="window")`.

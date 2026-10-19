@@ -55,6 +55,7 @@ const FIXTURE = `<!doctype html>
     <label>Search <input id="q" aria-label="Search query" /></label>
     <p id="echo"></p>
     <button id="clickme">Click me</button>
+    <button id="clickme2">Click me too</button>
   </main>
 
   <script>
@@ -74,6 +75,16 @@ const FIXTURE = `<!doctype html>
         var d = document.createElement('p');
         d.id = 'clicked';
         d.textContent = 'Clicked!';
+        document.body.appendChild(d);
+      }, 300);
+    });
+
+    // 2b. Second reveal target (act by coordinate — no badge involved)
+    document.getElementById('clickme2').addEventListener('click', function () {
+      setTimeout(function () {
+        var d = document.createElement('p');
+        d.id = 'clicked2';
+        d.textContent = 'Clicked too!';
         document.body.appendChild(d);
       }, 300);
     });
@@ -286,6 +297,36 @@ async function main() {
     // --- act: structured STALE_REF error ------------------------------------
     const stale = await bridgeRaw('/act', 'POST', { mark_id: 987654, action: 'click' });
     check('act on a bad ref returns a structured STALE_REF error', stale.status === 400 && stale.json.code === 'STALE_REF', `${stale.status} ${stale.json.code}`);
+
+    // --- act: selector addressing (no badge) --------------------------------
+    const bySelector = await bridge('/act', 'POST', {
+      selector: '#q',
+      action: 'type',
+      text: 'by-selector',
+      await_conditions: [{ type: 'text', text: 'by-selector' }],
+      timeout_ms: 4000,
+    });
+    check('act(selector) addresses a CSS selector', bySelector.awaited?.ok === true && bySelector.target?.selector === '#q', `${bySelector.address} rev ${bySelector.delta?.revisionBefore}->${bySelector.delta?.revisionAfter}`);
+
+    // --- act: selector dry_run resolves without acting ----------------------
+    const drySel = await bridge('/act', 'POST', { selector: '#clickme2', action: 'click', dry_run: true });
+    check('act(selector) dry_run resolves the centre without acting', drySel.dryRun === true && drySel.target?.selector === '#clickme2' && typeof drySel.target?.center?.x === 'number');
+
+    // --- act: coordinate addressing ----------------------------------------
+    const cx = drySel.target.center.x;
+    const cy = drySel.target.center.y;
+    const byCoords = await bridge('/act', 'POST', {
+      x: cx,
+      y: cy,
+      action: 'click',
+      await_conditions: [{ type: 'selector', selector: '#clicked2' }],
+      timeout_ms: 4000,
+    });
+    check('act(x,y) clicks by viewport coordinates', byCoords.awaited?.ok === true && byCoords.address === `(${cx}, ${cy})`, `awaited ${byCoords.awaited?.waitedMs}ms`);
+
+    // --- act: missing target is a structured BAD_REQUEST --------------------
+    const noTarget = await bridgeRaw('/act', 'POST', { action: 'click' });
+    check('act without a target returns BAD_REQUEST', noTarget.status === 400 && noTarget.json.code === 'BAD_REQUEST', `${noTarget.status} ${noTarget.json.code}`);
 
     // --- page_state + diff --------------------------------------------------
     const state = await bridge('/page-state', 'POST', {});

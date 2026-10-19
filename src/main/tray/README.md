@@ -30,5 +30,5 @@ graph TD
 
 ## 🔌 API & MCP Tools
 
-- `set_window_visibility({ visible: boolean })`: Minimizes to tray (`false`) or restores to screen (`true`).
+- `set_window_visibility({ visible?, focus? })`: Minimizes to tray (`false`) or restores to screen (`true`, focusing it by default; pass `focus: false` to restore without stealing focus).
 - `configure_system_tray({ close_to_tray?: boolean })`: Toggles close-to-tray background minimization.

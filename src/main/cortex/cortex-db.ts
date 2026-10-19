@@ -8,7 +8,12 @@
 import * as lancedb from '@lancedb/lancedb';
 import path from 'path';
 import fs from 'fs';
-import { generateEmbedding, EMBEDDING_DIM } from './embedder.js';
+import {
+  embedText,
+  getEmbeddingProvider,
+  listEmbeddingProviders,
+  setEmbeddingProvider,
+} from './embedder.js';
 import { chunkMarkdown, extractDomain } from './chunker.js';
 
 export interface PageHistoryRow {
@@ -85,6 +90,45 @@ export interface ScriptItem {
   score?: number;
 }
 
+/** Split a search query into lowercase, punctuation-stripped terms. */
+function tokenizeQuery(query?: string): string[] {
+  if (!query) return [];
+  return query
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/**
+ * LanceDB returns list columns as Apache Arrow `Vector`s, not JS arrays, so
+ * `Array.isArray` is false and using the value directly silently yields `[]`.
+ * Coerce an array, an array-like/iterable (Arrow Vector), or a scalar to string[].
+ */
+function toStringArray(value: unknown): string[] {
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof (value as { [Symbol.iterator]?: unknown })[Symbol.iterator] === 'function') {
+    return Array.from(value as Iterable<unknown>).map(String);
+  }
+  return [];
+}
+
+/** The text a bookmark query is matched against (title, notes, URL, tags). */
+function bookmarkSearchText(row: any): string {
+  const tags = toStringArray(row.tags).join(' ');
+  return `${row.title || ''} ${row.notes || ''} ${row.url || ''} ${tags}`.toLowerCase();
+}
+
+/** Cosine similarity of two L2-normalized vectors (equal-length dot product). */
+function cosineSimilarity(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length);
+  let dot = 0;
+  for (let i = 0; i < n; i++) dot += a[i] * b[i];
+  return dot;
+}
+
 export class CortexDB {
   private db: lancedb.Connection | null = null;
   private historyTable: lancedb.Table | null = null;
@@ -108,6 +152,7 @@ export class CortexDB {
       }
 
       this.db = await lancedb.connect(this.storageDir);
+      this.selectEmbeddingProvider();
       const tables = await this.db.tableNames();
 
       // Initialize page_history table
@@ -120,7 +165,7 @@ export class CortexDB {
           chunk_index: 0,
           content: 'Kuang Grade Mark Eleven Cyberdeck Manual - Chromium MCP Navigator with Bézier Kinematics and Multi-Tab support.',
           visited_at: new Date().toISOString(),
-          vector: generateEmbedding('Cyberdeck Manual Kuang Grade Mark Eleven Chromium MCP Navigator')
+          vector: await embedText('Cyberdeck Manual Kuang Grade Mark Eleven Chromium MCP Navigator')
         }];
         this.historyTable = await this.db.createTable('page_history', seedHistory);
         try {
@@ -141,7 +186,7 @@ export class CortexDB {
           notes: 'Built-in quickstart and system guide',
           tags: ['system', 'docs', 'manual'],
           created_at: new Date().toISOString(),
-          vector: generateEmbedding('Cyberdeck Manual Built-in quickstart and system guide system docs manual')
+          vector: await embedText('Cyberdeck Manual Built-in quickstart and system guide system docs manual')
         }];
         this.bookmarksTable = await this.db.createTable('bookmarks', seedBookmark);
       } else {
@@ -159,17 +204,71 @@ export class CortexDB {
           tags: ['dom', 'links', 'extraction'],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          vector: generateEmbedding('extract_all_links Extracts all anchor links text and href URLs currently present on the page into a clean array dom links extraction'),
+          vector: await embedText('extract_all_links Extracts all anchor links text and href URLs currently present on the page into a clean array dom links extraction'),
         };
         this.scriptsTable = await this.db.createTable('scripts', [seedScript]);
       } else {
         this.scriptsTable = await this.db.openTable('scripts');
       }
 
+      this.assertEmbeddingProviderConsistency();
       this.isInitialized = true;
     })();
 
     return this.initPromise;
+  }
+
+  /**
+   * Honor KUANG_EMBEDDING_PROVIDER when it names a registered provider.
+   * Unknown ids fall back to the default with a warning (never fatal).
+   */
+  private selectEmbeddingProvider(): void {
+    const requested = process.env.KUANG_EMBEDDING_PROVIDER?.trim();
+    if (!requested) return;
+    try {
+      setEmbeddingProvider(requested);
+    } catch {
+      console.warn(
+        `[CortexDB] Unknown KUANG_EMBEDDING_PROVIDER "${requested}"; ` +
+        `using "${getEmbeddingProvider().id}". Available: ${listEmbeddingProviders().join(', ')}`
+      );
+    }
+  }
+
+  /**
+   * Record which embedding provider built the stored vectors, and warn when the
+   * active provider differs — vectors from different models are not comparable,
+   * so recall/ranking would be silently wrong until Cortex is re-embedded.
+   */
+  private assertEmbeddingProviderConsistency(): void {
+    const active = getEmbeddingProvider();
+    const metaPath = path.join(this.storageDir, 'embedding-provider.json');
+
+    let stored: { id?: string; dim?: number } | null = null;
+    try {
+      if (fs.existsSync(metaPath)) {
+        stored = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      }
+    } catch {
+      stored = null;
+    }
+
+    if (stored && (stored.id !== active.id || stored.dim !== active.dim)) {
+      console.warn(
+        `[CortexDB] Embedding provider changed: stored vectors were built with "${stored.id}" ` +
+        `(dim ${stored.dim}), but the active provider is "${active.id}" (dim ${active.dim}). ` +
+        `Existing Cortex vectors are not comparable until re-embedded.`
+      );
+    }
+
+    try {
+      fs.writeFileSync(
+        metaPath,
+        JSON.stringify({ id: active.id, dim: active.dim, updatedAt: new Date().toISOString() }, null, 2)
+      );
+    } catch {
+      // Non-fatal: the guard is best-effort bookkeeping.
+    }
   }
 
   /**
@@ -186,7 +285,7 @@ export class CortexDB {
     if (chunks.length === 0) return 0;
 
     const visitedAt = new Date().toISOString();
-    const rows: PageHistoryRow[] = chunks.map(chunk => {
+    const rows: PageHistoryRow[] = await Promise.all(chunks.map(async chunk => {
       const textToEmbed = `${cleanTitle} - ${chunk.content}`;
       return {
         id: `chunk_${Buffer.from(url).toString('base64').slice(0, 32)}_${chunk.chunkIndex}_${Date.now()}`,
@@ -196,9 +295,9 @@ export class CortexDB {
         chunk_index: chunk.chunkIndex,
         content: chunk.content,
         visited_at: visitedAt,
-        vector: generateEmbedding(textToEmbed)
+        vector: await embedText(textToEmbed)
       };
-    });
+    }));
 
     await this.historyTable.add(rows);
     return rows.length;
@@ -215,7 +314,7 @@ export class CortexDB {
     if (!this.historyTable || !query || query.trim().length === 0) return [];
 
     const limit = options.limit || 5;
-    const queryVector = generateEmbedding(query);
+    const queryVector = await embedText(query);
     const results: Map<string, RecallResult> = new Map();
 
     // 1. Vector Search
@@ -325,7 +424,7 @@ export class CortexDB {
         chunk_index: 0,
         content: 'Kuang Grade Mark Eleven Cyberdeck Manual',
         visited_at: new Date().toISOString(),
-        vector: generateEmbedding('Cyberdeck Manual')
+        vector: await embedText('Cyberdeck Manual')
       }];
       this.historyTable = await this.db.createTable('page_history', seedHistory);
     } else {
@@ -366,7 +465,7 @@ export class CortexDB {
       notes,
       tags,
       created_at: createdAt,
-      vector: generateEmbedding(textToEmbed)
+      vector: await embedText(textToEmbed)
     };
 
     await this.bookmarksTable.add([row]);
@@ -383,6 +482,12 @@ export class CortexDB {
 
   /**
    * List or search bookmarks.
+   *
+   * `query` is a lexical filter, not just a ranking: a bookmark matches when
+   * every whitespace-separated query term appears (case-insensitively, as a
+   * substring) in its searchable text — title, notes, URL, and tags. Matches are
+   * then ordered by embedding similarity (most relevant first). With no `query`,
+   * returns the most recent bookmarks.
    */
   public async listBookmarks(options: {
     query?: string;
@@ -393,13 +498,32 @@ export class CortexDB {
     if (!this.bookmarksTable) return [];
 
     const limit = options.limit || 20;
+    const tokens = tokenizeQuery(options.query);
 
-    let rows: any[] = [];
-    if (options.query && options.query.trim().length > 0) {
-      const qVec = generateEmbedding(options.query);
-      rows = await this.bookmarksTable.search(qVec).limit(limit).toArray();
+    let rows: any[];
+    if (tokens.length > 0) {
+      const queryVector = await embedText(options.query!);
+      const all = await this.bookmarksTable.query().toArray();
+      const matches = all.filter((row: any) => {
+        const text = bookmarkSearchText(row);
+        return tokens.every(token => text.includes(token));
+      });
+      const scored = await Promise.all(
+        matches.map(async (row: any) => ({
+          row,
+          score: cosineSimilarity(queryVector, await embedText(bookmarkSearchText(row))),
+        }))
+      );
+      scored.sort((a, b) => b.score - a.score);
+      rows = scored.map(entry => entry.row);
+    } else if (options.tag) {
+      // Filter by tag before applying the limit, so the slice can't hide matches.
+      rows = await this.bookmarksTable.query().toArray();
     } else {
-      rows = await this.bookmarksTable.query().limit(limit).toArray();
+      // Newest first (LanceDB's default row order is insertion order).
+      const all = await this.bookmarksTable.query().toArray();
+      all.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      rows = all;
     }
 
     let items: BookmarkItem[] = rows.map(r => ({
@@ -407,16 +531,16 @@ export class CortexDB {
       url: r.url,
       title: r.title,
       notes: r.notes,
-      tags: Array.isArray(r.tags) ? r.tags : [],
+      tags: toStringArray(r.tags),
       createdAt: r.created_at
     }));
 
     if (options.tag) {
-      const targetTag = options.tag.toLowerCase();
+      const targetTag = options.tag.trim().toLowerCase();
       items = items.filter(b => b.tags.some(t => t.toLowerCase() === targetTag));
     }
 
-    return items;
+    return items.slice(0, limit);
   }
 
   /**
@@ -486,7 +610,7 @@ export class CortexDB {
       tags,
       created_at: now,
       updated_at: now,
-      vector: generateEmbedding(textToEmbed),
+      vector: await embedText(textToEmbed),
     };
 
     await this.scriptsTable.add([row]);
@@ -517,7 +641,7 @@ export class CortexDB {
     let rows: any[] = [];
 
     if (query && query.trim().length > 0) {
-      const qVec = generateEmbedding(query);
+      const qVec = await embedText(query);
       rows = await this.scriptsTable.search(qVec).limit(limit).toArray();
     } else {
       rows = await this.scriptsTable.query().limit(limit).toArray();
@@ -529,7 +653,7 @@ export class CortexDB {
       description: r.description,
       code: r.code,
       domain: r.domain,
-      tags: Array.isArray(r.tags) ? r.tags : [],
+      tags: toStringArray(r.tags),
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       score: r._distance !== undefined ? 1 - r._distance : undefined,
@@ -568,7 +692,7 @@ export class CortexDB {
         description: r.description,
         code: r.code,
         domain: r.domain,
-        tags: Array.isArray(r.tags) ? r.tags : [],
+        tags: toStringArray(r.tags),
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       };

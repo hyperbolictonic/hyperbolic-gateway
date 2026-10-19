@@ -14,10 +14,11 @@ Mark Eleven features a **0ms Speculative Prerender Engine**:
 - `close_tab(tab_id)`: Frees memory.
 - `list_tabs()`: Returns all active tabs and current URLs.
 
-## 3. Session Persistence
-- `save_session(name)`: Snapshots cookies, localStorage, and sessionStorage.
-- `restore_session(name)`: Rehydrates an authenticated session on demand.
-- **Context profiles:** `context_save(name)` / `context_open(name)` / `context_list()` /
-  `context_delete(name)` are thin aliases over the session vault — the profile abstraction for
-  switching authenticated identities. See **partition 4** for the primitives, wait vocabulary,
+## 3. Session Persistence (context profiles)
+- `context_save(name)`: Snapshots cookies, localStorage, and sessionStorage.
+- `context_open(name)`: Rehydrates an authenticated session on demand.
+- `context_list()` / `context_delete(name)`: Enumerate / remove saved profiles.
+- Switching profiles is how you change authenticated identities. (Legacy `save_session` /
+  `restore_session` / `list_sessions` still work but are hidden aliases.)
+  See **partition 4** for the primitives, wait vocabulary,
   and workflow recipes (R1–R5) that tie navigation, observation and network capture together.

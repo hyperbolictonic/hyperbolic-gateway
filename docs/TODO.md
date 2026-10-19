@@ -116,7 +116,7 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
       { "id": 2, "tag": "INPUT", "text": "Destination", "bbox": [230, 340, 200, 32] }
     ]
     ```
-  - MCP Tools: `take_annotated_screenshot()`, `take_economy_screenshot()`, `list_marks()`, `click_mark(mark_id)`, `type_mark(mark_id, text)`.
+  - MCP Tools: `take_screenshot(marks:true, detail:"full"|"economy"|"markdown")`, `click_mark(mark_id)`, `type_mark(mark_id, text)`.
   - Guarantees 100% click accuracy with zero ambiguity.
 
 ---

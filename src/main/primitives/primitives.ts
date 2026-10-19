@@ -35,6 +35,8 @@ export interface PrimitivesHost {
   getMarkTarget(id: number): Promise<{ mark: MarkItem; currentCenter: { x: number; y: number } } | null>;
   clickMark(id: number): Promise<string>;
   typeMark(id: number, text: string, opts?: { secret?: boolean }): Promise<string>;
+  clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string>;
+  typeText(text: string, selector?: string): Promise<string>;
   moveMouseTo(target: { x: number; y: number }): Promise<void>;
   pressKey(key: string): Promise<string>;
   snapshotRenderedPage(opts: any): Promise<any>;
@@ -155,8 +157,15 @@ export interface FindOptions {
   includeOffscreen?: boolean;
 }
 
+/**
+ * A target can be addressed three ways, in order of preference:
+ *   mark_id (set-of-marks badge, resilient to layout shifts) > selector > viewport x/y.
+ */
 export interface ActOptions {
-  markId: number;
+  markId?: number;
+  selector?: string;
+  x?: number;
+  y?: number;
   action: 'click' | 'type' | 'hover' | 'press' | 'focus';
   text?: string;
   secret?: boolean;
@@ -795,24 +804,51 @@ export class Primitives {
 
   public async act(opts: ActOptions): Promise<any> {
     const action = opts.action || 'click';
-    if (action !== 'press' && (opts.markId === undefined || opts.markId === null || isNaN(Number(opts.markId)))) {
-      throw new PrimitiveError('BAD_REQUEST', 'act requires a numeric mark_id (except for action="press")');
+    const hasMark = opts.markId !== undefined && opts.markId !== null && !isNaN(Number(opts.markId));
+    const selector = opts.selector ? String(opts.selector) : undefined;
+    const px = opts.x !== undefined && !isNaN(Number(opts.x)) ? Number(opts.x) : undefined;
+    const py = opts.y !== undefined && !isNaN(Number(opts.y)) ? Number(opts.y) : undefined;
+    const hasCoords = px !== undefined && py !== undefined;
+
+    if (action !== 'press' && !hasMark && !selector && !hasCoords) {
+      throw new PrimitiveError('BAD_REQUEST', 'act needs a target: mark_id, selector, or x+y (only action="press" is targetless)');
     }
-    const markId = Number(opts.markId);
+
+    const markId = hasMark ? Number(opts.markId) : undefined;
     const before = this.liteSnapshot();
     const secret = Boolean(opts.secret);
     const shownText = secret ? '[REDACTED]' : String(opts.text ?? '');
 
-    let target: { mark: MarkItem; currentCenter: { x: number; y: number } } | null = null;
+    // The address resolves to a human label plus, where one is needed, a live viewport
+    // centre (hover, coordinate clicks, and the focus-click that precedes a coordinate type).
+    let center: { x: number; y: number } | null = null;
+    let address = '';
+    let target: { id?: number; tag?: string; text?: string; selector?: string; center?: { x: number; y: number } } | null = null;
+
     if (action !== 'press') {
-      target = await this.host.getMarkTarget(markId);
-      if (!target && opts.includeOffscreen !== false) {
-        // Mark registry may be cold (fresh tab / no scan yet) — refresh once.
-        await this.host.injectMarks({ includeOffscreen: true });
-        target = await this.host.getMarkTarget(markId);
-      }
-      if (!target) {
-        throw new PrimitiveError('STALE_REF', `Mark #${markId} could not be resolved. Re-run find/list_marks/observe to refresh refs.`, { markId });
+      if (hasMark) {
+        let hit = await this.host.getMarkTarget(markId!);
+        if (!hit && opts.includeOffscreen !== false) {
+          // Mark registry may be cold (fresh tab / no scan yet) — refresh once.
+          await this.host.injectMarks({ includeOffscreen: true });
+          hit = await this.host.getMarkTarget(markId!);
+        }
+        if (!hit) {
+          throw new PrimitiveError('STALE_REF', `Mark #${markId} could not be resolved. Re-run observe/find to refresh refs.`, { markId });
+        }
+        center = hit.currentCenter;
+        address = `#${markId}`;
+        target = { id: hit.mark.id, tag: hit.mark.tag, text: secret ? '[REDACTED]' : hit.mark.text, center };
+      } else if (selector) {
+        const box = await this.resolveSelectorBox(selector);
+        if (!box) throw new PrimitiveError('NO_TARGET', `Selector "${selector}" matched no visible element`, { selector });
+        center = box.center;
+        address = selector;
+        target = { selector, tag: box.tag, text: box.text, center };
+      } else if (hasCoords) {
+        center = { x: px!, y: py! };
+        address = `(${px}, ${py})`;
+        target = { center };
       }
     }
 
@@ -822,24 +858,36 @@ export class Primitives {
         dryRun: true,
         action,
         markId,
-        target: target ? { id: target.mark.id, tag: target.mark.tag, text: secret ? '[REDACTED]' : target.mark.text, center: target.currentCenter } : null,
+        address,
+        target,
         wouldType: action === 'type' ? shownText : undefined,
       };
     }
 
-    this.host.log('action', `MCP Directive: act(${action}, #${markId}${action === 'type' ? `, "${shownText}"` : action === 'press' ? `, "${opts.text || ''}"` : ''})`);
+    this.host.log('action', `MCP Directive: act(${action}, ${address || '(targetless)'}${action === 'type' ? `, "${shownText}"` : action === 'press' ? `, "${opts.text || ''}"` : ''})`);
 
     switch (action) {
       case 'click':
       case 'focus':
-        await this.host.clickMark(markId);
+        if (hasMark) await this.host.clickMark(markId!);
+        else await this.host.clickElement(selector, hasCoords ? center! : undefined);
         break;
       case 'hover':
-        await this.host.moveMouseTo(target!.currentCenter);
+        await this.host.moveMouseTo(center!);
         break;
-      case 'type':
-        await this.host.typeMark(markId, String(opts.text ?? ''), { secret });
+      case 'type': {
+        const text = String(opts.text ?? '');
+        if (hasMark) {
+          await this.host.typeMark(markId!, text, { secret });
+        } else if (selector) {
+          await this.host.typeText(text, selector);
+        } else {
+          // Coordinate type: focus the point with a real click first, then type into whatever took focus.
+          await this.host.clickElement(undefined, center!);
+          await this.host.typeText(text);
+        }
         break;
+      }
       case 'press':
         await this.host.pressKey(String(opts.text || 'Enter'));
         break;
@@ -859,7 +907,7 @@ export class Primitives {
           const hints: string[] = [];
           if (!diag?.w || !diag?.h) hints.push('page viewport is 0x0 (window hidden/minimised?) — synthetic input and viewport-scoped marks may not register; make the window visible');
           if (this.host.windowFocused && !this.host.windowFocused()) hints.push('the app window is not focused — Electron drops synthetic input (sendInputEvent) while another window owns focus; call bridge_health / focus the window');
-          if (action === 'type' && diag?.active && target && String(diag.active).toUpperCase() !== target.mark.tag) hints.push(`focus is on "${diag.active}", not the target <${target.mark.tag}> — the click may have been occluded`);
+          if (action === 'type' && diag?.active && target?.tag && String(diag.active).toUpperCase() !== target.tag.toUpperCase()) hints.push(`focus is on "${diag.active}", not the target <${target.tag}> — the click may have been occluded`);
           if (hints.length) (awaited as any).hint = hints.join('; ');
         } catch {}
       }
@@ -870,7 +918,8 @@ export class Primitives {
       ok: true,
       action,
       markId,
-      target: target ? { id: target.mark.id, tag: target.mark.tag, text: secret ? '[REDACTED]' : target.mark.text, center: target.currentCenter } : null,
+      address,
+      target,
       typed: action === 'type' ? shownText : undefined,
       delta: {
         urlChanged: before.url !== after.url,
@@ -883,6 +932,23 @@ export class Primitives {
       },
       awaited,
     };
+  }
+
+  /** Resolve a CSS selector to its live viewport centre (scrolling it into view first). */
+  private async resolveSelectorBox(selector: string): Promise<{ center: { x: number; y: number }; tag?: string; text?: string } | null> {
+    const res = await this.host
+      .evaluate(
+        `(() => {
+          const el = document.querySelector(${JSON.stringify(selector)});
+          if (!el) return null;
+          el.scrollIntoView({ behavior: 'auto', block: 'center' });
+          const r = el.getBoundingClientRect();
+          return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), tag: el.tagName.toLowerCase(), text: (el.innerText || el.textContent || '').trim().slice(0, 80) };
+        })()`
+      )
+      .catch(() => null);
+    if (!res || typeof res.x !== 'number' || typeof res.y !== 'number') return null;
+    return { center: { x: res.x, y: res.y }, tag: res.tag, text: res.text };
   }
 
   private liteSnapshot() {

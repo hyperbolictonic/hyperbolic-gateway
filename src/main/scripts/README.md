@@ -30,7 +30,7 @@ sequenceDiagram
     Vault-->>LLM: Return { success: true, name, createdAt }
 
     Note over LLM,Cortex: Phase 2: Natural Language Semantic Recall
-    LLM->>Vault: recall_script({ query: "harvest flight pricing cards", domain: "skyscanner.net" })
+    LLM->>Vault: list_scripts({ query: "harvest flight pricing cards", tag: "scraper" })
     Vault->>Cortex: Vector Cosine Similarity Search + BM25 Filtering
     Cortex-->>Vault: Return matching ScriptItem[]
     Vault-->>LLM: Return ranked macros with parameter specs
@@ -334,14 +334,13 @@ Saves a reusable JavaScript routine into the persistent vault and vector index.
 
 ---
 
-### 2. `recall_script`
-Semantically searches saved scripts using conversational natural language queries.
+### 2. `list_scripts`
+Lists registered scripts from the persistent vault, or semantically searches them when a `query` is supplied (ranked by relevance — this replaces the old `recall_script`).
 
 **Parameters:**
-- `query` *(string, optional)*: Natural language search term (e.g. `"unroll infinite scroll items"`).
-- `domain` *(string, optional)*: Filter for macros targeting the current website domain.
+- `query` *(string, optional)*: Natural language search term (e.g. `"unroll infinite scroll items"`). When present, results are ranked by relevance.
 - `tag` *(string, optional)*: Filter by specific tag.
-- `limit` *(number, optional, default: 5)*: Maximum candidates to return.
+- `limit` *(number, optional, default: 100)*: Maximum scripts to return.
 
 ---
 
@@ -368,16 +367,7 @@ Executes a vaulted script in the active tab with dynamic runtime parameter injec
 
 ---
 
-### 4. `list_scripts`
-Lists all registered scripts from the persistent vault with metadata and timestamps.
-
-**Parameters:**
-- `domain` *(string, optional)*: Filter by target domain.
-- `tag` *(string, optional)*: Filter by tag.
-
----
-
-### 5. `delete_script`
+### 4. `delete_script`
 Permanently deletes a script from both LanceDB Cortex and the `data/scripts/` filesystem.
 
 **Parameters:**

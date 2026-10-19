@@ -32,7 +32,6 @@ Instead of forcing the LLM to squint at noisy, truncated DOM trees, the Network 
 
 - `get_network_traffic`: Get captured HTTP/XHR/Fetch requests matching optional filters.
 - `get_api_payload`: Inspect the full raw JSON response body from any captured network request.
-- `clear_network_traffic`: Clears the network traffic ring buffer.
+- `clear_capture({ scope })`: Clears the capture ring buffer — `"network"` (HTTP traffic), `"streams"` (WebSocket/SSE frames), or `"all"` (default).
 - `list_realtime_streams`: Lists active WebSocket connections and open SSE channels.
 - `get_stream_messages`: Inspects captured frames/messages streaming over a WebSocket or SSE connection.
-- `clear_stream_messages`: Clears the in-memory WebSocket and SSE message frame buffer.

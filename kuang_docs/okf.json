@@ -19,7 +19,7 @@
       "name": "Selector & Set-of-Marks Recipes",
       "path": "partitions/selector_and_som_recipes.md",
       "type": "reference",
-      "summary": "Best practices for using take_annotated_screenshot and resilient CSS/XPath selectors."
+      "summary": "Best practices for using take_screenshot(marks:true) and resilient CSS/XPath selectors."
     },
     {
       "name": "Browser Navigation Playbook",

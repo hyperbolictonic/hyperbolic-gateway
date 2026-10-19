@@ -9,6 +9,18 @@ export interface ToolCatalogItem {
   method?: 'GET' | 'POST';
   payload?: (args: any) => any;
   format?: (data: any, args: any) => string;
+  /** Resolves the endpoint per call (one tool fronting two routes). Defaults to `endpoint`. */
+  endpointFor?: (args: any) => string;
+  /** Every route this tool may call; validated by the contract test. Defaults to `[endpoint]`. */
+  endpoints?: string[];
+  /**
+   * Hidden from `tools/list` (and therefore from agent tool pickers) but still
+   * callable by name via `tools/call` for one release. Used for deprecated
+   * aliases and renamed tools; see docs/TOOL_CATALOG_REVIEW.md.
+   */
+  hidden?: boolean;
+  /** Canonical tool this deprecated name forwards to (drives the call-time notice). */
+  deprecatedInFavorOf?: string;
 }
 
 export const TOOLS_CATALOG: ToolCatalogItem[] = [
@@ -37,7 +49,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'go_to_url',
-    description: 'Alias for navigate_to. Navigates the browser window to a destination URL.',
+    hidden: true,
+    deprecatedInFavorOf: 'navigate_to',
+    description: 'Deprecated alias for navigate_to. Navigates the browser window to a destination URL.',
     parameters: {
       url: z.string().describe('The destination URL (e.g. "https://www.skyscanner.net")'),
     },
@@ -60,6 +74,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // 2. Interaction
   {
     name: 'click_element',
+    hidden: true,
+    deprecatedInFavorOf: 'act',
     description: 'Clicks an element on the active web page using a CSS selector or direct viewport coordinates (x, y). Simulates realistic human pointer movement and switch actuation.',
     parameters: {
       selector: z.string().optional().describe('CSS selector of the element to click (e.g. "button.submit", "a[href*=\'login\']", "#search-input")'),
@@ -80,6 +96,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'type_text',
+    hidden: true,
+    deprecatedInFavorOf: 'act',
     description: 'Types text into an input element or active element with realistic human Gaussian typing cadence (60-240ms per keystroke).',
     parameters: {
       text: z.string().describe('The text string to type (e.g. "London")'),
@@ -120,31 +138,42 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
 
   {
     name: 'take_screenshot',
-    description: 'Captures a full viewport image of the active tab. Defaults to 768px fast JPEG (~15ms encoding, tiny wire payload). Saves to data/screenshots/ and returns local file path and native MCP image content.',
+    description: 'Captures the active viewport. Two modes. PLAIN (default): fast 768px JPEG (~15ms), saved to data/screenshots/, returns the file path plus native image content. SET-OF-MARKS (marks=true): numbered badges on interactive elements — detail="full" (full-res PNG), detail="economy" (640px JPEG, ~10-20x lighter; best for vision), or detail="markdown" (marks table only, NO image; cheapest). Badge ids feed act(mark_id, action).',
     parameters: {
-      max_width: z.coerce.number().optional().default(768).describe('Max width in pixels to bound screenshot (default: 768 for optimal token efficiency; pass 0 for full native resolution)'),
-      format: z.enum(['jpeg', 'png']).optional().default('jpeg').describe('Image format (default: "jpeg" for ~13x faster encoding; "png" for lossless)'),
-      quality: z.coerce.number().optional().default(70).describe('JPEG compression quality from 1 to 100 (default: 70)'),
+      marks: z.coerce.boolean().optional().default(false).describe('true = Set-of-Marks (badge interactive elements, return the marks table); false = plain viewport image (default)'),
+      detail: z.enum(['full', 'economy', 'markdown']).optional().default('full').describe('Only when marks=true: "full" (PNG), "economy" (640px JPEG), or "markdown" (marks table only, no image)'),
+      include_offscreen: z.coerce.boolean().optional().default(false).describe('Only when marks=true: also badge elements outside the viewport (long/virtualized lists)'),
+      max_width: z.coerce.number().optional().default(768).describe('Plain mode only: max width in pixels (default 768; pass 0 for full native resolution)'),
+      format: z.enum(['jpeg', 'png']).optional().default('jpeg').describe('Plain mode only: image format (default "jpeg")'),
+      quality: z.coerce.number().optional().default(70).describe('Plain mode only: JPEG quality 1-100 (default 70)'),
     },
     endpoint: '/screenshot',
+    endpoints: ['/screenshot', '/marks/screenshot'],
     method: 'GET',
+    endpointFor: (args) => (args?.marks === true ? '/marks/screenshot' : '/screenshot'),
     payload: (args) => {
+      if (args?.marks === true) {
+        const detail = args?.detail || 'full';
+        return {
+          queryParams: {
+            ...(detail === 'economy' ? { economy: '1' } : {}),
+            ...(detail === 'markdown' ? { text_only: '1' } : {}),
+            include_offscreen: String(args?.include_offscreen === true),
+          },
+        };
+      }
       const maxWidth = args?.max_width !== undefined ? Number(args.max_width) : 768;
       const format = args?.format || 'jpeg';
       const quality = args?.quality !== undefined ? Number(args.quality) : 70;
-      return {
-        queryParams: {
-          max_width: String(maxWidth),
-          format,
-          quality: String(quality),
-        },
-      };
+      return { queryParams: { max_width: String(maxWidth), format, quality: String(quality) } };
     },
     format: (data) => data.screenshot?.filePath ? `Screenshot saved to ${data.screenshot.filePath} (${data.screenshot.width || ''}x${data.screenshot.height || ''}px, ${data.screenshot.mimeType || 'image/jpeg'})` : 'Screenshot captured',
   },
   {
     name: 'get_page_markdown',
-    description: 'Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). By default includes Set-of-Marks badges ([#1], [#2]...) directly on interactive elements (links, buttons, inputs) so you can call click_mark(id) or type_mark(id) directly from the text without taking screenshots!',
+    hidden: true,
+    deprecatedInFavorOf: 'observe',
+    description: 'Deprecated alias for observe(as:"markdown"). Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). By default includes Set-of-Marks badges ([#1], [#2]...) directly on interactive elements (links, buttons, inputs) so you can call act(id) or act(id, action:"type", text) directly from the text without taking screenshots!',
     parameters: {
       include_marks: z.coerce.boolean().optional().default(true).describe('Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)'),
       include_offscreen: z.coerce.boolean().optional().default(false).describe('Also annotate interactive elements outside the current viewport so their [#ID] badges appear in the markdown (use for long/virtualized result lists; default: false)'),
@@ -160,7 +189,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'harvest_markdown',
-    description: 'Alias for get_page_markdown. Extracts clean markdown with inline [#ID] marks from the active tab.',
+    hidden: true,
+    deprecatedInFavorOf: 'observe',
+    description: 'Deprecated alias for get_page_markdown. Extracts clean markdown with inline [#ID] marks from the active tab.',
     parameters: {
       include_marks: z.coerce.boolean().optional().default(true).describe('Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)'),
       include_offscreen: z.coerce.boolean().optional().default(false).describe('Also annotate interactive elements outside the current viewport (use for long/virtualized result lists; default: false)'),
@@ -192,7 +223,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'get_page_info',
-    description: 'Returns the current URL, page title, navigation status, tab count, and active tab ID of the browser window.',
+    hidden: true,
+    deprecatedInFavorOf: 'bridge_health',
+    description: 'Deprecated alias for bridge_health() + page_state(). Returns the current URL, page title, navigation status, tab count, and active tab ID of the browser window.',
     parameters: {},
     endpoint: '/page-info',
     method: 'GET',
@@ -204,8 +237,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {
       direction: z.enum(['back', 'forward']).describe('Navigation direction: "back" or "forward"'),
     },
-    endpoint: '/history/navigate',
-    payload: (args) => ({ direction: args.direction }),
+    endpoint: '/history',
+    payload: (args) => ({ action: args.direction }),
     format: (data, args) => data.result || `Navigated ${args.direction}`,
   },
   {
@@ -215,7 +248,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       limit: z.number().optional().default(50).describe('Max entries to return (default: 50)'),
     },
     endpoint: '/console/logs',
-    payload: (args) => ({ limit: args.limit }),
+    method: 'GET',
+    payload: (args) => ({ queryParams: { limit: String(args?.limit ?? 50) } }),
     format: (data) => {
       const logs = Array.isArray(data.logs) ? data.logs : [];
       if (logs.length === 0) return 'No console logs captured.';
@@ -310,19 +344,25 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       limit: z.number().optional().default(5).describe('Max results (default: 5)'),
       domain: z.string().optional().describe('Filter by domain (e.g. "wikipedia.org")'),
     },
-    endpoint: '/memory/recall',
+    endpoint: '/cortex/recall',
     payload: (args) => ({ query: args.query, limit: args.limit, domain: args.domain }),
     format: (data) => JSON.stringify(data.results, null, 2),
   },
   {
-    name: 'get_history',
+    name: 'browsing_history',
     description: 'Retrieves chronological browsing history from the Cortex store.',
     parameters: {
       limit: z.number().optional().default(20).describe('Max history entries (default: 20)'),
       domain: z.string().optional().describe('Filter by domain'),
     },
-    endpoint: '/history/list',
-    payload: (args) => ({ limit: args.limit, domain: args.domain }),
+    endpoint: '/cortex/history',
+    method: 'GET',
+    payload: (args) => ({
+      queryParams: {
+        limit: String(args?.limit ?? 20),
+        ...(args?.domain ? { domain: args.domain } : {}),
+      },
+    }),
     format: (data) => {
       const hist = Array.isArray(data.history) ? data.history : [];
       if (hist.length === 0) return 'No browsing history entries found.';
@@ -334,10 +374,10 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
   },
   {
-    name: 'clear_history',
+    name: 'browsing_history_clear',
     description: 'Clears the chronological browsing history table in the Cortex database.',
     parameters: {},
-    endpoint: '/history/clear',
+    endpoint: '/cortex/history/clear',
     format: (data) => data.message || 'History cleared',
   },
   {
@@ -355,14 +395,21 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'list_bookmarks',
-    description: 'Retrieves saved bookmarks with optional semantic search query or tag filtering.',
+    description: 'Retrieves saved bookmarks. Pass query to filter by terms found in the title, notes, URL, or tags (matches are ranked by relevance); pass tag for an exact tag match.',
     parameters: {
-      query: z.string().optional().describe('Search query across bookmark titles and notes'),
+      query: z.string().optional().describe('Filter terms matched against bookmark title, notes, URL, and tags (every term must appear)'),
       tag: z.string().optional().describe('Filter by exact tag'),
       limit: z.number().optional().default(20).describe('Max bookmarks to return'),
     },
-    endpoint: '/bookmarks/list',
-    payload: (args) => ({ query: args.query, tag: args.tag, limit: args.limit }),
+    endpoint: '/bookmarks',
+    method: 'GET',
+    payload: (args) => ({
+      queryParams: {
+        ...(args?.query ? { q: args.query } : {}),
+        ...(args?.tag ? { tag: args.tag } : {}),
+        limit: String(args?.limit ?? 20),
+      },
+    }),
     format: (data) => {
       const bm = Array.isArray(data.bookmarks) ? data.bookmarks : [];
       if (bm.length === 0) return 'No bookmarks found.';
@@ -436,29 +483,35 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // 8. Sessions & Cookies
   {
     name: 'save_session',
-    description: 'Snapshots the current active browser session (cookies, localStorage, sessionStorage) into the persistent vault.',
+    hidden: true,
+    deprecatedInFavorOf: 'context_save',
+    description: 'Deprecated alias for context_save. Snapshots the current active browser session (cookies, localStorage, sessionStorage) into the persistent vault.',
     parameters: {
       name: z.string().describe('Unique name for the session snapshot (e.g. "github-auth")'),
     },
-    endpoint: '/sessions/save',
+    endpoint: '/session/save',
     payload: (args) => ({ name: args.name }),
     format: (data, args) => `Session "${args.name}" saved successfully`,
   },
   {
     name: 'restore_session',
-    description: 'Restores a previously saved session snapshot into the active browser partition.',
+    hidden: true,
+    deprecatedInFavorOf: 'context_open',
+    description: 'Deprecated alias for context_open. Restores a previously saved session snapshot into the active browser partition.',
     parameters: {
       name: z.string().describe('Name of the session snapshot to restore'),
     },
-    endpoint: '/sessions/restore',
+    endpoint: '/session/restore',
     payload: (args) => ({ name: args.name }),
     format: (data, args) => `Session "${args.name}" restored successfully`,
   },
   {
     name: 'list_sessions',
-    description: 'Returns all saved session profiles in the vault.',
+    hidden: true,
+    deprecatedInFavorOf: 'context_list',
+    description: 'Deprecated alias for context_list. Returns all saved session profiles in the vault.',
     parameters: {},
-    endpoint: '/sessions/list',
+    endpoint: '/session/list',
     method: 'GET',
     format: (data) => {
       const sess = Array.isArray(data.sessions) ? data.sessions : [];
@@ -505,7 +558,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'get_api_payload',
-    description: 'Retrieves the complete JSON body of a specific API response captured during network interception.',
+    hidden: true,
+    deprecatedInFavorOf: 'query_json_data',
+    description: 'Deprecated alias for query_json_data({ source: "network_payload", source_id }). Retrieves the complete JSON body of a specific API response captured during network interception.',
     parameters: {
       request_id: z.string().describe('ID of captured request'),
     },
@@ -515,7 +570,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'clear_network_traffic',
-    description: 'Clears the in-memory network traffic ring buffer.',
+    hidden: true,
+    deprecatedInFavorOf: 'clear_capture',
+    description: 'Deprecated alias for clear_capture({ scope: "network" }). Clears the in-memory network traffic ring buffer.',
     parameters: {},
     endpoint: '/network/clear',
     format: (data) => data.message || 'Network traffic cleared',
@@ -602,7 +659,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // 10. Set-of-Marks (SoM) Grounding
   {
     name: 'take_annotated_screenshot',
-    description: 'Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping. Set include_offscreen=true to also badge elements below/above the fold (long result lists).',
+    hidden: true,
+    deprecatedInFavorOf: 'take_screenshot',
+    description: 'Deprecated alias for take_screenshot(marks:true, detail:"full"). Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping. Set include_offscreen=true to also badge elements below/above the fold (long result lists).',
     parameters: {
       include_offscreen: z.coerce.boolean().optional().default(false).describe('Also badge interactive elements outside the current viewport (default: false)'),
     },
@@ -613,7 +672,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'take_economy_screenshot',
-    description: 'Lightweight Set-of-Marks screenshot: downscaled to 640px wide JPEG (~10-20x smaller than take_annotated_screenshot) plus the same mark mapping. Use for vision models when token/bandwidth cost matters. Set include_offscreen=true to also badge elements below/above the fold.',
+    hidden: true,
+    deprecatedInFavorOf: 'take_screenshot',
+    description: 'Deprecated alias for take_screenshot(marks:true, detail:"economy"). Lightweight Set-of-Marks screenshot: downscaled to 640px wide JPEG (~10-20x smaller than take_annotated_screenshot) plus the same mark mapping. Use for vision models when token/bandwidth cost matters. Set include_offscreen=true to also badge elements below/above the fold.',
     parameters: {
       include_offscreen: z.coerce.boolean().optional().default(false).describe('Also badge interactive elements outside the current viewport (default: false)'),
     },
@@ -624,7 +685,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'list_marks',
-    description: 'Text-only Set-of-Marks: returns the numbered interactive element table with NO image. Use for text-only models or the cheapest possible page scan; click_mark / type_mark work afterwards. On long/virtualized result lists set include_offscreen=true so below-the-fold items are numbered too (click_mark scrolls them into view).',
+    hidden: true,
+    deprecatedInFavorOf: 'observe',
+    description: 'Deprecated alias for observe(as:"som"). Text-only Set-of-Marks: returns the numbered interactive element table with NO image. Use for text-only models or the cheapest possible page scan; act(mark_id, action) works afterwards. On long/virtualized result lists set include_offscreen=true so below-the-fold items are numbered too (act scrolls them into view).',
     parameters: {
       include_offscreen: z.coerce.boolean().optional().default(false).describe('Also number interactive elements outside the current viewport so long result lists are fully listed (default: false)'),
     },
@@ -635,6 +698,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'click_mark',
+    hidden: true,
+    deprecatedInFavorOf: 'act',
     description: 'Clicks an annotated element using its Set-of-Marks badge index from take_annotated_screenshot.',
     parameters: {
       mark_id: z.coerce.number().describe('The numeric ID of the mark badge to click (e.g. 1)'),
@@ -651,6 +716,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'type_mark',
+    hidden: true,
+    deprecatedInFavorOf: 'act',
     description: 'Types text into an annotated input element using its Set-of-Marks badge index.',
     parameters: {
       mark_id: z.coerce.number().describe('The numeric ID of the mark badge to type into (e.g. 1)'),
@@ -685,22 +752,6 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     format: (data, args) => `Script "${args.name}" vaulted successfully`,
   },
   {
-    name: 'recall_script',
-    description: 'Semantically searches the Script Vault using natural language to find reusable automation scripts.',
-    parameters: {
-      query: z.string().describe('Natural language query of desired automation task'),
-      limit: z.number().optional().default(3).describe('Max scripts to return'),
-    },
-    endpoint: '/scripts/recall',
-    payload: (args) => ({ query: args.query, limit: args.limit }),
-    format: (data) => {
-      const scripts = Array.isArray(data.scripts) ? data.scripts : [];
-      if (scripts.length === 0) return 'No matching scripts found in vault.';
-      const lines = scripts.map((s: any) => `- "${s.name}" (score: ${s.score ? s.score.toFixed(2) : 'n/a'}): ${s.description || 'No description'}`);
-      return `### Recalled Scripts (${scripts.length})\n${lines.join('\n')}`;
-    },
-  },
-  {
     name: 'run_script',
     description: 'Executes a saved script from the Script Vault inside the active tab context with dynamic arguments.',
     parameters: {
@@ -713,14 +764,28 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'list_scripts',
-    description: 'Returns all saved automation scripts in the Script Vault.',
-    parameters: {},
+    description: 'Lists or searches saved automation scripts in the Script Vault. Pass query to search by natural-language relevance (ranked); omit it to list everything. Pass tag for an exact tag match.',
+    parameters: {
+      query: z.string().optional().describe('Natural-language search across script name, description, code, and tags (ranked by relevance)'),
+      tag: z.string().optional().describe('Filter by exact tag'),
+      limit: z.number().optional().default(100).describe('Max scripts to return'),
+    },
     endpoint: '/scripts/list',
     method: 'GET',
+    payload: (args) => ({
+      queryParams: {
+        ...(args?.query ? { q: args.query } : {}),
+        ...(args?.tag ? { tag: args.tag } : {}),
+        limit: String(args?.limit ?? 100),
+      },
+    }),
     format: (data) => {
       const scripts = Array.isArray(data.scripts) ? data.scripts : [];
-      if (scripts.length === 0) return 'No scripts saved in vault.';
-      const lines = scripts.map((s: any) => `- "${s.name}": ${s.description || 'No description'}`);
+      if (scripts.length === 0) return 'No matching scripts in vault.';
+      const lines = scripts.map((s: any) => {
+        const score = typeof s.score === 'number' ? ` (score: ${s.score.toFixed(2)})` : '';
+        return `- "${s.name}"${score}: ${s.description || 'No description'}`;
+      });
       return `### Script Vault (${scripts.length})\n${lines.join('\n')}`;
     },
   },
@@ -757,7 +822,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'get_stream_messages',
-    description: 'Inspects captured incoming and outgoing real-time messages / frames from WebSockets or SSE.',
+    hidden: true,
+    deprecatedInFavorOf: 'query_json_data',
+    description: 'Deprecated alias for query_json_data({ source: "stream_messages" }). Inspects captured incoming and outgoing real-time messages / frames from WebSockets or SSE.',
     parameters: {
       stream_id: z.string().optional().describe('Filter by specific streamId'),
       type: z.enum(['websocket', 'sse']).optional().describe('Filter by protocol'),
@@ -780,7 +847,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'clear_stream_messages',
-    description: 'Clears the in-memory WebSocket and SSE message frame buffer.',
+    hidden: true,
+    deprecatedInFavorOf: 'clear_capture',
+    description: 'Deprecated alias for clear_capture({ scope: "streams" }). Clears the in-memory WebSocket and SSE message frame buffer.',
     parameters: {
       stream_id: z.string().optional().describe('Optional specific streamId to clear'),
     },
@@ -788,17 +857,31 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     payload: (args) => ({ streamId: args.stream_id }),
     format: (data) => data.message || 'Stream messages cleared',
   },
+  {
+    name: 'clear_capture',
+    description: 'Clears the in-memory capture ring buffers. scope="network" clears captured HTTP traffic (see get_network_traffic), scope="streams" clears WebSocket/SSE message frames (see list_realtime_streams), scope="all" (default) clears both.',
+    parameters: {
+      scope: z.enum(['network', 'streams', 'all']).optional().default('all').describe('Which capture buffer to clear: "network" (HTTP traffic), "streams" (WebSocket/SSE frames), or "all" (default)'),
+    },
+    endpoint: '/capture/clear',
+    payload: (args) => ({ scope: args?.scope || 'all' }),
+    format: (data) => data.message || 'Capture buffers cleared',
+  },
 
   // 13. System Tray & Window Visibility
   {
     name: 'set_window_visibility',
-    description: 'Controls the cyberdeck desktop window visibility (e.g. minimize to system tray to stay out of the user\'s way, or restore to screen).',
+    description: 'Shows/restores or hides the Cyberdeck desktop window. Showing (the default) also brings the window to the foreground and focuses it — use this to make the window visible to a human (HIL); pass focus=false to show without stealing focus. Synthetic agent input is focus-independent, so this is not needed for normal driving.',
     parameters: {
-      visible: z.coerce.boolean().optional().describe('true to restore and focus window; false to minimize/hide to system tray'),
+      visible: z.coerce.boolean().optional().describe('true to restore and show the window (default); false to minimize/hide to the system tray'),
+      focus: z.coerce.boolean().optional().describe('When showing, whether to bring the window to the foreground and focus it (default: true)'),
     },
     endpoint: '/window/visibility',
-    payload: (args) => ({ visible: args?.visible !== undefined ? Boolean(args.visible) : true }),
-    format: (data, args) => JSON.stringify({ success: true, visible: data.visible, state: (args?.visible ?? true) ? 'WINDOW_RESTORED' : 'MINIMIZED_TO_TRAY' }),
+    payload: (args) => ({
+      visible: args?.visible !== undefined ? Boolean(args.visible) : true,
+      ...(args?.focus !== undefined ? { focus: Boolean(args.focus) } : {}),
+    }),
+    format: (data, args) => JSON.stringify({ success: true, visible: data.visible, focused: data.focused, state: (args?.visible ?? true) ? 'WINDOW_RESTORED' : 'MINIMIZED_TO_TRAY' }),
   },
   {
     name: 'configure_system_tray',
@@ -867,7 +950,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   },
   {
     name: 'send_desktop_notification',
-    description: 'Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).',
+    hidden: true,
+    deprecatedInFavorOf: 'send_notification',
+    description: 'Deprecated alias for send_notification (same /notify endpoint; defaults urgency=critical). Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).',
     parameters: {
       message: z.string().describe('Specific reason why the user is needed and instructions for what to do in the browser.'),
       title: z.string().optional().default('Kuang Browser: Human Intervention Required').describe('Notification title'),
@@ -915,10 +1000,10 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'observe',
     description:
-      'One budgeted observation model with projections. as="markdown" (TIER 1 harvest with inline [#id] marks) · as="text" (innerText, region-scoped) · as="ax" (accessibility tree) · as="som" (numbered marks table) · ' +
-      'as="list" · as="table" · as="app_data" (structured extraction). Use budget + the returned next_cursor to page a large page instead of truncating it. region accepts a mark id (number) or CSS selector.',
+      'One budgeted observation model with projections. as="markdown" (TIER 1 harvest with inline [#id] marks) · as="text" (innerText, region-scoped) · as="ax" (accessibility tree) · as="som" (numbered marks table). ' +
+      'Use budget + the returned next_cursor to page a large page instead of truncating it. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`.',
     parameters: {
-      as: z.enum(['markdown', 'text', 'ax', 'som', 'list', 'table', 'app_data']).optional().default('markdown').describe('Projection to return (default: markdown)'),
+      as: z.enum(['markdown', 'text', 'ax', 'som']).optional().default('markdown').describe('Projection to return (default: markdown)'),
       region: z.union([z.coerce.number(), z.string()]).optional().describe('Scope to a mark id (number) or CSS selector (string)'),
       budget: z.coerce.number().optional().describe('Max characters to return; page with next_cursor (0/omitted = whole text)'),
       cursor: z.union([z.string(), z.coerce.number()]).optional().describe('next_cursor from a previous observe call'),
@@ -1000,7 +1085,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'find',
     description:
-      'Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act()/click_mark().',
+      'Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act().',
     parameters: {
       role: z.string().optional().describe('ARIA role or implied role (e.g. "button", "link", "combobox")'),
       name: z.string().optional().describe('Accessible-name substring (case-insensitive)'),
@@ -1043,11 +1128,15 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'act',
     description:
-      'Unified, humanlike action on a mark ref with optional post-conditions and a delta report. action="click"|"focus"|"hover"|"type"|"press". ' +
-      'Pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs.',
+      'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred — a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. ' +
+      'Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. action="press" needs no target. ' +
+      'NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
     parameters: {
-      mark_id: z.coerce.number().optional().describe('Target mark id from find/list_marks/observe (not needed for action="press")'),
-      action: z.enum(['click', 'focus', 'hover', 'type', 'press']).default('click').describe('Action to perform'),
+      mark_id: z.coerce.number().optional().describe('Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)'),
+      selector: z.coerce.string().optional().describe('CSS selector of the target, when you have no mark id (e.g. "button.submit", "#search-input")'),
+      x: z.coerce.number().optional().describe('Viewport X for coordinate targeting (pair with y)'),
+      y: z.coerce.number().optional().describe('Viewport Y for coordinate targeting (pair with x)'),
+      action: z.enum(['click', 'focus', 'hover', 'type', 'press']).default('click').describe('Action to perform (default: "click")'),
       text: z.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
       secret: z.coerce.boolean().optional().default(false).describe('Redact typed text from logs'),
       await_conditions: z.array(z.record(z.string(), z.any())).optional().describe('wait_for conditions evaluated right after the action'),
@@ -1057,6 +1146,9 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     endpoint: '/act',
     payload: (args) => ({
       mark_id: args?.mark_id,
+      selector: args?.selector,
+      x: args?.x,
+      y: args?.y,
       action: args?.action || 'click',
       text: args?.text !== undefined ? String(args.text) : undefined,
       secret: args?.secret === true,
@@ -1064,11 +1156,21 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       timeout_ms: args?.timeout_ms,
       dry_run: args?.dry_run === true,
     }),
-    format: (data) => {
-      if (data.dryRun) return `DRY RUN — would ${data.action} [#${data.markId}] <${data.target?.tag}> "${data.target?.text}"${data.wouldType ? ` typing "${data.wouldType}"` : ''}`;
+    format: (data, args) => {
+      const t = data.target || {};
+      const where =
+        t.id !== undefined
+          ? `[#${t.id}] <${t.tag}> "${t.text}"`
+          : t.selector
+            ? `${t.tag ? `<${t.tag}> ` : ''}${t.selector}${t.text ? ` "${t.text}"` : ''}`
+            : t.center
+              ? `(${t.center.x}, ${t.center.y})`
+              : '(nothing)';
+      if (data.dryRun) return `DRY RUN — would ${data.action} ${where}${data.wouldType ? ` typing "${data.wouldType}"` : ''}`;
+      if (data.action === 'press') return `press "${args?.text || 'Enter'}"`;
       const d = data.delta || {};
       const parts = [
-        `${data.action} [#${data.markId}] <${data.target?.tag}> "${data.target?.text}"`,
+        `${data.action} ${where}`,
         d.urlChanged ? `url: ${d.beforeUrl} -> ${d.afterUrl}` : 'url unchanged',
         `revision ${d.revisionBefore}->${d.revisionAfter}`,
         `marks ${d.marksBefore}->${d.marksAfter}`,
@@ -1151,12 +1253,57 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     payload: (args) => ({ name: args?.name }),
     format: (data) => JSON.stringify({ deleted: data.deleted }),
   },
-  {
-    name: 'focus_window',
-    description: 'Brings the Cyberdeck window to the foreground and focuses it. Synthetic input is delivered over CDP by default and is focus-independent, so this is only needed to make the window visible to a human (HIL) or when bridge_health.input.transport reports the legacy "native" fallback.',
-    parameters: {},
-    endpoint: '/window/focus',
-    method: 'POST',
-    format: (data) => JSON.stringify({ focused: data.focused }),
-  },
 ];
+
+/**
+ * Renamed tools: the canonical name is visible, the old name stays callable by
+ * name (hidden from `tools/list`) for one release. Each legacy entry is cloned
+ * from its canonical entry so the two can never drift out of sync.
+ * Decision: docs/TOOL_CATALOG_REVIEW.md §6.
+ */
+const LEGACY_ALIASES: Array<[legacy: string, canonical: string]> = [
+  ['get_history', 'browsing_history'],
+  ['clear_history', 'browsing_history_clear'],
+  ['recall_script', 'list_scripts'],
+  ['focus_window', 'set_window_visibility'],
+];
+
+for (const [legacy, canonical] of LEGACY_ALIASES) {
+  const target = TOOLS_CATALOG.find((t) => t.name === canonical);
+  if (target) {
+    TOOLS_CATALOG.push({ ...target, name: legacy, hidden: true, deprecatedInFavorOf: canonical });
+  }
+}
+
+/**
+ * Discoverability tiers (docs/TOOL_CATALOG_REVIEW.md §3, Phase 4).
+ *
+ * Only tools that have a preferred alternative are tiered — a tool that is the only
+ * way to do its job is left unprefixed (no false "tier" noise). `bridge-server.ts`
+ * renders the label as a description prefix so the guidance travels with every entry
+ * in `tools/list`, for any agent framework.
+ */
+export const TIER_LABELS: Record<1 | 2 | 3, string> = {
+  1: 'TIER 1 · prefer',
+  2: 'TIER 2 · fallback',
+  3: 'TIER 3 · last resort',
+};
+
+export const TOOL_TIERS: Record<string, 1 | 2 | 3> = {
+  // TIER 1 — first choice for the job.
+  observe: 1,
+  act: 1,
+  wait_for: 1,
+  expect: 1,
+  find: 1,
+  extract: 1,
+  collect_all: 1,
+  page_state: 1,
+  diff: 1,
+  // TIER 2 — fallbacks when the preferred path cannot do it.
+  take_screenshot: 2,
+  snapshot_rendered_page: 2,
+  press_key: 2,
+  // TIER 3 — last resort (read-only inspection only).
+  evaluate_javascript: 3,
+};

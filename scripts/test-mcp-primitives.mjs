@@ -21,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const NEW_TOOLS = [
   'wait_for', 'observe', 'extract', 'collect_all', 'find', 'expect', 'act',
   'page_state', 'diff', 'bridge_health', 'export_har',
-  'context_save', 'context_open', 'context_list', 'context_delete', 'focus_window',
+  'context_save', 'context_open', 'context_list', 'context_delete',
 ];
 
 const FIXTURE = `<!doctype html><html><head><meta charset="utf-8"><title>MCP Primitives Fixture</title></head>
@@ -160,8 +160,8 @@ async function main() {
     const ctx = await client.callTool({ name: 'context_list', arguments: {} });
     check('MCP context_list responds', typeof textOf(ctx) === 'string');
 
-    const focus = await client.callTool({ name: 'focus_window', arguments: {} });
-    check('MCP focus_window reports focus state', /"focused"/.test(textOf(focus)), textOf(focus));
+    const focus = await client.callTool({ name: 'set_window_visibility', arguments: { visible: true } });
+    check('MCP set_window_visibility reports focus state', /"focused"/.test(textOf(focus)), textOf(focus));
   } catch (err) {
     check('MCP primitives run', false, err.message);
   } finally {

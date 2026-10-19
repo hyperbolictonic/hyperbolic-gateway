@@ -342,6 +342,26 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/capture/clear') {
+        const body = await readBody();
+        const scope = body?.scope || 'all';
+        const cleared: string[] = [];
+        if (scope === 'all' || scope === 'network') {
+          chassis.clearNetworkTraffic();
+          cleared.push('network');
+        }
+        if (scope === 'all' || scope === 'streams') {
+          chassis.clearStreamMessages();
+          cleared.push('streams');
+        }
+        sendJson({
+          success: true,
+          cleared,
+          message: cleared.length > 0 ? `Cleared capture buffer(s): ${cleared.join(', ')}` : 'Unknown scope; nothing cleared',
+        });
+        return;
+      }
+
       if (req.method === 'GET' && pathname === '/marks/screenshot') {
         const flag = (name: string) => ['1', 'true'].includes((url.searchParams.get(name) || '').toLowerCase());
         const result = await chassis.takeAnnotatedScreenshot({ economy: flag('economy'), textOnly: flag('text_only'), includeOffscreen: flag('include_offscreen') });
@@ -406,7 +426,12 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       if (req.method === 'GET' && pathname === '/scripts/list') {
-        const scripts = await chassis.listScripts();
+        const query = url.searchParams.get('q') || undefined;
+        const tag = url.searchParams.get('tag') || undefined;
+        const limitParam = url.searchParams.get('limit');
+        const limit = limitParam ? parseInt(limitParam, 10) : 100;
+        // Tree search when a query is present, otherwise enumerate (recallScripts lists all when query is undefined).
+        const scripts = await chassis.recallScripts(query, { tag, limit });
         sendJson({ success: true, scripts });
         return;
       }
@@ -744,8 +769,14 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       if (req.method === 'POST' && pathname === '/act') {
         const body = await readBody();
         const rawId = body?.mark_id ?? body?.markId ?? body?.mark ?? body?.id ?? body?.badge;
+        const selector = body?.selector || body?.element || body?.target || body?.css;
+        const x = body?.x !== undefined ? Number(body.x) : undefined;
+        const y = body?.y !== undefined ? Number(body.y) : undefined;
         const result = await chassis.getPrimitives().act({
-          markId: rawId !== undefined && rawId !== null ? Number(rawId) : NaN,
+          markId: rawId !== undefined && rawId !== null ? Number(rawId) : undefined,
+          selector,
+          x,
+          y,
           action: body?.action || 'click',
           text: body?.text !== undefined ? String(body.text) : undefined,
           secret: body?.secret === true,

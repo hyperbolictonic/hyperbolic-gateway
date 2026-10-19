@@ -323,7 +323,7 @@
             <strong>100% Real Browser Chassis:</strong> No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Mark Eleven runs a full-fledged, visible Chromium instance (<code>headless: false</code>) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
           </li>
           <li>
-            <strong>Multimodal Vision Integration:</strong> Specifically tailored for multimodal models. The agent takes high-res viewport screenshots (<code>take_screenshot</code>) to visually understand layouts, buttons, and dynamic canvas states, and can click directly by coordinate or selector (<code>click_element</code>).
+            <strong>Multimodal Vision Integration:</strong> Specifically tailored for multimodal models. The agent takes high-res viewport screenshots (<code>take_screenshot</code>) to visually understand layouts, buttons, and dynamic canvas states, and can act directly by coordinate, selector, or mark badge (<code>act</code>).
           </li>
           <li>
             <strong>Full Developer Console & Script Execution:</strong> Gives the agent full console access (<code>get_console_logs</code>) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (<code>evaluate_javascript</code>) to interact with complex SPAs.
@@ -360,10 +360,11 @@
 
       <!-- Semantic MCP Tools Table -->
       <section class="section-card">
-        <h2>🔌 Standardized Semantic MCP Tools (74 Tools Total)</h2>
+        <h2>🔌 Standardized Semantic MCP Tools (57 Advertised)</h2>
         <p>
-          73 catalog tools + the built-in <code>help</code> tool, plus 6 OKF resources
-          (<code>mark-eleven://skills/guide</code>, <code>mark-eleven://okf/manifest</code>, and four partition playbooks).
+          57 advertised tools (75 registered entries; 19 deprecated aliases stay callable by name but are hidden from
+          <code>tools/list</code>), plus 7 OKF resources
+          (<code>mark-eleven://skills/guide</code>, <code>mark-eleven://tools/recommended</code>, <code>mark-eleven://okf/manifest</code>, and four partition playbooks).
         </p>
         <table>
           <thead>
@@ -380,14 +381,9 @@
               <td>Navigates the active tab to destination URL. *(alias: <code>go_to_url</code>)*</td>
             </tr>
             <tr>
-              <td><code>click_element</code></td>
-              <td><code>selector?, x?, y?</code></td>
-              <td>Glides Bézier ghost cursor and depresses physical switch.</td>
-            </tr>
-            <tr>
-              <td><code>type_text</code></td>
-              <td><code>text, selector?</code></td>
-              <td>Types into input field with Gaussian cadence (60-240ms).</td>
+              <td><code>act</code></td>
+              <td><code>mark_id? | selector? | x?, y?, action?, text?</code></td>
+              <td>The single interaction entry point — click / focus / hover / type / press on a mark badge, CSS selector, or coordinate. Glides the Bézier ghost cursor and depresses the physical switch.</td>
             </tr>
             <tr>
               <td><code>press_key</code></td>
@@ -405,9 +401,9 @@
               <td>Captures live viewport image for multimodal vision inspection.</td>
             </tr>
             <tr>
-              <td><code>get_page_markdown</code></td>
-              <td><em>none</em></td>
-              <td>Extracts clean Markdown with token estimation metadata.</td>
+              <td><code>observe(as: "markdown")</code></td>
+              <td><code>as?: string</code></td>
+              <td>Extracts clean Markdown with token estimation metadata (replaces get_page_markdown).</td>
             </tr>
             <tr>
               <td><code>evaluate_javascript</code></td>

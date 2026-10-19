@@ -1,14 +1,38 @@
 /**
- * Kuang Grade Mark Eleven - Cortex Local Semantic Embedder
+ * Kuang Grade Mark Eleven - Cortex Embedding Provider
  *
- * Provides fast, deterministic, normalized dense vector embeddings (128-d)
- * using subword hashing, character trigrams, and TF-IDF positional weights.
- * Enables zero-latency semantic vector search within LanceDB.
+ * Embeddings back semantic recall/ranking inside LanceDB. Providers are
+ * pluggable: the default `hash-128` provider is a deterministic, zero-dependency
+ * 128-dimensional bag-of-words/trigram hash embedder (lexical similarity with
+ * no model download). A real semantic model (e.g. EmbeddingGemma-2 via ONNX)
+ * can be registered under its own id and selected at runtime.
+ *
+ * Because a provider defines the vector *space* (dimension and semantics), the
+ * active provider id/dimension is persisted by CortexDB so vectors produced by
+ * one model are never silently compared against vectors produced by another.
+ * See docs/EMBEDDING_PROVIDERS.md for wiring a real provider.
  */
 
+export interface EmbeddingProvider {
+  /** Stable identifier, persisted alongside the vectors (e.g. "hash-128"). */
+  readonly id: string;
+  /** Vector dimension this provider produces. */
+  readonly dim: number;
+  /** Produce an embedding for `text`. May be async (e.g. ONNX inference). */
+  embed(text: string): Promise<number[]>;
+}
+
+export const DEFAULT_PROVIDER_ID = 'hash-128';
+
+/** Legacy dimension constant for the default provider (kept for compatibility). */
 export const EMBEDDING_DIM = 128;
 
-export function generateEmbedding(text: string): number[] {
+/**
+ * Deterministic 128-d embedding from subword hashing, character trigrams, and
+ * log-frequency weighting. L2-normalized, so cosine similarity is a dot product.
+ * This is a lexical similarity signal, not a learned semantic one.
+ */
+function hashEmbed(text: string): number[] {
   const vector = new Float32Array(EMBEDDING_DIM);
   if (!text || text.trim().length === 0) {
     return Array.from(vector);
@@ -71,4 +95,60 @@ function hashString(str: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash;
+}
+
+class HashEmbeddingProvider implements EmbeddingProvider {
+  readonly id = DEFAULT_PROVIDER_ID;
+  readonly dim = EMBEDDING_DIM;
+  async embed(text: string): Promise<number[]> {
+    return hashEmbed(text);
+  }
+}
+
+const registry = new Map<string, EmbeddingProvider>();
+registry.set(DEFAULT_PROVIDER_ID, new HashEmbeddingProvider());
+
+let activeProviderId = DEFAULT_PROVIDER_ID;
+
+/** Register (or replace) a provider so it can be selected by id. */
+export function registerEmbeddingProvider(provider: EmbeddingProvider): void {
+  if (!provider.id || !Number.isInteger(provider.dim) || provider.dim <= 0) {
+    throw new Error('EmbeddingProvider requires a non-empty id and a positive integer dim.');
+  }
+  registry.set(provider.id, provider);
+}
+
+/** Ids of every registered provider. */
+export function listEmbeddingProviders(): string[] {
+  return [...registry.keys()];
+}
+
+/** Select the active provider by id. Throws when the id is unknown. */
+export function setEmbeddingProvider(id: string): void {
+  if (!registry.has(id)) {
+    throw new Error(`Unknown embedding provider "${id}". Available: ${listEmbeddingProviders().join(', ')}`);
+  }
+  activeProviderId = id;
+}
+
+/** The provider used for all new embeddings. */
+export function getEmbeddingProvider(): EmbeddingProvider {
+  const provider = registry.get(activeProviderId);
+  if (!provider) {
+    throw new Error(`Active embedding provider "${activeProviderId}" is not registered.`);
+  }
+  return provider;
+}
+
+/** Embed `text` with the active provider. */
+export function embedText(text: string): Promise<number[]> {
+  return getEmbeddingProvider().embed(text);
+}
+
+/**
+ * @deprecated Synchronous embedding via the default hash provider only. Use
+ * `embedText` (active provider) for anything that must match stored vectors.
+ */
+export function generateEmbedding(text: string): number[] {
+  return hashEmbed(text);
 }

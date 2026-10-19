@@ -36636,7 +36636,9 @@ var TOOLS_CATALOG = [
   },
   {
     name: "go_to_url",
-    description: "Alias for navigate_to. Navigates the browser window to a destination URL.",
+    hidden: true,
+    deprecatedInFavorOf: "navigate_to",
+    description: "Deprecated alias for navigate_to. Navigates the browser window to a destination URL.",
     parameters: {
       url: external_exports.string().describe('The destination URL (e.g. "https://www.skyscanner.net")')
     },
@@ -36658,6 +36660,8 @@ var TOOLS_CATALOG = [
   // 2. Interaction
   {
     name: "click_element",
+    hidden: true,
+    deprecatedInFavorOf: "act",
     description: "Clicks an element on the active web page using a CSS selector or direct viewport coordinates (x, y). Simulates realistic human pointer movement and switch actuation.",
     parameters: {
       selector: external_exports.string().optional().describe(`CSS selector of the element to click (e.g. "button.submit", "a[href*='login']", "#search-input")`),
@@ -36678,6 +36682,8 @@ var TOOLS_CATALOG = [
   },
   {
     name: "type_text",
+    hidden: true,
+    deprecatedInFavorOf: "act",
     description: "Types text into an input element or active element with realistic human Gaussian typing cadence (60-240ms per keystroke).",
     parameters: {
       text: external_exports.string().describe('The text string to type (e.g. "London")'),
@@ -36717,31 +36723,42 @@ var TOOLS_CATALOG = [
   },
   {
     name: "take_screenshot",
-    description: "Captures a full viewport image of the active tab. Defaults to 768px fast JPEG (~15ms encoding, tiny wire payload). Saves to data/screenshots/ and returns local file path and native MCP image content.",
+    description: 'Captures the active viewport. Two modes. PLAIN (default): fast 768px JPEG (~15ms), saved to data/screenshots/, returns the file path plus native image content. SET-OF-MARKS (marks=true): numbered badges on interactive elements \u2014 detail="full" (full-res PNG), detail="economy" (640px JPEG, ~10-20x lighter; best for vision), or detail="markdown" (marks table only, NO image; cheapest). Badge ids feed act(mark_id, action).',
     parameters: {
-      max_width: external_exports.coerce.number().optional().default(768).describe("Max width in pixels to bound screenshot (default: 768 for optimal token efficiency; pass 0 for full native resolution)"),
-      format: external_exports.enum(["jpeg", "png"]).optional().default("jpeg").describe('Image format (default: "jpeg" for ~13x faster encoding; "png" for lossless)'),
-      quality: external_exports.coerce.number().optional().default(70).describe("JPEG compression quality from 1 to 100 (default: 70)")
+      marks: external_exports.coerce.boolean().optional().default(false).describe("true = Set-of-Marks (badge interactive elements, return the marks table); false = plain viewport image (default)"),
+      detail: external_exports.enum(["full", "economy", "markdown"]).optional().default("full").describe('Only when marks=true: "full" (PNG), "economy" (640px JPEG), or "markdown" (marks table only, no image)'),
+      include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Only when marks=true: also badge elements outside the viewport (long/virtualized lists)"),
+      max_width: external_exports.coerce.number().optional().default(768).describe("Plain mode only: max width in pixels (default 768; pass 0 for full native resolution)"),
+      format: external_exports.enum(["jpeg", "png"]).optional().default("jpeg").describe('Plain mode only: image format (default "jpeg")'),
+      quality: external_exports.coerce.number().optional().default(70).describe("Plain mode only: JPEG quality 1-100 (default 70)")
     },
     endpoint: "/screenshot",
+    endpoints: ["/screenshot", "/marks/screenshot"],
     method: "GET",
+    endpointFor: (args) => args?.marks === true ? "/marks/screenshot" : "/screenshot",
     payload: (args) => {
+      if (args?.marks === true) {
+        const detail = args?.detail || "full";
+        return {
+          queryParams: {
+            ...detail === "economy" ? { economy: "1" } : {},
+            ...detail === "markdown" ? { text_only: "1" } : {},
+            include_offscreen: String(args?.include_offscreen === true)
+          }
+        };
+      }
       const maxWidth = args?.max_width !== void 0 ? Number(args.max_width) : 768;
       const format = args?.format || "jpeg";
       const quality = args?.quality !== void 0 ? Number(args.quality) : 70;
-      return {
-        queryParams: {
-          max_width: String(maxWidth),
-          format,
-          quality: String(quality)
-        }
-      };
+      return { queryParams: { max_width: String(maxWidth), format, quality: String(quality) } };
     },
     format: (data) => data.screenshot?.filePath ? `Screenshot saved to ${data.screenshot.filePath} (${data.screenshot.width || ""}x${data.screenshot.height || ""}px, ${data.screenshot.mimeType || "image/jpeg"})` : "Screenshot captured"
   },
   {
     name: "get_page_markdown",
-    description: "Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). By default includes Set-of-Marks badges ([#1], [#2]...) directly on interactive elements (links, buttons, inputs) so you can call click_mark(id) or type_mark(id) directly from the text without taking screenshots!",
+    hidden: true,
+    deprecatedInFavorOf: "observe",
+    description: 'Deprecated alias for observe(as:"markdown"). Extracts the active page DOM converted to token-efficient Markdown with YAML frontmatter envelope (title, URL, timestamps). By default includes Set-of-Marks badges ([#1], [#2]...) directly on interactive elements (links, buttons, inputs) so you can call act(id) or act(id, action:"type", text) directly from the text without taking screenshots!',
     parameters: {
       include_marks: external_exports.coerce.boolean().optional().default(true).describe("Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)"),
       include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also annotate interactive elements outside the current viewport so their [#ID] badges appear in the markdown (use for long/virtualized result lists; default: false)")
@@ -36760,7 +36777,9 @@ var TOOLS_CATALOG = [
   },
   {
     name: "harvest_markdown",
-    description: "Alias for get_page_markdown. Extracts clean markdown with inline [#ID] marks from the active tab.",
+    hidden: true,
+    deprecatedInFavorOf: "observe",
+    description: "Deprecated alias for get_page_markdown. Extracts clean markdown with inline [#ID] marks from the active tab.",
     parameters: {
       include_marks: external_exports.coerce.boolean().optional().default(true).describe("Whether to annotate interactive elements with [#ID] Set-of-Marks badges (default: true)"),
       include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also annotate interactive elements outside the current viewport (use for long/virtualized result lists; default: false)")
@@ -36795,7 +36814,9 @@ var TOOLS_CATALOG = [
   },
   {
     name: "get_page_info",
-    description: "Returns the current URL, page title, navigation status, tab count, and active tab ID of the browser window.",
+    hidden: true,
+    deprecatedInFavorOf: "bridge_health",
+    description: "Deprecated alias for bridge_health() + page_state(). Returns the current URL, page title, navigation status, tab count, and active tab ID of the browser window.",
     parameters: {},
     endpoint: "/page-info",
     method: "GET",
@@ -36807,8 +36828,8 @@ var TOOLS_CATALOG = [
     parameters: {
       direction: external_exports.enum(["back", "forward"]).describe('Navigation direction: "back" or "forward"')
     },
-    endpoint: "/history/navigate",
-    payload: (args) => ({ direction: args.direction }),
+    endpoint: "/history",
+    payload: (args) => ({ action: args.direction }),
     format: (data, args) => data.result || `Navigated ${args.direction}`
   },
   {
@@ -36818,7 +36839,8 @@ var TOOLS_CATALOG = [
       limit: external_exports.number().optional().default(50).describe("Max entries to return (default: 50)")
     },
     endpoint: "/console/logs",
-    payload: (args) => ({ limit: args.limit }),
+    method: "GET",
+    payload: (args) => ({ queryParams: { limit: String(args?.limit ?? 50) } }),
     format: (data) => {
       const logs = Array.isArray(data.logs) ? data.logs : [];
       if (logs.length === 0) return "No console logs captured.";
@@ -36910,19 +36932,25 @@ ${lines.join("\n")}`;
       limit: external_exports.number().optional().default(5).describe("Max results (default: 5)"),
       domain: external_exports.string().optional().describe('Filter by domain (e.g. "wikipedia.org")')
     },
-    endpoint: "/memory/recall",
+    endpoint: "/cortex/recall",
     payload: (args) => ({ query: args.query, limit: args.limit, domain: args.domain }),
     format: (data) => JSON.stringify(data.results, null, 2)
   },
   {
-    name: "get_history",
+    name: "browsing_history",
     description: "Retrieves chronological browsing history from the Cortex store.",
     parameters: {
       limit: external_exports.number().optional().default(20).describe("Max history entries (default: 20)"),
       domain: external_exports.string().optional().describe("Filter by domain")
     },
-    endpoint: "/history/list",
-    payload: (args) => ({ limit: args.limit, domain: args.domain }),
+    endpoint: "/cortex/history",
+    method: "GET",
+    payload: (args) => ({
+      queryParams: {
+        limit: String(args?.limit ?? 20),
+        ...args?.domain ? { domain: args.domain } : {}
+      }
+    }),
     format: (data) => {
       const hist = Array.isArray(data.history) ? data.history : [];
       if (hist.length === 0) return "No browsing history entries found.";
@@ -36935,10 +36963,10 @@ ${lines.join("\n")}`;
     }
   },
   {
-    name: "clear_history",
+    name: "browsing_history_clear",
     description: "Clears the chronological browsing history table in the Cortex database.",
     parameters: {},
-    endpoint: "/history/clear",
+    endpoint: "/cortex/history/clear",
     format: (data) => data.message || "History cleared"
   },
   {
@@ -36956,14 +36984,21 @@ ${lines.join("\n")}`;
   },
   {
     name: "list_bookmarks",
-    description: "Retrieves saved bookmarks with optional semantic search query or tag filtering.",
+    description: "Retrieves saved bookmarks. Pass query to filter by terms found in the title, notes, URL, or tags (matches are ranked by relevance); pass tag for an exact tag match.",
     parameters: {
-      query: external_exports.string().optional().describe("Search query across bookmark titles and notes"),
+      query: external_exports.string().optional().describe("Filter terms matched against bookmark title, notes, URL, and tags (every term must appear)"),
       tag: external_exports.string().optional().describe("Filter by exact tag"),
       limit: external_exports.number().optional().default(20).describe("Max bookmarks to return")
     },
-    endpoint: "/bookmarks/list",
-    payload: (args) => ({ query: args.query, tag: args.tag, limit: args.limit }),
+    endpoint: "/bookmarks",
+    method: "GET",
+    payload: (args) => ({
+      queryParams: {
+        ...args?.query ? { q: args.query } : {},
+        ...args?.tag ? { tag: args.tag } : {},
+        limit: String(args?.limit ?? 20)
+      }
+    }),
     format: (data) => {
       const bm = Array.isArray(data.bookmarks) ? data.bookmarks : [];
       if (bm.length === 0) return "No bookmarks found.";
@@ -37036,29 +37071,35 @@ ${lines.join("\n")}`;
   // 8. Sessions & Cookies
   {
     name: "save_session",
-    description: "Snapshots the current active browser session (cookies, localStorage, sessionStorage) into the persistent vault.",
+    hidden: true,
+    deprecatedInFavorOf: "context_save",
+    description: "Deprecated alias for context_save. Snapshots the current active browser session (cookies, localStorage, sessionStorage) into the persistent vault.",
     parameters: {
       name: external_exports.string().describe('Unique name for the session snapshot (e.g. "github-auth")')
     },
-    endpoint: "/sessions/save",
+    endpoint: "/session/save",
     payload: (args) => ({ name: args.name }),
     format: (data, args) => `Session "${args.name}" saved successfully`
   },
   {
     name: "restore_session",
-    description: "Restores a previously saved session snapshot into the active browser partition.",
+    hidden: true,
+    deprecatedInFavorOf: "context_open",
+    description: "Deprecated alias for context_open. Restores a previously saved session snapshot into the active browser partition.",
     parameters: {
       name: external_exports.string().describe("Name of the session snapshot to restore")
     },
-    endpoint: "/sessions/restore",
+    endpoint: "/session/restore",
     payload: (args) => ({ name: args.name }),
     format: (data, args) => `Session "${args.name}" restored successfully`
   },
   {
     name: "list_sessions",
-    description: "Returns all saved session profiles in the vault.",
+    hidden: true,
+    deprecatedInFavorOf: "context_list",
+    description: "Deprecated alias for context_list. Returns all saved session profiles in the vault.",
     parameters: {},
-    endpoint: "/sessions/list",
+    endpoint: "/session/list",
     method: "GET",
     format: (data) => {
       const sess = Array.isArray(data.sessions) ? data.sessions : [];
@@ -37108,7 +37149,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "get_api_payload",
-    description: "Retrieves the complete JSON body of a specific API response captured during network interception.",
+    hidden: true,
+    deprecatedInFavorOf: "query_json_data",
+    description: 'Deprecated alias for query_json_data({ source: "network_payload", source_id }). Retrieves the complete JSON body of a specific API response captured during network interception.',
     parameters: {
       request_id: external_exports.string().describe("ID of captured request")
     },
@@ -37118,7 +37161,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "clear_network_traffic",
-    description: "Clears the in-memory network traffic ring buffer.",
+    hidden: true,
+    deprecatedInFavorOf: "clear_capture",
+    description: 'Deprecated alias for clear_capture({ scope: "network" }). Clears the in-memory network traffic ring buffer.',
     parameters: {},
     endpoint: "/network/clear",
     format: (data) => data.message || "Network traffic cleared"
@@ -37213,7 +37258,9 @@ ${lines.join("\n")}`;
   // 10. Set-of-Marks (SoM) Grounding
   {
     name: "take_annotated_screenshot",
-    description: "Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping. Set include_offscreen=true to also badge elements below/above the fold (long result lists).",
+    hidden: true,
+    deprecatedInFavorOf: "take_screenshot",
+    description: 'Deprecated alias for take_screenshot(marks:true, detail:"full"). Visual Grounding with Set-of-Marks. Renders high-contrast numbered badges over interactable elements, takes a screenshot, saves to data/screenshots/, and returns both native image and mark mapping. Set include_offscreen=true to also badge elements below/above the fold (long result lists).',
     parameters: {
       include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also badge interactive elements outside the current viewport (default: false)")
     },
@@ -37224,7 +37271,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "take_economy_screenshot",
-    description: "Lightweight Set-of-Marks screenshot: downscaled to 640px wide JPEG (~10-20x smaller than take_annotated_screenshot) plus the same mark mapping. Use for vision models when token/bandwidth cost matters. Set include_offscreen=true to also badge elements below/above the fold.",
+    hidden: true,
+    deprecatedInFavorOf: "take_screenshot",
+    description: 'Deprecated alias for take_screenshot(marks:true, detail:"economy"). Lightweight Set-of-Marks screenshot: downscaled to 640px wide JPEG (~10-20x smaller than take_annotated_screenshot) plus the same mark mapping. Use for vision models when token/bandwidth cost matters. Set include_offscreen=true to also badge elements below/above the fold.',
     parameters: {
       include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also badge interactive elements outside the current viewport (default: false)")
     },
@@ -37235,7 +37284,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "list_marks",
-    description: "Text-only Set-of-Marks: returns the numbered interactive element table with NO image. Use for text-only models or the cheapest possible page scan; click_mark / type_mark work afterwards. On long/virtualized result lists set include_offscreen=true so below-the-fold items are numbered too (click_mark scrolls them into view).",
+    hidden: true,
+    deprecatedInFavorOf: "observe",
+    description: 'Deprecated alias for observe(as:"som"). Text-only Set-of-Marks: returns the numbered interactive element table with NO image. Use for text-only models or the cheapest possible page scan; act(mark_id, action) works afterwards. On long/virtualized result lists set include_offscreen=true so below-the-fold items are numbered too (act scrolls them into view).',
     parameters: {
       include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also number interactive elements outside the current viewport so long result lists are fully listed (default: false)")
     },
@@ -37246,6 +37297,8 @@ ${lines.join("\n")}`;
   },
   {
     name: "click_mark",
+    hidden: true,
+    deprecatedInFavorOf: "act",
     description: "Clicks an annotated element using its Set-of-Marks badge index from take_annotated_screenshot.",
     parameters: {
       mark_id: external_exports.coerce.number().describe("The numeric ID of the mark badge to click (e.g. 1)")
@@ -37262,6 +37315,8 @@ ${lines.join("\n")}`;
   },
   {
     name: "type_mark",
+    hidden: true,
+    deprecatedInFavorOf: "act",
     description: "Types text into an annotated input element using its Set-of-Marks badge index.",
     parameters: {
       mark_id: external_exports.coerce.number().describe("The numeric ID of the mark badge to type into (e.g. 1)"),
@@ -37295,23 +37350,6 @@ ${lines.join("\n")}`;
     format: (data, args) => `Script "${args.name}" vaulted successfully`
   },
   {
-    name: "recall_script",
-    description: "Semantically searches the Script Vault using natural language to find reusable automation scripts.",
-    parameters: {
-      query: external_exports.string().describe("Natural language query of desired automation task"),
-      limit: external_exports.number().optional().default(3).describe("Max scripts to return")
-    },
-    endpoint: "/scripts/recall",
-    payload: (args) => ({ query: args.query, limit: args.limit }),
-    format: (data) => {
-      const scripts = Array.isArray(data.scripts) ? data.scripts : [];
-      if (scripts.length === 0) return "No matching scripts found in vault.";
-      const lines = scripts.map((s) => `- "${s.name}" (score: ${s.score ? s.score.toFixed(2) : "n/a"}): ${s.description || "No description"}`);
-      return `### Recalled Scripts (${scripts.length})
-${lines.join("\n")}`;
-    }
-  },
-  {
     name: "run_script",
     description: "Executes a saved script from the Script Vault inside the active tab context with dynamic arguments.",
     parameters: {
@@ -37324,14 +37362,28 @@ ${lines.join("\n")}`;
   },
   {
     name: "list_scripts",
-    description: "Returns all saved automation scripts in the Script Vault.",
-    parameters: {},
+    description: "Lists or searches saved automation scripts in the Script Vault. Pass query to search by natural-language relevance (ranked); omit it to list everything. Pass tag for an exact tag match.",
+    parameters: {
+      query: external_exports.string().optional().describe("Natural-language search across script name, description, code, and tags (ranked by relevance)"),
+      tag: external_exports.string().optional().describe("Filter by exact tag"),
+      limit: external_exports.number().optional().default(100).describe("Max scripts to return")
+    },
     endpoint: "/scripts/list",
     method: "GET",
+    payload: (args) => ({
+      queryParams: {
+        ...args?.query ? { q: args.query } : {},
+        ...args?.tag ? { tag: args.tag } : {},
+        limit: String(args?.limit ?? 100)
+      }
+    }),
     format: (data) => {
       const scripts = Array.isArray(data.scripts) ? data.scripts : [];
-      if (scripts.length === 0) return "No scripts saved in vault.";
-      const lines = scripts.map((s) => `- "${s.name}": ${s.description || "No description"}`);
+      if (scripts.length === 0) return "No matching scripts in vault.";
+      const lines = scripts.map((s) => {
+        const score = typeof s.score === "number" ? ` (score: ${s.score.toFixed(2)})` : "";
+        return `- "${s.name}"${score}: ${s.description || "No description"}`;
+      });
       return `### Script Vault (${scripts.length})
 ${lines.join("\n")}`;
     }
@@ -37371,7 +37423,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "get_stream_messages",
-    description: "Inspects captured incoming and outgoing real-time messages / frames from WebSockets or SSE.",
+    hidden: true,
+    deprecatedInFavorOf: "query_json_data",
+    description: 'Deprecated alias for query_json_data({ source: "stream_messages" }). Inspects captured incoming and outgoing real-time messages / frames from WebSockets or SSE.',
     parameters: {
       stream_id: external_exports.string().optional().describe("Filter by specific streamId"),
       type: external_exports.enum(["websocket", "sse"]).optional().describe("Filter by protocol"),
@@ -37395,7 +37449,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "clear_stream_messages",
-    description: "Clears the in-memory WebSocket and SSE message frame buffer.",
+    hidden: true,
+    deprecatedInFavorOf: "clear_capture",
+    description: 'Deprecated alias for clear_capture({ scope: "streams" }). Clears the in-memory WebSocket and SSE message frame buffer.',
     parameters: {
       stream_id: external_exports.string().optional().describe("Optional specific streamId to clear")
     },
@@ -37403,16 +37459,30 @@ ${lines.join("\n")}`;
     payload: (args) => ({ streamId: args.stream_id }),
     format: (data) => data.message || "Stream messages cleared"
   },
+  {
+    name: "clear_capture",
+    description: 'Clears the in-memory capture ring buffers. scope="network" clears captured HTTP traffic (see get_network_traffic), scope="streams" clears WebSocket/SSE message frames (see list_realtime_streams), scope="all" (default) clears both.',
+    parameters: {
+      scope: external_exports.enum(["network", "streams", "all"]).optional().default("all").describe('Which capture buffer to clear: "network" (HTTP traffic), "streams" (WebSocket/SSE frames), or "all" (default)')
+    },
+    endpoint: "/capture/clear",
+    payload: (args) => ({ scope: args?.scope || "all" }),
+    format: (data) => data.message || "Capture buffers cleared"
+  },
   // 13. System Tray & Window Visibility
   {
     name: "set_window_visibility",
-    description: "Controls the cyberdeck desktop window visibility (e.g. minimize to system tray to stay out of the user's way, or restore to screen).",
+    description: "Shows/restores or hides the Cyberdeck desktop window. Showing (the default) also brings the window to the foreground and focuses it \u2014 use this to make the window visible to a human (HIL); pass focus=false to show without stealing focus. Synthetic agent input is focus-independent, so this is not needed for normal driving.",
     parameters: {
-      visible: external_exports.coerce.boolean().optional().describe("true to restore and focus window; false to minimize/hide to system tray")
+      visible: external_exports.coerce.boolean().optional().describe("true to restore and show the window (default); false to minimize/hide to the system tray"),
+      focus: external_exports.coerce.boolean().optional().describe("When showing, whether to bring the window to the foreground and focus it (default: true)")
     },
     endpoint: "/window/visibility",
-    payload: (args) => ({ visible: args?.visible !== void 0 ? Boolean(args.visible) : true }),
-    format: (data, args) => JSON.stringify({ success: true, visible: data.visible, state: args?.visible ?? true ? "WINDOW_RESTORED" : "MINIMIZED_TO_TRAY" })
+    payload: (args) => ({
+      visible: args?.visible !== void 0 ? Boolean(args.visible) : true,
+      ...args?.focus !== void 0 ? { focus: Boolean(args.focus) } : {}
+    }),
+    format: (data, args) => JSON.stringify({ success: true, visible: data.visible, focused: data.focused, state: args?.visible ?? true ? "WINDOW_RESTORED" : "MINIMIZED_TO_TRAY" })
   },
   {
     name: "configure_system_tray",
@@ -37480,7 +37550,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "send_desktop_notification",
-    description: "Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).",
+    hidden: true,
+    deprecatedInFavorOf: "send_notification",
+    description: "Deprecated alias for send_notification (same /notify endpoint; defaults urgency=critical). Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).",
     parameters: {
       message: external_exports.string().describe("Specific reason why the user is needed and instructions for what to do in the browser."),
       title: external_exports.string().optional().default("Kuang Browser: Human Intervention Required").describe("Notification title"),
@@ -37523,9 +37595,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "observe",
-    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 harvest with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table) \xB7 as="list" \xB7 as="table" \xB7 as="app_data" (structured extraction). Use budget + the returned next_cursor to page a large page instead of truncating it. region accepts a mark id (number) or CSS selector.',
+    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 harvest with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table). Use budget + the returned next_cursor to page a large page instead of truncating it. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`.',
     parameters: {
-      as: external_exports.enum(["markdown", "text", "ax", "som", "list", "table", "app_data"]).optional().default("markdown").describe("Projection to return (default: markdown)"),
+      as: external_exports.enum(["markdown", "text", "ax", "som"]).optional().default("markdown").describe("Projection to return (default: markdown)"),
       region: external_exports.union([external_exports.coerce.number(), external_exports.string()]).optional().describe("Scope to a mark id (number) or CSS selector (string)"),
       budget: external_exports.coerce.number().optional().describe("Max characters to return; page with next_cursor (0/omitted = whole text)"),
       cursor: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe("next_cursor from a previous observe call"),
@@ -37610,7 +37682,7 @@ ${rows.join("\n")}`;
   },
   {
     name: "find",
-    description: "Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act()/click_mark().",
+    description: "Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act().",
     parameters: {
       role: external_exports.string().optional().describe('ARIA role or implied role (e.g. "button", "link", "combobox")'),
       name: external_exports.string().optional().describe("Accessible-name substring (case-insensitive)"),
@@ -37654,10 +37726,13 @@ ${lines.join("\n")}`;
   },
   {
     name: "act",
-    description: 'Unified, humanlike action on a mark ref with optional post-conditions and a delta report. action="click"|"focus"|"hover"|"type"|"press". Pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs.',
+    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred \u2014 a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. action="press" needs no target. NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
     parameters: {
-      mark_id: external_exports.coerce.number().optional().describe('Target mark id from find/list_marks/observe (not needed for action="press")'),
-      action: external_exports.enum(["click", "focus", "hover", "type", "press"]).default("click").describe("Action to perform"),
+      mark_id: external_exports.coerce.number().optional().describe("Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)"),
+      selector: external_exports.coerce.string().optional().describe('CSS selector of the target, when you have no mark id (e.g. "button.submit", "#search-input")'),
+      x: external_exports.coerce.number().optional().describe("Viewport X for coordinate targeting (pair with y)"),
+      y: external_exports.coerce.number().optional().describe("Viewport Y for coordinate targeting (pair with x)"),
+      action: external_exports.enum(["click", "focus", "hover", "type", "press"]).default("click").describe('Action to perform (default: "click")'),
       text: external_exports.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
       secret: external_exports.coerce.boolean().optional().default(false).describe("Redact typed text from logs"),
       await_conditions: external_exports.array(external_exports.record(external_exports.string(), external_exports.any())).optional().describe("wait_for conditions evaluated right after the action"),
@@ -37667,6 +37742,9 @@ ${lines.join("\n")}`;
     endpoint: "/act",
     payload: (args) => ({
       mark_id: args?.mark_id,
+      selector: args?.selector,
+      x: args?.x,
+      y: args?.y,
       action: args?.action || "click",
       text: args?.text !== void 0 ? String(args.text) : void 0,
       secret: args?.secret === true,
@@ -37674,11 +37752,14 @@ ${lines.join("\n")}`;
       timeout_ms: args?.timeout_ms,
       dry_run: args?.dry_run === true
     }),
-    format: (data) => {
-      if (data.dryRun) return `DRY RUN \u2014 would ${data.action} [#${data.markId}] <${data.target?.tag}> "${data.target?.text}"${data.wouldType ? ` typing "${data.wouldType}"` : ""}`;
+    format: (data, args) => {
+      const t = data.target || {};
+      const where = t.id !== void 0 ? `[#${t.id}] <${t.tag}> "${t.text}"` : t.selector ? `${t.tag ? `<${t.tag}> ` : ""}${t.selector}${t.text ? ` "${t.text}"` : ""}` : t.center ? `(${t.center.x}, ${t.center.y})` : "(nothing)";
+      if (data.dryRun) return `DRY RUN \u2014 would ${data.action} ${where}${data.wouldType ? ` typing "${data.wouldType}"` : ""}`;
+      if (data.action === "press") return `press "${args?.text || "Enter"}"`;
       const d = data.delta || {};
       const parts = [
-        `${data.action} [#${data.markId}] <${data.target?.tag}> "${data.target?.text}"`,
+        `${data.action} ${where}`,
         d.urlChanged ? `url: ${d.beforeUrl} -> ${d.afterUrl}` : "url unchanged",
         `revision ${d.revisionBefore}->${d.revisionAfter}`,
         `marks ${d.marksBefore}->${d.marksAfter}`
@@ -37761,16 +37842,43 @@ ${lines.join("\n")}`;
     endpoint: "/context/delete",
     payload: (args) => ({ name: args?.name }),
     format: (data) => JSON.stringify({ deleted: data.deleted })
-  },
-  {
-    name: "focus_window",
-    description: 'Brings the Cyberdeck window to the foreground and focuses it. Synthetic input is delivered over CDP by default and is focus-independent, so this is only needed to make the window visible to a human (HIL) or when bridge_health.input.transport reports the legacy "native" fallback.',
-    parameters: {},
-    endpoint: "/window/focus",
-    method: "POST",
-    format: (data) => JSON.stringify({ focused: data.focused })
   }
 ];
+var LEGACY_ALIASES = [
+  ["get_history", "browsing_history"],
+  ["clear_history", "browsing_history_clear"],
+  ["recall_script", "list_scripts"],
+  ["focus_window", "set_window_visibility"]
+];
+for (const [legacy, canonical] of LEGACY_ALIASES) {
+  const target = TOOLS_CATALOG.find((t) => t.name === canonical);
+  if (target) {
+    TOOLS_CATALOG.push({ ...target, name: legacy, hidden: true, deprecatedInFavorOf: canonical });
+  }
+}
+var TIER_LABELS = {
+  1: "TIER 1 \xB7 prefer",
+  2: "TIER 2 \xB7 fallback",
+  3: "TIER 3 \xB7 last resort"
+};
+var TOOL_TIERS = {
+  // TIER 1 — first choice for the job.
+  observe: 1,
+  act: 1,
+  wait_for: 1,
+  expect: 1,
+  find: 1,
+  extract: 1,
+  collect_all: 1,
+  page_state: 1,
+  diff: 1,
+  // TIER 2 — fallbacks when the preferred path cannot do it.
+  take_screenshot: 2,
+  snapshot_rendered_page: 2,
+  press_key: 2,
+  // TIER 3 — last resort (read-only inspection only).
+  evaluate_javascript: 3
+};
 
 // src/shared/version.ts
 var APP_VERSION = "1.1.1";
@@ -37926,67 +38034,54 @@ function extractCleanBase64(data) {
   const raw = data?.screenshot?.base64Image || data?.base64Image || data?.image || "";
   return typeof raw === "string" ? raw.replace(/^data:image\/[a-z]+;base64,/, "") : "";
 }
+var IMAGE_TOOLS = /* @__PURE__ */ new Set([
+  "take_screenshot",
+  "take_annotated_screenshot",
+  "take_economy_screenshot",
+  "list_marks"
+]);
 function createBridgeMcpServer() {
   const server = new McpServer({
     name: "kuang-grade-mark-eleven",
     version: APP_VERSION
   });
   for (const tool of TOOLS_CATALOG) {
-    server.tool(tool.name, tool.description, tool.parameters, async (args) => {
+    const tier = TOOL_TIERS[tool.name];
+    const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
+    server.tool(tool.name, `${prefix}${tool.description}`, tool.parameters, async (args) => {
       try {
         logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
         const body = tool.payload ? tool.payload(args) : args;
-        logMcp(`[HTTP Forward] ${tool.method || "POST"} ${tool.endpoint} body: ${preview(body)}`);
-        const data = await callBridge(tool.endpoint, tool.method || "POST", body);
-        if (tool.name === "take_screenshot") {
-          const rawBase64 = extractCleanBase64(data);
-          const screenshot = data.screenshot || data;
-          const filePath = screenshot.filePath || "";
-          const w = screenshot.width || 0;
-          const h = screenshot.height || 0;
-          const descriptionText = filePath ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).` : `Screenshot captured (${w}x${h}px).`;
-          const content = [
-            {
-              type: "text",
-              text: descriptionText
-            }
-          ];
-          if (rawBase64) {
-            content.push({
-              type: "image",
-              data: rawBase64,
-              mimeType: screenshot.mimeType || (screenshot.filePath?.endsWith(".png") ? "image/png" : "image/jpeg")
-            });
-          }
-          logMcp(`[Tool Success] "take_screenshot" returning text + image part (${rawBase64.length} chars base64, path: ${filePath})`);
-          return { content };
-        }
-        if (tool.name === "take_annotated_screenshot" || tool.name === "take_economy_screenshot" || tool.name === "list_marks") {
+        const endpoint = tool.endpointFor ? tool.endpointFor(args) : tool.endpoint;
+        logMcp(`[HTTP Forward] ${tool.method || "POST"} ${endpoint} body: ${preview(body)}`);
+        const data = await callBridge(endpoint, tool.method || "POST", body);
+        if (IMAGE_TOOLS.has(tool.name)) {
           const rawBase64 = extractCleanBase64(data);
           const screenshot = data.screenshot || data;
           const filePath = screenshot.filePath || "";
           const w = screenshot.width || 0;
           const h = screenshot.height || 0;
           const marks = Array.isArray(data.marks) ? data.marks : [];
-          const marksTable = marks.map((m) => formatMark(m)).join("\n");
-          const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.` : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
-          const descriptionText = clampText(`${header}
+          const withMarks = tool.name !== "take_screenshot" || args?.marks === true;
+          let text2;
+          if (withMarks) {
+            const marksTable = marks.map((m) => formatMark(m)).join("\n");
+            const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.` : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
+            text2 = clampText(`${header}
 
 Interactive Elements:
 ${marksTable}
 
-Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
-          const content = [
-            {
-              type: "text",
-              text: descriptionText
-            }
-          ];
+Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for inputs (text=...), "hover" for menus, "press" for keys.`);
+          } else {
+            text2 = filePath ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).` : `Screenshot captured (${w}x${h}px).`;
+          }
+          const content = [{ type: "text", text: text2 }];
           if (rawBase64) {
             content.push({
               type: "image",
               data: rawBase64,
-              mimeType: screenshot.mimeType || "image/png"
+              mimeType: screenshot.mimeType || (filePath.endsWith(".png") ? "image/png" : "image/jpeg")
             });
           }
           logMcp(`[Tool Success] "${tool.name}" returning text${rawBase64 ? " + image part" : " only"} (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
@@ -38016,40 +38111,41 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
   - Visual Browser: Active visible Chromium window ('headless: false') with B\xE9zier ghost-cursor telemetry.
   - Zero Context Bleed: Tools return compact 1-line markdown or distilled structures instead of raw JSON.
   - PREFERENTIAL SEQUENCE (Tokens & Anti-Shadowban):
-    * TIER 1 (First Choice): get_page_markdown() [or observe(as:"markdown")] -> clean text with inline [#ID] marks. Actuate via click_mark(id) / type_mark(id) / act(mark_id). Zero vision tokens burned!
-    * TIER 2 (Fallback): take_economy_screenshot() -> downscaled 640px JPEG Set-of-Marks. Use ONLY when visual layout/CAPTCHA requires vision.
+    * TIER 1 (First Choice): observe(as:"markdown") -> clean text with inline [#ID] marks. Actuate via act(mark_id, action) (or act(selector) / act(x, y) when you have no badge). Zero vision tokens burned!
+    * TIER 2 (Fallback): take_screenshot(marks:true, detail:"economy") -> downscaled 640px JPEG Set-of-Marks. Use ONLY when visual layout/CAPTCHA requires vision.
     * TIER 3 (Last Resort): evaluate_javascript() -> strictly for READ-ONLY inspection. NEVER mutate DOM or click via JS to avoid bot shadowbans (isTrusted: false).
   - Start non-trivial sessions with bridge_health() to read capabilities[], revision and input.transport.
+  - QUICK DECISION ORDER (5 common jobs): read a page -> observe(as:"markdown"); find an element -> find(); act -> act(mark_id | selector | x,y, action); wait -> wait_for(conditions[]); harvest a lazy list -> collect_all(). Full detail: mark-eleven://tools/recommended.
 
 2. [ORTHOGONAL PRIMITIVES \u2014 PREFER THESE OVER BLIND SLEEPS]
   - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate; returns {ok, waitedMs, attempts, results[]}. Replaces every sleep.
-  - act(mark_id, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified humanlike click/focus/hover/type/press + optional post-conditions + delta report. dry_run resolves without acting; secret redacts credentials from logs.
+  - act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified humanlike click/focus/hover/type/press on a mark badge, a CSS selector, or viewport coordinates + optional post-conditions + delta report. dry_run resolves without acting; secret redacts credentials from logs.
   - expect(conditions[]): immediate assertion (no polling) with per-condition evidence.
-  - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs (feed them to act/click_mark).
+  - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs (feed them to act).
   - extract(kind:"list"|"table"|"app_data", ref?, selector?): structured read (repeating rows, tables, embedded __NEXT_DATA__/JSON-LD).
   - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): scroll a lazy/infinite list to the end and dedupe rows in ONE call, with scroll diagnostics.
-  - observe(as:"markdown"|"text"|"ax"|"som"|"list"|"table"|"app_data", region?, budget?, cursor?): one observation model; page huge pages with budget + next_cursor.
+  - observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): one observation model; page huge pages with budget + next_cursor.
   - page_state() / diff(since?): cheap change signature + field-by-field diff for loops (no full re-reads).
   - Condition vocabulary: selector / gone / text(regex) / url / role_name / count(min/equals/max) / network_idle / stable(target:"marks"|"height"|"text"|"nodes") / revision. WARNING: skeletons can satisfy a naive selector early \u2014 prefer stable/count for lazily-rendered lists.
   - Errors are machine-coded (HTTP 400): STALE_REF (re-scan), TIMEOUT, NO_TARGET, BAD_REQUEST, NOT_SUPPORTED. See resource mark-eleven://okf/partitions/primitives-and-workflows for recipes R1-R5.
 
 3. [VISUAL GROUNDING & SET-OF-MARKS (SoM)]
-  - Three tiers (all share identical badge IDs):
-    * take_annotated_screenshot(): Marks table + full-resolution PNG (for vision models).
-    * take_economy_screenshot(): Marks table + 640px JPEG (~10-20x lighter, recommended for vision).
-    * list_marks(): Marks table only, NO image (zero token waste, ideal for text-only LLMs).
+  - ONE tool, three detail levels (identical badge IDs): take_screenshot(marks:true, detail?):
+    * detail="full" (default): Marks table + full-resolution PNG (for vision models).
+    * detail="economy": Marks table + 640px JPEG (~10-20x lighter, recommended for vision).
+    * detail="markdown": Marks table only, NO image (zero token waste; equal to observe(as:"som")).
+    * plain viewport image (no badges): take_screenshot() -> 768px JPEG.
   - Actuation:
-    * click_mark(mark_id): B\xE9zier trajectory click on badge number (accepts number or string).
-    * type_mark(mark_id, text, clear_first?): Focuses mark badge and types with human cadence.
+    * act(mark_id | selector | x,y, action): unified click/focus/hover/type/press with optional post-conditions. mark_id is preferred (re-resolved against the live DOM, tracks layout shifts); selector and x/y are escape hatches.
   - Accessibility & States:
     * Badge tags display roles and state: [role=combobox] {value="...", expanded=false, disabled, required}.
-    * Custom selects / menus: Click mark to expand -> call list_marks() -> click option mark -> verify.
-    * Long/virtualized result lists: pass include_offscreen=true to list_marks()/get_page_markdown()/take_economy_screenshot() so below-the-fold items are numbered too (click_mark scrolls them into view before clicking).
+    * Custom selects / menus: Click mark to expand -> call observe(as:"som") -> click option mark -> verify.
+    * Long/virtualized result lists: pass include_offscreen=true to take_screenshot(marks:true) / observe() so below-the-fold items are numbered too (act scrolls them into view before clicking).
 
 4. [NETWORK INTERCEPTION & JSON NAVIGATOR]
   - Inspection:
     * get_network_traffic(resource_type?, url_pattern?, limit?, since?): Compact 1-line HTTP summaries with [HAS_BODY] indicator. since accepts epoch-ms, a revision, or "last_action" (only what the last mutating action fired).
-    * get_api_payload(request_id): Retrieves raw response body.
+    * Raw response body: query_json_data({ source:"network_payload", source_id:"<req_id>" }) (add path/view to slice it).
     * export_har(pattern?, limit?, save?): HAR 1.2 export (save=true writes data/har/har_<ts>.har).
   - Token-Efficient JSON Navigator (query_json_data):
     * Step 1 (Schema): query_json_data({ source: "network_payload", source_id: "<req_id>", view: "schema" }) -> outlines structure and array counts without raw dump.
@@ -38071,26 +38167,26 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
 
 6. [MULTI-TAB & SESSION ORCHESTRATION]
   - Tabs: new_tab(url?) -> switch_tab(tab_id) -> list_tabs() (1-line markdown) -> close_tab(tab_id?).
-  - Sessions: save_session(name) -> restore_session(name) -> list_sessions() (cookies & storage persist).
-  - Context profiles: context_save(name) / context_open(name) / context_list() / context_delete(name) \u2014 thin aliases over the session vault.
+  - Profiles (cookies & storage persist across runs): context_save(name) -> context_open(name) -> context_list() -> context_delete(name).
+  - Legacy save_session / restore_session / list_sessions are deprecated aliases (still callable by name, hidden from tools/list).
 
 7. [LANCEDB CORTEX & KNOWLEDGE RECALL]
   - recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously visited pages.
   - Bookmarks: add_bookmark(url, title, notes?, tags?) -> list_bookmarks(query?, tag?) -> delete_bookmark(url_or_id).
-  - History: get_history(limit?, domain?) -> clear_history().
+  - History: browsing_history(limit?, domain?) -> browsing_history_clear().
 
 8. [REALTIME WEBSOCKETS & SSE]
   - list_realtime_streams(type?, active_only?): Lists active wss:// sockets and SSE streams.
-  - get_stream_messages(stream_id?, limit?): Rolling buffer of parsed frames.
+  - Inspect stream frames with query_json_data({ source:"stream_messages", source_id:"<streamId>" }) (get_stream_messages is deprecated).
 
 9. [INPUT DELIVERY & BACKGROUND RENDERING]
   - Synthetic input is dispatched over CDP (Input.dispatchMouseEvent / dispatchKeyEvent / mouseWheel) and is FOCUS-INDEPENDENT: clicks/typing land even when another app owns the OS foreground. bridge_health().input.transport reports "cdp" (good) or "native" (legacy fallback that needs the window focused).
   - Browsing tabs run with backgroundThrottling disabled + occlusion/renderer/timer backgrounding switches, so an occluded Cyberdeck still renders and fires scroll events (lazy-load harvests work while the window is behind your editor).
-  - Viewport gating: real input needs a non-zero viewport. If a fresh/hidden tab reports 0x0, call set_window_visibility({visible:true}) and wait for a non-zero viewport. focus_window() only makes the window visible to a human (HIL).
+  - Viewport gating: real input needs a non-zero viewport. If a fresh/hidden tab reports 0x0, call set_window_visibility({visible:true}) and wait for a non-zero viewport. Making the window visible to a human (HIL) is the only other reason to call it.
 
 10. [HUMAN-IN-THE-LOOP & SYSTEM TRAY]
   - request_human_intervention(reason, timeout_seconds?, bring_to_front?): PROACTIVELY CALL THIS whenever hitting Cloudflare challenges, CAPTCHAs, login/2FA screens, checkout payments, or critical blockers. Halts agent, triggers audible desktop alerts, unhides window, flashes taskbar, and presents HUD banner until user confirms.
-  - set_window_visibility(visible): Minimizes Cyberdeck to tray or restores to screen.
+  - set_window_visibility(visible?, focus?): Shows/restores the window (and focuses it by default) or hides it to the tray.
   - send_notification(title, message, urgency?): Native OS desktop notification.`;
   server.resource(
     "mark-eleven-skill",
@@ -38194,12 +38290,40 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
       return { contents: [{ uri: "mark-eleven://okf/partitions/primitives-and-workflows", mimeType: "text/markdown", text }] };
     }
   );
+  const RECOMMENDED_ORDER = `# Mark Eleven \u2014 Recommended Tool Order
+
+Reach for these first; anything whose description starts with \`[TIER n]\` is a fallback.
+
+| Job | Use | Fallback |
+| :--- | :--- | :--- |
+| Read / understand a page | \`observe(as:"markdown")\` | \`take_screenshot(marks:true, detail:"economy")\` |
+| Find an element | \`find(...)\` | \`observe(as:"som")\` and read the \`[#ID]\` |
+| Act on an element | \`act(mark_id, action)\` | \`act(selector)\` / \`act(x, y)\` |
+| Wait for readiness | \`wait_for(conditions[])\` | \u2014 |
+| Harvest a lazy list | \`collect_all(...)\` | \`observe\` + \`scroll_page\` |
+
+Rules of thumb:
+- Never \`sleep\`; use \`wait_for\` or \`act(await_conditions=[...])\`.
+- Never set values or click via \`evaluate_javascript\` (TIER 3, read-only) \u2014 it trips bot sensors.
+- Prefer \`observe\` over screenshots; prefer a mark id over a CSS selector.
+- Use \`expect(...)\` to assert now, \`page_state()\`/\`diff(since)\` to confirm change cheaply.
+`;
+  server.resource(
+    "tools-recommended",
+    "mark-eleven://tools/recommended",
+    {
+      description: 'Canonical "what to use when" order across the five common jobs (read, find, act, wait, harvest).',
+      mimeType: "text/markdown"
+    },
+    async () => ({ contents: [{ uri: "mark-eleven://tools/recommended", mimeType: "text/markdown", text: RECOMMENDED_ORDER }] })
+  );
   server.tool(
     "help",
     "Returns a categorized guide, cheatsheet, and workflow tips for all available Mark Eleven MCP tools (served directly in OKF).",
     {
       category: external_exports.enum([
         "all",
+        "recommended",
         "navigation",
         "interaction",
         "primitives",
@@ -38214,39 +38338,36 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
     async ({ category }) => {
       if (category && category !== "all") {
         const docs = {
+          recommended: RECOMMENDED_ORDER,
           navigation: `### Navigation Tools
 - navigate_to(url, auto_dismiss_consent?): Navigates active browser window to URL and auto-clears cookie overlays.
 - navigate_history(direction: "back" | "forward"): Moves back or forward in history.`,
           interaction: `### Interaction & Telemetry Tools
-- click_element(selector?, x?, y?): Performs organic Bio-Kinematic Chaos mouse movement and switch clicks with visual pointer.
-- type_text(text, selector?): Types with realistic human Gaussian cadence (60-240ms).
+- act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, dry_run?): unified humanlike click/focus/hover/type/press with optional post-conditions and a before/after delta (the preferred way to interact).
 - press_key(key): Dispatches single hardware keys ('Enter', 'Tab', 'Escape', 'Backspace').
 - scroll_page(direction?, amount?): Simulates organic inertial wheel scrolling.
 - fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
           primitives: `### Orthogonal Primitives (prefer over blind sleeps)
 - bridge_health(): version, revision, capabilities[], window, input.transport.
 - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate (replaces sleeps).
-- act(mark_id, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press + post-conditions + delta.
+- act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press (mark badge, CSS selector, or coordinates) + post-conditions + delta.
 - expect(conditions[]): immediate assertion with per-condition evidence.
 - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs.
 - extract(kind:"list"|"table"|"app_data", ref?, selector?): structured reads.
 - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): harvest a lazy/infinite list in one call.
-- observe(as:"markdown"|"text"|"ax"|"som"|"list"|"table"|"app_data", region?, budget?, cursor?): budgeted, cursor-paged observation.
+- observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): budgeted, cursor-paged observation.
 - page_state() / diff(since?): cheap change detection for loops.
 - export_har(pattern?, limit?, save?): HAR 1.2 export. context_save/open/list/delete(name): cookie+storage profiles.
 - Condition vocabulary: selector/gone/text/regex/url/role_name/count/network_idle/stable/revision. Errors: STALE_REF|TIMEOUT|NO_TARGET|BAD_REQUEST|NOT_SUPPORTED.`,
           inspection: `### Visual & Content Inspection
-- get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.
+- observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): primary budgeted read/projection (preferred over get_page_markdown).
+- take_screenshot(marks?, detail?, include_offscreen?, max_width?, format?, quality?): plain viewport image, or Set-of-Marks when marks=true with detail "full"|"economy"|"markdown".
 - snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?): Freezes dynamic post-hydration JS-heavy pages (AX tree outline, rendered markdown, or HTML).
 - prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?): Pre-executes and hydrates candidate links in background views for 0ms navigation and Cortex pre-harvest.
-- take_screenshot(): Captures full viewport image.
-- evaluate_javascript(script): Evaluates arbitrary JS in the active tab.
-- get_page_info(): Returns active URL, title, tab ID, loading status.
+- evaluate_javascript(script): Evaluates arbitrary JS in the active tab (read-only).
+- bridge_health(): version, revision, capabilities, window, input.transport (replaces get_page_info).
 - get_console_logs(limit?): Returns live browser console logs.
-- take_annotated_screenshot(): Set-of-Marks visual badges overlay (full PNG + marks table).
-- take_economy_screenshot(): Same marks table with a small 640px JPEG (~10-20x lighter). Prefer for vision models when cost matters.
-- list_marks(): Marks table only, NO image. Use with text-only models; click_mark/type_mark work afterwards.
-- click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
+- act(mark_id | selector | x,y, action): the single interaction entry point; address by Set-of-Marks badge, CSS selector, or viewport coordinates.`,
           tabs: `### Multi-Tab Orchestration
 - new_tab(url?): Opens a new tab.
 - switch_tab(tab_id): Focuses a specific tab.
@@ -38255,22 +38376,23 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
           memory: `### LanceDB Cortex & Bookmarks
 - recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously browsed pages.
 - add_bookmark(url, title, notes?, tags?): Saves a research bookmark to LanceDB.
-- list_bookmarks(query?, tag?, limit?): Searches or lists saved bookmarks.
+- list_bookmarks(query?, tag?, limit?): Filters saved bookmarks by query terms (title/notes/URL/tags) or exact tag, ranked by relevance; lists recent when query is omitted.
 - delete_bookmark(url_or_id): Removes a bookmark.
-- get_history(limit?, domain?): Chronological browsing history.`,
+- browsing_history(limit?, domain?): Chronological browsing history.`,
           macros: `### Script Vault & Macro Engine
 - save_script(name, description, code, parameters?): Vaults a reusable DOM script into LanceDB.
-- recall_script(query, limit?): Semantically searches for vaulted automation scripts.
+- list_scripts(query?, tag?, limit?): Lists or searches vaulted scripts (query ranks by relevance).
 - run_script(name, args?): Executes vaulted script inside the live tab.
-- list_scripts() / delete_script(name): Manages vaulted scripts.`,
+- delete_script(name): Removes a vaulted script.`,
           network: `### Network & Stream Interception
 - get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses (returns compact 1-line markdown summaries).
-- get_api_payload(request_id): Retrieves raw JSON response payload from intercepted API calls.
+- query_json_data({ source:"network_payload", source_id }): raw JSON response body, sliced by path/view.
 - query_json_data(source, source_id?, path?, view?, filter_predicate?, max_items?, max_string_length?): Token-efficient JSON navigator. Extracts nested paths (e.g. "items[0..3].price"), distills schemas, filters arrays, and avoids context blowups. Sources: "network_payload", "stream_messages", "download_file", "inline_json".
 - list_realtime_streams(type?, active_only?): Lists active wss:// WebSockets and SSE streams.
-- get_stream_messages(stream_id?, type?, direction?, limit?): Inspects real-time streaming frames.`,
+- Inspect stream frames via query_json_data({ source:"stream_messages", source_id:"<streamId>" }).
+- clear_capture(scope?): Clears captured HTTP traffic ("network"), WS/SSE frames ("streams"), or both ("all", default).`,
           system: `### System Tray & Human-In-The-Loop
-- set_window_visibility(visible): Minimizes Cyberdeck to system tray or restores to screen.
+- set_window_visibility(visible?, focus?): Shows/restores the window (and focuses it by default) or hides it to the system tray.
 - configure_system_tray(close_to_tray?): Configures close-to-tray background mode.
 - request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.
 - send_notification(title, message, urgency?, sound?): Sends native OS notification.`
@@ -38287,12 +38409,16 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
       };
     }
   );
+  const HIDDEN_TOOLS = new Map(
+    TOOLS_CATALOG.filter((t) => t.hidden).map((t) => [t.name, t.deprecatedInFavorOf])
+  );
   const rawListHandler = server.server?._requestHandlers?.get?.("tools/list");
   if (rawListHandler) {
     server.server._requestHandlers.set("tools/list", async (request, extra) => {
       const result = await rawListHandler(request, extra);
       if (result && Array.isArray(result.tools)) {
-        result.tools = result.tools.map((t) => {
+        const visible = result.tools.filter((t) => !HIDDEN_TOOLS.has(t.name));
+        result.tools = visible.map((t) => {
           const rawSchema = t.inputSchema || {};
           const schema = {
             ...rawSchema,
@@ -38323,7 +38449,15 @@ Use click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
         request.params.arguments = normalizeIncomingParams(request.params);
         logMcp(`tools/call: "${request.params.name}" args: ${preview(request.params.arguments)}`);
       }
-      return await rawCallHandler(request, extra);
+      const result = await rawCallHandler(request, extra);
+      const canonical = HIDDEN_TOOLS.get(request?.params?.name);
+      if (canonical && result?.content?.[0]?.type === "text") {
+        logMcp(`[Deprecated] "${request.params.name}" called; canonical is "${canonical}".`);
+        result.content[0].text = `\u26A0 deprecated tool name \u2014 use "${canonical}".
+
+${result.content[0].text}`;
+      }
+      return result;
     });
   }
   return server;

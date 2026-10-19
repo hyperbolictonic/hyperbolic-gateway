@@ -160,6 +160,8 @@ export class BrowserChassis {
       getMarkTarget: (id) => this.marksOverlay.getMarkTarget(this.getActiveWebContents(), id),
       clickMark: (id) => this.clickMark(id),
       typeMark: (id, text, opts) => this.typeMark(id, text, opts),
+      clickElement: (selector, coords) => this.clickElement(selector, coords),
+      typeText: (text, selector) => this.typeText(text, selector),
       moveMouseTo: (target) => this.moveMouse(target),
       pressKey: (key) => this.pressKey(key),
       snapshotRenderedPage: (opts) => this.snapshotRenderedPage(opts),
@@ -503,15 +505,15 @@ export class BrowserChassis {
 
     await this.simulator.clickAt(wc, { x: targetX!, y: targetY! });
 
+    // NOTE: no synthetic `el.click()` here. The trusted CDP click above already
+    // actuates the element; firing a second JS click double-submitted forms and
+    // double-opened links. We only give text controls a focus nudge.
     if (selector) {
       await wc.executeJavaScript(`
         (() => {
           const el = document.querySelector(${JSON.stringify(selector)});
-          if (el) {
-            if (typeof el.focus === 'function') el.focus();
-            if (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button') {
-              el.click();
-            }
+          if (el && typeof el.focus === 'function' && !el.matches('a[href], button, [role="button"]')) {
+            el.focus();
           }
         })()
       `).catch(() => {});

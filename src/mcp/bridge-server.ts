@@ -3,7 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { TOOLS_CATALOG } from './tools-catalog.js';
+import { TOOLS_CATALOG, TOOL_TIERS, TIER_LABELS } from './tools-catalog.js';
 import { formatMark } from './format-mark.js';
 import { APP_VERSION } from '../shared/version.js';
 
@@ -210,6 +210,14 @@ function extractCleanBase64(data: any): string {
   return typeof raw === 'string' ? raw.replace(/^data:image\/[a-z]+;base64,/, '') : '';
 }
 
+/** Tools whose response carries a native image part (see the Phase-3 screenshot merge). */
+const IMAGE_TOOLS = new Set([
+  'take_screenshot',
+  'take_annotated_screenshot',
+  'take_economy_screenshot',
+  'list_marks',
+]);
+
 export function createBridgeMcpServer() {
   const server = new McpServer({
     name: 'kuang-grade-mark-eleven',
@@ -217,73 +225,55 @@ export function createBridgeMcpServer() {
   });
 
   for (const tool of TOOLS_CATALOG) {
-    server.tool(tool.name, tool.description, tool.parameters, async (args) => {
+    // Phase 4: fold discoverability guidance into the advertised description so it
+    // travels with every tools/list entry in any agent framework.
+    const tier = TOOL_TIERS[tool.name];
+    const prefix = tool.hidden
+      ? `[DEPRECATED → use "${tool.deprecatedInFavorOf || 'the canonical tool'}"] `
+      : tier
+        ? `[${TIER_LABELS[tier]}] `
+        : '';
+    server.tool(tool.name, `${prefix}${tool.description}`, tool.parameters, async (args) => {
       try {
         logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
         const body = tool.payload ? tool.payload(args) : args;
-        logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${tool.endpoint} body: ${preview(body)}`);
-        const data = await callBridge(tool.endpoint, tool.method || 'POST', body);
+        const endpoint = tool.endpointFor ? tool.endpointFor(args) : tool.endpoint;
+        logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${endpoint} body: ${preview(body)}`);
+        const data = await callBridge(endpoint, tool.method || 'POST', body);
 
-        // Native MCP Image Content support for multimodal vision LLMs & file-reading agents
-        if (tool.name === 'take_screenshot') {
-          const rawBase64 = extractCleanBase64(data);
-          const screenshot = data.screenshot || data;
-          const filePath = screenshot.filePath || '';
-          const w = screenshot.width || 0;
-          const h = screenshot.height || 0;
-          const descriptionText = filePath
-            ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).`
-            : `Screenshot captured (${w}x${h}px).`;
-
-          const content: any[] = [
-            {
-              type: 'text',
-              text: descriptionText,
-            },
-          ];
-
-          if (rawBase64) {
-            content.push({
-              type: 'image',
-              data: rawBase64,
-              mimeType: screenshot.mimeType || (screenshot.filePath?.endsWith('.png') ? 'image/png' : 'image/jpeg'),
-            });
-          }
-
-          logMcp(`[Tool Success] "take_screenshot" returning text + image part (${rawBase64.length} chars base64, path: ${filePath})`);
-          return { content };
-        }
-
-        if (tool.name === 'take_annotated_screenshot' || tool.name === 'take_economy_screenshot' || tool.name === 'list_marks') {
+        // Image-bearing tools: plain viewport screenshots and Set-of-Marks scans.
+        // After the Phase-3 merge these funnel through take_screenshot (legacy
+        // names remain as hidden aliases), so branch on the target, not the name.
+        if (IMAGE_TOOLS.has(tool.name)) {
           const rawBase64 = extractCleanBase64(data);
           const screenshot = data.screenshot || data;
           const filePath = screenshot.filePath || '';
           const w = screenshot.width || 0;
           const h = screenshot.height || 0;
           const marks = Array.isArray(data.marks) ? data.marks : [];
-          const marksTable = marks.map((m: any) => formatMark(m)).join('\n');
+          const withMarks = tool.name !== 'take_screenshot' || args?.marks === true;
 
-          const header = filePath
-            ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.`
-            : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
+          let text: string;
+          if (withMarks) {
+            const marksTable = marks.map((m: any) => formatMark(m)).join('\n');
+            const header = filePath
+              ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.`
+              : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
+            text = clampText(`${header}\n\nInteractive Elements:\n${marksTable}\n\nActuate via act(mark_id, action) — action defaults to "click"; "type" for inputs (text=...), "hover" for menus, "press" for keys.`);
+          } else {
+            text = filePath
+              ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).`
+              : `Screenshot captured (${w}x${h}px).`;
+          }
 
-          const descriptionText = clampText(`${header}\n\nInteractive Elements:\n${marksTable}\n\nUse click_mark(mark_id) or type_mark(mark_id, text) to interact.`);
-
-          const content: any[] = [
-            {
-              type: 'text',
-              text: descriptionText,
-            },
-          ];
-
+          const content: any[] = [{ type: 'text', text }];
           if (rawBase64) {
             content.push({
               type: 'image',
               data: rawBase64,
-              mimeType: screenshot.mimeType || 'image/png',
+              mimeType: screenshot.mimeType || (filePath.endsWith('.png') ? 'image/png' : 'image/jpeg'),
             });
           }
-
           logMcp(`[Tool Success] "${tool.name}" returning text${rawBase64 ? ' + image part' : ' only'} (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
           return { content };
         }
@@ -319,40 +309,41 @@ export function createBridgeMcpServer() {
   - Visual Browser: Active visible Chromium window ('headless: false') with Bézier ghost-cursor telemetry.
   - Zero Context Bleed: Tools return compact 1-line markdown or distilled structures instead of raw JSON.
   - PREFERENTIAL SEQUENCE (Tokens & Anti-Shadowban):
-    * TIER 1 (First Choice): get_page_markdown() [or observe(as:"markdown")] -> clean text with inline [#ID] marks. Actuate via click_mark(id) / type_mark(id) / act(mark_id). Zero vision tokens burned!
-    * TIER 2 (Fallback): take_economy_screenshot() -> downscaled 640px JPEG Set-of-Marks. Use ONLY when visual layout/CAPTCHA requires vision.
+    * TIER 1 (First Choice): observe(as:"markdown") -> clean text with inline [#ID] marks. Actuate via act(mark_id, action) (or act(selector) / act(x, y) when you have no badge). Zero vision tokens burned!
+    * TIER 2 (Fallback): take_screenshot(marks:true, detail:"economy") -> downscaled 640px JPEG Set-of-Marks. Use ONLY when visual layout/CAPTCHA requires vision.
     * TIER 3 (Last Resort): evaluate_javascript() -> strictly for READ-ONLY inspection. NEVER mutate DOM or click via JS to avoid bot shadowbans (isTrusted: false).
   - Start non-trivial sessions with bridge_health() to read capabilities[], revision and input.transport.
+  - QUICK DECISION ORDER (5 common jobs): read a page -> observe(as:"markdown"); find an element -> find(); act -> act(mark_id | selector | x,y, action); wait -> wait_for(conditions[]); harvest a lazy list -> collect_all(). Full detail: mark-eleven://tools/recommended.
 
 2. [ORTHOGONAL PRIMITIVES — PREFER THESE OVER BLIND SLEEPS]
   - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate; returns {ok, waitedMs, attempts, results[]}. Replaces every sleep.
-  - act(mark_id, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified humanlike click/focus/hover/type/press + optional post-conditions + delta report. dry_run resolves without acting; secret redacts credentials from logs.
+  - act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified humanlike click/focus/hover/type/press on a mark badge, a CSS selector, or viewport coordinates + optional post-conditions + delta report. dry_run resolves without acting; secret redacts credentials from logs.
   - expect(conditions[]): immediate assertion (no polling) with per-condition evidence.
-  - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs (feed them to act/click_mark).
+  - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs (feed them to act).
   - extract(kind:"list"|"table"|"app_data", ref?, selector?): structured read (repeating rows, tables, embedded __NEXT_DATA__/JSON-LD).
   - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): scroll a lazy/infinite list to the end and dedupe rows in ONE call, with scroll diagnostics.
-  - observe(as:"markdown"|"text"|"ax"|"som"|"list"|"table"|"app_data", region?, budget?, cursor?): one observation model; page huge pages with budget + next_cursor.
+  - observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): one observation model; page huge pages with budget + next_cursor.
   - page_state() / diff(since?): cheap change signature + field-by-field diff for loops (no full re-reads).
   - Condition vocabulary: selector / gone / text(regex) / url / role_name / count(min/equals/max) / network_idle / stable(target:"marks"|"height"|"text"|"nodes") / revision. WARNING: skeletons can satisfy a naive selector early — prefer stable/count for lazily-rendered lists.
   - Errors are machine-coded (HTTP 400): STALE_REF (re-scan), TIMEOUT, NO_TARGET, BAD_REQUEST, NOT_SUPPORTED. See resource mark-eleven://okf/partitions/primitives-and-workflows for recipes R1-R5.
 
 3. [VISUAL GROUNDING & SET-OF-MARKS (SoM)]
-  - Three tiers (all share identical badge IDs):
-    * take_annotated_screenshot(): Marks table + full-resolution PNG (for vision models).
-    * take_economy_screenshot(): Marks table + 640px JPEG (~10-20x lighter, recommended for vision).
-    * list_marks(): Marks table only, NO image (zero token waste, ideal for text-only LLMs).
+  - ONE tool, three detail levels (identical badge IDs): take_screenshot(marks:true, detail?):
+    * detail="full" (default): Marks table + full-resolution PNG (for vision models).
+    * detail="economy": Marks table + 640px JPEG (~10-20x lighter, recommended for vision).
+    * detail="markdown": Marks table only, NO image (zero token waste; equal to observe(as:"som")).
+    * plain viewport image (no badges): take_screenshot() -> 768px JPEG.
   - Actuation:
-    * click_mark(mark_id): Bézier trajectory click on badge number (accepts number or string).
-    * type_mark(mark_id, text, clear_first?): Focuses mark badge and types with human cadence.
+    * act(mark_id | selector | x,y, action): unified click/focus/hover/type/press with optional post-conditions. mark_id is preferred (re-resolved against the live DOM, tracks layout shifts); selector and x/y are escape hatches.
   - Accessibility & States:
     * Badge tags display roles and state: [role=combobox] {value="...", expanded=false, disabled, required}.
-    * Custom selects / menus: Click mark to expand -> call list_marks() -> click option mark -> verify.
-    * Long/virtualized result lists: pass include_offscreen=true to list_marks()/get_page_markdown()/take_economy_screenshot() so below-the-fold items are numbered too (click_mark scrolls them into view before clicking).
+    * Custom selects / menus: Click mark to expand -> call observe(as:"som") -> click option mark -> verify.
+    * Long/virtualized result lists: pass include_offscreen=true to take_screenshot(marks:true) / observe() so below-the-fold items are numbered too (act scrolls them into view before clicking).
 
 4. [NETWORK INTERCEPTION & JSON NAVIGATOR]
   - Inspection:
     * get_network_traffic(resource_type?, url_pattern?, limit?, since?): Compact 1-line HTTP summaries with [HAS_BODY] indicator. since accepts epoch-ms, a revision, or "last_action" (only what the last mutating action fired).
-    * get_api_payload(request_id): Retrieves raw response body.
+    * Raw response body: query_json_data({ source:"network_payload", source_id:"<req_id>" }) (add path/view to slice it).
     * export_har(pattern?, limit?, save?): HAR 1.2 export (save=true writes data/har/har_<ts>.har).
   - Token-Efficient JSON Navigator (query_json_data):
     * Step 1 (Schema): query_json_data({ source: "network_payload", source_id: "<req_id>", view: "schema" }) -> outlines structure and array counts without raw dump.
@@ -374,26 +365,26 @@ export function createBridgeMcpServer() {
 
 6. [MULTI-TAB & SESSION ORCHESTRATION]
   - Tabs: new_tab(url?) -> switch_tab(tab_id) -> list_tabs() (1-line markdown) -> close_tab(tab_id?).
-  - Sessions: save_session(name) -> restore_session(name) -> list_sessions() (cookies & storage persist).
-  - Context profiles: context_save(name) / context_open(name) / context_list() / context_delete(name) — thin aliases over the session vault.
+  - Profiles (cookies & storage persist across runs): context_save(name) -> context_open(name) -> context_list() -> context_delete(name).
+  - Legacy save_session / restore_session / list_sessions are deprecated aliases (still callable by name, hidden from tools/list).
 
 7. [LANCEDB CORTEX & KNOWLEDGE RECALL]
   - recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously visited pages.
   - Bookmarks: add_bookmark(url, title, notes?, tags?) -> list_bookmarks(query?, tag?) -> delete_bookmark(url_or_id).
-  - History: get_history(limit?, domain?) -> clear_history().
+  - History: browsing_history(limit?, domain?) -> browsing_history_clear().
 
 8. [REALTIME WEBSOCKETS & SSE]
   - list_realtime_streams(type?, active_only?): Lists active wss:// sockets and SSE streams.
-  - get_stream_messages(stream_id?, limit?): Rolling buffer of parsed frames.
+  - Inspect stream frames with query_json_data({ source:"stream_messages", source_id:"<streamId>" }) (get_stream_messages is deprecated).
 
 9. [INPUT DELIVERY & BACKGROUND RENDERING]
   - Synthetic input is dispatched over CDP (Input.dispatchMouseEvent / dispatchKeyEvent / mouseWheel) and is FOCUS-INDEPENDENT: clicks/typing land even when another app owns the OS foreground. bridge_health().input.transport reports "cdp" (good) or "native" (legacy fallback that needs the window focused).
   - Browsing tabs run with backgroundThrottling disabled + occlusion/renderer/timer backgrounding switches, so an occluded Cyberdeck still renders and fires scroll events (lazy-load harvests work while the window is behind your editor).
-  - Viewport gating: real input needs a non-zero viewport. If a fresh/hidden tab reports 0x0, call set_window_visibility({visible:true}) and wait for a non-zero viewport. focus_window() only makes the window visible to a human (HIL).
+  - Viewport gating: real input needs a non-zero viewport. If a fresh/hidden tab reports 0x0, call set_window_visibility({visible:true}) and wait for a non-zero viewport. Making the window visible to a human (HIL) is the only other reason to call it.
 
 10. [HUMAN-IN-THE-LOOP & SYSTEM TRAY]
   - request_human_intervention(reason, timeout_seconds?, bring_to_front?): PROACTIVELY CALL THIS whenever hitting Cloudflare challenges, CAPTCHAs, login/2FA screens, checkout payments, or critical blockers. Halts agent, triggers audible desktop alerts, unhides window, flashes taskbar, and presents HUD banner until user confirms.
-  - set_window_visibility(visible): Minimizes Cyberdeck to tray or restores to screen.
+  - set_window_visibility(visible?, focus?): Shows/restores the window (and focuses it by default) or hides it to the tray.
   - send_notification(title, message, urgency?): Native OS desktop notification.`;
 
   // 1. Standard MCP Resource: mark-eleven://skills/guide
@@ -496,6 +487,38 @@ export function createBridgeMcpServer() {
     }
   );
 
+  // Standard MCP Resource: mark-eleven://tools/recommended
+  // The canonical "what to use when" order, in one place, so an agent that only reads
+  // resources (or the help `all` text) still picks the right tool.
+  const RECOMMENDED_ORDER = `# Mark Eleven — Recommended Tool Order
+
+Reach for these first; anything whose description starts with \`[TIER n]\` is a fallback.
+
+| Job | Use | Fallback |
+| :--- | :--- | :--- |
+| Read / understand a page | \`observe(as:"markdown")\` | \`take_screenshot(marks:true, detail:"economy")\` |
+| Find an element | \`find(...)\` | \`observe(as:"som")\` and read the \`[#ID]\` |
+| Act on an element | \`act(mark_id, action)\` | \`act(selector)\` / \`act(x, y)\` |
+| Wait for readiness | \`wait_for(conditions[])\` | — |
+| Harvest a lazy list | \`collect_all(...)\` | \`observe\` + \`scroll_page\` |
+
+Rules of thumb:
+- Never \`sleep\`; use \`wait_for\` or \`act(await_conditions=[...])\`.
+- Never set values or click via \`evaluate_javascript\` (TIER 3, read-only) — it trips bot sensors.
+- Prefer \`observe\` over screenshots; prefer a mark id over a CSS selector.
+- Use \`expect(...)\` to assert now, \`page_state()\`/\`diff(since)\` to confirm change cheaply.
+`;
+
+  server.resource(
+    'tools-recommended',
+    'mark-eleven://tools/recommended',
+    {
+      description: 'Canonical "what to use when" order across the five common jobs (read, find, act, wait, harvest).',
+      mimeType: 'text/markdown',
+    },
+    async () => ({ contents: [{ uri: 'mark-eleven://tools/recommended', mimeType: 'text/markdown', text: RECOMMENDED_ORDER }] })
+  );
+
   // Built-in help tool
   server.tool(
     'help',
@@ -503,6 +526,7 @@ export function createBridgeMcpServer() {
     {
       category: z.enum([
         'all',
+        'recommended',
         'navigation',
         'interaction',
         'primitives',
@@ -517,15 +541,16 @@ export function createBridgeMcpServer() {
     async ({ category }) => {
       if (category && category !== 'all') {
         const docs: Record<string, string> = {
+          recommended: RECOMMENDED_ORDER,
           navigation: `### Navigation Tools\n- navigate_to(url, auto_dismiss_consent?): Navigates active browser window to URL and auto-clears cookie overlays.\n- navigate_history(direction: "back" | "forward"): Moves back or forward in history.`,
-          interaction: `### Interaction & Telemetry Tools\n- click_element(selector?, x?, y?): Performs organic Bio-Kinematic Chaos mouse movement and switch clicks with visual pointer.\n- type_text(text, selector?): Types with realistic human Gaussian cadence (60-240ms).\n- press_key(key): Dispatches single hardware keys ('Enter', 'Tab', 'Escape', 'Backspace').\n- scroll_page(direction?, amount?): Simulates organic inertial wheel scrolling.\n- fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
-          primitives: `### Orthogonal Primitives (prefer over blind sleeps)\n- bridge_health(): version, revision, capabilities[], window, input.transport.\n- wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate (replaces sleeps).\n- act(mark_id, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press + post-conditions + delta.\n- expect(conditions[]): immediate assertion with per-condition evidence.\n- find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs.\n- extract(kind:"list"|"table"|"app_data", ref?, selector?): structured reads.\n- collect_all(selector?, ref?, scroll?, max_scrolls?, max?): harvest a lazy/infinite list in one call.\n- observe(as:"markdown"|"text"|"ax"|"som"|"list"|"table"|"app_data", region?, budget?, cursor?): budgeted, cursor-paged observation.\n- page_state() / diff(since?): cheap change detection for loops.\n- export_har(pattern?, limit?, save?): HAR 1.2 export. context_save/open/list/delete(name): cookie+storage profiles.\n- Condition vocabulary: selector/gone/text/regex/url/role_name/count/network_idle/stable/revision. Errors: STALE_REF|TIMEOUT|NO_TARGET|BAD_REQUEST|NOT_SUPPORTED.`,
-          inspection: `### Visual & Content Inspection\n- get_page_markdown(): Extracts DOM converted to token-efficient Markdown with YAML frontmatter.\n- snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?): Freezes dynamic post-hydration JS-heavy pages (AX tree outline, rendered markdown, or HTML).\n- prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?): Pre-executes and hydrates candidate links in background views for 0ms navigation and Cortex pre-harvest.\n- take_screenshot(): Captures full viewport image.\n- evaluate_javascript(script): Evaluates arbitrary JS in the active tab.\n- get_page_info(): Returns active URL, title, tab ID, loading status.\n- get_console_logs(limit?): Returns live browser console logs.\n- take_annotated_screenshot(): Set-of-Marks visual badges overlay (full PNG + marks table).\n- take_economy_screenshot(): Same marks table with a small 640px JPEG (~10-20x lighter). Prefer for vision models when cost matters.\n- list_marks(): Marks table only, NO image. Use with text-only models; click_mark/type_mark work afterwards.\n- click_mark(mark_id) / type_mark(mark_id, text): Interacts via Set-of-Marks badge numbers.`,
+          interaction: `### Interaction & Telemetry Tools\n- act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, dry_run?): unified humanlike click/focus/hover/type/press with optional post-conditions and a before/after delta (the preferred way to interact).\n- press_key(key): Dispatches single hardware keys ('Enter', 'Tab', 'Escape', 'Backspace').\n- scroll_page(direction?, amount?): Simulates organic inertial wheel scrolling.\n- fill_form(fields, submit_selector?): Populates multiple form inputs in a single turn.`,
+          primitives: `### Orthogonal Primitives (prefer over blind sleeps)\n- bridge_health(): version, revision, capabilities[], window, input.transport.\n- wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate (replaces sleeps).\n- act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press (mark badge, CSS selector, or coordinates) + post-conditions + delta.\n- expect(conditions[]): immediate assertion with per-condition evidence.\n- find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs.\n- extract(kind:"list"|"table"|"app_data", ref?, selector?): structured reads.\n- collect_all(selector?, ref?, scroll?, max_scrolls?, max?): harvest a lazy/infinite list in one call.\n- observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): budgeted, cursor-paged observation.\n- page_state() / diff(since?): cheap change detection for loops.\n- export_har(pattern?, limit?, save?): HAR 1.2 export. context_save/open/list/delete(name): cookie+storage profiles.\n- Condition vocabulary: selector/gone/text/regex/url/role_name/count/network_idle/stable/revision. Errors: STALE_REF|TIMEOUT|NO_TARGET|BAD_REQUEST|NOT_SUPPORTED.`,
+          inspection: `### Visual & Content Inspection\n- observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): primary budgeted read/projection (preferred over get_page_markdown).\n- take_screenshot(marks?, detail?, include_offscreen?, max_width?, format?, quality?): plain viewport image, or Set-of-Marks when marks=true with detail "full"|"economy"|"markdown".\n- snapshot_rendered_page(format?, wait_until_idle_ms?, pierce_shadow_dom?): Freezes dynamic post-hydration JS-heavy pages (AX tree outline, rendered markdown, or HTML).\n- prerender_links(urls?, selector?, max_pages?, harvest_to_cortex?): Pre-executes and hydrates candidate links in background views for 0ms navigation and Cortex pre-harvest.\n- evaluate_javascript(script): Evaluates arbitrary JS in the active tab (read-only).\n- bridge_health(): version, revision, capabilities, window, input.transport (replaces get_page_info).\n- get_console_logs(limit?): Returns live browser console logs.\n- act(mark_id | selector | x,y, action): the single interaction entry point; address by Set-of-Marks badge, CSS selector, or viewport coordinates.`,
           tabs: `### Multi-Tab Orchestration\n- new_tab(url?): Opens a new tab.\n- switch_tab(tab_id): Focuses a specific tab.\n- close_tab(tab_id?): Closes a tab.\n- list_tabs(): Returns all open tabs.`,
-          memory: `### LanceDB Cortex & Bookmarks\n- recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously browsed pages.\n- add_bookmark(url, title, notes?, tags?): Saves a research bookmark to LanceDB.\n- list_bookmarks(query?, tag?, limit?): Searches or lists saved bookmarks.\n- delete_bookmark(url_or_id): Removes a bookmark.\n- get_history(limit?, domain?): Chronological browsing history.`,
-          macros: `### Script Vault & Macro Engine\n- save_script(name, description, code, parameters?): Vaults a reusable DOM script into LanceDB.\n- recall_script(query, limit?): Semantically searches for vaulted automation scripts.\n- run_script(name, args?): Executes vaulted script inside the live tab.\n- list_scripts() / delete_script(name): Manages vaulted scripts.`,
-          network: `### Network & Stream Interception\n- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses (returns compact 1-line markdown summaries).\n- get_api_payload(request_id): Retrieves raw JSON response payload from intercepted API calls.\n- query_json_data(source, source_id?, path?, view?, filter_predicate?, max_items?, max_string_length?): Token-efficient JSON navigator. Extracts nested paths (e.g. "items[0..3].price"), distills schemas, filters arrays, and avoids context blowups. Sources: "network_payload", "stream_messages", "download_file", "inline_json".\n- list_realtime_streams(type?, active_only?): Lists active wss:// WebSockets and SSE streams.\n- get_stream_messages(stream_id?, type?, direction?, limit?): Inspects real-time streaming frames.`,
-          system: `### System Tray & Human-In-The-Loop\n- set_window_visibility(visible): Minimizes Cyberdeck to system tray or restores to screen.\n- configure_system_tray(close_to_tray?): Configures close-to-tray background mode.\n- request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.\n- send_notification(title, message, urgency?, sound?): Sends native OS notification.`
+          memory: `### LanceDB Cortex & Bookmarks\n- recall_memory(query, limit?, domain?): Hybrid vector + BM25 search across all previously browsed pages.\n- add_bookmark(url, title, notes?, tags?): Saves a research bookmark to LanceDB.\n- list_bookmarks(query?, tag?, limit?): Filters saved bookmarks by query terms (title/notes/URL/tags) or exact tag, ranked by relevance; lists recent when query is omitted.\n- delete_bookmark(url_or_id): Removes a bookmark.\n- browsing_history(limit?, domain?): Chronological browsing history.`,
+          macros: `### Script Vault & Macro Engine\n- save_script(name, description, code, parameters?): Vaults a reusable DOM script into LanceDB.\n- list_scripts(query?, tag?, limit?): Lists or searches vaulted scripts (query ranks by relevance).\n- run_script(name, args?): Executes vaulted script inside the live tab.\n- delete_script(name): Removes a vaulted script.`,
+          network: `### Network & Stream Interception\n- get_network_traffic(url_pattern?, method?, resource_type?, limit?): Inspects HTTP requests/responses (returns compact 1-line markdown summaries).\n- query_json_data({ source:"network_payload", source_id }): raw JSON response body, sliced by path/view.\n- query_json_data(source, source_id?, path?, view?, filter_predicate?, max_items?, max_string_length?): Token-efficient JSON navigator. Extracts nested paths (e.g. "items[0..3].price"), distills schemas, filters arrays, and avoids context blowups. Sources: "network_payload", "stream_messages", "download_file", "inline_json".\n- list_realtime_streams(type?, active_only?): Lists active wss:// WebSockets and SSE streams.\n- Inspect stream frames via query_json_data({ source:"stream_messages", source_id:"<streamId>" }).\n- clear_capture(scope?): Clears captured HTTP traffic ("network"), WS/SSE frames ("streams"), or both ("all", default).`,
+          system: `### System Tray & Human-In-The-Loop\n- set_window_visibility(visible?, focus?): Shows/restores the window (and focuses it by default) or hides it to the system tray.\n- configure_system_tray(close_to_tray?): Configures close-to-tray background mode.\n- request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.\n- send_notification(title, message, urgency?, sound?): Sends native OS notification.`
         };
         return { content: [{ type: 'text', text: docs[category] || 'Category not found.' }] };
       }
@@ -541,13 +566,19 @@ export function createBridgeMcpServer() {
     }
   );
 
-  // Intercept tools/list to enrich each tool definition for ANY agent framework or chatbot
+  // Intercept tools/list to enrich each tool definition for ANY agent framework or chatbot.
+  // Deprecated aliases (TOOLS_CATALOG[].hidden) are filtered out of the advertised surface but
+  // remain registered, so they can still be invoked by name via tools/call.
+  const HIDDEN_TOOLS = new Map(
+    TOOLS_CATALOG.filter((t) => t.hidden).map((t) => [t.name, t.deprecatedInFavorOf] as const)
+  );
   const rawListHandler = (server as any).server?._requestHandlers?.get?.('tools/list');
   if (rawListHandler) {
     (server as any).server._requestHandlers.set('tools/list', async (request: any, extra: any) => {
       const result = await rawListHandler(request, extra);
       if (result && Array.isArray(result.tools)) {
-        result.tools = result.tools.map((t: any) => {
+        const visible = result.tools.filter((t: any) => !HIDDEN_TOOLS.has(t.name));
+        result.tools = visible.map((t: any) => {
           const rawSchema = t.inputSchema || {};
           const schema = {
             ...rawSchema,
@@ -577,7 +608,14 @@ export function createBridgeMcpServer() {
         request.params.arguments = normalizeIncomingParams(request.params);
         logMcp(`tools/call: "${request.params.name}" args: ${preview(request.params.arguments)}`);
       }
-      return await rawCallHandler(request, extra);
+      const result = await rawCallHandler(request, extra);
+      // Nudge callers off deprecated names without breaking them.
+      const canonical = HIDDEN_TOOLS.get(request?.params?.name);
+      if (canonical && result?.content?.[0]?.type === 'text') {
+        logMcp(`[Deprecated] "${request.params.name}" called; canonical is "${canonical}".`);
+        result.content[0].text = `⚠ deprecated tool name — use "${canonical}".\n\n${result.content[0].text}`;
+      }
+      return result;
     });
   }
 
@@ -628,7 +666,7 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
     }
   }
 
-  // Gather any non-protocol top-level properties on params (for flat callers e.g. { name: 'click_mark', mark_id: 1 } or { name: 'click_mark', id: 1 })
+  // Gather any non-protocol top-level properties on params (for flat callers e.g. { name: 'act', mark_id: 1 } or { name: 'act', id: 1 })
   const protocolKeys = new Set(['name', 'arguments', 'args', 'parameters', 'properties', 'props', 'data', '_meta', 'task', 'method', 'jsonrpc']);
   const topLevelArgs: Record<string, any> = {};
   for (const [k, v] of Object.entries(params)) {

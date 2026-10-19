@@ -7,7 +7,7 @@ The **Marks Overlay** (`src/main/marks/marks-overlay.ts`) provides visual ground
 When agents interact with complex web applications (e.g. Skyscanner flight matrices, GitHub PR review screens, Reddit threads):
 1. **Zero Hallucinated Coordinates**: Multimodal LLMs often misestimate `(x, y)` pixels from raw viewport images.
 2. **Selector Invariant**: Avoids fragile, obfuscated CSS selectors or dynamically generated class names.
-3. **Deterministic Actuation**: The agent simply inspects the annotated screenshot and issues `click_mark(4)` or `type_mark(2, "Tokyo")`. The chassis looks up mark #4's bounding rect and drives the physical Bézier mouse cursor directly to the center of the element.
+3. **Deterministic Actuation**: The agent simply inspects the annotated screenshot and issues `act(4)` (or `act({ mark_id: 2, action: "type", text: "Tokyo" })`). The chassis looks up mark #4's bounding rect and drives the physical Bézier mouse cursor directly to the center of the element.
 
 ## Detection & Accessibility Metadata
 
@@ -29,7 +29,7 @@ Rendered table line: `[#4] <INPUT role=combobox> "Country" {value="UK", expanded
 
 ## Workflow
 
-1. Agent calls `take_annotated_screenshot()`.
+1. Agent calls `take_screenshot({ marks: true })`.
 2. The chassis detects visible interactive elements (`a`, `button`, `input`, `select`, `role="button"`, etc.).
 3. Ephemeral amber neon badges and bounding boxes are injected into the DOM.
 4. Electron captures the annotated viewport frame.
@@ -41,7 +41,7 @@ Rendered table line: `[#4] <INPUT role=combobox> "Country" {value="UK", expanded
      { "id": 2, "tag": "INPUT", "type": "text", "text": "Where to?", "rect": { "x": 220, "y": 45, "width": 240, "height": 40 } }
    ]
    ```
-7. Agent calls `click_mark(1)` or `type_mark(2, "Maldives")`.
+7. Agent calls `act(1)` or `act({ mark_id: 2, action: "type", text: "Maldives" })`.
 
 ## HTTP Bridge API
 
@@ -54,18 +54,17 @@ Rendered table line: `[#4] <INPUT role=combobox> "Country" {value="UK", expanded
 
 ## MCP Tools
 
-- `take_annotated_screenshot`: Captures a viewport screenshot tagged with numbered neon badges and returns the marks lookup table.
-- `take_economy_screenshot`: Same marks table with a 640px-wide JPEG (q45) image. Roughly 10-20x lighter; for vision models when cost matters.
-- `list_marks`: Marks table only, no image. For text-only models; never sends pixels.
-- `click_mark`: Clicks directly on the element corresponding to a numbered visual mark ID.
-- `type_mark`: Focuses and enters text into the element corresponding to a numbered visual mark ID.
+- `take_screenshot({ marks: true, detail })`: one capture tool with three Set-of-Marks detail levels — `"full"` (PNG), `"economy"` (640px JPEG q45), `"markdown"` (marks table, no image). Same badge ids in every mode.
+- `act({ mark_id, action, text })`: the single interaction verb. Addresses a mark badge (preferred), a CSS selector, or coordinates and dispatches the humanized Bézier click / type / hover / press.
+
+The older `take_annotated_screenshot` / `take_economy_screenshot` / `list_marks` / `click_mark` / `type_mark` names remain callable but are **hidden aliases** of the two tools above.
 
 ## Choosing a Mode
 
 | Mode | Image | Typical size | Best for |
 | :--- | :--- | :--- | :--- |
-| Full (`take_annotated_screenshot`) | PNG, native resolution | hundreds of KB | Vision models needing fine detail |
-| Economy (`take_economy_screenshot`) | JPEG q45, max 640px wide | tens of KB | Vision models, cost-sensitive loops |
-| Text-only (`list_marks`) | none | marks table only | Text-only models, cheapest scan |
+| Full (`take_screenshot({ marks: true, detail: "full" })`) | PNG, native resolution | hundreds of KB | Vision models needing fine detail |
+| Economy (`take_screenshot({ marks: true, detail: "economy" })`) | JPEG q45, max 640px wide | tens of KB | Vision models, cost-sensitive loops |
+| Text-only (`take_screenshot({ marks: true, detail: "markdown" })` or `observe({ as: "som" })`) | none | marks table only | Text-only models, cheapest scan |
 
-Mark IDs are registered identically in every mode, so `click_mark` / `type_mark` work after any of them. Economy downscaling only affects the returned image; actuation uses the real DOM rects.
+Mark IDs are registered identically in every mode, so `act(mark_id, …)` works after any of them. Economy downscaling only affects the returned image; actuation uses the real DOM rects.

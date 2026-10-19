@@ -97,6 +97,21 @@ Instead of dumping 50,000 tokens of raw text into the LLM context window right a
   - Automated fallback: If Google triggers a CAPTCHA or consent modal, seamlessly fall back to DuckDuckGo HTML or Brave without agent failure.
   - Returns structured results: Array of `{ title, url, snippet, rank }` with inline `[#ID]` marks for immediate navigation or batch harvesting.
 
+### [ ] Feature 6: LLM-Friendly Site Discovery (site-provided Markdown / Text)
+- **Goal:** When a site publishes an LLM-friendly surface, prefer it over rendering + parsing HTML — fewer tokens, no hydration, no Set-of-Marks pass.
+- **What counts as "LLM-friendly" (detect, don't guess):**
+  - **`/llms.txt` / `/llms-full.txt`** — the emerging convention ([llmstxt.org](https://llmstxt.org)): a Markdown index of a site's key pages, optionally with full content inline. Use it as a map: fetch the index, then pull only the sections the task needs.
+  - **`/sitemap.xml`** — a URL inventory to feed `deep_crawl` (Feature 1) instead of crawling blindly.
+  - **Content negotiation** — request `Accept: text/markdown, text/plain, text/html` and prefer a Markdown/plain body when the server offers one (many docs sites and LLM gateways already negotiate this).
+  - **Per-page alternates** — `<link rel="alternate" type="text/markdown">` / `type="text/plain">`, or same-path `.md` / `.txt` / `?format=markdown` variants (Mintlify, Docusaurus, ReadMe, GitBook, etc.).
+- **Implementation sketch:**
+  - A tool, e.g. `llms_txt({ url?, section?, raw? })`, that fetches and returns a site's LLM index/content as Markdown, and can index it into **LanceDB Cortex**.
+  - `navigate_to({ url, prefer? })` (or a new `fetch_markdown({ url, prefer: "md" | "text" })`) that loads the advertised Markdown/Text form *instead of* the rendered page.
+  - Harvest fallback chain becomes: **site-provided Markdown/Text → rendered Markdown → HTML→Markdown**.
+  - Discovery probes run in the **real Chromium engine** (inherits the host fingerprint, see §3), so a Cloudflare-fronted docs site still resolves.
+- **Token economy:** raw Markdown/Text is typically ~5–10× cheaper than rendered DOM + a Set-of-Marks pass, and needs no JS hydration.
+- **Out of scope:** blindly fetching `/page.md` for arbitrary URLs (a 404 guess costs a round trip and usually returns HTML). Only use an alternate form when the site **advertises** it (`llms.txt`, a `<link rel="alternate">`, or a successful content negotiation).
+
 ---
 
 ## 6. Key Differences: Automation Mode vs. Discovery Mode

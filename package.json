@@ -24,7 +24,10 @@
     "test:harvest": "node scripts/test-harvest-regression.mjs",
     "test:primitives": "node scripts/test-primitives.mjs",
     "test:mcp:primitives": "node scripts/test-mcp-primitives.mjs",
+    "test:mcp:contract": "node scripts/test-mcp-contract.mjs",
+    "test:mcp:surface": "node scripts/test-mcp-surface.mjs",
     "test:focus": "node scripts/test-input-focus-independence.mjs",
+    "test:cortex:bookmarks": "node scripts/test-bookmarks-search.mjs",
     "preview": "vite preview"
   },
   "keywords": [
