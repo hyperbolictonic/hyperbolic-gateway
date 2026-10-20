@@ -172,7 +172,7 @@ export class BrowserChassis {
       clickMark: (id) => this.clickMark(id),
       typeMark: (id, text, opts) => this.typeMark(id, text, opts),
       clickElement: (selector, coords) => this.clickElement(selector, coords),
-      typeText: (text, selector) => this.typeText(text, selector),
+      typeText: (text, selector, opts) => this.typeText(text, selector, opts),
       moveMouseTo: (target) => this.moveMouse(target),
       pressKey: (key) => this.pressKey(key),
       snapshotRenderedPage: (opts) => this.snapshotRenderedPage(opts),
@@ -582,13 +582,17 @@ export class BrowserChassis {
     return `Clicked element at (${targetX}, ${targetY})`;
   }
 
-  public async typeText(text: string, selector?: string): Promise<string> {
+  public async typeText(text: string, selector?: string, opts: { clearFirst?: boolean } = {}): Promise<string> {
     const wc = this.getActiveWebContents();
     this.state.agentStatus = 'SIMULATING_INPUT';
-    this.addLog('action', `MCP Directive: type_text("${text.substring(0, 15)}..."${selector ? ` on ${selector}` : ''})`);
+    this.addLog('action', `MCP Directive: type_text("${text.substring(0, 15)}..."${selector ? ` on ${selector}` : ''}${opts.clearFirst ? ' clear_first' : ''})`);
 
     if (selector) {
       await this.clickElement(selector);
+    }
+
+    if (opts.clearFirst) {
+      await this.simulator.clearFocusedField(wc);
     }
 
     await this.simulator.typeText(wc, text);
@@ -1379,10 +1383,10 @@ export class BrowserChassis {
     return `Clicked mark #${markId} (${target.mark.tag}: "${target.mark.text}")`;
   }
 
-  public async typeMark(markId: number, text: string, opts: { secret?: boolean } = {}): Promise<string> {
+  public async typeMark(markId: number, text: string, opts: { secret?: boolean; clearFirst?: boolean } = {}): Promise<string> {
     const wc = this.getActiveWebContents();
     const shown = opts.secret ? `[REDACTED ${String(text).length} chars]` : `"${text}"`;
-    this.addLog('action', `MCP Directive: type_mark(#${markId}, ${shown})`);
+    this.addLog('action', `MCP Directive: type_mark(#${markId}, ${shown}${opts.clearFirst ? ', clear_first' : ''})`);
     const target = await this.marksOverlay.getMarkTarget(wc, markId);
     if (!target) {
       throw new Error(`Mark #${markId} not found. Call take_annotated_screenshot() to refresh interactive marks.`);
@@ -1409,6 +1413,12 @@ export class BrowserChassis {
         await this.simulator.clickAt(wc, retry.currentCenter);
         await new Promise((r) => setTimeout(r, 100));
       }
+    }
+
+    if (opts.clearFirst) {
+      // Replace rather than append: the target may already hold a value (e.g. a pre-filled
+      // origin/airport field), and appending silently corrupts it.
+      await this.simulator.clearFocusedField(wc);
     }
 
     await this.simulator.typeText(wc, text);

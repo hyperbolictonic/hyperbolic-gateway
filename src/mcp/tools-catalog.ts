@@ -1294,7 +1294,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'act',
     description:
       'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred — a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. ' +
-      'Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. action="press" needs no target. ' +
+      'Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. ' +
       'NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
     parameters: {
       mark_id: z.coerce.number().optional().describe('Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)'),
@@ -1304,6 +1304,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       action: z.enum(['click', 'focus', 'hover', 'type', 'press']).default('click').describe('Action to perform (default: "click")'),
       text: z.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
       secret: z.coerce.boolean().optional().default(false).describe('Redact typed text from logs'),
+      clear_first: z.coerce.boolean().optional().default(false).describe('For action="type": clear the field first (select-all + delete) so an existing value is REPLACED, not appended to — use it on pre-filled inputs and comboboxes'),
       await_conditions: z.array(z.record(z.string(), z.any())).optional().describe('wait_for conditions evaluated right after the action'),
       timeout_ms: z.coerce.number().optional().default(15000).describe('Timeout for await_conditions'),
       dry_run: z.coerce.boolean().optional().default(false).describe('Resolve the target but do not act'),
@@ -1317,6 +1318,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       action: args?.action || 'click',
       text: args?.text !== undefined ? String(args.text) : undefined,
       secret: args?.secret === true,
+      clear_first: args?.clear_first === true,
       await: args?.await_conditions,
       timeout_ms: args?.timeout_ms,
       dry_run: args?.dry_run === true,

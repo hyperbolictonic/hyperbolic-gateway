@@ -5,6 +5,25 @@ All notable changes to **Kuang Grade Mark Eleven** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`clear_first` was a dead parameter — typing silently appended.** `act(action:"type")` had no way to
+  replace an existing value, and the older `type_mark(clear_first)` flag was advertised but dropped by
+  the bridge before it ever reached the chassis. Typing into a pre-filled field (e.g. an origin/airport
+  box already reading `Exeter (EXT)`) therefore **appended**, corrupting the value and making the form
+  look broken — which in turn masqueraded as "dropped clicks" when the invalid form refused to submit.
+  `act` now takes **`clear_first: true`**, wired end-to-end (catalog → bridge → primitives → chassis →
+  simulator) and implemented as a trusted **Ctrl+A + Backspace** (so React/Vue controlled inputs still
+  update and `isTrusted` stays true — no synthetic `el.value` writes).
+- **Guidance for the failure mode.** The `act` description, the OKF guide and `SKILL.md` now state that
+  typing appends by default; a new OKF recipe **R6 — pre-filled fields & autocompletes (comboboxes)**
+  covers committing an autocomplete by clicking the option mark, and warns against blindly re-clicking:
+  a form silently rejected by validation looks exactly like a dropped click, and input is CDP-delivered
+  (focus-independent), so a "lost focus" window is rarely the real cause.
+- Covered by a new `npm run test:primitives` check: append by default, replace with `clear_first`.
+
 ## [1.2.0] - 2026-10-19
 
 ### Fixed

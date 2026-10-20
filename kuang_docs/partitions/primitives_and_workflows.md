@@ -17,7 +17,7 @@ mutation beyond Mark Eleven's own `data-mark-id` stamp), so they do **not** trip
 | Primitive | Job | Returns | Replaces |
 | :--- | :--- | :--- | :--- |
 | `observe(as, region, budget, cursor, include_offscreen)` | One observation model with projections | `{text, total, offset, next_cursor, truncated}` or structured rows | `get_page_markdown` + `snapshot_rendered_page` + `list_marks` |
-| `act(mark_id \| selector \| x+y, action, text, secret, await_conditions, timeout_ms, dry_run)` | Unified humanlike action on a mark ref, CSS selector, or coordinates (+ optional post-conditions) | Delta report | `click_mark` / `type_mark` / `click_element` / `type_text` / `hover` + a following `wait_for` |
+| `act(mark_id \| selector \| x+y, action, text, secret, clear_first, await_conditions, timeout_ms, dry_run)` | Unified humanlike action on a mark ref, CSS selector, or coordinates (+ optional post-conditions). `clear_first` replaces a pre-filled value instead of appending | Delta report | `click_mark` / `type_mark` / `click_element` / `type_text` / `hover` + a following `wait_for` |
 | `wait_for(conditions[], require, timeout_ms, poll_ms)` | Declarative readiness gate | `{ok, waitedMs, attempts, results[]}` | every `sleep` / "did it load?" guess |
 | `expect(conditions[])` | Immediate assertion (no polling) | `{ok, results[]}` with per-condition evidence | agent-side guessing before proceeding |
 | `find(role, name, contains, regex, tag, selector, limit)` | Semantic element search → **refs** | rows carrying `mark` ids | hand-written CSS/XPath |
@@ -126,6 +126,32 @@ export_har(pattern="graphql", save=true)      # HAR 1.2 → data/har/har_<ts>.ha
 ```
 `since` accepts an epoch-ms timestamp, a **revision**, or `'last_action'`. `get_network_traffic`
 also accepts `revision:` for revision-correlated windows.
+
+### R6 — Type into a pre-filled field or autocomplete (combobox)
+Typing **appends** by default. `clear_first` does a trusted Ctrl+A + Backspace first, so the value is
+**replaced** — no synthetic `el.value` write, so React/Vue controlled inputs still update.
+```
+act(mark_id = origin, action = "type", text = "London", clear_first = true)
+```
+
+Autocompletes (React selects that only *commit* on option choice):
+```
+act(mark_id = origin, action = "type", text = "Lon", clear_first = true)
+wait_for(conditions = [{type: "selector", selector = "[role=option]"}, {type: "stable", target = "text"}])
+observe(as = "som", region = "<the list>")        # read the option marks
+act(mark_id = <option mark>, action = "click")    # COMMIT by clicking the option — free text is often ignored
+```
+
+**If a click appears to do nothing, do not just re-click it.** Cheap checks first:
+```
+diff(since = <revision>)      # did anything move at all?
+observe(as = "markdown")      # read the form/validation state — an invalid field blocks submit
+expect(conditions = [{type: "selector", selector = "#result"}])
+```
+A form silently rejected by validation (e.g. a corrupted combobox value) looks exactly like a
+dropped click, and re-clicking it forever never helps. Note the transport is usually **CDP**
+(focus-independent), so a "lost focus" window is rarely the real cause — check
+`bridge_health().input.transport` before blaming focus.
 
 ## 6. Input Delivery & Background Rendering (operational guarantees)
 

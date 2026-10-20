@@ -466,6 +466,42 @@ export class HumanizedInputSimulator {
   }
 
   /**
+   * Clears the *focused* field with a trusted select-all + delete (Ctrl+A, Backspace).
+   *
+   * Deliberately keyboard-driven rather than writing `el.value = ''`: a real keystroke fires a
+   * genuine `input` event (so React/Vue controlled inputs actually update) and never sets
+   * `isTrusted: false`, which is what trips behavioural bot sensors.
+   */
+  public async clearFocusedField(webContents: WebContents): Promise<void> {
+    this.ensureInputTarget(webContents);
+    const downViaCdp = await this.cdp(webContents, 'Input.dispatchKeyEvent', {
+      type: 'rawKeyDown',
+      key: 'a',
+      code: 'KeyA',
+      windowsVirtualKeyCode: 65,
+      nativeVirtualKeyCode: 65,
+      modifiers: 2, // Ctrl
+    });
+    this.lastInputTransport = downViaCdp ? 'cdp' : 'native';
+    if (!downViaCdp) {
+      webContents.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['control'] });
+    }
+    await sleep(30 + Math.random() * 30);
+    await this.cdp(webContents, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key: 'a',
+      code: 'KeyA',
+      windowsVirtualKeyCode: 65,
+      nativeVirtualKeyCode: 65,
+      modifiers: 2,
+    });
+    if (!downViaCdp) {
+      webContents.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['control'] });
+    }
+    await this.pressKey(webContents, 'Backspace');
+  }
+
+  /**
    * Smoothly scrolls the page in incremental chunks simulating mousewheel inertia.
    */
   public async scrollPage(

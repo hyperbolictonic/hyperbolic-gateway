@@ -331,6 +331,19 @@ async function main() {
     });
     check('act(selector) addresses a CSS selector', bySelector.awaited?.ok === true && bySelector.target?.selector === '#q', `${bySelector.address} rev ${bySelector.delta?.revisionBefore}->${bySelector.delta?.revisionAfter}`);
 
+    // --- act: append by default, clear_first REPLACES -----------------------
+    await bridge('/act', 'POST', { selector: '#q', action: 'type', text: 'alpha', clear_first: true });
+    const seeded = await bridge('/evaluate', 'POST', { script: 'document.getElementById("q").value' });
+    await bridge('/act', 'POST', { selector: '#q', action: 'type', text: 'beta' });
+    const appended = await bridge('/evaluate', 'POST', { script: 'document.getElementById("q").value' });
+    await bridge('/act', 'POST', { selector: '#q', action: 'type', text: 'gamma', clear_first: true });
+    const replaced = await bridge('/evaluate', 'POST', { script: 'document.getElementById("q").value' });
+    check(
+      'act(type) appends by default; clear_first=true replaces',
+      seeded.result === 'alpha' && appended.result === 'alphabeta' && replaced.result === 'gamma',
+      `seeded="${seeded.result}" append="${appended.result}" clear="${replaced.result}"`
+    );
+
     // --- act: selector dry_run resolves without acting ----------------------
     const drySel = await bridge('/act', 'POST', { selector: '#clickme2', action: 'click', dry_run: true });
     check('act(selector) dry_run resolves the centre without acting', drySel.dryRun === true && drySel.target?.selector === '#clickme2' && typeof drySel.target?.center?.x === 'number');

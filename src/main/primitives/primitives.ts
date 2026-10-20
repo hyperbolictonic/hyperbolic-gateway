@@ -34,9 +34,9 @@ export interface PrimitivesHost {
   getMarks(): MarkItem[];
   getMarkTarget(id: number): Promise<{ mark: MarkItem; currentCenter: { x: number; y: number } } | null>;
   clickMark(id: number): Promise<string>;
-  typeMark(id: number, text: string, opts?: { secret?: boolean }): Promise<string>;
+  typeMark(id: number, text: string, opts?: { secret?: boolean; clearFirst?: boolean }): Promise<string>;
   clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string>;
-  typeText(text: string, selector?: string): Promise<string>;
+  typeText(text: string, selector?: string, opts?: { clearFirst?: boolean }): Promise<string>;
   moveMouseTo(target: { x: number; y: number }): Promise<void>;
   pressKey(key: string): Promise<string>;
   snapshotRenderedPage(opts: any): Promise<any>;
@@ -171,6 +171,8 @@ export interface ActOptions {
   action: 'click' | 'type' | 'hover' | 'press' | 'focus';
   text?: string;
   secret?: boolean;
+  /** Clear the field before typing (select-all + delete) so a pre-filled value is replaced, not appended to. */
+  clearFirst?: boolean;
   await?: WaitCondition[];
   timeoutMs?: number;
   dryRun?: boolean;
@@ -917,7 +919,7 @@ export class Primitives {
       };
     }
 
-    this.host.log('action', `MCP Directive: act(${action}, ${address || '(targetless)'}${action === 'type' ? `, "${shownText}"` : action === 'press' ? `, "${opts.text || ''}"` : ''})`);
+    this.host.log('action', `MCP Directive: act(${action}, ${address || '(targetless)'}${action === 'type' ? `, "${shownText}"` : action === 'press' ? `, "${opts.text || ''}"` : ''}${action === 'type' && opts.clearFirst ? ', clear_first' : ''})`);
 
     switch (action) {
       case 'click':
@@ -930,14 +932,15 @@ export class Primitives {
         break;
       case 'type': {
         const text = String(opts.text ?? '');
+        const clearFirst = opts.clearFirst === true;
         if (hasMark) {
-          await this.host.typeMark(markId!, text, { secret });
+          await this.host.typeMark(markId!, text, { secret, clearFirst });
         } else if (selector) {
-          await this.host.typeText(text, selector);
+          await this.host.typeText(text, selector, { clearFirst });
         } else {
           // Coordinate type: focus the point with a real click first, then type into whatever took focus.
           await this.host.clickElement(undefined, center!);
-          await this.host.typeText(text);
+          await this.host.typeText(text, undefined, { clearFirst });
         }
         break;
       }

@@ -568,8 +568,8 @@
               <tr>
                 <td></td>
                 <td><code>act</code></td>
-                <td><code>mark_id?: number</code>, <code>selector?: string</code>, <code>x?: number</code>, <code>y?: number</code>, <code>action?: 'click' | 'focus' | 'hover' | 'type' | 'press'</code>, <code>text?: string</code>, <code>secret?: boolean</code>, <code>await_conditions?: object[]</code>, <code>timeout_ms?: number</code>, <code>dry_run?: boolean</code></td>
-                <td><strong>The</strong> interaction entry point: one humanlike action addressed by mark ref, CSS selector, or coordinates, with optional post-conditions and a delta report. <code>secret: true</code> redacts typed text from logs; <code>dry_run: true</code> resolves without acting.</td>
+                <td><code>mark_id?: number</code>, <code>selector?: string</code>, <code>x?: number</code>, <code>y?: number</code>, <code>action?: 'click' | 'focus' | 'hover' | 'type' | 'press'</code>, <code>text?: string</code>, <code>secret?: boolean</code>, <code>clear_first?: boolean</code>, <code>await_conditions?: object[]</code>, <code>timeout_ms?: number</code>, <code>dry_run?: boolean</code></td>
+                <td><strong>The</strong> interaction entry point: one humanlike action addressed by mark ref, CSS selector, or coordinates, with optional post-conditions and a delta report. <code>secret: true</code> redacts typed text from logs; <code>dry_run: true</code> resolves without acting. <strong>Typing appends by default</strong> — pass <code>clear_first: true</code> on a pre-filled field (origins, search boxes, comboboxes) to replace instead (trusted Ctrl+A + Backspace).</td>
               </tr>
               <tr>
                 <td></td>

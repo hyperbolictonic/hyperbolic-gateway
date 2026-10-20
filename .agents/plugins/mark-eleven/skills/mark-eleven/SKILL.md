@@ -48,12 +48,14 @@ To maximize speed, minimize token burn, and eliminate bot shadowbans, ALWAYS fol
 4. **Humanized Interaction:**
    - Call `act({ mark_id })` to dispatch organic Bézier pointer movement and hardware switch clicks; `act({ selector })` or `act({ x, y })` when you have no badge.
    - Call `act({ mark_id, action: "type", text })` (or `act({ selector, action: "type", text })`) to type with realistic human Gaussian cadence (60-240ms).
+   - **Typing appends by default.** On a field that may already hold a value (pre-filled origin/airport boxes, search inputs, comboboxes) pass `clear_first: true` so the value is **replaced** (trusted Ctrl+A + Backspace — React controlled inputs still update). For an autocomplete, type then **commit by clicking the option mark**; free text is often ignored by React selects.
    - Call `press_key({ key })` for single keypresses (`Enter`, `Tab`, `Escape`, `Backspace`).
    - Call `scroll_page({ direction, amount })` to simulate inertia mousewheel scrolling.
 5. **Console & Script Execution vs. Hardware Trust (Tier 3):**
    - **BEHAVIORAL TRUST & SHADOWBAN PREVENTION:** For clicks, typing and value changes prefer `act(...)` (genuine hardware events, `isTrusted: true`) over driving them from `evaluate_javascript` on protected sites (e.g. Skyscanner, Google, Cloudflare) — synthetic DOM mutations set `isTrusted: false` and can trigger silent shadow-bans.
    - `evaluate_javascript` remains a powerful tool for what the primitives cannot express — querying computed styles, reading hidden JSON state, calculating values — and it can also mutate. Reach for it deliberately rather than by default.
    - For all interactions, use `act(...)` — it drives genuine hardware events (`isTrusted: true`).
+   - **If a click appears to do nothing, do not just re-click it.** Check `diff(since)` and `observe` the form/validation state — an invalid field silently blocks submit and looks exactly like a dropped click. Input is delivered over CDP and is **focus-independent**, so a "lost focus" window is rarely the real cause (confirm with `bridge_health().input.transport`).
    - Call `get_console_logs({ limit })` to inspect page errors and network responses.
 6. **Multi-Tab Orchestration:**
    - Call `new_tab({ url })` to open a new isolated browser tab.

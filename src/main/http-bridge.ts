@@ -389,7 +389,9 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
           sendJson({ success: false, error: 'Must provide valid numeric markId (or mark_id)' }, 400);
           return;
         }
-        const result = await chassis.typeMark(Number(rawId), String(text));
+        const result = await chassis.typeMark(Number(rawId), String(text), {
+          clearFirst: body?.clear_first === true || body?.clearFirst === true,
+        });
         sendJson({ success: true, result });
         return;
       }
@@ -840,6 +842,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
           action: body?.action || 'click',
           text: body?.text !== undefined ? String(body.text) : undefined,
           secret: body?.secret === true,
+          clearFirst: body?.clear_first === true || body?.clearFirst === true,
           await: Array.isArray(body?.await) ? body.await : Array.isArray(body?.await_conditions) ? body.await_conditions : undefined,
           timeoutMs: body?.timeout_ms ?? body?.timeoutMs,
           dryRun: body?.dry_run === true || body?.dryRun === true,

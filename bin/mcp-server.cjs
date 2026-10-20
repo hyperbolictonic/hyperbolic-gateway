@@ -37894,7 +37894,7 @@ ${lines.join("\n")}`;
   },
   {
     name: "act",
-    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred \u2014 a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. action="press" needs no target. NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
+    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred \u2014 a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
     parameters: {
       mark_id: external_exports.coerce.number().optional().describe("Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)"),
       selector: external_exports.coerce.string().optional().describe('CSS selector of the target, when you have no mark id (e.g. "button.submit", "#search-input")'),
@@ -37903,6 +37903,7 @@ ${lines.join("\n")}`;
       action: external_exports.enum(["click", "focus", "hover", "type", "press"]).default("click").describe('Action to perform (default: "click")'),
       text: external_exports.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
       secret: external_exports.coerce.boolean().optional().default(false).describe("Redact typed text from logs"),
+      clear_first: external_exports.coerce.boolean().optional().default(false).describe('For action="type": clear the field first (select-all + delete) so an existing value is REPLACED, not appended to \u2014 use it on pre-filled inputs and comboboxes'),
       await_conditions: external_exports.array(external_exports.record(external_exports.string(), external_exports.any())).optional().describe("wait_for conditions evaluated right after the action"),
       timeout_ms: external_exports.coerce.number().optional().default(15e3).describe("Timeout for await_conditions"),
       dry_run: external_exports.coerce.boolean().optional().default(false).describe("Resolve the target but do not act")
@@ -37916,6 +37917,7 @@ ${lines.join("\n")}`;
       action: args?.action || "click",
       text: args?.text !== void 0 ? String(args.text) : void 0,
       secret: args?.secret === true,
+      clear_first: args?.clear_first === true,
       await: args?.await_conditions,
       timeout_ms: args?.timeout_ms,
       dry_run: args?.dry_run === true
@@ -38288,7 +38290,8 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
 
 2. [ORTHOGONAL PRIMITIVES \u2014 PREFER THESE OVER BLIND SLEEPS]
   - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate; returns {ok, waitedMs, attempts, results[]}. Replaces every sleep.
-  - act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified humanlike click/focus/hover/type/press on a mark badge, a CSS selector, or viewport coordinates + optional post-conditions + delta report. dry_run resolves without acting; secret redacts credentials from logs.
+  - act(mark_id? | selector? | x?+y?, action, text?, secret?, clear_first?, await_conditions?, timeout_ms?, dry_run?): unified humanlike click/focus/hover/type/press on a mark badge, a CSS selector, or viewport coordinates + optional post-conditions + delta report. dry_run resolves without acting; secret redacts credentials; clear_first=true replaces a pre-filled value (Ctrl+A + Backspace) instead of appending.
+  - TYPING DISCIPLINE: typing APPENDS by default. On any field that may already hold a value (pre-filled origins/airports, search boxes, comboboxes) pass clear_first=true. For an autocomplete, type then COMMIT by clicking the option mark \u2014 free text is often ignored by React selects. If a click appears to do nothing, do NOT simply re-click: check diff(since) and read the form/validation state, because an invalid field silently blocks submit and looks exactly like a dropped click.
   - expect(conditions[]): immediate assertion (no polling) with per-condition evidence.
   - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs (feed them to act).
   - extract(kind:"list"|"table"|"tables"|"app_data"|"schema_org", ref?, selector?, type?): structured read (repeating rows, one table, every table, embedded __NEXT_DATA__/JSON-LD, or typed schema.org items \u2014 pass type to keep just e.g. "Recipe").
@@ -38300,7 +38303,7 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
   - research_topic(query, max_sources?, engine?, url_template?, excerpt_chars?, harvest_to_cortex?): autonomous search \u2192 gather top sources \u2192 distill \u2192 index into Cortex; returns cited EXTRACTIVE evidence (no prose \u2014 you synthesize).
   - page_state() / diff(since?): cheap change signature + field-by-field diff for loops (no full re-reads).
   - Condition vocabulary: selector / gone / text(regex) / url / role_name / count(min/equals/max) / network_idle / stable(target:"marks"|"height"|"text"|"nodes") / revision. WARNING: skeletons can satisfy a naive selector early \u2014 prefer stable/count for lazily-rendered lists.
-  - Errors are machine-coded (HTTP 400): STALE_REF (re-scan), TIMEOUT, NO_TARGET, BAD_REQUEST, NOT_SUPPORTED. See resource mark-eleven://okf/partitions/primitives-and-workflows for recipes R1-R5.
+  - Errors are machine-coded (HTTP 400): STALE_REF (re-scan), TIMEOUT, NO_TARGET, BAD_REQUEST, NOT_SUPPORTED. See resource mark-eleven://okf/partitions/primitives-and-workflows for recipes R1-R6.
 
 3. [VISUAL GROUNDING & SET-OF-MARKS (SoM)]
   - ONE tool, three detail levels (identical badge IDs): take_screenshot(marks:true, detail?):
