@@ -60,6 +60,64 @@ In William Gibson's genre-defining cyberpunk masterpiece *Neuromancer*, console 
 
 ---
 
+## 🤘 A Punk-Ethos, DIY Alternative to browser-use, Playwright Agents & Hosted Browser Clouds
+
+Most "AI browser" tooling today is a **library you integrate, or a cloud you rent**. [`browser-use`](https://github.com/browser-use/browser-use) is a popular MIT-licensed Python framework that drives Playwright *with its own agent loop* (plus an optional hosted cloud); Playwright / Puppeteer / Selenium are general-purpose drivers where **you** write the loop; and managed browser clouds run a remote Chromium and bill per session. They're good tools — this isn't a rivalry, it's a different **shape**.
+
+**Kuang Grade Mark Eleven is the other road:** a single, self-hosted **Electron icebreaker** that *you* own. It runs a **real, visible Chromium** on your own machine and speaks **MCP** over `stdio` (+ a localhost bridge), so it drops into whatever agent runner and whichever model you already use — **local or remote, with no cloud account, no API key, no seat pricing, and no telemetry leaving your box.**
+
+That's the punk ethos: **one operator, one machine, a tool you can read, fork and keep.** Built by one person, not a company. No VC, no roadmap-by-committee, no dashboard.
+
+### How it differs, honestly
+
+| | `browser-use` (Python / Playwright) | Playwright · Puppeteer agents | Hosted browser clouds | **Kuang Grade Mark Eleven** |
+| :--- | :--- | :--- | :--- | :--- |
+| **Shape** | Library **with its own agent loop** | Driver — you write the loop | Managed remote browser | **MCP server** any MCP client can call |
+| **Browser** | Playwright Chromium (often headless) | Playwright / Puppeteer | Remote Chromium | **Visible Chromium** (`headless: false`) in an Electron chassis |
+| **Where it runs** | Your machine, or their cloud | Your machine / your CI | Their datacentre | **Your machine, always** — local-first |
+| **Model** | Bring your own (usually a cloud LLM) | Bring your own | Bring your own | **Bring your own — local or remote** |
+| **Input** | Playwright-driven events | Playwright-driven events | CDP over the wire | **Focus-independent CDP input** + Bézier ghost cursor + Gaussian typing (`isTrusted: true`) |
+| **Memory** | Framework-level, BYO store | none | Their store | **Local LanceDB "Cortex"** — semantic recall of everything it harvests |
+| **Cost** | MIT + your LLM (+ optional cloud) | Free + your LLM | **Per-session billing** | **MIT. No cloud, no metering, no telemetry.** |
+
+### What that buys you in practice
+
+- **Self-hosted and local-first.** The browser, the memory, the logs and the model all stay on the box.
+- **Built for a machine you're *also* using.** Input goes over CDP and is **focus-independent** — clicks and typing land while your editor owns the foreground — and occluded windows keep hydrating and scrolling, so long harvests keep running behind your other apps.
+- **Tier-graded tool surface, not a token bonfire.** Reading is `observe(as:"markdown")` with inline `[#id]` marks (no screenshot tax); interaction is one `act`; `[TIER 1/2/3]` prefixes plus a `tools/recommended` resource tell the agent what to prefer.
+- **Honest about its limits.** Detached reads are gated, `evaluate_javascript` is *"use deliberately"* rather than banned, and failures are machine-coded (`STALE_REF`, `TIMEOUT`, `NO_TARGET`, `BAD_REQUEST`, `NOT_SUPPORTED`) instead of vibes.
+- **No framework lock-in.** Because the interface is MCP, your runner stays yours: swap the agent, swap the model, keep the icebreaker.
+
+### FAQ (the searches that land people here)
+
+**Is there a self-hosted, open-source alternative to browser-use?**
+Yes — MIT-licensed and entirely local. But note the shape: this is a *tool surface*, not an agent framework. If you want a Python framework that owns the loop, `browser-use` is the right tool; if you want a self-hosted browser that *your own* agent drives, this is it.
+
+**Can I use it with Claude Desktop, Cursor, or a local LLM?**
+Yes. It's an MCP server, so any MCP client works — point your client at `bin/mcp-server.cjs` and the `kuang` tool namespace appears.
+
+**Does it need a cloud account, API key, or per-session billing?**
+No. There is no cloud tier. The only network calls are the ones your agent makes to the pages it visits (plus, optionally, a search engine via `search_web`).
+
+**Is it headless?**
+Deliberately the opposite. It runs a **visible** Chromium so a human can watch, take over at a CAPTCHA, and so the session stays an honest, real browser. Headless-at-scale scraping is a different job; this is a single operator's console.
+
+**Will Cloudflare block it like Puppeteer / Playwright?**
+It's built for exactly that fight: real CDP input with `isTrusted: true`, cubic Bézier pointer kinematics, Gaussian typing cadence, a genuine cookie jar, and an autonomous consent-modal breaker. No promises — anti-bot is an arms race — but it is **not** naive headless emulation.
+
+**Can I point it at my existing Playwright test suite?**
+No. This isn't a test driver; Playwright remains excellent for deterministic suites. Grade Eleven is an agent-facing browser an LLM operates.
+
+**Where does memory live?**
+Locally, in LanceDB ("Cortex"): harvested pages and vaulted scripts are embedded and semantically recallable, so your agent keeps research context across sessions without a hosted vector store.
+
+**Is it production-ready?**
+No — it's an experimental prototype for local AI research. That's rather the point.
+
+> **Punk ethos, not carte blanche.** Owning your tooling doesn't change the law: the **RESEARCH PURPOSES ONLY** terms at the top of this README still apply. The point is *ownership and readability*, not immunity.
+
+---
+
 ## 🎨 Theme & Cyberdeck Interface
 
 Built with **Tailwind CSS v4** and **DaisyUI 5**:
