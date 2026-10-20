@@ -90,3 +90,61 @@ it separates *did something* from *did nothing* — the exact distinction a tria
   on out-of-distribution pages. Keep the LLM path for novelty, planning and prose.
 - **Local-first.** If it must call a hosted decision API, that is a deliberate, documented exception — the
   ledger and the field facts stay on the machine either way.
+
+## The optional `decide` surface
+
+`decide` ships **off**. With no backend configured it is not advertised at all, and calling it returns
+`NOT_CONFIGURED` with setup instructions. When it is configured it does exactly one thing: forwards
+`state` + typed `questions` to the configured model and returns the answers **verbatim** — no prompt
+assembly, no retries that rewrite the question, no synthesis, and no fabricated answer if the upstream
+fails (`UPSTREAM_ERROR` / `TIMEOUT`, with `answers` absent).
+
+Configure with environment variables (authoritative) or `data/decision.json` (gitignored):
+
+```json
+{ "protocol": "typesafe", "url": "https://api.typesafe.ai", "model": "jev-1.13", "key": "…" }
+```
+
+```json
+{ "protocol": "d1-onnx", "model": "onnx-community/d1-3B-ONNX",
+  "revision": "294fdcdf95d14a3fd82626e0abe8ed11fe803e46", "device": "webgpu" }
+```
+
+| Key | Env | Meaning |
+| :--- | :--- | :--- |
+| `protocol` | `KUANG_DECISION_PROTOCOL` | `typesafe` (hosted Jev) or `d1-onnx` (local d1-3B) |
+| `url` | `KUANG_DECISION_URL` | Base URL for `typesafe` (`…/v1/systemone` or just the host) |
+| `model` | `KUANG_DECISION_MODEL` | `jev-1.13` (default) or `onnx-community/d1-3B-ONNX` |
+| `key` | `KUANG_DECISION_KEY` | Bearer token for the hosted API (never sent to the local model) |
+| `revision` | `KUANG_DECISION_REVISION` | Pin an ONNX revision (recommended for reproducibility) |
+| `device` | `KUANG_DECISION_DEVICE` | `webgpu` (default) or `cpu` for the local model |
+| `timeoutMs` | `KUANG_DECISION_TIMEOUT_MS` | Upstream deadline (default 30 s) |
+
+**Two backends, deliberately.** Hosted Jev answers in 70–500 ms at ~$0.042/Mtok input (output is free) and
+is the reference implementation. Local **LiquidAI d1-3B** answers in one forward pass with zero generated
+tokens, runs from ONNX weights via [`open-jev`](https://github.com/nico-martin/open-jev) (an *optional*
+dependency — nothing is bundled), and accepts **images** in the state, which suits Kuang's screenshots.
+Its q8 weights are ≈ 3.8 GB and download on first use. Licensed under the LFM Open License v1.0 (note its
+commercial-use threshold).
+
+### The loop it is designed for
+
+1. `observe(as:"components")` → the component table (role, name, value, region, **actions**; ids are mark ids).
+2. One `decide` call with all the questions at once — the TypeSafe "speculative fan-out" shape, where every
+   target head only contains components whose `actions` include that operation:
+
+```json
+{
+  "operation":  { "type": "choice", "instructions": "What is the next operation?", "options": ["click", "type_text", "done", "blocked"] },
+  "click_target": { "type": "choice", "instructions": "Which component to click?", "options": ["7", "9", "12"] },
+  "type_target":  { "type": "choice", "instructions": "Which component to type into?", "options": ["1", "2"] },
+  "is_done":      { "type": "noul", "instructions": "Does the visible state satisfy the goal?" }
+}
+```
+
+3. Execute the head matching the chosen operation: `act(mark_id=…)`.
+4. **Verify** — the existing guarantees do the work: `typing.landed`, the delta, occlusion, the 0×0 guard.
+5. The ledger records what the policy chose *and* whether it worked, which is the data to evaluate it with.
+
+Nothing the model returns is ever turned into a selector, a coordinate or a script: it picks a component
+id, and Kuang addresses, executes and verifies it.

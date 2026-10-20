@@ -3263,8 +3263,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path2) {
-      let input2 = path2;
+    function removeDotSegments(path3) {
+      let input2 = path3;
       const output2 = [];
       let nextSlash = -1;
       let len = 0;
@@ -3673,8 +3673,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path2 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path2 && path2 !== "/" ? path2 : void 0;
+        const path3 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path3 && path3 !== "/" ? path3 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -7187,12 +7187,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs2, exportName) {
+    function addFormats(ajv, list, fs3, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs2[f]);
+        ajv.addFormat(f, fs3[f]);
     }
     module2.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -7207,8 +7207,8 @@ __export(bridge_server_exports, {
   normalizeIncomingParams: () => normalizeIncomingParams
 });
 module.exports = __toCommonJS(bridge_server_exports);
-var import_node_fs = __toESM(require("node:fs"), 1);
-var import_node_path = __toESM(require("node:path"), 1);
+var import_node_fs2 = __toESM(require("node:fs"), 1);
+var import_node_path2 = __toESM(require("node:path"), 1);
 
 // node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -8027,10 +8027,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path2) {
-  if (!path2)
+function getElementAtPath(obj, path3) {
+  if (!path3)
     return obj;
-  return path2.reduce((acc, key) => acc?.[key], obj);
+  return path3.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -8370,11 +8370,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path2, issues) {
+function prefixIssues(path3, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path2);
+    iss.path.unshift(path3);
     return iss;
   });
 }
@@ -8836,16 +8836,16 @@ function flattenError(error62, mapper = (issue2) => issue2.message) {
 }
 function formatError(error62, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error63, path2 = []) => {
+  const processError = (error63, path3 = []) => {
     for (const issue2 of error63.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path2, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path3, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
       } else {
-        const fullpath = [...path2, ...issue2.path];
+        const fullpath = [...path3, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -8884,17 +8884,17 @@ function formatError(error62, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error62, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error63, path2 = []) => {
+  const processError = (error63, path3 = []) => {
     var _a3;
     for (const issue2 of error63.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path2, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path3, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
       } else {
-        const fullpath = [...path2, ...issue2.path];
+        const fullpath = [...path3, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -8933,8 +8933,8 @@ function treeifyError(error62, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path2 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path2) {
+  const path3 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path3) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -26072,13 +26072,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path2 = ref.slice(1).split("/").filter(Boolean);
-  if (path2.length === 0) {
+  const path3 = ref.slice(1).split("/").filter(Boolean);
+  if (path3.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path2[0] === defsKey) {
-    const key = path2[1] === void 0 ? void 0 : decodeJSONPointerSegment(path2[1]);
+  if (path3[0] === defsKey) {
+    const key = path3[1] === void 0 ? void 0 : decodeJSONPointerSegment(path3[1]);
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -27301,8 +27301,8 @@ function getErrorMap2() {
 
 // node_modules/.pnpm/zod@4.6.7/node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path2, errorMaps, issueData } = params;
-  const fullPath = [...path2, ...issueData.path || []];
+  const { data, path: path3, errorMaps, issueData } = params;
+  const fullPath = [...path3, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -27417,11 +27417,11 @@ var errorUtil;
 
 // node_modules/.pnpm/zod@4.6.7/node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path2, key) {
+  constructor(parent, value, path3, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path2;
+    this._path = path3;
     this._key = key;
   }
   get path() {
@@ -30972,11 +30972,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path2) {
-  if (path2.length === 0) {
+function getDotPath(path3) {
+  if (path3.length === 0) {
     return "object root";
   }
-  return path2.reduce((acc, seg, index) => {
+  return path3.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -37572,6 +37572,33 @@ ${lines.join("\n")}`;
   // These complement the procedural verbs above; nothing is replaced.
   // ---------------------------------------------------------------------------
   {
+    name: "decide",
+    description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local LiquidAI d1-3B ONNX model (d1-onnx, one forward pass, accepts images). Returns NOT_CONFIGURED when no backend is set.',
+    parameters: {
+      state: external_exports.any().describe("What the model reasons over: a string, JSON (e.g. the components array), or an array of values"),
+      questions: external_exports.record(external_exports.string(), external_exports.any()).describe('Typed questions keyed by name, e.g. {"operation":{"type":"choice","instructions":"\u2026","options":["click","type_text","done"]},"done":{"type":"noul","instructions":"\u2026"}}'),
+      model: external_exports.string().optional().describe('Override the configured model for this call (e.g. "jev-1.13", "d1-3b")')
+    },
+    endpoint: "/decide",
+    payload: (args) => ({ state: args?.state, questions: args?.questions || {}, model: args?.model }),
+    format: (data) => {
+      if (data.error) return `decide failed: ${data.error}`;
+      const answers = data.answers || {};
+      const lines = Object.entries(answers).map(([key, value]) => {
+        if (value && typeof value === "object") {
+          const v = value;
+          const bits = [`${key}: ${v.choice ?? v.score ?? v.noul ?? "?"}`];
+          if (value && "confidence" in v) bits.push(`confidence=${v.confidence}`);
+          if (v.probabilities) bits.push(`p=${JSON.stringify(v.probabilities)}`);
+          return bits.join(" \xB7 ");
+        }
+        return `${key}: ${value}`;
+      });
+      return `${data.protocol || "decision"}(${data.model || "?"}) ${data.latencyMs ?? "?"}ms
+${lines.join("\n")}`;
+    }
+  },
+  {
     name: "wait_for",
     description: 'Declarative readiness gate. Polls until every (require="all") or any (require="any", default) condition holds, then returns. This is the primitive that replaces blind sleeps. Condition types: {"type":"selector","selector":"...","visible":true} \xB7 {"type":"gone","selector":"..."} \xB7 {"type":"text","text":"..."} (or {"regex":"..."}) \xB7 {"type":"url","pattern":"..."} \xB7 {"type":"role_name","role":"button","name":"Search"} \xB7 {"type":"count","selector":".card","min":5} \xB7 {"type":"network_idle","quietMs":800} \xB7 {"type":"stable","target":"marks|height|text|nodes","holdMs":400} (waits for lazily-rendered lists to stop growing) \xB7 {"type":"revision","version":N}.',
     parameters: {
@@ -37595,9 +37622,9 @@ ${lines.join("\n")}`;
   },
   {
     name: "observe",
-    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 readable construct with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table). Markdown returns a 25,000-char default view \u2014 page it with budget + next_cursor, or pass budget=0 for the whole construct. The front-matter reports reader, extracted_chars and page_chars (how much of the page text the readable region covers) plus shadow_roots, so a genuinely short page can be told apart from a partly-visible one. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`.',
+    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 readable construct with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table) \xB7 as="components" (decision-ready table: role, name, value, state, affordances and region per component). Markdown returns a 25,000-char default view \u2014 page it with budget + next_cursor, or pass budget=0 for the whole construct. The front-matter reports reader, extracted_chars and page_chars (how much of the page text the readable region covers) plus shadow_roots, so a genuinely short page can be told apart from a partly-visible one. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`.',
     parameters: {
-      as: external_exports.enum(["markdown", "text", "ax", "som"]).optional().default("markdown").describe("Projection to return (default: markdown)"),
+      as: external_exports.enum(["markdown", "text", "ax", "som", "components"]).optional().default("markdown").describe("Projection to return (default: markdown)"),
       region: external_exports.union([external_exports.coerce.number(), external_exports.string()]).optional().describe("Scope to a mark id (number) or CSS selector (string)"),
       budget: external_exports.coerce.number().optional().describe("Max characters to return; page with next_cursor. Omitted = the projection default (markdown 25,000, text/ax everything); 0 = everything"),
       cursor: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe("next_cursor from a previous observe call"),
@@ -38058,15 +38085,56 @@ var TOOL_TIERS = {
 // src/shared/version.ts
 var APP_VERSION = "1.3.0";
 
+// src/main/decide/decision-client.ts
+var import_node_fs = __toESM(require("node:fs"), 1);
+var import_node_path = __toESM(require("node:path"), 1);
+var CONFIG_FILE = import_node_path.default.join(process.cwd(), "data", "decision.json");
+function readConfigFile() {
+  try {
+    if (!import_node_fs.default.existsSync(CONFIG_FILE)) return null;
+    const parsed = JSON.parse(import_node_fs.default.readFileSync(CONFIG_FILE, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function resolveDecisionConfig() {
+  const file2 = readConfigFile() || {};
+  const protocol = (process.env.KUANG_DECISION_PROTOCOL || file2.protocol || "").toLowerCase();
+  if (protocol !== "typesafe" && protocol !== "d1-onnx") return null;
+  const url2 = process.env.KUANG_DECISION_URL || file2.url || void 0;
+  if (protocol === "typesafe" && !url2) return null;
+  return {
+    protocol,
+    url: url2,
+    model: process.env.KUANG_DECISION_MODEL || file2.model || (protocol === "typesafe" ? "jev-1.13" : "d1-3b"),
+    key: process.env.KUANG_DECISION_KEY || file2.key || void 0,
+    revision: process.env.KUANG_DECISION_REVISION || file2.revision || void 0,
+    device: process.env.KUANG_DECISION_DEVICE || file2.device || void 0,
+    timeoutMs: Number(process.env.KUANG_DECISION_TIMEOUT_MS || file2.timeoutMs || 3e4)
+  };
+}
+function decisionStatus() {
+  const cfg = resolveDecisionConfig();
+  if (!cfg) return { configured: false };
+  return {
+    configured: true,
+    protocol: cfg.protocol,
+    model: cfg.model,
+    endpoint: cfg.protocol === "typesafe" ? cfg.url : "in-process",
+    local: cfg.protocol === "d1-onnx"
+  };
+}
+
 // src/mcp/bridge-server.ts
 var BRIDGE_URL = process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111";
 var LOG_TO_FILE = process.env.KUANG_MCP_LOG !== "0";
 var STDERR_MODE = process.env.KUANG_MCP_STDERR === "0" ? "off" : process.env.KUANG_MCP_STDERR === "verbose" ? "verbose" : "boot";
 var STDERR_HARD_CAP_BYTES = 16 * 1024;
-var LOG_DIR = import_node_path.default.resolve(process.cwd(), "data", "logs");
+var LOG_DIR = import_node_path2.default.resolve(process.cwd(), "data", "logs");
 var logDirReady = false;
 try {
-  import_node_fs.default.mkdirSync(LOG_DIR, { recursive: true });
+  import_node_fs2.default.mkdirSync(LOG_DIR, { recursive: true });
   logDirReady = true;
 } catch {
 }
@@ -38078,7 +38146,7 @@ function flushLogQueue() {
   logFlushing = true;
   const batch = logQueue.join("");
   logQueue = [];
-  import_node_fs.default.appendFile(import_node_path.default.join(LOG_DIR, "mcp-server.log"), batch, () => {
+  import_node_fs2.default.appendFile(import_node_path2.default.join(LOG_DIR, "mcp-server.log"), batch, () => {
     logFlushing = false;
     if (logQueue.length > 0) flushLogQueue();
   });
@@ -38088,7 +38156,7 @@ function flushLogSync() {
   const batch = logQueue.join("");
   logQueue = [];
   try {
-    import_node_fs.default.appendFileSync(import_node_path.default.join(LOG_DIR, "mcp-server.log"), batch);
+    import_node_fs2.default.appendFileSync(import_node_path2.default.join(LOG_DIR, "mcp-server.log"), batch);
   } catch {
   }
 }
@@ -38221,6 +38289,7 @@ function createBridgeMcpServer() {
     version: APP_VERSION
   });
   for (const tool of TOOLS_CATALOG) {
+    if (tool.name === "decide" && !decisionStatus().configured) continue;
     const tier = TOOL_TIERS[tool.name];
     const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
     server.tool(tool.name, `${prefix}${tool.description}`, tool.parameters, async (args) => {
@@ -38393,10 +38462,10 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
       mimeType: "application/json"
     },
     async () => {
-      const manifestPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "okf.json");
+      const manifestPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "okf.json");
       let text = "{}";
       try {
-        text = import_node_fs.default.readFileSync(manifestPath, "utf8");
+        text = import_node_fs2.default.readFileSync(manifestPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/manifest", mimeType: "application/json", text }] };
@@ -38410,10 +38479,10 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
       mimeType: "text/markdown"
     },
     async () => {
-      const docPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "partitions", "selector_and_som_recipes.md");
+      const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "selector_and_som_recipes.md");
       let text = "";
       try {
-        text = import_node_fs.default.readFileSync(docPath, "utf8");
+        text = import_node_fs2.default.readFileSync(docPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/partitions/selector-and-som", mimeType: "text/markdown", text }] };
@@ -38427,10 +38496,10 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
       mimeType: "text/markdown"
     },
     async () => {
-      const docPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "partitions", "captcha_and_anti_bot_strategies.md");
+      const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "captcha_and_anti_bot_strategies.md");
       let text = "";
       try {
-        text = import_node_fs.default.readFileSync(docPath, "utf8");
+        text = import_node_fs2.default.readFileSync(docPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/partitions/captcha-and-anti-bot", mimeType: "text/markdown", text }] };
@@ -38444,10 +38513,10 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
       mimeType: "text/markdown"
     },
     async () => {
-      const docPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "partitions", "browser_navigation_playbook.md");
+      const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "browser_navigation_playbook.md");
       let text = "";
       try {
-        text = import_node_fs.default.readFileSync(docPath, "utf8");
+        text = import_node_fs2.default.readFileSync(docPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/partitions/browser-navigation", mimeType: "text/markdown", text }] };
@@ -38461,10 +38530,10 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
       mimeType: "text/markdown"
     },
     async () => {
-      const docPath = import_node_path.default.resolve(process.cwd(), "kuang_docs", "partitions", "primitives_and_workflows.md");
+      const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "primitives_and_workflows.md");
       let text = "";
       try {
-        text = import_node_fs.default.readFileSync(docPath, "utf8");
+        text = import_node_fs2.default.readFileSync(docPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/partitions/primitives-and-workflows", mimeType: "text/markdown", text }] };

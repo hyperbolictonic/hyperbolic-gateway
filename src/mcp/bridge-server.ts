@@ -6,6 +6,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { TOOLS_CATALOG, TOOL_TIERS, TIER_LABELS } from './tools-catalog.js';
 import { formatMark } from './format-mark.js';
 import { APP_VERSION } from '../shared/version.js';
+import { decisionStatus } from '../main/decide/decision-client.js';
 
 const BRIDGE_URL = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
 
@@ -225,6 +226,10 @@ export function createBridgeMcpServer() {
   });
 
   for (const tool of TOOLS_CATALOG) {
+    // The decision model is opt-in: when no backend is configured, `decide` is not advertised
+    // at all (it remains callable and returns NOT_CONFIGURED, which explains how to set it up).
+    if (tool.name === 'decide' && !decisionStatus().configured) continue;
+
     // Phase 4: fold discoverability guidance into the advertised description so it
     // travels with every tools/list entry in any agent framework.
     const tier = TOOL_TIERS[tool.name];

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { BrowserChassis } from './browser-chassis.js';
 import { APP_VERSION } from '../shared/version.js';
+import { runDecision, decisionStatus } from './decide/decision-client.js';
 
 function logBridge(message: string, isError = false) {
   const timestamp = new Date().toISOString();
@@ -95,6 +96,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
           version: APP_VERSION,
           revision: chassis.getRevision(),
           capabilities: chassis.getCapabilities(),
+          decision: decisionStatus(),
           lastActionAt,
           window: { visible: chassis.isWindowVisible(), focused: chassis.isWindowFocused() },
           input: { transport: chassis.getSimulator().lastInputTransport },
@@ -706,6 +708,40 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         const conditions = Array.isArray(body?.conditions) ? body.conditions : body?.condition ? [body.condition] : [];
         const result = await chassis.getPrimitives().expect(conditions);
         sendJson({ success: true, ...result });
+        return;
+      }
+
+      // ---- optional decision model (off unless configured) -------------------
+      if (pathname === '/decide' && (req.method === 'GET' || req.method === 'POST')) {
+        if (req.method === 'GET') {
+          sendJson({ success: true, ...decisionStatus() });
+          return;
+        }
+        const body = await readBody();
+        const result = await runDecision({
+          state: body?.state,
+          questions: body?.questions || {},
+          model: body?.model,
+        });
+        if (result.ok) {
+          sendJson({ success: true, ...result });
+        } else {
+          const code = result.error?.code;
+          const status = code === 'TIMEOUT' ? 504 : code === 'UPSTREAM_ERROR' ? 502 : 400;
+          sendJson(
+            {
+              success: false,
+              // `error` stays a string: the MCP client turns it into "HTTP 400: <error>".
+              error: result.error?.message || 'decision call failed',
+              code,
+              hint: result.error?.hint,
+              upstreamStatus: result.error?.status,
+              protocol: result.protocol,
+              latencyMs: result.latencyMs,
+            },
+            status
+          );
+        }
         return;
       }
 

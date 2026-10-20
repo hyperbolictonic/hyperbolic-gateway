@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`decide` — an optional decision-model surface, off unless configured.** One tool (and `POST /decide`
+  on the bridge) that forwards `state` + typed `questions` to a decision model and returns the answers
+  **verbatim**: no prompt assembly, no rewritten retries, no synthesis, and `UPSTREAM_ERROR`/`TIMEOUT`
+  with **no answers** when the upstream fails. When nothing is configured the tool is **not advertised**
+  (`GET /decide` and `/health.decision` say so) and calls return `NOT_CONFIGURED` with setup instructions.
+  Two backends, chosen by config rather than code: **hosted Jev** (`protocol:"typesafe"`, e.g.
+  `jev-1.13`) and **local LiquidAI d1-3B** (`protocol:"d1-onnx"`, one forward pass, images accepted,
+  optional `open-jev` dependency + pinned ONNX revision, nothing bundled). Config lives in env vars or
+  `data/decision.json` (gitignored). See [`docs/DECISION_MODELS.md`](./docs/DECISION_MODELS.md).
+- **`npm run test:decide`** — offline contract test with a mock upstream (11 checks): unconfigured is
+  loud, state/questions reach the model byte-for-byte, the bearer key is sent, answers and latency come
+  back untouched, and an upstream 500 surfaces as `UPSTREAM_ERROR` with no fabricated answers.
 - **`observe(as:"components")` — a decision-ready component table.** Instead of a flat mark list, each
   component carries its **role**, accessible **name**, current **value**, **state**, **region** (the
   nearest landmark: `form`, `dialog`, `nav`, `main`, …) and the **actions it actually accepts**

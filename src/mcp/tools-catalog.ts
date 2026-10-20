@@ -973,6 +973,36 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // These complement the procedural verbs above; nothing is replaced.
   // ---------------------------------------------------------------------------
   {
+    name: 'decide',
+    description:
+      'OPTIONAL decision model (absent unless configured — see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no — never prose. ' +
+      'This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. ' +
+      'Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) → decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) → act(mark_id) → check the returned delta/typing verdict. ' +
+      'Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local LiquidAI d1-3B ONNX model (d1-onnx, one forward pass, accepts images). Returns NOT_CONFIGURED when no backend is set.',
+    parameters: {
+      state: z.any().describe('What the model reasons over: a string, JSON (e.g. the components array), or an array of values'),
+      questions: z.record(z.string(), z.any()).describe('Typed questions keyed by name, e.g. {"operation":{"type":"choice","instructions":"…","options":["click","type_text","done"]},"done":{"type":"noul","instructions":"…"}}'),
+      model: z.string().optional().describe('Override the configured model for this call (e.g. "jev-1.13", "d1-3b")'),
+    },
+    endpoint: '/decide',
+    payload: (args) => ({ state: args?.state, questions: args?.questions || {}, model: args?.model }),
+    format: (data) => {
+      if (data.error) return `decide failed: ${data.error}`;
+      const answers = data.answers || {};
+      const lines = Object.entries(answers).map(([key, value]) => {
+        if (value && typeof value === 'object') {
+          const v: any = value;
+          const bits = [`${key}: ${v.choice ?? v.score ?? v.noul ?? '?'}`];
+          if (value && 'confidence' in v) bits.push(`confidence=${v.confidence}`);
+          if (v.probabilities) bits.push(`p=${JSON.stringify(v.probabilities)}`);
+          return bits.join(' · ');
+        }
+        return `${key}: ${value}`;
+      });
+      return `${data.protocol || 'decision'}(${data.model || '?'}) ${data.latencyMs ?? '?'}ms\n${lines.join('\n')}`;
+    },
+  },
+  {
     name: 'wait_for',
     description:
       'Declarative readiness gate. Polls until every (require="all") or any (require="any", default) condition holds, then returns. This is the primitive that replaces blind sleeps. Condition types: ' +
