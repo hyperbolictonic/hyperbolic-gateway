@@ -11,6 +11,12 @@ export interface MarkItem {
   state?: string;
   /** Current value of form controls (never populated for password inputs). */
   value?: string;
+  /** What can be done with this component: click | type | select. Empty when disabled. */
+  actions?: string[];
+  /** Nearest landmark: header | nav | main | aside | footer | form | dialog | page. */
+  region?: string;
+  /** Accessible name of that landmark, when it has one. */
+  regionName?: string;
   rect: { x: number; y: number; width: number; height: number };
   center: { x: number; y: number };
 }
@@ -125,6 +131,13 @@ export class MarksOverlay {
             n = clean(Array.from(el.labels).map((l) => l.innerText || l.textContent || '').join(' '));
             if (n) return n;
           }
+          // A submit/button input's visible label is its value attribute, not its name
+          // (GitHub's submit is name="commit" value="Sign in" — "commit" is meaningless).
+          const inputType = (el.getAttribute('type') || '').toLowerCase();
+          if (el.tagName === 'INPUT' && ['submit', 'button', 'reset'].includes(inputType)) {
+            n = clean(el.getAttribute('value'));
+            if (n) return n;
+          }
           n = clean(el.innerText);
           if (n) return n;
           const isPassword = (el.getAttribute('type') || '').toLowerCase() === 'password';
@@ -162,8 +175,55 @@ export class MarksOverlay {
           return s.join(',');
         };
 
-        const valueOf = (el) => {
-          const tag = el.tagName.toUpperCase();
+        // Affordances: what this component actually accepts. A disabled control offers
+        // nothing. This is what lets a decision head offer only compatible targets —
+        // a CLICK question never contains a textbox. (Idea borrowed from browser-use's
+        // jev-ultrafast "dynamic action space".)
+        const actionsOf = (el) => {
+          const a = (n) => el.getAttribute(n);
+          if (el.disabled || a('aria-disabled') === 'true' || a('inert') !== null) return [];
+          const tag = el.tagName.toLowerCase();
+          const type = (a('type') || '').toLowerCase();
+          const role = (a('role') || '').toLowerCase();
+          const out = [];
+          const editable =
+            (tag === 'input' && !['checkbox', 'radio', 'button', 'submit', 'reset', 'hidden', 'file', 'image', 'range', 'color'].includes(type)) ||
+            tag === 'textarea' ||
+            el.isContentEditable === true ||
+            role === 'textbox' ||
+            role === 'searchbox' ||
+            role === 'combobox' ||
+            role === 'spinbutton';
+          if (editable) out.push('type');
+          if (tag === 'select') out.push('select');
+          const clickable =
+            tag === 'a' || tag === 'button' || tag === 'summary' || tag === 'select' ||
+            ['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'image'].includes(type) ||
+            ['button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'option', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'treeitem'].includes(role) ||
+            (a('aria-haspopup') && a('aria-haspopup') !== 'false') ||
+            a('aria-expanded') !== null;
+          if (clickable) out.push('click');
+          if (!out.length) out.push('hover');
+          return out;
+        };
+
+        // Nearest landmark, composed (so a control inside a shadow-rooted <form> or
+        // dialog lands in the right group instead of "page").
+        const LANDMARK = 'header, nav, main, aside, footer, form, dialog, [role="banner"], [role="navigation"], [role="main"], [role="complementary"], [role="contentinfo"], [role="dialog"], [role="alertdialog"], [role="search"], [role="form"], [role="region"]';
+        const regionOf = (el) => {
+          const lm = kqClosest(el, LANDMARK);
+          if (!lm) return { region: 'page', regionName: undefined };
+          const tag = lm.tagName.toLowerCase();
+          const role = (lm.getAttribute('role') || tag).toLowerCase();
+          let name = kqLabel(lm);
+          if (!name) {
+            const h = lm.querySelector('h1, h2, h3, legend, [aria-label]');
+            name = h ? clean(h.getAttribute('aria-label') || h.textContent) : '';
+          }
+          return { region: role, regionName: name ? name.slice(0, 40) : undefined };
+        };
+
+        const valueOf = (el) => {          const tag = el.tagName.toUpperCase();
           if ((el.getAttribute('type') || '').toLowerCase() === 'password') return undefined;
           let v;
           if (tag === 'SELECT') {
@@ -318,6 +378,8 @@ export class MarksOverlay {
           const { el, rect, label } = item;
           const state = stateOf(el);
           const value = valueOf(el);
+          const actions = actionsOf(el);
+          const { region, regionName } = regionOf(el);
           const disabled = state.split(',').includes('disabled');
 
           el.setAttribute('data-mark-id', String(markId));
@@ -369,6 +431,9 @@ export class MarksOverlay {
             role: el.getAttribute('role') || undefined,
             state: state || undefined,
             value,
+            actions,
+            region,
+            regionName,
             rect: {
               x: Math.round(rect.left),
               y: Math.round(rect.top),

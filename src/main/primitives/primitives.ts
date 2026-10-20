@@ -142,7 +142,7 @@ export interface PageState {
 }
 
 export interface ObserveOptions {
-  as?: 'markdown' | 'text' | 'ax' | 'som' | 'list' | 'table' | 'app_data';
+  as?: 'markdown' | 'text' | 'ax' | 'som' | 'components' | 'list' | 'table' | 'app_data';
   region?: number | string;
   budget?: number;
   cursor?: string | number;
@@ -736,6 +736,28 @@ export class Primitives {
       return { as, revision, url: info.url, title: info.title, marks, count: marks.length, text: rows.join('\n') };
     }
 
+    if (as === 'components') {
+      // The decision-ready view: role, name, value, affordances and region per component,
+      // with only the actions the element actually accepts. Built on the same shadow-aware
+      // mark collection as `som`, so web components are included. Mark ids stay valid, so a
+      // decision ("click #8") executes through `act(mark_id)`.
+      const marks = await this.host.injectMarks({ includeOffscreen: opts.includeOffscreen === true });
+      const components = marks.map((m) => ({
+        id: m.id,
+        role: (m.role || m.tag).toLowerCase(),
+        tag: m.tag.toLowerCase(),
+        name: m.text || '',
+        value: m.value,
+        state: m.state ? m.state.split(',').filter(Boolean) : [],
+        actions: m.actions || [],
+        region: m.region || 'page',
+        regionName: m.regionName,
+        rect: m.rect,
+      }));
+      const text = this.componentsText(components);
+      return this.pageText(as, revision, info, text, opts, { components, count: components.length });
+    }
+
     if (as === 'ax') {
       const snap = await this.host.snapshotRenderedPage({ format: 'ax_tree' });
       return this.pageText(as, revision, info, snap?.content || '', opts, { nodeCount: snap?.stats?.nodeCount });
@@ -1184,8 +1206,35 @@ export class Primitives {
     return { revision: this.host.revision(), url: info.url, title: info.title, marks: this.host.getMarks().length };
   }
 
-  private markLine(m: MarkItem): string {
-    const attrs = `${m.type ? ` type="${m.type}"` : ''}${m.role ? ` role=${m.role}` : ''}`;
+  /**
+   * Compact, region-grouped rendering of the component table. One line per component:
+   *   [8] button   "Create account" {click}
+   *   [7] textbox  "Email" · empty {type}
+   * Read top-down, it is the page's affordances — no markup, no screenshot.
+   */
+  private componentsText(components: Array<{ id: number; role: string; name: string; value?: string; state: string[]; actions: string[]; region: string; regionName?: string }>): string {
+    const groups = new Map<string, string[]>();
+    for (const c of components) {
+      const key = c.regionName ? `${c.region} · ${c.regionName}` : c.region;
+      const bits = [`[${c.id}] ${c.role}`.padEnd(20), `"${c.name}"`];
+      if (c.value) bits.push(`· ${c.value}`);
+      if (c.state.length) bits.push(`[${c.state.join(', ')}]`);
+      if (c.actions.length) bits.push(`{${c.actions.join(', ')}}`);
+      const line = bits.join(' ');
+      const bucket = groups.get(key);
+      if (bucket) bucket.push(line);
+      else groups.set(key, [line]);
+    }
+    const lines: string[] = [];
+    for (const [region, rows] of groups) {
+      if (lines.length) lines.push('');
+      lines.push(`## ${region}`);
+      lines.push(...rows);
+    }
+    return lines.join('\n');
+  }
+
+  private markLine(m: MarkItem): string {    const attrs = `${m.type ? ` type="${m.type}"` : ''}${m.role ? ` role=${m.role}` : ''}`;
     const extras: string[] = [];
     if (m.value) extras.push(`value="${m.value}"`);
     if (m.state) extras.push(m.state.replace(/,/g, ', '));

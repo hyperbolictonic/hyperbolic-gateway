@@ -1000,10 +1000,10 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'observe',
     description:
-      'One budgeted observation model with projections. as="markdown" (TIER 1 readable construct with inline [#id] marks) · as="text" (innerText, region-scoped) · as="ax" (accessibility tree) · as="som" (numbered marks table). ' +
+      'One budgeted observation model with projections. as="markdown" (TIER 1 readable construct with inline [#id] marks) · as="text" (innerText, region-scoped) · as="ax" (accessibility tree) · as="som" (numbered marks table) · as="components" (decision-ready table: role, name, value, state, affordances and region per component). ' +
       'Markdown returns a 25,000-char default view — page it with budget + next_cursor, or pass budget=0 for the whole construct. The front-matter reports reader, extracted_chars and page_chars (how much of the page text the readable region covers) plus shadow_roots, so a genuinely short page can be told apart from a partly-visible one. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`.',
     parameters: {
-      as: z.enum(['markdown', 'text', 'ax', 'som']).optional().default('markdown').describe('Projection to return (default: markdown)'),
+      as: z.enum(['markdown', 'text', 'ax', 'som', 'components']).optional().default('markdown').describe('Projection to return (default: markdown)'),
       region: z.union([z.coerce.number(), z.string()]).optional().describe('Scope to a mark id (number) or CSS selector (string)'),
       budget: z.coerce.number().optional().describe('Max characters to return; page with next_cursor. Omitted = the projection default (markdown 25,000, text/ax everything); 0 = everything'),
       cursor: z.union([z.string(), z.coerce.number()]).optional().describe('next_cursor from a previous observe call'),

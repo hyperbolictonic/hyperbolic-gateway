@@ -26,7 +26,7 @@ const BRIDGE = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
 const PAGE = [
   '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Shadow Act</title></head><body>',
   '<h1>Act fixture</h1>',
-  '<x-signup></x-signup>',
+  '<form aria-label="Signup"><x-signup></x-signup></form>',
   '<x-otp></x-otp>',
   '<script>',
   'window.__clicks = 0;',
@@ -35,7 +35,8 @@ const PAGE = [
   '    const root = this.attachShadow({ mode: "open" });',
   '    root.innerHTML = [',
   '      "<input id=\\"email\\" aria-label=\\"Email\\" type=\\"email\\">",',
-  '      "<button id=\\"go\\">Create account</button>"',
+  '      "<button id=\\"go\\">Create account</button>",',
+  '      "<button id=\\"off\\" disabled>Not yet</button>"',
   '    ].join("");',
   '    root.getElementById("go").addEventListener("click", () => { window.__clicks++; });',
   '  }',
@@ -240,7 +241,33 @@ async function main() {
       'inline [#id] on the shadow input'
     );
 
-    // ---- 6. Unresolvable targets still fail loudly -------------------------
+    // ---- 6. The components projection ---------------------------------------
+    const comps = await bridge('/observe', 'POST', { as: 'components' });
+    const list = comps.components || [];
+    const emailComp = list.find((c) => c.name === 'Email');
+    check(
+      'components carries affordances',
+      Boolean(emailComp) && emailComp.actions.includes('type') && !emailComp.actions.includes('select'),
+      `Email actions=${JSON.stringify(emailComp?.actions)}`
+    );
+    check(
+      'a disabled component offers no actions',
+      list.some((c) => c.name === 'Not yet' && Array.isArray(c.actions) && c.actions.length === 0),
+      `disabled=${list.find((c) => c.name === 'Not yet')?.actions?.length ?? 'missing'}`
+    );
+    check(
+      'components are grouped by landmark',
+      Boolean(emailComp) && emailComp.region === 'form' && /Signup/.test(emailComp.regionName || ''),
+      `region=${emailComp?.region} · ${emailComp?.regionName}`
+    );
+    check(
+      'the components text groups by region',
+      /## form · Signup/.test(comps.text || '') && /\[#?\d+\]\s+\w+/.test(comps.text || ''),
+      '## form · Signup header'
+    );
+    check('a component id doubles as a mark id', Number.isInteger(emailComp?.id) && emailComp.id > 0, `id=${emailComp?.id}`);
+
+    // ---- 7. Unresolvable targets still fail loudly -------------------------
     let noTarget = null;
     try {
       noTarget = await bridge('/act', 'POST', { selector: '#does-not-exist', action: 'click' });

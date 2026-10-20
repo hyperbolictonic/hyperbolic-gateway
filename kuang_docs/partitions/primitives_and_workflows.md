@@ -36,6 +36,12 @@ mutation beyond Mark Eleven's own `data-mark-id` stamp), so they do **not** trip
 `ax` (accessibility tree) · `som` (numbered marks table) · `list` · `table` ·
 `app_data` (embedded `__NEXT_DATA__` / JSON-LD / inline state blobs).
 
+`components` is the decision-ready projection: one line per component with its role, name, value,
+state, region (nearest landmark) and the **actions it accepts** — `{click}`, `{type}`, `{select}`,
+empty when disabled — grouped under the landmark it belongs to. Ids are mark ids, so a decision
+is executed with `act(mark_id=…)` and verified like any other action. A target list for `click`
+therefore only ever contains clickable components.
+
 `markdown` reads the **composed** DOM — open shadow roots included, with live form values baked in and
 password values reduced to a length — so a web-component form reads as a form, not as empty host tags.
 Its envelope states how complete the read is: `reader` (which extraction path produced the body),

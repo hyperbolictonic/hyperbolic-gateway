@@ -5,6 +5,34 @@ All notable changes to **Kuang Grade Mark Eleven** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`observe(as:"components")` — a decision-ready component table.** Instead of a flat mark list, each
+  component carries its **role**, accessible **name**, current **value**, **state**, **region** (the
+  nearest landmark: `form`, `dialog`, `nav`, `main`, …) and the **actions it actually accepts**
+  (`click` / `type` / `select`; empty when disabled). Components are grouped by landmark in the text
+  rendering, collected through open shadow roots like the rest of Set-of-Marks, and their ids **are
+  mark ids**, so a decision ("click [8]") executes through `act(mark_id)` with no translation layer.
+  ```
+  ## form · Signup
+  [7] input    "Email"       {type}
+  [8] input    "Password"    {type}
+  [9] button   "Create account" {click}
+  ```
+  The affordance partition is the point: a target head for `click` is only ever offered clickable
+  components, so the model cannot pick a textbox for a click. Inspired by the dynamic action space in
+  [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast) — with one difference: their
+  element table explicitly excludes shadow roots, ours includes them.
+
+### Fixed
+
+- **Submit inputs were labelled with their `name` attribute instead of their visible label.** GitHub's
+  `<input type="submit" name="commit" value="Sign in">` appeared in marks and the component table as
+  `"commit"` — a meaningless identifier to any reader, human or model. Accessible-name computation now
+  prefers `value` for `submit`/`button`/`reset` inputs before falling back to `name`.
+
 ## [1.3.0] - 2026-10-20
 
 ### Fixed
