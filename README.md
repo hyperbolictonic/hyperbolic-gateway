@@ -64,7 +64,7 @@ In William Gibson's genre-defining cyberpunk masterpiece *Neuromancer*, console 
 
 Most "AI browser" tooling today is a **library you integrate, or a cloud you rent**. [`browser-use`](https://github.com/browser-use/browser-use) is a popular MIT-licensed Python framework that drives Playwright *with its own agent loop* (plus an optional hosted cloud); Playwright / Puppeteer / Selenium are general-purpose drivers where **you** write the loop; and managed browser clouds run a remote Chromium and bill per session. They're good tools — this isn't a rivalry, it's a different **shape**.
 
-**Kuang Grade Mark Eleven is the other road:** a single, self-hosted **Electron icebreaker** that *you* own. It runs a **real, visible Chromium** on your own machine and speaks **MCP** over `stdio` (+ a localhost bridge), so it drops into whatever agent runner and whichever model you already use — **local or remote, with no cloud account, no API key, no seat pricing, and no telemetry leaving your box.**
+**Kuang Grade Mark Eleven is the other road:** a single, self-hosted **desktop app you own** (Electron, no account, no dashboard). It runs a **real, visible Chromium** on your own machine and speaks **MCP** over `stdio` (+ a localhost bridge), so it drops into whatever agent runner and whichever model you already use — **local or remote, with no cloud account, no API key, no seat pricing, and no telemetry leaving your box.**
 
 That's the punk ethos: **one operator, one machine, a tool you can read, fork and keep.** Built by one person, not a company. No VC, no roadmap-by-committee, no dashboard.
 
@@ -86,9 +86,50 @@ That's the punk ethos: **one operator, one machine, a tool you can read, fork an
 - **Built for a machine you're *also* using.** Input goes over CDP and is **focus-independent** — clicks and typing land while your editor owns the foreground — and occluded windows keep hydrating and scrolling, so long harvests keep running behind your other apps.
 - **Tier-graded tool surface, not a token bonfire.** Reading is `observe(as:"markdown")` with inline `[#id]` marks (no screenshot tax); interaction is one `act`; `[TIER 1/2/3]` prefixes plus a `tools/recommended` resource tell the agent what to prefer.
 - **Honest about its limits.** Detached reads are gated, `evaluate_javascript` is *"use deliberately"* rather than banned, and failures are machine-coded (`STALE_REF`, `TIMEOUT`, `NO_TARGET`, `BAD_REQUEST`, `NOT_SUPPORTED`) instead of vibes.
-- **No framework lock-in.** Because the interface is MCP, your runner stays yours: swap the agent, swap the model, keep the icebreaker.
+- **No framework lock-in.** Because the interface is MCP, your runner stays yours: swap the agent, swap the model, keep the tool.
 
-### FAQ (the searches that land people here)
+### New here? Plain-English FAQ
+
+**What is this, in one sentence?**
+A web browser that an AI can drive for you: it opens real pages, reads them, clicks, types, fills in forms, and remembers what it found.
+
+**Is it a browser I use myself?**
+It's a real browser window. You can watch it, and you can take over at any time — most people just let their AI do the driving.
+
+**Do I need to be a programmer?**
+To *use* it with an AI assistant you already have: no — you paste one line of configuration into that assistant. To change how it behaves internally: yes, it's a code project.
+
+**What's an "MCP server", in plain terms?**
+MCP is a standard plug shape for AI tools. If your AI app accepts MCP plugins, it can use this one. Claude Desktop, Cursor and several other apps speak it.
+
+**Which AI can drive it?**
+Any assistant that supports MCP — a cloud service, or a model running on your own computer. You choose, and you aren't locked to one provider.
+
+**Do I need to pay for anything?**
+No subscription and no account. The software is free and open source. The only cost is whatever you already pay for your AI, if anything.
+
+**Where does my data go?**
+Nowhere. The pages it reads, the notes it keeps and the logs all stay on your computer. There's no company server in the middle and no usage tracking.
+
+**Could a website tell it's a bot?**
+It's built to be hard to spot: a normal visible browser, mouse movement and typing that look human, and it clears cookie banners politely. Nothing is unbeatable, but it isn't the obvious "automated script" that gets blocked.
+
+**What happens at a CAPTCHA?**
+It doesn't solve them. It asks you to step in (it can send a notification and bring the window forward), then continues once you're done.
+
+**Does it run headless on a server?**
+Not really, and that's on purpose. It runs a visible browser on a normal desktop, which is exactly why it looks human. For large-scale server-side scraping, a different tool fits better.
+
+**Is using it allowed?**
+It's for personal research and testing. You still have to follow each website's rules and the law — running it yourself doesn't change that. Don't use it to break into accounts or ignore terms of service.
+
+**What do I need to run it?**
+A normal Windows desktop (that's the tested target). If your computer can run a browser and an AI assistant, it can run this.
+
+**Is it finished?**
+No. It's an experimental project by one developer — expect rough edges and things that change.
+
+### FAQ for developers — browsers, memory, and the tricky bits
 
 **Is there a self-hosted, open-source alternative to browser-use?**
 Yes — MIT-licensed and entirely local. But note the shape: this is a *tool surface*, not an agent framework. If you want a Python framework that owns the loop, `browser-use` is the right tool; if you want a self-hosted browser that *your own* agent drives, this is it.
