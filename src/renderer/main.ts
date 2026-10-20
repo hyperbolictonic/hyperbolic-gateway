@@ -393,6 +393,116 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// Settings Modal — optional decision model (data/decision.json)
+const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement | null;
+const settingsModal = document.getElementById('settings-modal') as HTMLDialogElement | null;
+
+if (settingsBtn && settingsModal) {
+  const protocolEl = document.getElementById('settings-protocol') as HTMLSelectElement;
+  const modelEl = document.getElementById('settings-model') as HTMLInputElement;
+  const urlEl = document.getElementById('settings-url') as HTMLInputElement;
+  const keyEl = document.getElementById('settings-key') as HTMLInputElement;
+  const revisionEl = document.getElementById('settings-revision') as HTMLInputElement;
+  const deviceEl = document.getElementById('settings-device') as HTMLSelectElement;
+  const badgeEl = document.getElementById('settings-status-badge') as HTMLElement;
+  const formEl = document.getElementById('settings-form') as HTMLFormElement;
+  const testBtn = document.getElementById('settings-test-btn') as HTMLButtonElement;
+  const closeBtn = document.getElementById('settings-close-btn') as HTMLButtonElement;
+  const resultEl = document.getElementById('settings-test-result') as HTMLElement;
+
+  const showResult = (kind: 'success' | 'error' | 'info', text: string) => {
+    resultEl.className = `alert alert-${kind} alert-sm font-mono text-xs`;
+    resultEl.textContent = text;
+  };
+
+  const showStatus = (status: any, stored: any) => {
+    if (status?.configured) {
+      badgeEl.className = 'badge badge-success font-mono text-xs whitespace-nowrap';
+      badgeEl.textContent = `${status.protocol} · ${status.model}`;
+    } else {
+      badgeEl.className = 'badge badge-ghost font-mono text-xs whitespace-nowrap';
+      badgeEl.textContent = 'off';
+    }
+    protocolEl.value = stored?.protocol || '';
+    modelEl.value = stored?.model || '';
+    urlEl.value = stored?.url || '';
+    keyEl.value = stored?.key || '';
+    revisionEl.value = stored?.revision || '';
+    deviceEl.value = stored?.device || '';
+  };
+
+  settingsBtn.addEventListener('click', async () => {
+    window.electronAPI?.setViewportVisibility(false);
+    resultEl.className = 'alert alert-ghost alert-sm font-mono text-xs hidden';
+    try {
+      const { stored, status } = await window.electronAPI!.getDecisionSettings();
+      showStatus(status, stored);
+    } catch (err: any) {
+      showStatus(null, null);
+      showResult('error', `Could not read settings: ${err?.message || err}`);
+    }
+    settingsModal.showModal();
+  });
+
+  settingsModal.addEventListener('close', () => {
+    window.electronAPI?.setViewportVisibility(true);
+  });
+
+  formEl.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const protocol = protocolEl.value;
+    const payload = protocol
+      ? {
+          protocol,
+          model: modelEl.value.trim() || undefined,
+          url: urlEl.value.trim() || undefined,
+          key: keyEl.value.trim() || undefined,
+          revision: revisionEl.value.trim() || undefined,
+          device: deviceEl.value.trim() || undefined,
+        }
+      : null;
+    try {
+      const saved = await window.electronAPI!.saveDecisionSettings(payload);
+      showStatus(saved?.status, payload);
+      showResult(
+        'success',
+        saved?.ok
+          ? saved.status?.configured
+            ? `Saved. decide is now available via ${saved.status.protocol} (${saved.status.model}).`
+            : 'Saved. No backend is configured, so decide stays hidden.'
+          : 'Saved to disk, but the configuration could not be applied.'
+      );
+    } catch (err: any) {
+      showResult('error', `Save failed: ${err?.message || err}`);
+    }
+  });
+
+  testBtn.addEventListener('click', async () => {
+    testBtn.disabled = true;
+    testBtn.classList.add('loading');
+    showResult('info', 'Testing…');
+    try {
+      const result = await window.electronAPI!.testDecisionModel();
+      if (result?.ok) {
+        const answer = result.answers?.reachable;
+        showResult(
+          'success',
+          `${result.protocol} · ${result.model} · ${result.latencyMs}ms — answered ${JSON.stringify(answer ?? result.answers)}`
+        );
+      } else {
+        showResult('error', `${result?.error?.code || 'ERROR'} — ${result?.error?.message || 'no answer'}${result?.error?.hint ? ` (${result.error.hint})` : ''}`);
+      }
+    } catch (err: any) {
+      showResult('error', `Test failed: ${err?.message || err}`);
+    } finally {
+      testBtn.disabled = false;
+      testBtn.classList.remove('loading');
+    }
+  });
+
+  closeBtn.addEventListener('click', () => settingsModal.close());
+}
+
 // About Modal & Viewport Visibility Management
 const aboutBtn = document.getElementById('about-btn') as HTMLButtonElement | null;
 const aboutModal = document.getElementById('about_modal') as HTMLDialogElement | null;

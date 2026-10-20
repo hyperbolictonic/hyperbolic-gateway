@@ -19,6 +19,9 @@ export interface ElectronAPI {
   listBookmarks: (options?: any) => Promise<any[]>;
   deleteBookmark: (urlOrId: string) => Promise<boolean>;
   isBookmarked: (url: string) => Promise<boolean>;
+  getDecisionSettings: () => Promise<{ stored: any; status: any }>;
+  saveDecisionSettings: (config: any) => Promise<{ ok: boolean; status: any }>;
+  testDecisionModel: () => Promise<any>;
   onTabsUpdated: (callback: (tabs: TabSummary[]) => void) => () => void;
   onStateUpdated: (callback: (state: ChassisState) => void) => () => void;
   onTelemetry: (callback: (event: TelemetryEvent) => void) => () => void;
@@ -51,6 +54,10 @@ const api: ElectronAPI = {
   listBookmarks: (options?: any) => ipcRenderer.invoke('cortex:list-bookmarks', options),
   deleteBookmark: (urlOrId: string) => ipcRenderer.invoke('cortex:delete-bookmark', urlOrId),
   isBookmarked: (url: string) => ipcRenderer.invoke('cortex:is-bookmarked', url),
+
+  getDecisionSettings: () => ipcRenderer.invoke('settings:get-decision'),
+  saveDecisionSettings: (config: any) => ipcRenderer.invoke('settings:save-decision', config),
+  testDecisionModel: () => ipcRenderer.invoke('settings:test-decision'),
 
   onTabsUpdated: (callback) => {
     const handler = (_: any, tabs: TabSummary[]) => callback(tabs);

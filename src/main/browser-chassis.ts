@@ -6,6 +6,7 @@ import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
+import { readStoredDecisionConfig, saveDecisionConfig, decisionStatus, runDecision } from './decide/decision-client.js';
 import { targetBoxScript, focusControlScript, DEEP_DOM_HELPERS, type TargetBox } from './primitives/dom-targeting.js';
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
@@ -423,12 +424,27 @@ export class BrowserChassis {
     ipcMain.handle('cortex:is-bookmarked', async (_, url: string) => {
       return await cortex.isBookmarked(url);
     });
+
+    // Settings → decision model (optional). The renderer reads/writes data/decision.json through
+    // these; the same file the bridge and the MCP server read, so there is one source of truth.
+    ipcMain.handle('settings:get-decision', async () => ({
+      stored: readStoredDecisionConfig(),
+      status: decisionStatus(),
+    }));
+    ipcMain.handle('settings:save-decision', async (_, config: any) => saveDecisionConfig(config));
+    ipcMain.handle('settings:test-decision', async () => {
+      const started = Date.now();
+      const result = await runDecision({
+        state: { page: this.getPageInfo().url, note: 'connectivity probe from the Settings tab' },
+        questions: { reachable: { type: 'noul', instructions: 'Is this a page URL?' } },
+      });
+      return { ...result, totalMs: Date.now() - started };
+    });
   }
 
   public getCortex(): CortexDB {
     return cortex;
   }
-
   private async indexTabQuietly(tab: TabInstance) {
     try {
       const url = tab.url;

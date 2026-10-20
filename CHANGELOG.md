@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Settings tab (HUD) for the decision model.** A `⚙️ SETTINGS` button opens a dialog with the
+  backend (`off` / `typesafe` / `d1-onnx`), model, endpoint, key, revision and device, a status badge
+  showing what the app will actually use, and **Test connection** — which runs a real one-question
+  `decide` and shows either the answer with its latency or the typed failure (`NOT_CONFIGURED`,
+  `UPSTREAM_ERROR`, `TIMEOUT`). Saving writes `data/decision.json`, the same file the bridge and the
+  MCP server read, so there is one source of truth; the key is stored locally and never logged.
+  IPC: `settings:get-decision` / `settings:save-decision` / `settings:test-decision`.
 - **`decide` — an optional decision-model surface, off unless configured.** One tool (and `POST /decide`
   on the bridge) that forwards `state` + typed `questions` to a decision model and returns the answers
   **verbatim**: no prompt assembly, no rewritten retries, no synthesis, and `UPSTREAM_ERROR`/`TIMEOUT`

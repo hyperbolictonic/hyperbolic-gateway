@@ -95,6 +95,35 @@ export function resolveDecisionConfig(): DecisionConfig | null {
   };
 }
 
+/** Raw configuration as stored on disk (file values only — env is read at resolve time). */
+export function readStoredDecisionConfig(): Partial<DecisionConfig> {
+  return readConfigFile() || {};
+}
+
+/**
+ * Persist (or clear) `data/decision.json`. Returns the resolved status so the caller can show
+ * exactly what the app will use, including the effect of environment overrides.
+ */
+export function saveDecisionConfig(input: Partial<DecisionConfig> | null): { ok: boolean; status: ReturnType<typeof decisionStatus> } {
+  try {
+    fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true });
+    if (!input || !input.protocol) {
+      fs.rmSync(CONFIG_FILE, { force: true });
+      return { ok: true, status: decisionStatus() };
+    }
+    const clean: Record<string, unknown> = { protocol: input.protocol };
+    for (const key of ['url', 'model', 'key', 'revision', 'device'] as const) {
+      const value = input[key];
+      if (typeof value === 'string' && value.trim()) clean[key] = value.trim();
+    }
+    if (typeof input.timeoutMs === 'number' && input.timeoutMs > 0) clean.timeoutMs = input.timeoutMs;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(clean, null, 2) + '\n', 'utf8');
+    return { ok: true, status: decisionStatus() };
+  } catch (err: any) {
+    return { ok: false, status: decisionStatus() };
+  }
+}
+
 /** Shape reported by `/health` and `help`, so an agent can tell whether `decide` will work. */
 export function decisionStatus(): {
   configured: boolean;
