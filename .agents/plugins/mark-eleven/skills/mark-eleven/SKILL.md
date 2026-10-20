@@ -7,7 +7,7 @@ description: Real-world visible Chromium browser navigator with Bézier ghost-cu
 
 Mark Eleven connects the LLM to an active, desktop Chromium browser window (`headless: false`) equipped with humanized telemetry to operate the live web without triggering automated bot defenses.
 
-> **One interaction tool.** Every click/focus/hover/type/press goes through `act`, addressed three ways: a **mark id** (`act(3)`), a **CSS selector** (`act(selector="#go")`), or **coordinates** (`act(x=100, y=200)`). Mark ids are preferred. The older `click_mark` / `type_mark` / `click_element` / `type_text` names still work but are hidden aliases.
+> **One interaction tool.** Every click/focus/hover/type/press goes through `act`, addressed three ways: a **mark id** (`act(3)`), a **CSS selector** (`act(selector="#go")`), or **coordinates** (`act(x=100, y=200)`). Mark ids are preferred. Marks, `find` and selector targeting all traverse **open shadow roots**, so a web-component control (login/signup forms) is addressable like any other element; only `mode:"closed"` roots stay opaque (use coordinates). The older `click_mark` / `type_mark` / `click_element` / `type_text` names still work but are hidden aliases.
 
 ## Golden Operational Sequence (Preferential Tool Hierarchy)
 

@@ -1,16 +1,16 @@
-/**
+﻿/**
  * Shadow-DOM-aware element resolution for the interaction path.
  *
  * `document.querySelector` cannot cross a shadow boundary, and neither can a CSS
- * selector — so on a page built from web components (login/signup forms, design-system
+ * selector â€” so on a page built from web components (login/signup forms, design-system
  * dialogs) a selector like `#email` or `faceplate-text-input` resolves to the *host*,
  * never the `<input>` that actually takes focus and text. The field notes for the
  * 2026-10-20 signup run are the worked example: `act({selector, action:"type"})` reported
  * success while the value never changed, because the click landed on the host's centre
  * (often a label) and the follow-up `el.focus()` was applied to the host.
  *
- * These helpers resolve a selector to the element a *mouse* would hit — the deepest
- * control painted at the host's centre, or the first control inside it — and report the
+ * These helpers resolve a selector to the element a *mouse* would hit â€” the deepest
+ * control painted at the host's centre, or the first control inside it â€” and report the
  * deepest focused element (`document.activeElement` is the host, `shadowRoot.activeElement`
  * is the real input).
  *
@@ -18,7 +18,7 @@
  */
 
 /** Shared helper functions, inlined into every script below. */
-const HELPERS = `
+export const DEEP_DOM_HELPERS = `
 function kqDeep(selector, root) {
   root = root || document;
   let direct = null;
@@ -85,8 +85,31 @@ function kqResolveControl(host) {
   // Contenteditable hosts / detached-at-centre cases: take the first control inside.
   return kqFirstControl(host) || host;
 }
-function kqActive() {
-  let el = document.activeElement;
+function kqComposedParent(node) {
+  if (!node) return null;
+  if (node.parentElement) return node.parentElement;
+  const root = node.getRootNode ? node.getRootNode() : null;
+  return root && root.host ? root.host : null;
+}
+function kqClosest(node, selector) {
+  let el = node;
+  let guard = 0;
+  while (el && guard++ < 200) {
+    if (el.matches && el.matches(selector)) return el;
+    el = kqComposedParent(el);
+  }
+  return null;
+}
+function kqContainsComposed(ancestor, node) {
+  let cur = node;
+  let guard = 0;
+  while (cur && guard++ < 200) {
+    if (cur === ancestor) return true;
+    cur = kqComposedParent(cur);
+  }
+  return false;
+}
+function kqActive() {  let el = document.activeElement;
   let guard = 0;
   while (el && el.shadowRoot && el.shadowRoot.activeElement && guard++ < 25) {
     el = el.shadowRoot.activeElement;
@@ -145,7 +168,7 @@ export interface TargetBox {
   /** False when the selector resolved through a shadow root to a deeper element. */
   sameAsHost: boolean;
   text: string;
-  /** Live viewport size — 0 means the tab was never laid out, so the box is meaningless. */
+  /** Live viewport size â€” 0 means the tab was never laid out, so the box is meaningless. */
   vw: number;
   vh: number;
   /** Whether the resolved centre falls inside the viewport. */
@@ -159,7 +182,7 @@ export interface TargetBox {
  */
 export function targetBoxScript(locator: TargetLocator): string {
   const scroll = locator.point ? '' : 'try { host.scrollIntoView({ behavior: "auto", block: "center" }); } catch (e) {}';
-  return `(() => {${HELPERS}
+  return `(() => {${DEEP_DOM_HELPERS}
   const host = ${elementExpr(locator)};
   if (!host) return null;
   ${scroll}
@@ -186,12 +209,12 @@ export function targetBoxScript(locator: TargetLocator): string {
 }
 
 /**
- * Typed facts about the control a locator addresses — the same shape as the previous
+ * Typed facts about the control a locator addresses â€” the same shape as the previous
  * light-DOM probe, but resolved through shadow roots, so a web-component field reports
  * `tag: "input"` (not the host) and its real value length.
  */
 export function fieldFactsScript(locator: TargetLocator): string {
-  return `(() => {${HELPERS}
+  return `(() => {${DEEP_DOM_HELPERS}
   const host = ${elementExpr(locator)};
   if (!host) return null;
   const el = ${locator.point ? 'host' : 'kqResolveControl(host)'};
@@ -224,7 +247,7 @@ export function fieldFactsScript(locator: TargetLocator): string {
  * see a focus failure instead of inferring it later.
  */
 export function focusControlScript(locator: TargetLocator): string {
-  return `(() => {${HELPERS}
+  return `(() => {${DEEP_DOM_HELPERS}
   const host = ${elementExpr(locator)};
   if (!host) return null;
   const el = kqResolveControl(host);
@@ -241,7 +264,7 @@ export function focusControlScript(locator: TargetLocator): string {
 }
 
 /** Page/window diagnostics including the **deepest** focused element. */export function diagnosticsScript(): string {
-  return `(() => {${HELPERS}
+  return `(() => {${DEEP_DOM_HELPERS}
   const active = kqActive();
   return {
     w: window.innerWidth,
@@ -256,13 +279,13 @@ export function focusControlScript(locator: TargetLocator): string {
  * Install a one-shot input probe around a typing action: snapshot the addressed control's
  * value, then count the trusted key/input events that reach the page.
  *
- * This is the evidence that separates the two failure classes seen in the field — "our
+ * This is the evidence that separates the two failure classes seen in the field â€” "our
  * input never arrived" (focus/window) from "the control received the keys and refused
  * them" (one-time-code fields, which revert on input). Only lengths and counters leave the
  * page; the value itself never does (so `secret` typing stays secret).
  */
 export function inputProbeInstallScript(locator: TargetLocator): string {
-  return `(() => {${HELPERS}
+  return `(() => {${DEEP_DOM_HELPERS}
   const prev = window.__kuangInputProbe;
   if (prev && prev.detach) prev.detach();
   const host = ${elementExpr(locator)};
@@ -288,7 +311,7 @@ export function inputProbeInstallScript(locator: TargetLocator): string {
 
 /** Read and remove the probe installed by {@link inputProbeInstallScript}. */
 export function inputProbeReadScript(): string {
-  return `(() => {${HELPERS}
+  return `(() => {${DEEP_DOM_HELPERS}
   const s = window.__kuangInputProbe;
   if (!s) return null;
   if (s.detach) s.detach();

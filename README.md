@@ -272,6 +272,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 ## 🎯 Set-of-Marks (SoM) Visual Grounding
 
 - **Zero Coordinate Hallucination:** Completely eliminates hallucinated pixel coordinates or fragile CSS selectors.
+- **Shadow-DOM aware:** Badges are collected through **open shadow roots**, so controls inside web components (login/signup forms, design-system dialogs) get marks like any light-DOM element — occlusion is tested with the deepest hit and composed containment, not `elementFromPoint` alone. Only `mode:"closed"` roots stay opaque.
 - **High-Contrast Neon Badges:** Ephemerally injects high-contrast amber neon numbered badges (`[1]`, `[2]`, `[3]`, etc.) over every visible, interactable DOM element (`<a>`, `<button>`, `<input>`, `select`, `[role="button"]`).
 - **Precision Multimodal Actuation:**
   1. `take_screenshot({ marks: true })` captures the badge overlay and returns an element lookup table (`{ id: 1, tag: "BUTTON", text: "Submit", bbox: [...] }`).

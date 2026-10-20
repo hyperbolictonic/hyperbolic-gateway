@@ -173,6 +173,8 @@ act(selector = "my-text-input", action = "type", text = "a@b.com")   # resolves 
 Both address the real input. Watch the returned `target.field.tag` — if it is a hyphenated tag
 instead of `input`, the selector landed on a host with no control inside (wrong element, or a
 closed shadow root) and you should switch to coordinates from a screenshot.
+Marks work here too: Set-of-Marks, `find` and `act(mark_id=…)` all traverse open shadow roots, and
+`observe(as:"markdown")` badges shadow controls with `[#id]` like any other element.
 
 ### R8 — Read it back; a success string is not evidence
 `action="type"` is now **verified**: the control's value is read before and after, so a no-op
@@ -218,9 +220,8 @@ Call `bridge_health()` once per session:
   shows the first 25 000 characters and pages the rest with `budget` + `next_cursor`
   (`budget:0` for everything). Nothing is discarded, so fares/rows beyond the default view are
   reachable.
-- **Set-of-Marks and `find` still do not pierce shadow roots** (only `observe`/`act` selectors
-  do). On a web-component page, marks may be absent or point at the host; address controls with
-  `act(selector=…)` or coordinates instead.
+- **Closed shadow roots are unreadable.** Marks, `observe` and `act` all traverse *open* shadow roots; a
+  `mode: "closed"` component shows only its host. Use coordinates from a screenshot for those.
 - `isLoading` can stay `true` on ad-heavy SPAs — prefer `stable`/`network_idle` over load flags.
 - `select` is deliberately **not** an `act` action (setting a native value is a TIER-3 DOM
   mutation). Use the marks flow instead: click the trigger → `observe(as:"som")` → click the option

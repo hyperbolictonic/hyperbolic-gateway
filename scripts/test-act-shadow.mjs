@@ -142,6 +142,14 @@ async function main() {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
 
+  // Geometry-based targeting needs a laid-out tab; a minimised/hidden window reports 0x0.
+  try {
+    await bridge('/window/visibility', 'POST', { visible: true });
+  } catch {
+    // older builds may not expose it; the layout wait below still reports honestly
+  }
+  await sleep(600);
+
   const results = [];
   const check = (name, ok, detail) => {
     results.push({ name, ok });
@@ -207,7 +215,32 @@ async function main() {
       `landed=${retyped.typing?.landed} changed=${retyped.typing?.changed}`
     );
 
-    // ---- 5. Unresolvable targets still fail loudly -------------------------
+    // ---- 5. Set-of-Marks and find reach into shadow roots -------------------
+    const scan = await bridge('/marks/screenshot?text_only=1&include_offscreen=1');
+    const marks = scan.marks || [];
+    const emailMark = marks.find((m) => m.tag === 'INPUT' && /Email/i.test(m.text || ''));
+    check('marks include the shadow input', Boolean(emailMark), `${marks.length} marks, input=${emailMark ? `#${emailMark.id} "${emailMark.text}"` : 'none'}`);
+    check('marks include the shadow button', marks.some((m) => m.tag === 'BUTTON' && /Create account/i.test(m.text || '')));
+
+    const found = await bridge('/find', 'POST', { name: 'Email' });
+    check(
+      'find returns the shadow control',
+      Boolean(emailMark) && (found.marks || []).some((m) => m.id === emailMark.id),
+      `find total=${found.total}`
+    );
+
+    const byMark = await bridge('/act', 'POST', { mark_id: emailMark.id, action: 'type', text: 'by-mark', clear_first: true });
+    const afterMark = await evaluate('document.querySelector("x-signup").shadowRoot.getElementById("email").value');
+    check('act by mark types into a shadow control', byMark.ok === true && afterMark === 'by-mark', JSON.stringify(afterMark));
+
+    const md = await bridge('/observe', 'POST', { as: 'markdown' });
+    check(
+      'markdown badges shadow controls',
+      /\[#\d+\][^\n]*label="Email"/.test(md.text || ''),
+      'inline [#id] on the shadow input'
+    );
+
+    // ---- 6. Unresolvable targets still fail loudly -------------------------
     let noTarget = null;
     try {
       noTarget = await bridge('/act', 'POST', { selector: '#does-not-exist', action: 'click' });

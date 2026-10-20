@@ -6,7 +6,7 @@ import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
-import { targetBoxScript, focusControlScript, type TargetBox } from './primitives/dom-targeting.js';
+import { targetBoxScript, focusControlScript, DEEP_DOM_HELPERS, type TargetBox } from './primitives/dom-targeting.js';
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
@@ -1434,7 +1434,13 @@ export class BrowserChassis {
     // if not, re-resolve its live centre and click once more before typing.
     const focusedOk = await wc
       .executeJavaScript(
-        `(() => { const el = document.querySelector('[data-mark-id="${markId}"]'); if (!el) return true; const a = document.activeElement; if (!a) return false; return a === el || (el.contains && el.contains(a)) || (a.closest && a.closest('[data-mark-id="${markId}"]') === el); })()`
+        `(() => {${DEEP_DOM_HELPERS}
+          const el = kqDeep('[data-mark-id="${markId}"]');
+          if (!el) return true;
+          const a = kqActive();
+          if (!a) return false;
+          return a === el || kqContainsComposed(el, a) || kqContainsComposed(a, el);
+        })()`
       )
       .catch(() => true);
     if (focusedOk === false) {

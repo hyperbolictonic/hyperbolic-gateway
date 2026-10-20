@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron';
+import { DEEP_DOM_HELPERS } from '../primitives/dom-targeting.js';
 
 export interface MarkItem {
   id: number;
@@ -65,7 +66,7 @@ export class MarksOverlay {
     const includeOffscreen = opts.includeOffscreen === true;
 
     const script = `
-      (() => {
+      (() => {${DEEP_DOM_HELPERS}
         const existingAnchors = ${JSON.stringify(existingAnchors)};
         const includeOffscreen = ${JSON.stringify(includeOffscreen)};
 
@@ -102,7 +103,9 @@ export class MarksOverlay {
           }
           const style = window.getComputedStyle(el);
           if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
-          if (el.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
+          // Composed ancestors: a control inside a closed-away panel inside a shadow root
+          // is hidden just the same as one in the light DOM.
+          if (kqClosest(el, '[aria-hidden="true"], [hidden], [inert]')) return false;
           return true;
         };
 
@@ -182,9 +185,9 @@ export class MarksOverlay {
         // Determine if an element is a structural static anchor vs dynamic feed/result item
         const isStaticAnchor = (el) => {
           // If explicitly in a dynamic container, treat as dynamic
-          if (el.closest(DYNAMIC_CONTAINERS)) return false;
+          if (kqClosest(el, DYNAMIC_CONTAINERS)) return false;
           // Structural layout elements: nav, header, footer, search form
-          if (el.closest(STATIC_CONTAINERS)) return true;
+          if (kqClosest(el, STATIC_CONTAINERS)) return true;
           // Fixed/sticky headers or toolbars
           const style = window.getComputedStyle(el);
           if (style.position === 'fixed' || style.position === 'sticky') return true;
@@ -203,24 +206,40 @@ export class MarksOverlay {
           return [el.tagName, id, name, role, label, href].filter(Boolean).join('|');
         };
 
-        // 1. Gather candidates (semantic first, then cursor:pointer heuristic)
+        // 1. Gather candidates (semantic first, then cursor:pointer heuristic).
+        // Walks every open shadow root: a web-component control is a real, clickable thing
+        // and was previously invisible to Set-of-Marks entirely (0 marks on a signup form).
         const seen = new Set();
         const candidates = [];
-        for (const el of document.querySelectorAll(SEMANTIC)) {
-          seen.add(el);
-          candidates.push(el);
+        const roots = [];
+        const collectRoots = (root) => {
+          roots.push(root);
+          for (const el of root.querySelectorAll('*')) {
+            if (el.shadowRoot) collectRoots(el.shadowRoot);
+          }
+        };
+        collectRoots(document);
+
+        for (const root of roots) {
+          for (const el of root.querySelectorAll(SEMANTIC)) {
+            if (seen.has(el)) continue;
+            seen.add(el);
+            candidates.push(el);
+          }
         }
         let scanned = 0;
-        for (const el of document.querySelectorAll('div, span, li, td, img, svg, label, i, p')) {
-          if (++scanned > 4000) break;
-          if (seen.has(el) || el.id === 'mark-eleven-som-container' || el.closest('#mark-eleven-som-container')) continue;
-          if (el.closest(SEMANTIC)) continue; // already covered by a semantic ancestor
-          const style = window.getComputedStyle(el);
-          if (style.cursor !== 'pointer') continue;
-          const parent = el.parentElement;
-          if (parent && window.getComputedStyle(parent).cursor === 'pointer') continue; // outermost only
-          seen.add(el);
-          candidates.push(el);
+        for (const root of roots) {
+          for (const el of root.querySelectorAll('div, span, li, td, img, svg, label, i, p')) {
+            if (++scanned > 4000) break;
+            if (seen.has(el) || el.id === 'mark-eleven-som-container' || kqClosest(el, '#mark-eleven-som-container')) continue;
+            if (kqClosest(el, SEMANTIC)) continue; // already covered by a semantic ancestor
+            const style = window.getComputedStyle(el);
+            if (style.cursor !== 'pointer') continue;
+            const parent = kqComposedParent(el);
+            if (parent && window.getComputedStyle(parent).cursor === 'pointer') continue; // outermost only
+            seen.add(el);
+            candidates.push(el);
+          }
         }
 
         // 2. Filter (visibility + occlusion) and classify
@@ -232,10 +251,12 @@ export class MarksOverlay {
           if (onScreen && canHitTest) {
             const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), vpW - 1);
             const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), vpH - 1);
-            const hit = document.elementFromPoint(cx, cy);
-            if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) continue; // covered by something else
+            // Deepest hit-test: for shadow content, elementFromPoint returns the host, so a
+            // plain comparison would treat every shadow control as "occluded" and drop it.
+            const hit = kqAtPoint(cx, cy);
+            if (hit && hit !== el && !kqContainsComposed(el, hit) && !kqContainsComposed(hit, el)) continue; // covered by something else
           }
-          const popup = !!el.closest(POPUP);
+          const popup = !!kqClosest(el, POPUP);
           const isStatic = isStaticAnchor(el);
           items.push({ el, rect, popup, isStatic, onScreen });
         }
@@ -414,8 +435,10 @@ export class MarksOverlay {
     if (wc && !wc.isDestroyed()) {
       try {
         const liveInfo = await wc.executeJavaScript(`
-          (() => {
-            const el = document.querySelector('[data-mark-id="${markId}"]');
+          (() => {${DEEP_DOM_HELPERS}
+            // Shadow-aware: a mark stamped on a web-component control lives inside its
+            // shadow root, where document.querySelector cannot see it.
+            const el = kqDeep('[data-mark-id="${markId}"]');
             if (!el) return null;
             let rect = el.getBoundingClientRect();
             const offscreen = rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth;

@@ -94,14 +94,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `document.activeElement` (the host) against the target tag, which false-positived on shadow controls;
   it now descends `shadowRoot.activeElement` chains, so "focus is on <x>, not the target" is true when
   it is said.
+- **Set-of-Marks and `find` were blind to shadow DOM.** Candidate collection used
+  `document.querySelectorAll(SEMANTIC)`, so a web-component form produced **0 marks** while its buttons were
+  plainly visible; even when a shadow control was reached, the occlusion check (`document.elementFromPoint`
+  returns the *host* for shadow content) would have discarded it as covered, `closest()` stopped at the
+  shadow boundary for popup/visibility classification, and stamped ids were resolved with
+  `document.querySelector('[data-mark-id]')`, which cannot see inside a shadow root. Marks now walk **every
+  open shadow root**, hit-test the deepest element, use composed containment for occlusion, composed
+  ancestor walks for `aria-hidden`/popup/static classification, and resolve marked elements through shadow
+  roots — so `find`, `act(mark_id)` and the inline `[#id]` badges in `observe(as:"markdown")` all work on
+  shadow controls. On the field-notes signup fixture the mark list went from empty to
+  `#1 <INPUT> "Email"` plus the shadow button, and `act(mark_id=#1, type)` lands in the inner input.
 
 ### Added
 
-- **`npm run test:act`** — live fixture for the interaction path (14 checks): typing through a
+- **`npm run test:act`** — live fixture for the interaction path (19 checks): typing through a
   custom-element host lands in the inner input, a selector inside a shadow root actuates a shadow
   button, a reverting one-time-code field returns `TYPE_NO_EFFECT` with the right hint, the ledger
   records `landed:false`, `clear_first` works inside a shadow control, an identical retype is not
-  mistaken for a no-op, and an unresolvable selector fails loudly.
+  mistaken for a no-op, Set-of-Marks badges the shadow controls and `find` returns them, `act(mark_id)`
+  types through a mark into a shadow input, `observe(as:"markdown")` carries the `[#id]` badge, and an
+  unresolvable selector fails loudly.
 - **OKF recipes R7 (web components: the host is not the control) and R8 (read it back)** in
   [`kuang_docs/partitions/primitives_and_workflows.md`](./kuang_docs/partitions/primitives_and_workflows.md).
 - **`npm run test:markdown`** — live fixture covering the composed-DOM harvest (shadow text, shadow controls,
