@@ -3,8 +3,23 @@ import { Readability } from '@mozilla/readability';
 import TurndownService from 'turndown';
 import type { HarvestedConstruct } from '../../shared/types.js';
 
+export interface HarvestStats {
+  /** Open shadow roots inlined by the composed-DOM serialiser (0 = none). */
+  shadowRoots?: number;
+}
+
+/**
+ * Hard safety cap. The previous 25k cut silently destroyed everything past
+ * it — the `budget`/`next_cursor` paging in `observe` could not reach it,
+ * because the text had already been thrown away. Paging now happens in
+ * `pageText`; this cap only guards against pathological pages (infinite
+ * scroll, giant data tables) producing megabyte constructs.
+ */
+const MAX_CONSTRUCT_CHARS = 200_000;
+
 export class ConstructHarvester {
   private turndown: TurndownService;
+  private baseUrl = '';
 
   constructor() {
     this.turndown = new TurndownService({
@@ -18,12 +33,13 @@ export class ConstructHarvester {
     // Strip unhelpful noise tags
     this.turndown.remove(['script', 'style', 'noscript', 'iframe', 'canvas', 'svg'] as any);
 
-    // Ensure links retain clean syntax, with [#ID] badge prefix if marked
+    // Links keep clean syntax, with a [#ID] badge when marked. Relative hrefs are
+    // made absolute so an agent can follow them without knowing the page URL.
     this.turndown.addRule('cleanLinks', {
       filter: 'a',
       replacement: (content, node) => {
         const element = node as HTMLAnchorElement;
-        const href = element.getAttribute('href');
+        const href = this.resolveUrl(element.getAttribute('href'));
         const markId = element.getAttribute('data-mark-id');
         const markPrefix = markId ? `[#${markId}] ` : '';
         // Card anchors (e.g. Skyscanner fare rows) often carry their entire label in
@@ -33,6 +49,18 @@ export class ConstructHarvester {
           return markPrefix + text;
         }
         return `${markPrefix}[${text}](${href})`;
+      },
+    });
+
+    // Images are mostly noise for an agent; keep the alt text and a usable URL.
+    this.turndown.addRule('resolvedImages', {
+      filter: 'img',
+      replacement: (_content, node) => {
+        const img = node as HTMLImageElement;
+        const alt = (img.getAttribute('alt') || img.getAttribute('aria-label') || '').trim();
+        const src = this.resolveUrl(img.getAttribute('src'));
+        if (!src) return alt;
+        return alt ? `![${alt}](${src})` : `![](${src})`;
       },
     });
 
@@ -47,28 +75,83 @@ export class ConstructHarvester {
       },
     });
 
-    // Annotate input/select/textarea controls with [#ID]
+    // Controls render with stable, labelled attributes rather than
+    // `<input type="text" "Email">` (which reads like a stray quoted string).
     this.turndown.addRule('markedInputs', {
       filter: ['input', 'select', 'textarea'],
-      replacement: (_content, node) => {
-        const element = node as HTMLElement;
+      replacement: (content, node) => {
+        const element = node as HTMLInputElement;
         const markId = element.getAttribute('data-mark-id');
         const tag = element.tagName.toLowerCase();
-        const type = element.getAttribute('type') || 'text';
-        const name = element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.getAttribute('name') || '';
-        const value = (element as any).value || element.getAttribute('value') || '';
-        const labelStr = name ? ` "${name}"` : '';
-        const valStr = value ? ` value="${value}"` : '';
         const prefix = markId ? `[#${markId}] ` : '';
-        return `${prefix}<${tag} type="${type}"${labelStr}${valStr}>`;
+        const label =
+          element.getAttribute('aria-label') ||
+          element.getAttribute('placeholder') ||
+          element.getAttribute('name') ||
+          element.getAttribute('autocomplete') ||
+          '';
+        const labelStr = label ? ` label="${label}"` : '';
+
+        if (tag === 'select') {
+          // Turndown parses with domino, which does not implement `select.value`
+          // or `selectedOptions`, so read the serialised attributes instead.
+          const options = Array.from((element as unknown as HTMLSelectElement).options || []).map(
+            (o) => o.getAttribute('value') || o.textContent || ''
+          );
+          const chosen = Array.from((element as unknown as HTMLSelectElement).options || []).find((o) =>
+            o.hasAttribute('selected')
+          );
+          const value = chosen ? chosen.getAttribute('value') || chosen.textContent || '' : '';
+          const valueStr = value ? ` value="${value}"` : '';
+          const optsStr = options.length ? ` options="${options.slice(0, 15).join(',')}"` : '';
+          return `${prefix}<select${labelStr}${valueStr}${optsStr}>`;
+        }
+
+        if (tag === 'textarea') {
+          const value = content.trim() || (element as unknown as HTMLTextAreaElement).textContent || '';
+          return `${prefix}<textarea${labelStr}>${value}</textarea>`;
+        }
+
+        const type = (element.getAttribute('type') || 'text').toLowerCase();
+        if (type === 'checkbox' || type === 'radio') {
+          const checked = element.hasAttribute('checked') ? ' checked' : '';
+          return `${prefix}<input type="${type}"${labelStr}${checked}>`;
+        }
+        if (type === 'password') {
+          const filled = element.getAttribute('data-filled');
+          return `${prefix}<input type="password"${labelStr}${filled ? ` filled="${filled}"` : ''}>`;
+        }
+        const value = element.getAttribute('value') || '';
+        const valueStr = value ? ` value="${value.replace(/"/g, '\\"')}"` : '';
+        return `${prefix}<input type="${type}"${labelStr}${valueStr}>`;
       },
     });
   }
 
+  /** Resolve a possibly-relative URL against the page being harvested. */
+  private resolveUrl(raw: string | null): string {
+    if (!raw) return '';
+    const href = raw.trim();
+    if (!href) return '';
+    if (href.startsWith('javascript:') || href.startsWith('#')) return href;
+    try {
+      return new URL(href, this.baseUrl || undefined).toString();
+    } catch {
+      return href;
+    }
+  }
+
   /**
-   * Downsamples raw active DOM HTML into an ultra-clean, token-efficient Markdown construct with front-matter.
+   * Downsamples raw active DOM HTML into an ultra-clean, token-efficient
+   * Markdown construct with a minimal front-matter envelope.
+   *
+   * `rawHtml` should be the *composed* DOM (see dom-serializer.ts) so web
+   * components are visible; `stats.shadowRoots` is reported honestly so a
+   * reader can tell whether the page was pierced or simply had none.
    */
-  public harvest(rawHtml: string, currentUrl: string, fallbackTitle?: string): HarvestedConstruct {
+  public harvest(rawHtml: string, currentUrl: string, fallbackTitle?: string, stats: HarvestStats = {}): HarvestedConstruct {
+    this.baseUrl = currentUrl;
+
     const dom = new JSDOM(rawHtml, { url: currentUrl });
     const doc = dom.window.document;
 
@@ -95,47 +178,71 @@ export class ConstructHarvester {
     const readabilityTextLen = parsed?.textContent?.trim().length || 0;
     const isAggregatorOrPortal = readabilityTextLen < 250 || (bodyTextLen > 600 && readabilityTextLen < bodyTextLen * 0.35);
 
-    const htmlToConvert = (!isAggregatorOrPortal && parsed?.content) ? parsed.content : cleanedBodyHtml;
+    const usedReadability = !isAggregatorOrPortal && Boolean(parsed?.content);
+    const htmlToConvert = usedReadability ? (parsed!.content as string) : cleanedBodyHtml;
 
     // Downsample HTML to clean GFM Markdown
     const rawMarkdown = this.turndown.turndown(htmlToConvert);
 
     // Clean multiple consecutive blank lines
-    let compactedMarkdown = rawMarkdown.replace(/\n{3,}/g, '\n\n').trim();
-    const MAX_CONSTRUCT_CHARS = 25000;
-    if (compactedMarkdown.length > MAX_CONSTRUCT_CHARS) {
-      compactedMarkdown = compactedMarkdown.slice(0, MAX_CONSTRUCT_CHARS) + '\n\n... [Construct downsampled: showing first 25000 characters to preserve context]';
+    let body = rawMarkdown.replace(/\n{3,}/g, '\n\n').trim();
+
+    const pageChars = bodyTextLen;
+    // Text that was actually in the extracted region — the same unit as
+    // page_chars, so the two can honestly be compared (markdown syntax would
+    // make a character count of the output larger than the page's own text).
+    const extractedChars = usedReadability ? readabilityTextLen : bodyTextLen;
+
+    if (!body) {
+      body = pageChars > 200
+        ? `_(no readable content — the page has ${pageChars} characters of text but none converted)_`
+        : '_(no text content on this page — it may be a canvas/WebGL app, still loading, or an empty dialog. Try observe(as:"ax") or take_screenshot.)_';
+    } else if (extractedChars > 0 && pageChars > 1500 && extractedChars < pageChars * 0.15 && pageChars - extractedChars > 2000) {
+      // Be explicit about partial visibility instead of pretending the page is short.
+      body +=
+        `\n\n> Partial view: the extracted region holds ${extractedChars.toLocaleString('en-US')} of the page's ${pageChars.toLocaleString('en-US')} characters. ` +
+        `The rest sits outside it — closed shadow roots, a canvas, a cross-origin iframe, or a collapsed panel. ` +
+        `Try observe(as:"text") for raw innerText, or observe(as:"ax").`;
     }
 
-    // Approximate token count (~4 characters per token heuristic)
-    const estimatedTokens = Math.ceil(compactedMarkdown.length / 4);
-    const timestamp = new Date().toISOString();
+    if (body.length > MAX_CONSTRUCT_CHARS) {
+      body = body.slice(0, MAX_CONSTRUCT_CHARS) + '\n\n> [construct truncated at 200,000 characters — the safety cap]';
+    }
 
-    // Envelope Front-Matter
+    // Title heading: only when the extracted body does not already open with one.
+    const bodyHasHeading = /^#\s/.test(body);
+    const content = bodyHasHeading ? body : `# ${title}\n\n${body}`;
+
+    // Minimal, stable envelope. Everything here is either needed to interpret
+    // the body or a statement about how complete it is. Deliberately no
+    // timestamp (it makes two harvests of one page non-identical) and no
+    // byte-ratio vanity metric.
     const envelope = [
       '---',
-      'designation: "KUANG_GRADE_MARK_ELEVEN_CONSTRUCT"',
-      `source_url: "${currentUrl}"`,
+      `url: "${currentUrl.replace(/"/g, '\\"')}"`,
       `title: "${title.replace(/"/g, '\\"')}"`,
-      `harvested_at: "${timestamp}"`,
-      `raw_bytes: ${rawHtml.length}`,
-      `construct_bytes: ${compactedMarkdown.length}`,
-      `estimated_tokens: ${estimatedTokens}`,
-      'compression_ratio: "' + ((compactedMarkdown.length / (rawHtml.length || 1)) * 100).toFixed(1) + '%"',
+      `reader: "${usedReadability ? 'readability' : 'full-body'}"`,
+      `extracted_chars: ${extractedChars}`,
+      `page_chars: ${pageChars}`,
+      ...(stats.shadowRoots ? [`shadow_roots: ${stats.shadowRoots}`] : []),
       '---',
       '',
-      `# ${title}`,
-      '',
-      compactedMarkdown,
+      content,
     ].join('\n');
+
+    const estimatedTokens = Math.ceil(envelope.length / 4);
 
     return {
       url: currentUrl,
       title,
-      timestamp,
+      timestamp: new Date().toISOString(),
       rawHtmlLength: rawHtml.length,
       markdownLength: envelope.length,
       estimatedTokens,
+      extractedChars,
+      pageChars,
+      reader: usedReadability ? 'readability' : 'full-body',
+      shadowRoots: Number(stats.shadowRoots) || 0,
       content: envelope,
     };
   }

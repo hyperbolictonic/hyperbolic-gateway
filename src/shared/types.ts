@@ -24,6 +24,14 @@ export interface HarvestedConstruct {
   rawHtmlLength: number;
   markdownLength: number;
   estimatedTokens: number;
+  /** Characters of page text inside the extracted region (same unit as pageChars). */
+  extractedChars?: number;
+  /** Characters of text in the page body — the denominator for coverage. */
+  pageChars?: number;
+  /** Which extraction path produced the body. */
+  reader?: 'readability' | 'full-body';
+  /** Open shadow roots inlined during serialisation. */
+  shadowRoots?: number;
   content: string;
 }
 

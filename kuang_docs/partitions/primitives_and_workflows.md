@@ -36,8 +36,17 @@ mutation beyond Mark Eleven's own `data-mark-id` stamp), so they do **not** trip
 `ax` (accessibility tree) · `som` (numbered marks table) · `list` · `table` ·
 `app_data` (embedded `__NEXT_DATA__` / JSON-LD / inline state blobs).
 
+`markdown` reads the **composed** DOM — open shadow roots included, with live form values baked in and
+password values reduced to a length — so a web-component form reads as a form, not as empty host tags.
+Its envelope states how complete the read is: `reader` (which extraction path produced the body),
+`extracted_chars` / `page_chars` (characters of page text, so the ratio means something) and
+`shadow_roots`. A partly-visible page says so and points at `text` or `ax`; a page with no text says why.
+
 Use **`budget`** + the returned **`next_cursor`** to page a very large page instead of
-truncating it — never let a single read exceed the contraction cap.
+truncating it — never let a single read exceed the contraction cap. `markdown` returns a
+25,000-character default view (`budget: 0` for the whole construct); `text`/`ax` return everything
+unless budgeted. Paging is exact because the construct carries no timestamp — two reads of an
+unchanged page are byte-identical.
 
 ## 2. Refs = Marks
 

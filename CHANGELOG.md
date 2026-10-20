@@ -34,7 +34,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (focus-independent), so a "lost focus" window is rarely the real cause.
 - Covered by a new `npm run test:primitives` check: append by default, replace with `clear_first`.
 
+- **`observe(as:"markdown")` was blind to shadow DOM, so web-component pages harvested as empty.** The
+  harvester was fed `document.documentElement.outerHTML`, which **stops at the shadow boundary**: a
+  `<faceplate-text-input>`-style control serialised as an empty host tag, and a live signup form (the exact
+  flow in [`docs/FIELD_NOTES_2026-10-20_SIGNUP.md`](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md)) came back as a
+  skip-link, a heading and `chars=460/460` while the page held 331 KB of DOM. Serialisation now walks the
+  **composed** tree (`src/main/harvester/dom-serializer.ts`): light children plus every open shadow root,
+  recursively, with live form state baked in as attributes (`value`, `checked`, `selected` are properties,
+  so `outerHTML` never showed them) and **password values reduced to a length**. Unrendered controls are
+  dropped rather than harvested: a hidden CSRF input or a `display:none` recaptcha response textarea used to
+  arrive as multi-kilobyte token text — on `reddit.com/register` the construct is 391 characters of real
+  content instead of 2,752 characters of which ~2,300 were one Google token. `shadow_roots` in the envelope
+  reports what was pierced.
+- **The markdown cut at 25,000 characters was unreachable — `budget`/`next_cursor` paging was a dead end.**
+  The truncation happened inside the harvester, so the remainder was already gone before `observe` could
+  page it. Truncation now happens in `pageText`: the construct is whole, `total` is honest, and paging walks
+  to the true end (a 167,000-character fixture pages in 18 calls). Markdown gets a 25,000-character default
+  *view*; `budget: 0` returns everything.
+- **`<select>` lost its current value, and every control rendered as a stray quoted string.** A `<select>`
+  showed no selection (the `selected` attribute was stripped during serialisation and never rebaked), and
+  inputs rendered as `<input type="text" "Email">`. Controls now render with stable labels —
+  `<input type="text" label="Email" value="a@b.com">`, `<select label="Day" value="2" options="1,2,3">`,
+  `<textarea label="Notes">…</textarea>` — read from attributes rather than DOM properties, because Turndown
+  parses with **domino**, which does not implement `select.value` or `selectedOptions`. Relative links and
+  image sources are resolved to absolute URLs so they can be followed without knowing the page URL.
+
 ### Added
+
+- **`npm run test:markdown`** — live fixture covering the composed-DOM harvest (shadow text, shadow controls,
+  value baking, password redaction, select state, absolute links), envelope minimalism, harvest stability
+  across two calls, paging to the end of a 167 KB construct, and the text-free-page message (19 checks).
 
 - **Action ledger — a local dataset for a decision layer** (`src/main/telemetry/action-ledger.ts`). Every
   **executed** action now appends one JSON line to `data/transitions.jsonl` (gitignored, local-only): the
@@ -51,6 +80,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   facts and evidence; the decision maker belongs in the runner, not inside the browser server.
 
 ### Changed
+
+- **The construct envelope is minimal, stable and honest.** The old front-matter spent nine lines on
+  constants and vanity: `designation` (a fixed string), `raw_bytes`, `construct_bytes`, `estimated_tokens`
+  and a `compression_ratio` computed against raw HTML bytes — which read `0.0%` on exactly the pages where
+  markdown was empty, i.e. it was worst where it mattered most — plus a `harvested_at` timestamp that made
+  **two harvests of one unchanged page differ**, which quietly broke diffing and paging across calls. It is
+  now `url` / `title` / `reader` / `extracted_chars` / `page_chars` / `shadow_roots`. `reader` names the
+  extraction path that produced the body (`readability` or `full-body`), and `extracted_chars` is measured on
+  the same unit as `page_chars` (characters of page text) so the coverage claim is checkable rather than
+  decorative. A partly-visible page now says so — *"the extracted region holds 3,200 of the page's 41,000
+  characters…"* — and names the alternates (`observe(as:"text")`, `observe(as:"ax")`) instead of looking
+  short; a page with no text explains why instead of returning an empty body. Token counts and byte sizes
+  still reach the caller through the response object and the MCP header line, which now reads
+  `chars=25034 of 167063 · ~41766 tokens · next_cursor=25034` instead of the ambiguous `chars=460/460`.
 
 - **`mouse_move` telemetry fires once per glide, not once per step.** The humanlike cursor reports
   position/velocity from `moveMouseTo`, which loops over a 38–140-step Bézier trajectory — and it was

@@ -54,6 +54,13 @@ export interface PrimitivesHost {
 
 export type PrimitiveErrorCode = 'STALE_REF' | 'TIMEOUT' | 'NO_TARGET' | 'BAD_REQUEST' | 'NOT_SUPPORTED';
 
+/**
+ * Default view size for `observe(as:"markdown")` when the caller gives no budget.
+ * The full construct is retained and pageable with next_cursor; pass budget=0
+ * to receive the whole thing in one response.
+ */
+export const DEFAULT_MARKDOWN_BUDGET = 25000;
+
 export class PrimitiveError extends Error {
   public code: PrimitiveErrorCode;
   public detail?: any;
@@ -741,15 +748,41 @@ export class Primitives {
 
     // markdown (default)
     const construct = await this.host.harvest({ includeMarks: true, includeOffscreen: opts.includeOffscreen === true });
-    return this.pageText('markdown', this.host.revision(), { url: construct.url, title: construct.title }, construct.content, opts, {
-      tokens: construct.estimatedTokens,
-      markdownLength: construct.markdownLength,
-    });
+    return this.pageText(
+      'markdown',
+      this.host.revision(),
+      { url: construct.url, title: construct.title },
+      construct.content,
+      opts,
+      {
+        tokens: construct.estimatedTokens,
+        markdownLength: construct.markdownLength,
+        extractedChars: construct.extractedChars,
+        pageChars: construct.pageChars,        reader: construct.reader,
+        shadowRoots: construct.shadowRoots,
+      },
+      DEFAULT_MARKDOWN_BUDGET
+    );
   }
 
-  private pageText(as: string, revision: number, info: { url: string; title: string }, text: string, opts: ObserveOptions, extra: Record<string, any> = {}) {
+  private pageText(
+    as: string,
+    revision: number,
+    info: { url: string; title: string },
+    text: string,
+    opts: ObserveOptions,
+    extra: Record<string, any> = {},
+    defaultBudget = 0
+  ) {
     const total = text.length;
-    const budget = opts.budget && opts.budget > 0 ? opts.budget : 0;
+    // An explicit budget of 0 means "everything"; an omitted budget uses the
+    // projection's default view (markdown is capped so a 400k-char page does not
+    // land in context unasked — and, unlike before, the remainder is pageable).
+    const budget = opts.budget === undefined || opts.budget === null
+      ? defaultBudget
+      : opts.budget > 0
+        ? opts.budget
+        : 0;
     let offset = 0;
     if (opts.cursor !== undefined && opts.cursor !== null && opts.cursor !== '') {
       const n = typeof opts.cursor === 'number' ? opts.cursor : parseInt(String(opts.cursor), 10);

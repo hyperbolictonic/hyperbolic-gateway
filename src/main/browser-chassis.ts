@@ -5,6 +5,7 @@ import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, Tab
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
+import { captureComposedDom } from './harvester/dom-serializer.js';
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
@@ -434,8 +435,9 @@ export class BrowserChassis {
       if (!url || url === 'about:blank' || url.startsWith('mark-eleven:') || url.startsWith('file:')) return;
       
       const wc = tab.view.webContents;
-      const rawHtml = await wc.executeJavaScript('document.documentElement.outerHTML');
-      const construct = this.harvester.harvest(rawHtml, url, title);
+      const composed = await captureComposedDom(wc);
+      const rawHtml = composed.html;
+      const construct = this.harvester.harvest(rawHtml, url, title, { shadowRoots: composed.shadowRoots });
       const indexedCount = await cortex.indexPage(url, construct.title, construct.content);
       if (indexedCount > 0) {
         this.addLog('info', `Cortex indexed: ${construct.title} (${indexedCount} semantic chunks)`);
@@ -882,11 +884,12 @@ export class BrowserChassis {
       await this.marksOverlay.removeMarks(wc); // Strips visual badges, keeps data-mark-id
     }
 
-    const rawHtml = await wc.executeJavaScript('document.documentElement.outerHTML');
+    const composed = await captureComposedDom(wc);
+    const rawHtml = composed.html;
     const url = wc.getURL();
     const title = wc.getTitle();
 
-    const construct = this.harvester.harvest(rawHtml, url, title);
+    const construct = this.harvester.harvest(rawHtml, url, title, { shadowRoots: composed.shadowRoots });
     this.latestConstruct = construct;
 
     this.state.stats.tokensHarvested += construct.estimatedTokens;

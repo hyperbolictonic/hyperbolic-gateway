@@ -221,20 +221,21 @@ The older tool list is being consolidated onto **a few orthogonal verbs** — on
 ## 📄 Token-Efficient Construct Harvester
 
 - **Pure Node.js:** Powered by Mozilla Readability and Turndown. No external Python or platform-specific binaries required.
-- **Semantic Flattening:** Strips ads, navigation sidebars, and script clutter.
-- **Automated Envelope Front-Matter:**
+- **Composed-DOM capture:** Serialisation walks *through* open shadow roots and bakes live form state (`value`, `checked`, `selected`) into attributes, so web-component forms — signup and login pages especially — are actual content instead of empty custom-element tags. Password values are recorded as a length, never a value.
+- **Semantic Flattening:** Strips ads, navigation sidebars, and script clutter. Links and images resolve to absolute URLs.
+- **Honest, stable envelope.** Front-matter carries only what changes the reading of the body — no timestamp (so two harvests of an unchanged page are byte-identical and can be diffed or paged), no byte-ratio vanity metric:
   ```yaml
   ---
-  designation: "KUANG_GRADE_MARK_ELEVEN_CONSTRUCT"
-  source_url: "https://example.com"
+  url: "https://example.com"
   title: "Example Domain"
-  harvested_at: "2026-10-16T07:10:00.000Z"
-  raw_bytes: 48920
-  construct_bytes: 2140
-  estimated_tokens: 535
-  compression_ratio: "4.4%"
+  reader: "readability"
+  extracted_chars: 2140
+  page_chars: 5410
+  shadow_roots: 2
   ---
   ```
+  `reader` names the extraction path; `extracted_chars` and `page_chars` are the same unit (characters of page text), so coverage is comparable. A partly-visible page says so, and names the alternates, instead of looking short.
+- **Pageable by default:** `observe(as:"markdown")` returns a 25,000-character view; `budget` + `next_cursor` page through the rest, and `budget: 0` returns the whole construct.
 
 ---
 

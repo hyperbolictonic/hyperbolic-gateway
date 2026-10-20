@@ -153,3 +153,26 @@ Beyond P0's honest error: an `act(type)` failure on a one-time-code / OTP / `aut
 - Which of the three `clickElement` steps (2.2) actually steals focus — the `scrollIntoView` point, the host-centre click, or the `el.focus()` nudge? Instrument `activeElement` + shadow `activeElement` immediately after `act({selector,action:"type"})` on a `faceplate-text-input`.
 - Why did the birthday Continue click at the same coordinates register once as a no-op and once as the thing that advanced onboarding? Is there a settle window after React re-renders that a click can fall into?
 - Why did `getBoundingClientRect()` report the `auth-flow-modal` as 0×0 while it was painted and interactive? A second instance in a detached tree, or an `aria-hidden` variant? That gap is what pushed the run onto screenshots.
+
+---
+
+## 7. Status — what has shipped since this note
+
+- **[done] §2.1 punctuation** — fixed with a real US-layout VK table; regression-tested.
+- **[done] Shadow-DOM harvesting for `observe(as:"markdown")`.** The harvester now reads the **composed** DOM
+  (`src/main/harvester/dom-serializer.ts`) instead of `outerHTML`: open shadow roots are inlined recursively,
+  live form state is baked in as attributes, and password values are recorded as a length. This was not in
+  the original plan — the plan treated shadow DOM as a *targeting* problem (§2.2/2.4), but `observe` could
+  not see the page at all, which is the more fundamental version of the same blindness.
+- **[done] Envelope + paging, the "easier to use" pass.** The construct front-matter lost its timestamp and
+  its vanity metrics (`raw_bytes`, `construct_bytes`, `compression_ratio`, `designation`) and gained honest
+  coverage (`reader`, `extracted_chars`, `page_chars`, `shadow_roots`); the 25k cut moved out of the
+  harvester into `pageText`, so `budget`/`next_cursor` can finally reach the end of a large page; a
+  partly-visible page and a text-free page each explain themselves. Covered by `npm run test:markdown`
+  (19 live checks), which also asserts that two harvests of an unchanged page are byte-identical.
+- **[open] §2.2** — selector-targeted typing on a web component. Unchanged: `clickElement(selector)` still
+  resolves light-DOM only and still nudges focus onto the host.
+- **[open] §2.4 / P1** — marks and `find` still do not pierce shadow roots. Note the asymmetry this leaves:
+  `observe` now *reads* shadow content, but Set-of-Marks still cannot badge it, so a shadow control is
+  readable yet not addressable by mark.
+- **[open] P0** — verify-or-report for `act(action:"type")` (`TYPE_NO_EFFECT`), and the ledger's `landed` flag.
