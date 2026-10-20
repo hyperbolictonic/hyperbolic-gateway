@@ -344,6 +344,19 @@ async function main() {
       `seeded="${seeded.result}" append="${appended.result}" clear="${replaced.result}"`
     );
 
+    // --- act: every printable character actually lands ----------------------
+    // Regression: '.' is ASCII 46 = VK_DELETE and "'" is ASCII 39 = VK_RIGHT, so sending the ASCII
+    // value as `windowsVirtualKeyCode` made Chromium treat them as edit commands and swallow them
+    // ('abc.def' -> 'abcdef'). Emails, URLs and passwords were silently corrupted.
+    const PUNCT_SAMPLE = "!@#$%^&*()_+-=[]{}|;':\",./<>?`~\\";
+    await bridge('/act', 'POST', { selector: '#q', action: 'type', text: PUNCT_SAMPLE, clear_first: true });
+    const allPunct = await bridge('/evaluate', 'POST', { script: 'document.getElementById("q").value' });
+    check(
+      'act(type) types every printable punctuation character verbatim',
+      allPunct.result === PUNCT_SAMPLE,
+      `missing "${[...PUNCT_SAMPLE].filter((c) => !String(allPunct.result).includes(c)).join('')}" (got "${allPunct.result}")`
+    );
+
     // --- decision-model substrate: typed field facts + the local action ledger --------
     const facts = await bridge('/act', 'POST', { selector: '#q', action: 'type', text: 'zz', clear_first: true, dry_run: true });
     check(

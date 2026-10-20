@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Punctuation was silently swallowed while typing — `.` and `'` especially.** `keyDescriptor()` in
+  `input-simulator.ts` used the character's **ASCII code as its Windows virtual-key code**, and ASCII
+  collides with real VKs: `'.'` is 46 = `VK_DELETE`, `"'"` is 39 = `VK_RIGHT`. Chromium honours those as
+  editing/navigation commands rather than inserting the character, so `act(action:"type")` typed
+  `gmail.com` as `gmailcom` and corrupted any password containing `'` — with **no error, no failed
+  post-condition and no delta** to give it away (the same silent-no-op shape as the `clear_first` bug
+  below). Punctuation now maps to its real US-layout VK (`Period` 190, `Quote` 222, `Semicolon` 186,
+  `Digit1`–`Digit0` for the shifted symbols, …). Covered by a new `npm run test:primitives` check that
+  types all 32 printable punctuation characters and asserts an exact round-trip (37 checks total).
+
 - **`clear_first` was a dead parameter — typing silently appended.** `act(action:"type")` had no way to
   replace an existing value, and the older `type_mark(clear_first)` flag was advertised but dropped by
   the bridge before it ever reached the chassis. Typing into a pre-filled field (e.g. an origin/airport
