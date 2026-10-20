@@ -21,6 +21,18 @@ This directory implements the organic input simulation engine and stealth host b
 - Inspects the host machine (`os.platform()`, `os.release()`) to discover installed Chromium / Chrome versions.
 - Spoofs realistic `User-Agent`, `Sec-CH-UA`, and platform client hint headers so requests appear indistinguishable from the user's primary desktop browser.
 
+### 4. Action Ledger (dataset for a decision layer)
+- Every **executed** action appends one JSON line to `data/transitions.jsonl` — a local, gitignored file.
+  The record carries the page-state signature before/after (`url`, `revision`, mark count), the resolved
+  target (including typed **field facts**: `prefilled`, `valueLength`, `editable`, `disabled`…), the delta,
+  the post-condition (`await_conditions`) result, the rule-based triage **hints**, and the duration.
+- **Never plaintext**: typed text is recorded as a character count only, plus the `secret` flag.
+- Purpose: give a runner-side decision layer (a Jev-style "System One" head, a classifier, or any learned
+  policy) something to train on and evaluate against — *without* Kuang embedding a model of its own.
+  See [`docs/DECISION_MODELS.md`](../../../docs/DECISION_MODELS.md).
+- Writes are queued and non-blocking and every error is swallowed (a ledger failure must never break an
+  action); the file rotates to `transitions.1.jsonl` once it passes 5 MB.
+
 ---
 
 ## 📄 Source Files
@@ -33,3 +45,6 @@ This directory implements the organic input simulation engine and stealth host b
   `HumanizedInputSimulator` class. Replays the bio-kinematic trajectory as real input events: mouse moves, clicks, keystrokes and wheel impulses. Delivery prefers the tab's attached CDP debugger (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent`), which reaches the renderer **regardless of OS window focus** and only enables focus *emulation* rather than stealing the foreground. If no debugger is attached it falls back to `webContents.sendInputEvent`, bringing the window forward first because the OS drops those events while another window is focused. `lastInputTransport` (`cdp` | `native`) is surfaced through `/health` as `input.transport`.
 - **[`host-fingerprint.ts`](./host-fingerprint.ts)**:
   `detectHostBrowserProfile()` utility. Extracts machine attributes and builds stealth headers.
+- **[`action-ledger.ts`](./action-ledger.ts)**:
+  `ActionLedger` plus the `TransitionRecord` / `FieldFacts` types. Queued, non-blocking JSONL append with
+  size-based rotation — the local record of what each action actually did.

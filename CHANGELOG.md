@@ -24,6 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (focus-independent), so a "lost focus" window is rarely the real cause.
 - Covered by a new `npm run test:primitives` check: append by default, replace with `clear_first`.
 
+### Added
+
+- **Action ledger — a local dataset for a decision layer** (`src/main/telemetry/action-ledger.ts`). Every
+  **executed** action now appends one JSON line to `data/transitions.jsonl` (gitignored, local-only): the
+  page-state signature before/after (`url`, `revision`, mark count), the resolved target, the delta, the
+  `await_conditions` result, the rule-based triage hints, and the duration. **Typed text is recorded as a
+  character count only** — never the string, plus the `secret` flag. Writes are queued and non-blocking and
+  errors are swallowed, so a ledger failure can never break an action; the file rotates to
+  `transitions.1.jsonl` past 5 MB. Rationale and usage: [`docs/DECISION_MODELS.md`](./docs/DECISION_MODELS.md).
+- **Typed field facts on `act`.** The `act` result's `target.field` now reports `{ tag, type, role, name,
+  valueLength, isEmpty, prefilled, editable, required, disabled }` for the addressed form control — **including
+  on `dry_run`**, so a decision layer (or an agent) can pre-flight *"is this field already filled? should I
+  pass `clear_first`?"* from data instead of guessing. `act` also returns `durationMs`.
+- **`docs/DECISION_MODELS.md`** — where a Jev-style ("System One") decision model fits: Kuang surfaces typed
+  facts and evidence; the decision maker belongs in the runner, not inside the browser server.
+
 ### Changed
 
 - **`mouse_move` telemetry fires once per glide, not once per step.** The humanlike cursor reports

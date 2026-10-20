@@ -344,6 +344,48 @@ async function main() {
       `seeded="${seeded.result}" append="${appended.result}" clear="${replaced.result}"`
     );
 
+    // --- decision-model substrate: typed field facts + the local action ledger --------
+    const facts = await bridge('/act', 'POST', { selector: '#q', action: 'type', text: 'zz', clear_first: true, dry_run: true });
+    check(
+      'act reports typed field facts (also on dry_run, so it can be pre-flighted)',
+      facts.target?.field?.tag === 'input' &&
+        facts.target.field.prefilled === true &&
+        facts.target.field.isEmpty === false &&
+        facts.target.field.editable === true &&
+        typeof facts.target.field.valueLength === 'number',
+      JSON.stringify(facts.target?.field)
+    );
+
+    const marker = `ledger${Date.now().toString(36)}`;
+    await bridge('/act', 'POST', { selector: '#q', action: 'type', text: marker, clear_first: true });
+    const fs = await import('node:fs');
+    let rec = null;
+    for (let i = 0; i < 24 && !rec; i++) {
+      await new Promise((r) => setTimeout(r, 125));
+      try {
+        const lines = fs.readFileSync('data/transitions.jsonl', 'utf8').trim().split('\n');
+        for (let j = lines.length - 1; j >= 0 && j > lines.length - 15; j--) {
+          const candidate = JSON.parse(lines[j]);
+          if (candidate.action === 'type' && candidate.typed?.chars === marker.length) {
+            rec = candidate;
+            break;
+          }
+        }
+      } catch {
+        /* file may not exist yet */
+      }
+    }
+    check(
+      'executed actions are appended to data/transitions.jsonl (local dataset)',
+      !!rec && typeof rec.revisionAfter === 'number' && typeof rec.durationMs === 'number' && rec.addressMode === 'selector',
+      rec ? `action=${rec.action} rev ${rec.revisionBefore}->${rec.revisionAfter} ${rec.durationMs}ms` : 'no record found'
+    );
+    check(
+      'ledger keeps the typed LENGTH only — never the text',
+      !!rec && rec.typed?.chars === marker.length && Object.keys(rec.typed).sort().join(',') === 'chars,secret' && !JSON.stringify(rec).includes(marker),
+      rec ? JSON.stringify(rec.typed) : 'n/a'
+    );
+
     // --- act: selector dry_run resolves without acting ----------------------
     const drySel = await bridge('/act', 'POST', { selector: '#clickme2', action: 'click', dry_run: true });
     check('act(selector) dry_run resolves the centre without acting', drySel.dryRun === true && drySel.target?.selector === '#clickme2' && typeof drySel.target?.center?.x === 'number');

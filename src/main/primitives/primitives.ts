@@ -2,6 +2,7 @@ import type { WebContents } from 'electron';
 import type { HarvestedConstruct } from '../../shared/types.js';
 import { APP_VERSION } from '../../shared/version.js';
 import type { MarkItem } from '../marks/marks-overlay.js';
+import type { TransitionRecord, FieldFacts } from '../telemetry/action-ledger.js';
 
 /**
  * Primitives — the orthogonal observe / act / wait layer.
@@ -44,6 +45,11 @@ export interface PrimitivesHost {
   getPageInfo(): { url: string; title: string; isLoading: boolean; activeTabId?: string };
   revision(): number;
   windowFocused?(): boolean;
+  /**
+   * Optional: persist an executed action's outcome (state, target, delta, hints) so a runner-side
+   * decision model has a local dataset to learn from. Implemented by BrowserChassis → ActionLedger.
+   */
+  recordTransition?(record: TransitionRecord): void;
 }
 
 export type PrimitiveErrorCode = 'STALE_REF' | 'TIMEOUT' | 'NO_TARGET' | 'BAD_REQUEST' | 'NOT_SUPPORTED';
@@ -870,6 +876,7 @@ export class Primitives {
     }
 
     const markId = hasMark ? Number(opts.markId) : undefined;
+    const startedAt = Date.now();
     const before = this.liteSnapshot();
     const secret = Boolean(opts.secret);
     const shownText = secret ? '[REDACTED]' : String(opts.text ?? '');
@@ -878,7 +885,7 @@ export class Primitives {
     // centre (hover, coordinate clicks, and the focus-click that precedes a coordinate type).
     let center: { x: number; y: number } | null = null;
     let address = '';
-    let target: { id?: number; tag?: string; text?: string; selector?: string; center?: { x: number; y: number } } | null = null;
+    let target: { id?: number; tag?: string; text?: string; selector?: string; center?: { x: number; y: number }; field?: FieldFacts } | null = null;
 
     if (action !== 'press') {
       if (hasMark) {
@@ -894,16 +901,22 @@ export class Primitives {
         center = hit.currentCenter;
         address = `#${markId}`;
         target = { id: hit.mark.id, tag: hit.mark.tag, text: secret ? '[REDACTED]' : hit.mark.text, center };
+        const markFacts = await this.probeField({ markId: markId! });
+        if (markFacts) target.field = markFacts;
       } else if (selector) {
         const box = await this.resolveSelectorBox(selector);
         if (!box) throw new PrimitiveError('NO_TARGET', `Selector "${selector}" matched no visible element`, { selector });
         center = box.center;
         address = selector;
         target = { selector, tag: box.tag, text: box.text, center };
+        const selFacts = await this.probeField({ selector });
+        if (selFacts) target.field = selFacts;
       } else if (hasCoords) {
         center = { x: px!, y: py! };
         address = `(${px}, ${py})`;
         target = { center };
+        const pointFacts = await this.probeField({ point: center });
+        if (pointFacts) target.field = pointFacts;
       }
     }
 
@@ -970,6 +983,31 @@ export class Primitives {
     }
 
     const after = this.liteSnapshot();
+    const durationMs = Date.now() - startedAt;
+
+    // Record the transition: this is the dataset a runner-side decision model learns from.
+    // Never the typed text — only its length.
+    this.host.recordTransition?.({
+      ts: Date.now(),
+      action,
+      addressMode: hasMark ? 'mark_id' : selector ? 'selector' : hasCoords ? 'coords' : 'none',
+      address,
+      target: target || undefined,
+      url: after.url,
+      revisionBefore: before.revision,
+      revisionAfter: after.revision,
+      marksBefore: before.marks,
+      marksAfter: after.marks,
+      urlChanged: before.url !== after.url,
+      marksChanged: before.marks !== after.marks,
+      ok: true,
+      awaitOk: awaited ? awaited.ok : undefined,
+      hints: (awaited as any)?.hint,
+      durationMs,
+      typed: action === 'type' ? { chars: String(opts.text ?? '').length, secret } : undefined,
+      clearFirst: action === 'type' ? opts.clearFirst === true : undefined,
+    });
+
     return {
       ok: true,
       action,
@@ -987,6 +1025,7 @@ export class Primitives {
         marksAfter: after.marks,
       },
       awaited,
+      durationMs,
     };
   }
 
@@ -1005,6 +1044,58 @@ export class Primitives {
       .catch(() => null);
     if (!res || typeof res.x !== 'number' || typeof res.y !== 'number') return null;
     return { center: { x: res.x, y: res.y }, tag: res.tag, text: res.text };
+  }
+
+  /**
+   * Typed facts about the form control an action addressed (null when the target isn't a control).
+   *
+   * This is what lets a decision layer answer *"should I pass clear_first?"* (`prefilled`) or triage a
+   * click that appeared to do nothing (`disabled`) from **data** instead of guessing. Surfaced in the
+   * `act` result as `target.field`, including on `dry_run` — so it can be pre-flighted without acting.
+   */
+  private async probeField(locator: { markId?: number; selector?: string; point?: { x: number; y: number } }): Promise<FieldFacts | null> {
+    const resolve =
+      locator.markId !== undefined
+        ? `document.querySelector(${JSON.stringify(`[data-mark-id="${locator.markId}"]`)})`
+        : locator.selector
+          ? `document.querySelector(${JSON.stringify(locator.selector)})`
+          : locator.point
+            ? `document.elementFromPoint(${Math.round(locator.point.x)}, ${Math.round(locator.point.y)})`
+            : 'null';
+
+    const script = `(() => {
+      const el = ${resolve};
+      if (!el) return null;
+      const tag = el.tagName ? el.tagName.toLowerCase() : '';
+      const editable = el.isContentEditable === true;
+      const inputLike = tag === 'input' || tag === 'textarea' || tag === 'select';
+      if (!inputLike && !editable) return null;
+      let value = '';
+      if (tag === 'select') {
+        const opt = el.options ? el.options[el.selectedIndex] : null;
+        value = opt ? String(opt.value || opt.textContent || '') : '';
+      } else if (editable) {
+        value = String(el.textContent || '');
+      } else {
+        value = String(el.value || '');
+      }
+      const name = String(el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || el.id || '').trim().slice(0, 60);
+      return {
+        tag: tag,
+        type: el.getAttribute('type') || undefined,
+        role: el.getAttribute('role') || undefined,
+        name: name || undefined,
+        valueLength: value.length,
+        isEmpty: value.length === 0,
+        prefilled: value.length > 0,
+        editable: !el.disabled && !el.readOnly,
+        required: el.required === true,
+        disabled: el.disabled === true,
+      };
+    })()`;
+
+    const facts = await this.host.evaluate(script).catch(() => null);
+    return facts && typeof facts.tag === 'string' ? (facts as FieldFacts) : null;
   }
 
   private liteSnapshot() {

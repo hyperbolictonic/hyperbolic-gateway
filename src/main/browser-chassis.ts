@@ -3,6 +3,7 @@ import path from 'node:path';
 import { BrowserWindow, nativeImage, ipcMain, WebContentsView, type WebContents } from 'electron';
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
+import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
@@ -56,6 +57,7 @@ export class BrowserChassis {
   private searchHub: SearchHub;
   private crawler: Crawler;
   private researcher: Researcher;
+  private actionLedger: ActionLedger;
   /** Reused off-screen view for detached reads (SERPs, Markdown alternates, crawls). */
   private utilView: WebContentsView | null = null;
   private utilQueue: Promise<void> = Promise.resolve();
@@ -158,6 +160,14 @@ export class BrowserChassis {
       },
     });
 
+    // Action ledger — local, append-only record of executed actions and their outcomes
+    // (data/transitions.jsonl). This is the dataset a runner-side decision model learns from;
+    // it never leaves the machine and never stores typed text.
+    this.actionLedger = new ActionLedger({
+      dir: path.join(process.cwd(), 'data'),
+      log: (level, msg) => this.addLog(level, msg),
+    });
+
     // Orthogonal primitives layer (observe / act / wait / extract / collect / find).
     // It borrows the chassis' real input + marks plumbing so it stays on the humanlike path.
     this.primitives = new Primitives({
@@ -180,6 +190,7 @@ export class BrowserChassis {
       getPageInfo: () => this.getPageInfo(),
       revision: () => this.revision,
       windowFocused: () => this.isWindowFocused(),
+      recordTransition: (record) => this.actionLedger.record(record),
     });
 
     // LLM-friendly site discovery (TODO_RESEARCH_CRAWL.md §5, Feature 6).
