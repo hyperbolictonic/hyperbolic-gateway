@@ -37595,11 +37595,11 @@ ${lines.join("\n")}`;
   },
   {
     name: "observe",
-    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 harvest with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table). Use budget + the returned next_cursor to page a large page instead of truncating it. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`.',
+    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 readable construct with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table). Markdown returns a 25,000-char default view \u2014 page it with budget + next_cursor, or pass budget=0 for the whole construct. The front-matter reports reader, extracted_chars and page_chars (how much of the page text the readable region covers) plus shadow_roots, so a genuinely short page can be told apart from a partly-visible one. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`.',
     parameters: {
       as: external_exports.enum(["markdown", "text", "ax", "som"]).optional().default("markdown").describe("Projection to return (default: markdown)"),
       region: external_exports.union([external_exports.coerce.number(), external_exports.string()]).optional().describe("Scope to a mark id (number) or CSS selector (string)"),
-      budget: external_exports.coerce.number().optional().describe("Max characters to return; page with next_cursor (0/omitted = whole text)"),
+      budget: external_exports.coerce.number().optional().describe("Max characters to return; page with next_cursor. Omitted = the projection default (markdown 25,000, text/ax everything); 0 = everything"),
       cursor: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe("next_cursor from a previous observe call"),
       include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Include below/above-the-fold elements (markdown marks, som, list)"),
       limit: external_exports.coerce.number().optional().describe("Max rows for list/table projections")
@@ -37614,10 +37614,14 @@ ${lines.join("\n")}`;
       limit: args?.limit
     }),
     format: (data) => {
-      const head = `# observe(as=${data.as}) ${data.url ? `\u2014 ${data.url}` : ""}`;
-      const meta3 = `chars=${data.text ? data.text.length : 0}/${data.total ?? 0}${data.truncated ? ` \xB7 next_cursor=${data.next_cursor}` : ""}`;
+      const chars = data.text ? data.text.length : 0;
+      const facts = [data.truncated ? `chars=${chars} of ${data.total ?? 0}` : `chars=${chars}`];
+      if (data.tokens) facts.push(`~${data.tokens} tokens`);
+      if (data.shadowRoots) facts.push(`${data.shadowRoots} shadow root${data.shadowRoots === 1 ? "" : "s"}`);
+      if (data.truncated) facts.push(`next_cursor=${data.next_cursor}`);
+      const head = `observe(as=${data.as})${data.url ? ` \xB7 ${data.url}` : ""}`;
       return `${head}
-${meta3}
+${facts.join(" \xB7 ")}
 
 ${data.text || "(no content)"}`;
     }
@@ -37894,7 +37898,7 @@ ${lines.join("\n")}`;
   },
   {
     name: "act",
-    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred \u2014 a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
+    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit \u2014 so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths \u2014 never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP \u2192 request_human_intervention). NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
     parameters: {
       mark_id: external_exports.coerce.number().optional().describe("Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)"),
       selector: external_exports.coerce.string().optional().describe('CSS selector of the target, when you have no mark id (e.g. "button.submit", "#search-input")'),
@@ -38052,7 +38056,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.2.0";
+var APP_VERSION = "1.3.0";
 
 // src/mcp/bridge-server.ts
 var BRIDGE_URL = process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111";
@@ -38526,12 +38530,12 @@ Rules of thumb:
           primitives: `### Orthogonal Primitives (prefer over blind sleeps)
 - bridge_health(): version, revision, capabilities[], window, input.transport.
 - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate (replaces sleeps).
-- act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press (mark badge, CSS selector, or coordinates) + post-conditions + delta.
+- act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press (mark badge, CSS selector, or coordinates) + post-conditions + delta. Selectors pierce open shadow roots and resolve a custom-element host to the control a mouse would hit. Typing is verified: a provable no-op returns ok:false with error.code TYPE_NO_EFFECT plus a typing evidence object (key counts, value lengths \u2014 never the text) and a hint that says whether input never arrived or the control refuses it (OTP \u2192 request_human_intervention).
 - expect(conditions[]): immediate assertion with per-condition evidence.
 - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs.
 - extract(kind:"list"|"table"|"tables"|"app_data"|"schema_org", ref?, selector?, type?): structured reads (rows, tables, every table, embedded JSON, typed JSON-LD).
 - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): harvest a lazy/infinite list in one call.
-- observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): budgeted, cursor-paged observation.
+- observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): budgeted, cursor-paged observation. markdown reads the COMPOSED DOM (open shadow roots, live form values, passwords as a length only); its envelope reports reader/extracted_chars/page_chars/shadow_roots; it returns a 25,000-char default view (budget:0 = the whole construct) and a partly-visible or text-free page says so.
 - llm_surface(url?): checks whether a site publishes an LLM-friendly Markdown/Text surface (/llms.txt, /sitemap.xml, <link rel=alternate>, or content negotiation) and returns recommended ("llms_txt"|"llms_full"|"markdown"|"text"|"rendered").
 - llm_fetch(url?, as?): fetches that advertised representation (GATED \u2014 NO_LLM_SURFACE when nothing is advertised). For a normal rendered page use observe(as:"markdown").
 - page_state() / diff(since?): cheap change detection for loops.

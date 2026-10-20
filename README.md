@@ -12,7 +12,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.2.0-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-1.3.0-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-59-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -32,6 +32,8 @@
 Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP) server that empowers multimodal LLM Agents (such as Bonsai 2 27B, Gemini, Claude, and GPT-4o) to operate the live, open web **like a human operator inside a real, visible Chromium browser instance**.
 
 > [!NOTE]
+> **What's new in 1.3.0** — **the page is now readable and addressable through shadow DOM, and the tool no longer reports success for actions that did nothing.** `observe(as:"markdown")` harvests the *composed* tree (open shadow roots, live form values, passwords reduced to a length) with a minimal, stable envelope (`reader`, `extracted_chars`/`page_chars`, `shadow_roots`) and working `budget`/`next_cursor` paging; `act` resolves selectors through shadow roots to the control a mouse would hit, **verifies that typing landed** (`ok:false` + `TYPE_NO_EFFECT` + evidence, distinguishing "input never arrived" from "the control refuses it"), and reports `target.field` for web-component controls; Set-of-Marks, `find` and `act(mark_id)` traverse open shadow roots too. All found by dogfooding a real signup flow — see [docs/FIELD_NOTES_2026-10-20_SIGNUP.md](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md). **59 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md).
+>
 > **What's new in 1.2.0** — an **autonomous discovery layer**. `llm_surface` detects a site's own Markdown/Text representation (`/llms.txt`, a `<link rel="alternate">` hint, or content negotiation) and `llm_fetch` reads it (**gated** on an advertised surface); `search_web` runs multi-engine search in a detached view with automatic fallback; `deep_crawl` walks a site breadth-first, distilling and indexing every page into Cortex; `research_topic` searches → gathers → distils → indexes and returns **cited extractive evidence**. Plus typed JSON-LD (`schema_org`) and every-table extraction on `extract`, one shared reusable off-screen view (fixes flaky detached reads), and an explicit **TIER 1/2/3 map** across the docs and the default-tab Manual. **59 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md) and [TODO_RESEARCH_CRAWL.md](./TODO_RESEARCH_CRAWL.md).
 >
 > **What's new in 1.1.1** — **MCP stdio reliability hardening** so the `kuang` tool namespace can no longer "just go away". Per-call diagnostics now go to the file log only, stderr is a short bounded boot banner (backpressure-aware, 16 KiB hard cap, lines dropped rather than queued), a `KUANG_BRIDGE_TIMEOUT_MS` ceiling (default 300 s) stops a wedged Cyberdeck from hanging a tool call, and closing `stdin` shuts the child down cleanly. Reproduced and verified: stderr unread, 600 calls → **601/601 responses, 0 timeouts** (was 158 responses then a stall). See [CHANGELOG.md](./CHANGELOG.md) and [docs/HANDOFF_ORCHA_MCP_STDERR.md](./docs/HANDOFF_ORCHA_MCP_STDERR.md).
