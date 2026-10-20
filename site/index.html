@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kuang Grade Mark Eleven — a self-hosted MCP browser agent</title>
+    <meta
+      name="description"
+      content="A web browser your AI can drive. Self-hosted MCP browser agent running a real Chromium with humanlike input, persistent local memory, and no cloud, API keys or telemetry. A DIY alternative to browser-use, Playwright agents and hosted browser clouds."
+    />
+    <meta name="author" content="hyperbolictonic" />
+    <meta
+      name="keywords"
+      content="MCP, model context protocol, browser agent, browser automation, browser-use alternative, playwright agent, self-hosted, local-first, ai agents, llm tools, web scraping, web research, electron, chromium"
+    />
+    <link rel="canonical" href="https://hyperbolictonic.github.io/kuang-grade-mark-eleven/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Kuang Grade Mark Eleven — a self-hosted MCP browser agent" />
+    <meta
+      property="og:description"
+      content="A real Chromium your LLM can drive. Local-first, no cloud, no API keys, no telemetry. A DIY alternative to browser-use, Playwright agents and hosted browser clouds."
+    />
+    <meta property="og:url" content="https://hyperbolictonic.github.io/kuang-grade-mark-eleven/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Kuang Grade Mark Eleven — MCP browser agent" />
+    <meta
+      name="twitter:description"
+      content="Self-hosted browser agent over MCP. Real Chromium, humanlike input, local memory. No cloud, no API keys, no telemetry."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0d10'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='18' fill='%2338bdf8' text-anchor='middle'%3EK%3C/text%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        --bg: #0b0d10;
+        --panel: #12161c;
+        --panel-2: #171c24;
+        --border: #232a35;
+        --text: #e6edf3;
+        --muted: #93a1b1;
+        --accent: #38bdf8;
+        --accent-dim: #0e7490;
+        --ok: #4ade80;
+        --warn: #fbbf24;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 940px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      code,
+      pre {
+        font-family: "SFMono-Regular", ui-monospace, Consolas, "Liberation Mono", Menlo, monospace;
+      }
+      code {
+        background: #1b222b;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 0.9em;
+        color: #9ad8f8;
+      }
+      pre {
+        background: #0f141a;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+        overflow-x: auto;
+        font-size: 13px;
+        line-height: 1.55;
+        color: #cbd5e1;
+      }
+      pre code {
+        background: none;
+        border: 0;
+        padding: 0;
+        color: inherit;
+      }
+
+      header {
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(56, 189, 248, 0.06), transparent 70%);
+      }
+      .hero {
+        padding: 76px 0 64px;
+      }
+      .kicker {
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 18px;
+      }
+      h1 {
+        font-size: clamp(30px, 5vw, 46px);
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        margin-bottom: 16px;
+      }
+      .sub {
+        font-size: clamp(16px, 2.2vw, 19px);
+        color: var(--muted);
+        max-width: 42em;
+      }
+      .sub strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 30px;
+      }
+      .btn {
+        display: inline-block;
+        padding: 11px 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text);
+        background: var(--panel-2);
+      }
+      .btn:hover {
+        border-color: var(--accent-dim);
+        text-decoration: none;
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #041018;
+      }
+      .btn.primary:hover {
+        filter: brightness(1.08);
+      }
+
+      section {
+        padding: 56px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      h2 {
+        font-size: 13px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 600;
+        margin-bottom: 26px;
+        font-family: ui-monospace, Consolas, monospace;
+      }
+      h3 {
+        font-size: 17px;
+        margin-bottom: 8px;
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+      }
+      .card p {
+        color: var(--muted);
+        font-size: 14.5px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14.5px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      td:first-child {
+        color: var(--text);
+        font-weight: 500;
+        width: 34%;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .ok {
+        color: var(--ok);
+      }
+      .no {
+        color: #f87171;
+      }
+      .warn {
+        color: var(--warn);
+      }
+      ul.tight {
+        list-style: none;
+      }
+      ul.tight li {
+        padding-left: 20px;
+        position: relative;
+        margin-bottom: 10px;
+        color: var(--muted);
+      }
+      ul.tight li::before {
+        content: "▸";
+        position: absolute;
+        left: 0;
+        color: var(--accent);
+      }
+      ul.tight li strong {
+        color: var(--text);
+      }
+      .note {
+        font-size: 13.5px;
+        color: var(--muted);
+        margin-top: 12px;
+      }
+      footer {
+        padding: 40px 0 60px;
+        font-size: 13.5px;
+        color: var(--muted);
+      }
+      footer .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-bottom: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap hero">
+        <div class="kicker">MCP · Self-hosted · Local-first</div>
+        <h1>Kuang Grade Mark Eleven</h1>
+        <p class="sub">
+          <strong>A web browser your AI can drive.</strong> It runs a real, visible Chromium on your own machine and
+          speaks <strong>MCP</strong>, so it drops into whatever agent runner and whichever model you already use — local
+          or remote. No cloud account, no API key, no seat pricing, and no telemetry leaving your computer.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="./manual.html">Read the manual</a>
+          <a class="btn" href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven">Source on GitHub</a>
+          <a class="btn" href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/releases">Releases</a>
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <div class="wrap">
+        <h2>What it is</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>A real browser, not a headless script</h3>
+            <p>
+              A visible Chromium window with DevTools-grade control. It opens pages, reads them, clicks, types, fills
+              forms, downloads files, and keeps working while you use your own machine.
+            </p>
+          </div>
+          <div class="card">
+            <h3>59 tools, tier-graded</h3>
+            <p>
+              Reading is <code>observe</code> with inline <code>[#id]</code> marks — no screenshot tax. Interaction is one
+              <code>act</code>. Tiers (<code>prefer</code> / <code>fallback</code> / <code>use deliberately</code>) tell the
+              agent what to reach for first.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Memory that stays on your disk</h3>
+            <p>
+              LanceDB-backed semantic recall of pages you've visited, plus a local action ledger of what each action
+              actually did. Nothing is uploaded, ever.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>How it differs, honestly</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Kuang Grade Mark Eleven</th>
+              <th>Browser clouds / hosted agents</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Where it runs</td>
+              <td>Your desktop, your browser session</td>
+              <td>Their infrastructure, their IPs</td>
+            </tr>
+            <tr>
+              <td>Accounts &amp; keys</td>
+              <td class="ok">None</td>
+              <td>Account, API key, per-seat or per-minute billing</td>
+            </tr>
+            <tr>
+              <td>Data</td>
+              <td class="ok">Stays local (pages, memory, logs)</td>
+              <td>Transits and may persist on their side</td>
+            </tr>
+            <tr>
+              <td>Model choice</td>
+              <td class="ok">Any MCP-capable runner — local or remote</td>
+              <td>Usually tied to the vendor's models</td>
+            </tr>
+            <tr>
+              <td>Is it a bot?</td>
+              <td>Looks like a person: real pointer, humanlike typing, consent handled</td>
+              <td>Often a flagged datacenter browser</td>
+            </tr>
+            <tr>
+              <td>Scale</td>
+              <td class="warn">One operator, one machine</td>
+              <td class="ok">Thousands of parallel sessions</td>
+            </tr>
+            <tr>
+              <td>Rough edges</td>
+              <td class="warn">Experimental, one developer</td>
+              <td class="ok">Supported product</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note">
+          It is not trying to beat a browser cloud at scale. It is trying to be the honest local option: the browser you
+          already have, driven by the model you already chose.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Install</h2>
+        <h3>1. Run the app</h3>
+        <pre><code>git clone https://github.com/hyperbolictonic/kuang-grade-mark-eleven.git
+cd kuang-grade-mark-eleven
+pnpm install
+pnpm dev          # or: pnpm run build &amp;&amp; pnpm start</code></pre>
+
+        <h3 style="margin-top: 28px">2. Point your MCP client at it</h3>
+        <p class="muted" style="font-size: 14.5px; margin-bottom: 10px">
+          Add this to <code>claude_desktop_config.json</code>, <code>mcp_config.json</code>, or your runner's equivalent:
+        </p>
+        <pre><code>{
+  "mcpServers": {
+    "mark-eleven": {
+      "command": "node",
+      "args": ["C:/path/to/kuang-grade-mark-eleven/bin/mcp-server.cjs"]
+    }
+  }
+}</code></pre>
+        <p class="note">
+          The Cyberdeck app must be running in the background — the MCP stdio bridge talks to it on
+          <code>http://127.0.0.1:4111</code>. Windows x64 is the tested target.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Design choices you can hold it to</h2>
+        <ul class="tight">
+          <li>
+            <strong>Humanlike or nothing.</strong> Input goes through real pointer and keyboard events with Bézier paths,
+            tremor and minimum-jerk velocity. The simulator flags anything that isn't <code>isTrusted</code>.
+          </li>
+          <li>
+            <strong>Focus-independent.</strong> Clicks and typing land while your editor owns the foreground, and occluded
+            windows keep hydrating — long harvests run behind your other apps.
+          </li>
+          <li>
+            <strong>Honest about limits.</strong> Detached reads are gated, <code>evaluate_javascript</code> is "use
+            deliberately" rather than banned, and failures are machine-coded (<code>STALE_REF</code>,
+            <code>TIMEOUT</code>, <code>NO_TARGET</code>) instead of vibes.
+          </li>
+          <li>
+            <strong>Advisory, not silent.</strong> Tools recommend a course of action and return evidence; they don't
+            quietly mutate behind the agent's back.
+          </li>
+          <li>
+            <strong>No telemetry.</strong> There is no analytics endpoint in this project. The only network traffic is the
+            web you asked it to visit.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Where to go next</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Manual</h3>
+            <p>The in-app Cyberdeck manual: tiers, recipes and the complete tool reference.</p>
+            <p style="margin-top: 10px"><a href="./manual.html">Open the manual →</a></p>
+          </div>
+          <div class="card">
+            <h3>Docs</h3>
+            <p>Architecture, the primitive layer, field notes from hardening real SPAs, and the roadmap.</p>
+            <p style="margin-top: 10px">
+              <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/tree/main/docs">Browse docs →</a>
+            </p>
+          </div>
+          <div class="card">
+            <h3>Changelog</h3>
+            <p>Release history and migration-relevant changes, newest first.</p>
+            <p style="margin-top: 10px">
+              <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/blob/main/CHANGELOG.md">Read the changelog →</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <div class="links">
+          <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven">GitHub</a>
+          <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/issues">Issues</a>
+          <a href="./manual.html">Manual</a>
+          <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/blob/main/LICENSE">MIT Licence</a>
+        </div>
+        <p>
+          Kuang Grade Mark Eleven — built by one developer, for people who would rather own the tool. Named after the
+          icebreaker in William Gibson's <em>Neuromancer</em>; the code has nothing to do with it.
+        </p>
+      </div>
+    </footer>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Kuang Grade Mark Eleven",
+        "alternateName": "Mark Eleven",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Windows",
+        "description": "A self-hosted MCP browser agent: a real Chromium your LLM can drive, with humanlike input, local persistent memory, and no cloud dependency.",
+        "url": "https://hyperbolictonic.github.io/kuang-grade-mark-eleven/",
+        "codeRepository": "https://github.com/hyperbolictonic/kuang-grade-mark-eleven",
+        "license": "https://github.com/hyperbolictonic/kuang-grade-mark-eleven/blob/main/LICENSE",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" }
+      }
+    </script>
+  </body>
+</html>
