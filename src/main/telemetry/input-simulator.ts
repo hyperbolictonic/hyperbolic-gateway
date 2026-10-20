@@ -181,10 +181,15 @@ export class HumanizedInputSimulator {
       ).catch(() => {});
 
       this.currentCursor = { x: step.x, y: step.y };
-      this.reporter?.onMouseMove?.(this.currentCursor, step.velocity);
 
       await sleep(step.delayMs);
     }
+
+    // Report the glide ONCE, not once per step. The in-page phosphor trail is already drawn
+    // per step above (window.__kuangMoveCursor), so emitting a telemetry event per step only
+    // flooded the HUD — one click produced 38-140 `mouse_move` rows.
+    const lastStep = trajectory.length > 0 ? trajectory[trajectory.length - 1] : null;
+    this.reporter?.onMouseMove?.(this.currentCursor, lastStep ? lastStep.velocity : 0);
   }
 
   private async ensureVisualCursor(webContents: WebContents): Promise<void> {

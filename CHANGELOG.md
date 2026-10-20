@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (focus-independent), so a "lost focus" window is rarely the real cause.
 - Covered by a new `npm run test:primitives` check: append by default, replace with `clear_first`.
 
+### Changed
+
+- **`mouse_move` telemetry fires once per glide, not once per step.** The humanlike cursor reports
+  position/velocity from `moveMouseTo`, which loops over a 38–140-step Bézier trajectory — and it was
+  emitting a `mouse_move` telemetry event *per step*, so a single click flooded the Cyberdeck telemetry
+  feed with up to 140 rows and inflated the pulse counter. Events are now emitted once per glide (final
+  position + velocity); the **in-page** phosphor trail is unaffected, because it is drawn per step by
+  `window.__kuangMoveCursor`. (The HUD panel's own fading polyline is correspondingly coarser — a one-line
+  revert if that denser look is preferred.) Note this is display-only telemetry: it never reached the
+  agent, and it doubles as a signal that `act` (rather than synthetic JS input) was used, since synthetic
+  clicks emit no `mouse_move` at all.
+
 ## [1.2.0] - 2026-10-19
 
 ### Fixed

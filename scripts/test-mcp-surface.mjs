@@ -68,6 +68,17 @@ const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? '✓' : '❌'} ${label}${detail ? ` — ${detail}` : ''}`);
 };
 
+// This suite drives live tools, so skip cleanly when the Cyberdeck app is down (matching the other
+// bridge-level suites) rather than failing every tool call and looking like a product regression.
+const BRIDGE = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
+try {
+  const res = await fetch(`${BRIDGE}/health`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+} catch (err) {
+  console.log(`SKIP: Cyberdeck bridge not reachable at ${BRIDGE} (${err.message}). Start the app and re-run.`);
+  process.exit(0);
+}
+
 const transport = new StdioClientTransport({ command: 'node', args: ['./bin/mcp-server.cjs'] });
 const client = new Client({ name: 'mcp-surface-test', version: '0.0.0' }, { capabilities: {} });
 await client.connect(transport);
