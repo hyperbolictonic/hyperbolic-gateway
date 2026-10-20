@@ -395,7 +395,11 @@ async function main() {
     );
     check(
       'ledger keeps the typed LENGTH only — never the text',
-      !!rec && rec.typed?.chars === marker.length && Object.keys(rec.typed).sort().join(',') === 'chars,secret' && !JSON.stringify(rec).includes(marker),
+      !!rec &&
+        rec.typed?.chars === marker.length &&
+        rec.typed?.landed === true &&
+        Object.keys(rec.typed).sort().join(',') === 'chars,landed,secret' &&
+        !JSON.stringify(rec).includes(marker),
       rec ? JSON.stringify(rec.typed) : 'n/a'
     );
 

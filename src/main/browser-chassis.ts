@@ -6,6 +6,7 @@ import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
+import { targetBoxScript, focusControlScript, type TargetBox } from './primitives/dom-targeting.js';
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
@@ -546,27 +547,32 @@ export class BrowserChassis {
 
     let targetX = coordinates?.x;
     let targetY = coordinates?.y;
+    let targetTag: string | undefined;
+    let viaShadowRoot = false;
 
     if (selector) {
       this.addLog('action', `MCP Directive: click_element(selector="${selector}")`);
-      const box = await wc.executeJavaScript(`
-        (() => {
-          const el = document.querySelector(${JSON.stringify(selector)});
-          if (!el) return null;
-          el.scrollIntoView({ behavior: 'auto', block: 'center' });
-          const rect = el.getBoundingClientRect();
-          return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
-        })()
-      `);
+      const box = (await wc.executeJavaScript(targetBoxScript({ selector })).catch(() => null)) as TargetBox | null;
 
       if (!box) {
         this.state.agentStatus = 'ERROR';
         this.broadcastState();
         throw new Error(`Target element not found: ${selector}`);
       }
+      if (box.vw === 0 || box.vh === 0) {
+        this.state.agentStatus = 'ERROR';
+        this.broadcastState();
+        throw new Error(
+          'Page viewport is 0x0 — the tab is not laid out yet (window hidden or minimised?), so the target box is meaningless. Make the window visible and retry.'
+        );
+      }
 
+      // The selector resolves to the control a *mouse* would hit — through shadow roots,
+      // and past a custom-element host whose centre sits on a label rather than the input.
       targetX = box.x;
       targetY = box.y;
+      targetTag = box.tag;
+      viaShadowRoot = box.sameAsHost === false;
     } else if (targetX !== undefined && targetY !== undefined) {
       this.addLog('action', `MCP Directive: click_element(x=${targetX}, y=${targetY})`);
     } else {
@@ -577,22 +583,33 @@ export class BrowserChassis {
 
     // NOTE: no synthetic `el.click()` here. The trusted CDP click above already
     // actuates the element; firing a second JS click double-submitted forms and
-    // double-opened links. We only give text controls a focus nudge.
+    // double-opened links.
+    //
+    // The focus nudge is applied to the **resolved control**, never to a custom-element
+    // host: `host.focus()` either moves focus off the inner <input> or does nothing, and
+    // either way the keystrokes that follow go nowhere (the silent-typing bug in
+    // docs/FIELD_NOTES_2026-10-20_SIGNUP.md). The result is reported, not assumed.
+    let focusReport: { focused: boolean | null; tag?: string; activeTag?: string } | null = null;
     if (selector) {
-      await wc.executeJavaScript(`
-        (() => {
-          const el = document.querySelector(${JSON.stringify(selector)});
-          if (el && typeof el.focus === 'function' && !el.matches('a[href], button, [role="button"]')) {
-            el.focus();
-          }
-        })()
-      `).catch(() => {});
+      focusReport = (await wc.executeJavaScript(focusControlScript({ selector })).catch(() => null)) as {
+        focused: boolean | null;
+        tag?: string;
+        activeTag?: string;
+      } | null;
     }
-
     this.state.agentStatus = 'IDLE';
     this.broadcastState();
     this.bumpRevision();
-    return `Clicked element at (${targetX}, ${targetY})`;
+
+    if (focusReport && focusReport.focused === false && focusReport.tag) {
+      this.addLog(
+        'warn',
+        `Click reached <${targetTag || '?'}> but focus is on <${focusReport.activeTag || 'nothing'}> — the control may be occluded or not focusable.`
+      );
+    }
+
+    const label = targetTag ? `<${targetTag}>` : 'element';
+    return `Clicked ${label} at (${targetX}, ${targetY})${viaShadowRoot ? ' (resolved inside a shadow root)' : ''}`;
   }
 
   public async typeText(text: string, selector?: string, opts: { clearFirst?: boolean } = {}): Promise<string> {

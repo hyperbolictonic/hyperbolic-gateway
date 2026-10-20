@@ -2,7 +2,16 @@ import type { WebContents } from 'electron';
 import type { HarvestedConstruct } from '../../shared/types.js';
 import { APP_VERSION } from '../../shared/version.js';
 import type { MarkItem } from '../marks/marks-overlay.js';
-import type { TransitionRecord, FieldFacts } from '../telemetry/action-ledger.js';
+import type { TransitionRecord, FieldFacts, TypingOutcome } from '../telemetry/action-ledger.js';
+import {
+  targetBoxScript,
+  fieldFactsScript,
+  diagnosticsScript,
+  inputProbeInstallScript,
+  inputProbeReadScript,
+  type TargetBox,
+  type TargetLocator,
+} from './dom-targeting.js';
 
 /**
  * Primitives — the orthogonal observe / act / wait layer.
@@ -937,9 +946,9 @@ export class Primitives {
         const markFacts = await this.probeField({ markId: markId! });
         if (markFacts) target.field = markFacts;
       } else if (selector) {
-        const box = await this.resolveSelectorBox(selector);
+        const box = await this.resolveTargetBox({ selector });
         if (!box) throw new PrimitiveError('NO_TARGET', `Selector "${selector}" matched no visible element`, { selector });
-        center = box.center;
+        center = { x: box.x, y: box.y };
         address = selector;
         target = { selector, tag: box.tag, text: box.text, center };
         const selFacts = await this.probeField({ selector });
@@ -967,6 +976,9 @@ export class Primitives {
 
     this.host.log('action', `MCP Directive: act(${action}, ${address || '(targetless)'}${action === 'type' ? `, "${shownText}"` : action === 'press' ? `, "${opts.text || ''}"` : ''}${action === 'type' && opts.clearFirst ? ', clear_first' : ''})`);
 
+    /** Typing verdict, when the action was a type and the target resolved to a control. */
+    let typing: TypingOutcome | null = null;
+
     switch (action) {
       case 'click':
       case 'focus':
@@ -979,6 +991,11 @@ export class Primitives {
       case 'type': {
         const text = String(opts.text ?? '');
         const clearFirst = opts.clearFirst === true;
+        const locator: TargetLocator = hasMark ? { markId: markId! } : selector ? { selector } : { point: center! };
+        // Snapshot the control's value and start counting the trusted key/input events
+        // that actually reach the page. This is what turns a silent no-op into a verdict.
+        if (text.length > 0) await this.host.evaluate(inputProbeInstallScript(locator)).catch(() => null);
+
         if (hasMark) {
           await this.host.typeMark(markId!, text, { secret, clearFirst });
         } else if (selector) {
@@ -987,6 +1004,11 @@ export class Primitives {
           // Coordinate type: focus the point with a real click first, then type into whatever took focus.
           await this.host.clickElement(undefined, center!);
           await this.host.typeText(text, undefined, { clearFirst });
+        }
+
+        if (text.length > 0) {
+          const probe = await this.host.evaluate(inputProbeReadScript()).catch(() => null);
+          typing = this.verdictForTyping(probe, text.length, clearFirst);
         }
         break;
       }
@@ -1003,13 +1025,15 @@ export class Primitives {
       if (!awaited.ok) {
         // Zero-cost diagnostic: only runs on failure, so the happy path stays one round trip.
         try {
-          const diag = await this.host.evaluate(
-            '({ w: window.innerWidth, h: window.innerHeight, active: document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : null })'
-          );
+          const diag = await this.host.evaluate(diagnosticsScript());
           const hints: string[] = [];
           if (!diag?.w || !diag?.h) hints.push('page viewport is 0x0 (window hidden/minimised?) — synthetic input and viewport-scoped marks may not register; make the window visible');
           if (this.host.windowFocused && !this.host.windowFocused()) hints.push('the app window is not focused — Electron drops synthetic input (sendInputEvent) while another window owns focus; call bridge_health / focus the window');
-          if (action === 'type' && diag?.active && target?.tag && String(diag.active).toUpperCase() !== target.tag.toUpperCase()) hints.push(`focus is on "${diag.active}", not the target <${target.tag}> — the click may have been occluded`);
+          const active = diag?.active;
+          if (action === 'type' && active?.tag && target?.tag && active.tag !== target.tag) {
+            hints.push(`focus is on <${active.tag}${active.label ? ` "${active.label}"` : ''}>, not the target <${target.tag}> — the click may have been occluded`);
+          }
+          if (action === 'type' && !active) hints.push('nothing is focused in the page — the click did not land on a focusable control');
           if (hints.length) (awaited as any).hint = hints.join('; ');
         } catch {}
       }
@@ -1018,8 +1042,15 @@ export class Primitives {
     const after = this.liteSnapshot();
     const durationMs = Date.now() - startedAt;
 
+    // The verdict the tool used to omit entirely: `type` reported success whether or not
+    // anything was typed. A provable no-op is now a structured failure, not a summary.
+    const typingFailed = typing !== null && typing.landed === false;
+    const typingHint = typingFailed ? this.typingHint(typing!) : undefined;
+    const ok = !typingFailed;
+    const hints = [(awaited as any)?.hint, typingHint].filter(Boolean).join('; ') || undefined;
+
     // Record the transition: this is the dataset a runner-side decision model learns from.
-    // Never the typed text — only its length.
+    // Never the typed text — only its length, plus whether it landed.
     this.host.recordTransition?.({
       ts: Date.now(),
       action,
@@ -1033,16 +1064,17 @@ export class Primitives {
       marksAfter: after.marks,
       urlChanged: before.url !== after.url,
       marksChanged: before.marks !== after.marks,
-      ok: true,
+      ok,
       awaitOk: awaited ? awaited.ok : undefined,
-      hints: (awaited as any)?.hint,
+      hints,
       durationMs,
-      typed: action === 'type' ? { chars: String(opts.text ?? '').length, secret } : undefined,
+      typed: action === 'type' ? { chars: String(opts.text ?? '').length, secret, landed: typing ? typing.landed : undefined } : undefined,
+      typing: typing || undefined,
       clearFirst: action === 'type' ? opts.clearFirst === true : undefined,
     });
 
-    return {
-      ok: true,
+    const result: any = {
+      ok,
       action,
       markId,
       address,
@@ -1060,23 +1092,76 @@ export class Primitives {
       awaited,
       durationMs,
     };
+
+    if (typing) result.typing = typing;
+    if (typingFailed) {
+      result.error = {
+        code: 'TYPE_NO_EFFECT',
+        message: `Typing had no effect on ${target?.tag ? `<${target.tag}>` : 'the target'} (value length ${typing!.beforeLength} → ${typing!.afterLength}).`,
+        hint: typingHint,
+      };
+    }
+
+    return result;
   }
 
-  /** Resolve a CSS selector to its live viewport centre (scrolling it into view first). */
-  private async resolveSelectorBox(selector: string): Promise<{ center: { x: number; y: number }; tag?: string; text?: string } | null> {
-    const res = await this.host
-      .evaluate(
-        `(() => {
-          const el = document.querySelector(${JSON.stringify(selector)});
-          if (!el) return null;
-          el.scrollIntoView({ behavior: 'auto', block: 'center' });
-          const r = el.getBoundingClientRect();
-          return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), tag: el.tagName.toLowerCase(), text: (el.innerText || el.textContent || '').trim().slice(0, 80) };
-        })()`
-      )
-      .catch(() => null);
+  /**
+   * Turn the input probe into a verdict.
+   *
+   * `landed: false` means the field's value did not change and no trusted key events reached
+   * the page — the silent no-op this tool used to report as success. The event counters
+   * separate the two causes so the hint can name the right remedy:
+   *
+   *   no events at all      → the input never arrived (focus/window), fix the target
+   *   events, value unmoved → the control rejects synthetic input (OTP/one-time-code), hand over
+   */
+  private verdictForTyping(probe: any, typedChars: number, clearFirst: boolean): TypingOutcome | null {
+    if (!probe) return null;
+    const base = {
+      beforeLength: Number(probe.beforeLength || 0),
+      afterLength: probe.afterLength === null || probe.afterLength === undefined ? null : Number(probe.afterLength),
+      changed: probe.changed === null || probe.changed === undefined ? null : Boolean(probe.changed),
+      keydowns: Number(probe.keydowns || 0),
+      beforeinputs: Number(probe.beforeinputs || 0),
+      inputs: Number(probe.inputs || 0),
+      detached: probe.detached === true,
+    };
+    // Re-rendered mid-type (React/Lit swapped the node): no verdict is possible.
+    if (base.detached || base.afterLength === null) return { ...base, landed: null };
+
+    const noEventsAtAll = base.keydowns === 0 && base.beforeinputs === 0 && base.inputs === 0;
+    // clear_first + retyping the identical value leaves the length unchanged but is not a no-op.
+    const identicalRetype = clearFirst && base.afterLength > 0 && base.afterLength === typedChars;
+    const landed = noEventsAtAll ? false : base.changed === true || identicalRetype;
+    return { ...base, landed };
+  }
+
+  private typingHint(t: TypingOutcome): string {
+    if (t.keydowns === 0) {
+      return 'No trusted key events reached the page — focus was not on the target (the click may have been occluded) or the app window is not focused. Re-check with act(action:"focus") or bridge_health.';
+    }
+    return `The control received ${t.keydowns} key event(s) and ${t.beforeinputs} beforeinput event(s) but its value did not change — it rejects synthetic input. One-time-code/OTP inputs and some framework-controlled fields behave this way; call request_human_intervention instead of retrying.`;
+  }
+
+  /**
+   * Resolve a locator to the box of the control to act on, scrolling it into view.
+   * Shadow-aware: a selector naming a custom-element host resolves to the inner control
+   * a mouse would hit (see dom-targeting.ts).
+   */
+  private async resolveTargetBox(locator: TargetLocator): Promise<TargetBox | null> {
+    const res = (await this.host.evaluate(targetBoxScript(locator)).catch(() => null)) as TargetBox | null;
     if (!res || typeof res.x !== 'number' || typeof res.y !== 'number') return null;
-    return { center: { x: res.x, y: res.y }, tag: res.tag, text: res.text };
+    // A tab that has never been laid out reports a 0x0 viewport and geometry that has
+    // nothing to do with the page (this produced a silent click at (31, 0) on a fixture
+    // whose button was at (231, 90)). Fail loudly instead of acting on nonsense.
+    if (res.vw === 0 || res.vh === 0) {
+      throw new PrimitiveError(
+        'NO_TARGET',
+        'The page viewport is 0x0, so no target can be resolved — the tab has not been laid out yet (the window may be hidden or minimised). Make the window visible and retry.',
+        { selector: locator.selector }
+      );
+    }
+    return res;
   }
 
   /**
@@ -1085,49 +1170,12 @@ export class Primitives {
    * This is what lets a decision layer answer *"should I pass clear_first?"* (`prefilled`) or triage a
    * click that appeared to do nothing (`disabled`) from **data** instead of guessing. Surfaced in the
    * `act` result as `target.field`, including on `dry_run` — so it can be pre-flighted without acting.
+   *
+   * Resolution is shadow-aware, so a web-component field reports its real `<input>` (and real value
+   * length) rather than the custom-element host, which is not input-like and would probe as `null`.
    */
-  private async probeField(locator: { markId?: number; selector?: string; point?: { x: number; y: number } }): Promise<FieldFacts | null> {
-    const resolve =
-      locator.markId !== undefined
-        ? `document.querySelector(${JSON.stringify(`[data-mark-id="${locator.markId}"]`)})`
-        : locator.selector
-          ? `document.querySelector(${JSON.stringify(locator.selector)})`
-          : locator.point
-            ? `document.elementFromPoint(${Math.round(locator.point.x)}, ${Math.round(locator.point.y)})`
-            : 'null';
-
-    const script = `(() => {
-      const el = ${resolve};
-      if (!el) return null;
-      const tag = el.tagName ? el.tagName.toLowerCase() : '';
-      const editable = el.isContentEditable === true;
-      const inputLike = tag === 'input' || tag === 'textarea' || tag === 'select';
-      if (!inputLike && !editable) return null;
-      let value = '';
-      if (tag === 'select') {
-        const opt = el.options ? el.options[el.selectedIndex] : null;
-        value = opt ? String(opt.value || opt.textContent || '') : '';
-      } else if (editable) {
-        value = String(el.textContent || '');
-      } else {
-        value = String(el.value || '');
-      }
-      const name = String(el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || el.id || '').trim().slice(0, 60);
-      return {
-        tag: tag,
-        type: el.getAttribute('type') || undefined,
-        role: el.getAttribute('role') || undefined,
-        name: name || undefined,
-        valueLength: value.length,
-        isEmpty: value.length === 0,
-        prefilled: value.length > 0,
-        editable: !el.disabled && !el.readOnly,
-        required: el.required === true,
-        disabled: el.disabled === true,
-      };
-    })()`;
-
-    const facts = await this.host.evaluate(script).catch(() => null);
+  private async probeField(locator: TargetLocator): Promise<FieldFacts | null> {
+    const facts = await this.host.evaluate(fieldFactsScript(locator)).catch(() => null);
     return facts && typeof facts.tag === 'string' ? (facts as FieldFacts) : null;
   }
 

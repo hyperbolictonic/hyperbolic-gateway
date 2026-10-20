@@ -1297,8 +1297,10 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'act',
     description:
-      'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred — a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. ' +
+      'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. ' +
+      'Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit — so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. ' +
       'Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. ' +
+      'Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths — never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP → request_human_intervention). ' +
       'NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
     parameters: {
       mark_id: z.coerce.number().optional().describe('Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)'),

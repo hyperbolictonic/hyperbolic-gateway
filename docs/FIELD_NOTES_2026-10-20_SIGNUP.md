@@ -170,9 +170,19 @@ Beyond P0's honest error: an `act(type)` failure on a one-time-code / OTP / `aut
   harvester into `pageText`, so `budget`/`next_cursor` can finally reach the end of a large page; a
   partly-visible page and a text-free page each explain themselves. Covered by `npm run test:markdown`
   (19 live checks), which also asserts that two harvests of an unchanged page are byte-identical.
-- **[open] §2.2** — selector-targeted typing on a web component. Unchanged: `clickElement(selector)` still
-  resolves light-DOM only and still nudges focus onto the host.
-- **[open] §2.4 / P1** — marks and `find` still do not pierce shadow roots. Note the asymmetry this leaves:
-  `observe` now *reads* shadow content, but Set-of-Marks still cannot badge it, so a shadow control is
-  readable yet not addressable by mark.
-- **[open] P0** — verify-or-report for `act(action:"type")` (`TYPE_NO_EFFECT`), and the ledger's `landed` flag.
+- **[done] §2.2 + P0 — shadow-aware targeting and verify-or-report typing.** `act` selectors now pierce
+  open shadow roots and resolve a custom-element host to the control a mouse would hit; typing is read
+  back from the field and a provable no-op returns `ok:false` with `TYPE_NO_EFFECT`, the `typing`
+  evidence and a hint. The ledger records `typed.landed` and the full `typing` block, so the dataset
+  now distinguishes "the agent typed" from "the field accepted it". Covered by `npm run test:act`.
+- **[done] §2.4 / P1 (partly)** — field facts (`target.field`) now resolve through shadow roots; the
+  `act` failure diagnostic reads the deepest active element. **Still open:** Set-of-Marks and `find`
+  do not pierce shadow roots, so a shadow control is readable and addressable by selector/coordinates
+  but not yet by mark.
+- **[done, in effect] P2 — OTP routing.** The hint for "events arrived, value unchanged" names
+  `request_human_intervention` and says to stop retrying. Automatic hand-over (a tool-level offer) is
+  still a design question; the honest error plus the hint was the valuable half.
+- **[open] §2.2 residual** — the original plan assumed focus was lost by the `el.focus()` nudge. With the
+  fix in place the mechanism is moot, but the open question in §6 has not been instrumented
+  (0×0-viewport timing turned out to be the more consequential hazard, and is now guarded).
+- **[open] P1** — marks/`find` shadow piercing; consent overlays that appear after navigation.

@@ -41,11 +41,12 @@ Everything below is already emitted, typed, and observable from the tool result:
 | Signal | Where | Use for a decision head |
 | :--- | :--- | :--- |
 | Enumerated option sets | `act.action`, `take_screenshot.detail`, `observe.as`, `extract.kind`, the `wait_for` condition vocabulary, `clear_capture.scope`, `llm_fetch.as` | The options are already a fixed list — exactly Jev's input shape |
-| **Typed field facts** | `act` result → `target.field` (`prefilled`, `valueLength`, `editable`, `disabled`, `required`, `name`, `type`) — **also on `dry_run`** | Decide `clear_first` from data instead of guessing; pre-flight without acting |
+| Typed field facts | `act` result → `target.field` (`prefilled`, `valueLength`, `editable`, `disabled`, `required`, `name`, `type`, `inShadowRoot`) — **also on `dry_run`** | Decide `clear_first` from data instead of guessing; pre-flight without acting |
 | Outcome delta | `act` result → `delta` (`urlChanged`, `revisionBefore/After`, `marksBefore/After`) + `durationMs` | Learn/predict "will this action change anything?" |
+| **Typing verdict** | `act` result → `typing` (`landed`, `changed`, `beforeLength`, `afterLength`, `keydowns`, `beforeinputs`, `inputs`) and `ok:false` + `error.code: "TYPE_NO_EFFECT"` on a provable no-op | Label a no-op *without* a second round trip, and separate "input never arrived" (0 key events) from "the control refused it" (events, value unchanged) — the two need different remedies |
 | Post-condition result | `act` result → `awaited.ok` (+ `hint`) | Distinguish *acted-but-nothing-happened* from *not-ready-yet* |
-| Triage hints | `awaited.hint` (viewport 0×0, unfocused window, wrong `activeElement`) | Classify a no-op click without another round trip |
-| Typed errors | `STALE_REF`, `TIMEOUT`, `NO_TARGET`, `BAD_REQUEST`, `NOT_SUPPORTED` | Deterministic classes to route on |
+| Triage hints | `awaited.hint`, `error.hint` (viewport 0×0, unfocused window, wrong deepest `activeElement`, control rejects input) | Classify a no-op click *or* a no-op type without another round trip |
+| Typed errors | `STALE_REF`, `TIMEOUT`, `NO_TARGET`, `BAD_REQUEST`, `NOT_SUPPORTED`, `TYPE_NO_EFFECT` | Deterministic classes to route on |
 | Advisory recommendations | `llm_surface.recommended` (`llms_txt`/`llms_full`/`markdown`/`text`/`rendered`) | Precedent for "recommend, don't silently switch" |
 | **Action ledger** | `data/transitions.jsonl` (local, gitignored) | A labelled `(state, action) → outcome` dataset |
 
@@ -59,7 +60,9 @@ One JSON object per executed action (never plaintext — typed text is a charact
  "url":"https://example.com/search","revisionBefore":42,"revisionAfter":42,"marksBefore":18,"marksAfter":18,
  "urlChanged":false,"marksChanged":false,"ok":true,"awaitOk":false,
  "hints":"focus is on \"#origin\", not the target <INPUT> — the click may have been occluded",
- "durationMs":812,"typed":{"chars":6,"secret":false},"clearFirst":true}
+ "durationMs":812,"typed":{"chars":6,"secret":false,"landed":true},
+ "typing":{"beforeLength":11,"afterLength":17,"changed":true,"keydowns":6,"beforeinputs":6,"inputs":6,"landed":true},
+ "clearFirst":false}
 ```
 
 That single line is a complete supervised example: the state signature, the action and its addressing, the

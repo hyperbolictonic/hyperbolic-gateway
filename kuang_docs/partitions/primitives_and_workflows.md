@@ -162,6 +162,30 @@ dropped click, and re-clicking it forever never helps. Note the transport is usu
 (focus-independent), so a "lost focus" window is rarely the real cause — check
 `bridge_health().input.transport` before blaming focus.
 
+### R7 — Web components: the host is not the control
+A custom element (`<faceplate-text-input>`, `<my-text-field>`) is a *wrapper*; the `<input>`
+that takes focus and text lives in its shadow root. Selectors now resolve to the control a
+mouse would hit, including **through** open shadow roots, so:
+```
+act(selector = "#email", action = "type", text = "a@b.com", clear_first = true)
+act(selector = "my-text-input", action = "type", text = "a@b.com")   # resolves to the inner input
+```
+Both address the real input. Watch the returned `target.field.tag` — if it is a hyphenated tag
+instead of `input`, the selector landed on a host with no control inside (wrong element, or a
+closed shadow root) and you should switch to coordinates from a screenshot.
+
+### R8 — Read it back; a success string is not evidence
+`action="type"` is now **verified**: the control's value is read before and after, so a no-op
+comes back as `ok:false` with `error.code = "TYPE_NO_EFFECT"`. The `typing` evidence tells you
+which failure you have:
+- `keydowns = 0` → the input never arrived: the click was occluded or the tab had no layout
+  (0×0 viewport). Re-target; don't retype blindly.
+- `keydowns > 0` but the value is unchanged → the control **rejects synthetic input**
+  (one-time-code/OTP fields and some framework-controlled inputs). Stop retrying and call
+  `request_human_intervention`.
+For clicks, the equivalent evidence is the returned delta (`urlChanged`, revision, marks) —
+never assume a click worked because `ok` is true.
+
 ## 6. Input Delivery & Background Rendering (operational guarantees)
 
 - **Focus-independent input.** Mouse / keys / wheel are dispatched over the tab's
@@ -190,8 +214,13 @@ Call `bridge_health()` once per session:
 
 - `collect_all` dedupes by **text+href**, so a whole-window collect can *undercount* rows
   that share both (scope it with `selector`/`ref` instead).
-- A full-body aggregator fallback can exceed the ~25 000-char clamp; fares/rows are still
-  present — narrow with `region`/`budget` for a tight read.
+- A full-body aggregator fallback can produce a very long construct; `observe(as:"markdown")`
+  shows the first 25 000 characters and pages the rest with `budget` + `next_cursor`
+  (`budget:0` for everything). Nothing is discarded, so fares/rows beyond the default view are
+  reachable.
+- **Set-of-Marks and `find` still do not pierce shadow roots** (only `observe`/`act` selectors
+  do). On a web-component page, marks may be absent or point at the host; address controls with
+  `act(selector=…)` or coordinates instead.
 - `isLoading` can stay `true` on ad-heavy SPAs — prefer `stable`/`network_idle` over load flags.
 - `select` is deliberately **not** an `act` action (setting a native value is a TIER-3 DOM
   mutation). Use the marks flow instead: click the trigger → `observe(as:"som")` → click the option

@@ -62,8 +62,30 @@ export interface TransitionRecord {
   hints?: string;
   durationMs: number;
   /** Never the text itself — only how much of it there was. */
-  typed?: { chars: number; secret: boolean };
+  typed?: { chars: number; secret: boolean; landed?: boolean | null };
   clearFirst?: boolean;
+  /** For a `type` action: what the field did, so a decision model can learn "this control rejects input". */
+  typing?: TypingOutcome;
+}
+
+/**
+ * Evidence collected around a typing action (all in-page; the value itself never leaves the page).
+ *
+ * `landed: false` is the *silent no-op* case the field notes identify as the worst failure mode — the
+ * tool used to report success while the value never changed.
+ */
+export interface TypingOutcome {
+  /** Chars in the control's value before/after. */
+  beforeLength: number;
+  afterLength: number | null;
+  changed: boolean | null;
+  /** Trusted key events that reached the page (0 = our input never arrived). */
+  keydowns: number;
+  beforeinputs: number;
+  inputs: number;
+  landed: boolean | null;
+  /** True when the control was re-rendered mid-type, so no verdict is possible. */
+  detached?: boolean;
 }
 
 export interface ActionLedgerOptions {

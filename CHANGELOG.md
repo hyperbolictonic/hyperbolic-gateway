@@ -59,12 +59,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parses with **domino**, which does not implement `select.value` or `selectedOptions`. Relative links and
   image sources are resolved to absolute URLs so they can be followed without knowing the page URL.
 
+- **`act` could not reach a control inside a web component — and reported success anyway.** A CSS
+  selector cannot cross a shadow boundary, so `act({selector:"faceplate-text-input"})` resolved the
+  *host*, clicked its centre (often a label), then applied `el.focus()` to the host — which either did
+  nothing or moved focus off the inner `<input>`. The value never changed and the call returned a
+  cheerful success (the exact failure in
+  [`docs/FIELD_NOTES_2026-10-20_SIGNUP.md`](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) §2.2). Targeting
+  now lives in `src/main/primitives/dom-targeting.ts`: selectors are searched through open shadow roots,
+  a custom-element host resolves to **the control a mouse would actually hit** (deepest control at the
+  host's centre, else the first control inside), and the focus nudge is applied to *that* control and its
+  result reported, not assumed. A selector may also now name an element *inside* a shadow root
+  (`#email`), which previously could only be reached by coordinates.
+- **Typing is verified — a silent no-op is now a structured failure.** `act(action:"type")` used to
+  return `Typed text (N chars) with variable human cadence` whether or not a character landed. It now
+  installs a one-shot in-page probe (the control's value plus counters for trusted `keydown` /
+  `beforeinput` / `input` events), reads it back after typing, and returns **`ok:false` with
+  `error.code: "TYPE_NO_EFFECT"`**, a `typing` evidence object (`beforeLength`, `afterLength`, `changed`,
+  `keydowns`, `beforeinputs`, `inputs`, `landed`) and a hint. The counters separate the two causes that
+  used to look identical: `keydowns: 0` means the input never arrived (occluded click, unfocused window,
+  0×0 viewport), while events-with-an-unchanged-value means the control **rejects** synthetic input —
+  one-time-code/OTP fields, which is what happened in §2.3 of the field notes. The hint names
+  `request_human_intervention` for that case. Only lengths and counters leave the page, so `secret`
+  typing stays secret.
+- **Field facts now resolve through shadow roots.** `act`'s `target.field` returned `null` for any
+  web-component control (the host is not input-like), so the typed-facts feature was silent exactly
+  where forms are most common. It now reports the inner control, its real value length, and
+  `inShadowRoot: true`.
+- **A 0×0 viewport no longer produces a confident click at the wrong place.** A freshly-created tab can
+  report a 0×0 viewport before layout settles; geometry resolved then is meaningless — during testing
+  this clicked `(31, 0)` on a fixture whose button sat at `(231, 90)` and still returned success. Both
+  `act` and the chassis now refuse to act on a 0×0 viewport and say why (`NO_TARGET` / an explicit
+  error), rather than clicking a point derived from nothing.
+- **The failure diagnostic reads the deepest focused element.** The `act` triage hint compared
+  `document.activeElement` (the host) against the target tag, which false-positived on shadow controls;
+  it now descends `shadowRoot.activeElement` chains, so "focus is on <x>, not the target" is true when
+  it is said.
+
 ### Added
 
+- **`npm run test:act`** — live fixture for the interaction path (14 checks): typing through a
+  custom-element host lands in the inner input, a selector inside a shadow root actuates a shadow
+  button, a reverting one-time-code field returns `TYPE_NO_EFFECT` with the right hint, the ledger
+  records `landed:false`, `clear_first` works inside a shadow control, an identical retype is not
+  mistaken for a no-op, and an unresolvable selector fails loudly.
+- **OKF recipes R7 (web components: the host is not the control) and R8 (read it back)** in
+  [`kuang_docs/partitions/primitives_and_workflows.md`](./kuang_docs/partitions/primitives_and_workflows.md).
 - **`npm run test:markdown`** — live fixture covering the composed-DOM harvest (shadow text, shadow controls,
   value baking, password redaction, select state, absolute links), envelope minimalism, harvest stability
-  across two calls, paging to the end of a 167 KB construct, and the text-free-page message (19 checks).
-
+  across two calls, paging to the end of a 167 KB construct, and the text-free-page message (20 checks).
 - **Action ledger — a local dataset for a decision layer** (`src/main/telemetry/action-ledger.ts`). Every
   **executed** action now appends one JSON line to `data/transitions.jsonl` (gitignored, local-only): the
   page-state signature before/after (`url`, `revision`, mark count), the resolved target, the delta, the
