@@ -227,15 +227,15 @@
         <select id="settings-protocol" class="select select-sm w-full font-mono text-xs">
           <option value="">Off — no decision model</option>
           <option value="typesafe">Hosted Jev (typesafe protocol)</option>
-          <option value="d1-onnx">Local d1-3B (ONNX · experimental)</option>
+          <option value="local-onnx">Local ONNX (open-jev · experimental)</option>
         </select>
-        <p class="label font-mono text-[10px]">Hosted answers in 70–500 ms. The local model runs on this machine and needs a model runtime installed.</p>
+        <p class="label font-mono text-[10px]">Hosted answers in 70–500 ms. Local runs on this machine (kev-0.6b, ≈0.34 GB) and measured 5/12 on the page-decision bench — treat it as experimental.</p>
       </fieldset>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <fieldset class="fieldset">
           <legend class="fieldset-legend font-mono text-xs">Model</legend>
-          <input id="settings-model" type="text" class="input input-sm w-full font-mono text-xs" placeholder="jev-1.13" />
+          <input id="settings-model" type="text" class="input input-sm w-full font-mono text-xs" placeholder="jev-1.13 / kev-0.6b" />
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend font-mono text-xs">Device (local only)</legend>

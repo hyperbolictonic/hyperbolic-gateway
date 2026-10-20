@@ -978,7 +978,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       'OPTIONAL decision model (absent unless configured — see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no — never prose. ' +
       'This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. ' +
       'Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) → decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) → act(mark_id) → check the returned delta/typing verdict. ' +
-      'Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local LiquidAI d1-3B ONNX model (d1-onnx, one forward pass, accepts images). Returns NOT_CONFIGURED when no backend is set.',
+      'Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default — experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
     parameters: {
       state: z.any().describe('What the model reasons over: a string, JSON (e.g. the components array), or an array of values'),
       questions: z.record(z.string(), z.any()).describe('Typed questions keyed by name, e.g. {"operation":{"type":"choice","instructions":"…","options":["click","type_text","done"]},"done":{"type":"noul","instructions":"…"}}'),

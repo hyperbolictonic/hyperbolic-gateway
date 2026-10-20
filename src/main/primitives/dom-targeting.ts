@@ -2,15 +2,15 @@
  * Shadow-DOM-aware element resolution for the interaction path.
  *
  * `document.querySelector` cannot cross a shadow boundary, and neither can a CSS
- * selector â€” so on a page built from web components (login/signup forms, design-system
+ * selector — so on a page built from web components (login/signup forms, design-system
  * dialogs) a selector like `#email` or `faceplate-text-input` resolves to the *host*,
  * never the `<input>` that actually takes focus and text. The field notes for the
  * 2026-10-20 signup run are the worked example: `act({selector, action:"type"})` reported
  * success while the value never changed, because the click landed on the host's centre
  * (often a label) and the follow-up `el.focus()` was applied to the host.
  *
- * These helpers resolve a selector to the element a *mouse* would hit â€” the deepest
- * control painted at the host's centre, or the first control inside it â€” and report the
+ * These helpers resolve a selector to the element a *mouse* would hit — the deepest
+ * control painted at the host's centre, or the first control inside it — and report the
  * deepest focused element (`document.activeElement` is the host, `shadowRoot.activeElement`
  * is the real input).
  *
@@ -168,7 +168,7 @@ export interface TargetBox {
   /** False when the selector resolved through a shadow root to a deeper element. */
   sameAsHost: boolean;
   text: string;
-  /** Live viewport size â€” 0 means the tab was never laid out, so the box is meaningless. */
+  /** Live viewport size — 0 means the tab was never laid out, so the box is meaningless. */
   vw: number;
   vh: number;
   /** Whether the resolved centre falls inside the viewport. */
@@ -209,7 +209,7 @@ export function targetBoxScript(locator: TargetLocator): string {
 }
 
 /**
- * Typed facts about the control a locator addresses â€” the same shape as the previous
+ * Typed facts about the control a locator addresses — the same shape as the previous
  * light-DOM probe, but resolved through shadow roots, so a web-component field reports
  * `tag: "input"` (not the host) and its real value length.
  */
@@ -279,7 +279,7 @@ export function focusControlScript(locator: TargetLocator): string {
  * Install a one-shot input probe around a typing action: snapshot the addressed control's
  * value, then count the trusted key/input events that reach the page.
  *
- * This is the evidence that separates the two failure classes seen in the field â€” "our
+ * This is the evidence that separates the two failure classes seen in the field — "our
  * input never arrived" (focus/window) from "the control received the keys and refused
  * them" (one-time-code fields, which revert on input). Only lengths and counters leave the
  * page; the value itself never does (so `secret` typing stays secret).

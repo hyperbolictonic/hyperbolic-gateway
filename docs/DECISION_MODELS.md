@@ -106,26 +106,45 @@ Configure with environment variables (authoritative) or `data/decision.json` (gi
 ```
 
 ```json
-{ "protocol": "d1-onnx", "model": "onnx-community/d1-3B-ONNX",
-  "revision": "294fdcdf95d14a3fd82626e0abe8ed11fe803e46", "device": "webgpu" }
+{ "protocol": "local-onnx", "model": "kev-0.6b", "device": "cpu" }
 ```
 
 | Key | Env | Meaning |
 | :--- | :--- | :--- |
-| `protocol` | `KUANG_DECISION_PROTOCOL` | `typesafe` (hosted Jev) or `d1-onnx` (local d1-3B) |
+| `protocol` | `KUANG_DECISION_PROTOCOL` | `typesafe` (hosted Jev) or `local-onnx` (in-process, open-jev) |
 | `url` | `KUANG_DECISION_URL` | Base URL for `typesafe` (`…/v1/systemone` or just the host) |
-| `model` | `KUANG_DECISION_MODEL` | `jev-1.13` (default) or `onnx-community/d1-3B-ONNX` |
-| `key` | `KUANG_DECISION_KEY` | Bearer token for the hosted API (never sent to the local model) |
-| `revision` | `KUANG_DECISION_REVISION` | Pin an ONNX revision (recommended for reproducibility) |
-| `device` | `KUANG_DECISION_DEVICE` | `webgpu` (default) or `cpu` for the local model |
+| `model` | `KUANG_DECISION_MODEL` | `jev-1.13` (default, hosted) or `kev-0.6b` (default, local) |
+| `key` | `KUANG_DECISION_KEY` | Bearer token for the hosted API (never sent to a local model) |
+| `device` | `KUANG_DECISION_DEVICE` | `cpu` (default) or `webgpu` for the local model |
 | `timeoutMs` | `KUANG_DECISION_TIMEOUT_MS` | Upstream deadline (default 30 s) |
 
-**Two backends, deliberately.** Hosted Jev answers in 70–500 ms at ~$0.042/Mtok input (output is free) and
-is the reference implementation. Local **LiquidAI d1-3B** answers in one forward pass with zero generated
-tokens, runs from ONNX weights via [`open-jev`](https://github.com/nico-martin/open-jev) (an *optional*
-dependency — nothing is bundled), and accepts **images** in the state, which suits Kuang's screenshots.
-Its q8 weights are ≈ 3.8 GB and download on first use. Licensed under the LFM Open License v1.0 (note its
-commercial-use threshold).
+**Two backends, deliberately.** Hosted Jev answers in 70–500 ms at ~$0.042/Mtok input (output is free)
+and is the reference implementation. The local path runs `open-jev` (Transformers.js / ONNX) in-process
+with **no model bundled**: `kev-0.6b` (Qwen3-0.6B, 0.34 GB) by default, or `open-jev` (DeBERTa-v3-large,
+0.35 GB). Install once with `pnpm add open-jev @huggingface/transformers`; weights download on first use.
+
+### Local model status — measured, not assumed
+
+`scripts/bench-decision-model.mjs` runs four realistic page states (empty password + a dead submit, an
+already-signed-in page, a cookie banner, a CAPTCHA) using the exact payload Kuang sends — a goal plus the
+component table, with target options restricted by each component's `actions`:
+
+| Model | Field answers correct | p50 latency (CPU) |
+| :--- | :--- | :--- |
+| `kev-0.6b` | **5 / 12** | 1,118 ms |
+| `open-jev` (DeBERTa-v3-large) | **7 / 12** | 750 ms |
+
+Both are mechanically sound and both are **out of domain** for page decisions: kev-0.6b never chose
+`blocked`, and defaulted to component 1; DeBERTa was closer but low-confidence (0.25–0.5) and still picked
+the wrong target. Treat the local path as experimental, use `decide` answers only with a confidence
+threshold and a deterministic fallback, and re-run the bench before trusting another model.
+
+**d1-3B is not supported by `open-jev`.** Its `detectFamily()` only accepts configs with an `open_jev` or
+`kev` section, and LiquidAI's d1-3B is `lfm2_vl` — the snippet on its model card does not work against the
+published library. Running d1 means implementing its prompt + readout directly against
+`@huggingface/transformers` (pinning e.g. `294fdcd…`), feeding the VLM graph including images, and running
+it where WebGPU exists (the Electron renderer, not the Node main process). That is a separate piece of
+work, and on CPU it would be seconds per decision.
 
 ### The loop it is designed for
 

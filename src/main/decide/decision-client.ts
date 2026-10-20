@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Optional decision-model bridge — **off unless configured**.
  *
  * Kuang surfaces facts; a decision model picks between them. This module is the only place
@@ -13,24 +13,31 @@
  *
  * Two protocols:
  *
- *   typesafe  POST {url}/v1/systemone  (hosted Jev, e.g. jev-1.13). Questions are forwarded
- *             exactly as supplied; answers carry probabilities + confidence.
- *   d1-onnx   local LiquidAI d1-3B via `open-jev` (Transformers.js / ONNX). Loaded lazily from
- *             an optional dependency — no model or runtime is bundled with Kuang. d1 answers in
- *             one forward pass and accepts images in the state, which suits Kuang's screenshots.
+ *   typesafe      POST {url}/v1/systemone  (hosted Jev, e.g. jev-1.13). Questions are forwarded
+ *                 exactly as supplied; answers carry probabilities + confidence.
+ *   local-onnx    In-process via `open-jev` (Transformers.js / ONNX). Default model `kev-0.6b`
+ *                 (0.34 GB, Qwen3-0.6B); `open-jev` (DeBERTa-v3-large) is the other small option.
+ *
+ *                 NOTE: LiquidAI's d1-3B is NOT loadable by open-jev — its `detectFamily()` only
+ *                 understands `open_jev` / `kev` configs and d1's config is `lfm2_vl`. Running d1
+ *                 needs its own prompt + readout against @huggingface/transformers and a
+ *                 WebGPU-capable context (see docs/DECISION_MODELS.md).
+ *
+ *                 Measured with scripts/bench-decision-model.mjs on four page states: kev-0.6b
+ *                 5/12 field answers (p50 1,118 ms), open-jev 7/12 (p50 750 ms). Mechanically sound,
+ *                 not yet trustworthy for page decisions — the bench is how a model is checked.
  *
  * Configuration comes from the environment, then `data/decision.json` (gitignored):
  *
- *   { "protocol": "typesafe", "url": "https://api.typesafe.ai", "model": "jev-1.13", "key": "…" }
- *   { "protocol": "d1-onnx",  "model": "onnx-community/d1-3B-ONNX",
- *     "revision": "294fdcdf95d14a3fd82626e0abe8ed11fe803e46", "device": "webgpu" }
+ *   { "protocol": "typesafe",   "url": "https://api.typesafe.ai", "model": "jev-1.13", "key": "…" }
+ *   { "protocol": "local-onnx", "model": "kev-0.6b", "device": "cpu" }
  *
- * Env names: KUANG_DECISION_PROTOCOL | _URL | _MODEL | _KEY | _REVISION | _DEVICE | _TIMEOUT_MS.
+ * Env names: KUANG_DECISION_PROTOCOL | _URL | _MODEL | _KEY | _DEVICE | _TIMEOUT_MS.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type DecisionProtocol = 'typesafe' | 'd1-onnx';
+export type DecisionProtocol = 'typesafe' | 'local-onnx';
 
 export interface DecisionConfig {
   protocol: DecisionProtocol;
@@ -77,17 +84,21 @@ function readConfigFile(): Partial<DecisionConfig> | null {
 /** Resolve configuration (env overrides file). Returns null when nothing is configured. */
 export function resolveDecisionConfig(): DecisionConfig | null {
   const file = readConfigFile() || {};
-  const protocol = (process.env.KUANG_DECISION_PROTOCOL || file.protocol || '').toLowerCase() as DecisionProtocol | '';
-  if (protocol !== 'typesafe' && protocol !== 'd1-onnx') return null;
+  const rawProtocol = (process.env.KUANG_DECISION_PROTOCOL || file.protocol || '').toLowerCase();
+  // `d1-onnx` was the first name for the local path; d1-3B cannot be loaded by open-jev, so the
+  // local family is honestly named for what it runs (kev / open-jev ONNX) and the old name is
+  // accepted as an alias so existing config files keep working.
+  const protocol = (rawProtocol === 'd1-onnx' ? 'local-onnx' : rawProtocol) as DecisionProtocol | '';
+  if (protocol !== 'typesafe' && protocol !== 'local-onnx') return null;
 
   const url = process.env.KUANG_DECISION_URL || file.url || undefined;
-  // typesafe needs an endpoint; d1-onnx runs in-process and needs none.
+  // typesafe needs an endpoint; the local model runs in-process and needs none.
   if (protocol === 'typesafe' && !url) return null;
 
   return {
     protocol,
     url,
-    model: process.env.KUANG_DECISION_MODEL || file.model || (protocol === 'typesafe' ? 'jev-1.13' : 'd1-3b'),
+    model: process.env.KUANG_DECISION_MODEL || file.model || (protocol === 'typesafe' ? 'jev-1.13' : 'kev-0.6b'),
     key: process.env.KUANG_DECISION_KEY || file.key || undefined,
     revision: process.env.KUANG_DECISION_REVISION || file.revision || undefined,
     device: process.env.KUANG_DECISION_DEVICE || file.device || undefined,
@@ -139,7 +150,7 @@ export function decisionStatus(): {
     protocol: cfg.protocol,
     model: cfg.model,
     endpoint: cfg.protocol === 'typesafe' ? cfg.url : 'in-process',
-    local: cfg.protocol === 'd1-onnx',
+    local: cfg.protocol === 'local-onnx',
   };
 }
 
@@ -216,14 +227,14 @@ async function runTypesafe(cfg: DecisionConfig, call: DecisionCall): Promise<Dec
   }
 }
 
-/** Lazily-loaded local d1-3B (optional dependency: `npm i open-jev`). */
+/** Lazily-loaded local ONNX decision model (open-jev: kev-0.6b by default). */
 let localModel: any = null;
 let localModelKey = '';
 
-async function runLocalD1(cfg: DecisionConfig, call: DecisionCall): Promise<DecisionResult> {
+async function runLocalOnnx(cfg: DecisionConfig, call: DecisionCall): Promise<DecisionResult> {
   const started = Date.now();
   const modelId = call.model || cfg.model;
-  const key = `${modelId}|${cfg.revision || ''}|${cfg.device || ''}`;
+  const key = `${modelId}|${cfg.device || ''}`;
 
   let mod: any;
   try {
@@ -231,31 +242,38 @@ async function runLocalD1(cfg: DecisionConfig, call: DecisionCall): Promise<Deci
   } catch {
     return {
       ok: false,
-      protocol: 'd1-onnx',
+      protocol: 'local-onnx',
       model: modelId,
       error: {
         code: 'NOT_CONFIGURED',
-        message: 'The local decision model runtime is not installed (open-jev).',
-        hint: 'npm i open-jev — then the d1-3B ONNX weights download on first use (q8 ≈ 3.8 GB). Nothing is bundled with Kuang.',
+        message: 'The local decision runtime is not installed (open-jev).',
+        hint: 'Run `pnpm add open-jev @huggingface/transformers`. The model weights (kev-0.6b â‰ˆ 0.34 GB) download on first use; nothing is bundled with Kuang.',
       },
     };
   }
 
   try {
     if (!localModel || localModelKey !== key) {
-      localModel = await mod.OpenJev.load({
-        model: modelId,
-        device: cfg.device || 'webgpu',
-        ...(cfg.revision ? { revision: cfg.revision } : {}),
-      });
+      localModel = await mod.OpenJev.load({ model: modelId, device: cfg.device || 'cpu' });
       localModelKey = key;
     }
-    const answers = await localModel.decide(call.state, call.questions);
-    return { ok: true, protocol: 'd1-onnx', model: modelId, answers, latencyMs: Date.now() - started };
+    // open-jev takes the state as one piece of text. Kuang states are often the components array,
+    // so serialise it rather than silently dropping structure. Revision pinning is not exposed by
+    // open-jev (Transformers.js resolves the repo head), which is why the envelope reports the
+    // resolved model family back to the caller.
+    const state = typeof call.state === 'string' ? call.state : JSON.stringify(call.state, null, 2);
+    const answers = await localModel.decide(state, call.questions);
+    return {
+      ok: true,
+      protocol: 'local-onnx',
+      model: localModel?.runtime?.model || modelId,
+      answers,
+      latencyMs: Date.now() - started,
+    };
   } catch (err: any) {
     return {
       ok: false,
-      protocol: 'd1-onnx',
+      protocol: 'local-onnx',
       model: modelId,
       latencyMs: Date.now() - started,
       error: { code: 'UPSTREAM_ERROR', message: `Local decision model failed: ${err?.message || err}` },
@@ -272,12 +290,12 @@ export async function runDecision(call: DecisionCall): Promise<DecisionResult> {
       error: {
         code: 'NOT_CONFIGURED',
         message: 'No decision model is configured.',
-        hint: 'Set KUANG_DECISION_PROTOCOL (typesafe | d1-onnx) and, for typesafe, KUANG_DECISION_URL (+ _KEY, optional _MODEL), or write data/decision.json. See docs/DECISION_MODELS.md.',
+        hint: 'Set KUANG_DECISION_PROTOCOL (typesafe | local-onnx) and, for typesafe, KUANG_DECISION_URL (+ _KEY, optional _MODEL), or write data/decision.json. See docs/DECISION_MODELS.md.',
       },
     };
   }
   if (!call.questions || typeof call.questions !== 'object' || !Object.keys(call.questions).length) {
     return { ok: false, protocol: cfg.protocol, error: { code: 'BAD_REQUEST', message: 'decide needs at least one typed question.' } };
   }
-  return cfg.protocol === 'd1-onnx' ? runLocalD1(cfg, call) : runTypesafe(cfg, call);
+  return cfg.protocol === 'local-onnx' ? runLocalOnnx(cfg, call) : runTypesafe(cfg, call);
 }
