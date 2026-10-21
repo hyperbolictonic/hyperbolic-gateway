@@ -12,7 +12,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.4.1-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-1.4.2-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-59-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -32,7 +32,7 @@
 Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP) server that empowers multimodal LLM Agents (such as Bonsai 2 27B, Gemini, Claude, and GPT-4o) to operate the live, open web **like a human operator inside a real, visible Chromium browser instance**.
 
 > [!NOTE]
-> **What's new in 1.4.0** — **a decision model in the loop, and the evidence that it worked.** `observe(as:"components")` returns a decision-ready table (role, name, value, region, and the actions each component accepts); an optional `decide` tool asks a typed decision model (Jev 1.13 via OpenCode's Console endpoint, or a local ONNX model) for the operation and target, **guarded** by confidence, target membership and affordance checks, with rejected options eliminated and retried, and `fallback:"agent"` when nothing survives. **Age verification and CAPTCHA are hard human hand-offs** — detected before any model call. Typing gained an input-method ladder (keys → CDP `insertText` → paste) for fields that ignore keystrokes, `act` now sees SPA navigations and clicks large card links at a point that belongs to them, and the HUD gained a Settings dialog, a conditional DECISIONS tab, a right-click menu, and a HIL banner that stays off the viewport. Measured: **Jev 10/10 on the page bench at ~376 ms**. **59 tools** (+ `decide` when configured). See [CHANGELOG.md](./CHANGELOG.md).
+> **What's new in 1.4.2** — **a decision model in the loop, and a loop that drives it.** This patch adds **`drive`** (observe → guarded decide → verified act, one decision call per step, with a typed stop reason and a text hand-off), **screenshots for `decide`** (hosted TypeSafe only — the OpenCode gateway drops the image header, so images are disabled there and the result says so), **gate hand-offs raised by Kuang itself**, consent sweeps at 0.9/2.6/6 s, clickable labels, and selectable HUD text. It builds on the 1.4.0 work: **a decision model in the loop, and the evidence that it worked.** `observe(as:"components")` returns a decision-ready table (role, name, value, region, and the actions each component accepts); an optional `decide` tool asks a typed decision model (Jev 1.13 via OpenCode's Console endpoint, or a local ONNX model) for the operation and target, **guarded** by confidence, target membership and affordance checks, with rejected options eliminated and retried, and `fallback:"agent"` when nothing survives. **Age verification and CAPTCHA are hard human hand-offs** — detected before any model call. Typing gained an input-method ladder (keys → CDP `insertText` → paste) for fields that ignore keystrokes, `act` now sees SPA navigations and clicks large card links at a point that belongs to them, and the HUD gained a Settings dialog, a conditional DECISIONS tab, a right-click menu, and a HIL banner that stays off the viewport. Measured: **Jev 10/10 on the page bench at ~376 ms**. **59 tools** (+ `decide` when configured). See [CHANGELOG.md](./CHANGELOG.md).
 >
 > **What's new in 1.3.0** — **the page is now readable and addressable through shadow DOM, and the tool no longer reports success for actions that did nothing.** `observe(as:"markdown")` harvests the *composed* tree (open shadow roots, live form values, passwords reduced to a length) with a minimal, stable envelope (`reader`, `extracted_chars`/`page_chars`, `shadow_roots`) and working `budget`/`next_cursor` paging; `act` resolves selectors through shadow roots to the control a mouse would hit, **verifies that typing landed** (`ok:false` + `TYPE_NO_EFFECT` + evidence, distinguishing "input never arrived" from "the control refuses it"), and reports `target.field` for web-component controls; Set-of-Marks, `find` and `act(mark_id)` traverse open shadow roots too. All found by dogfooding a real signup flow — see [docs/FIELD_NOTES_2026-10-20_SIGNUP.md](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md). **59 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md).
 >
@@ -47,6 +47,20 @@ Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP
 2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can act directly by coordinate, selector, or mark badge (`act`).
 3. **Full Developer Console & Script Execution:** Gives the agent full console access (`get_console_logs`) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (`evaluate_javascript`) to interact with complex SPAs.
 4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches **real input events over the Chrome DevTools Protocol** (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `mouseWheel`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence. CDP delivery is **focus-independent** — it lands even when another application owns the OS foreground — with `webContents.sendInputEvent` kept only as a fallback.
+
+---
+
+## 🧭 Index
+
+- **Philosophy** — [Neuromancer inspiration](#-neuromancer-inspiration--cyberpunk-canon) · [A punk-ethos alternative to browser clouds](#-a-punk-ethos-diy-alternative-to-browser-use-playwright-agents--hosted-browser-clouds)
+- **The deck** — [Theme & Cyberdeck UI](#-theme--cyberdeck-interface) · [Ghost cursor telemetry](#-ghost-cursor-telemetry-engine) · [Focus-independent input](#-focus-independent-input--background-rendering) · [Multi-tab browsing](#-hardware-accelerated-multi-tab-browsing)
+- **Reading the web** — [Orthogonal primitive layer](#-orthogonal-primitive-layer) · [Construct harvester](#-token-efficient-construct-harvester) · [Set-of-Marks](#-set-of-marks-som-visual-grounding)
+- **Driving the web** — [Shield-breaker](#-autonomous-shield-breaker-cookie--gdpr-destroyer) · [Form filler](#-single-turn-batch-form-filler) · [Human-in-the-loop](#-human-in-the-loop-hil-intervention-protocol)
+- **Memory & data** — [Cortex](#-lancedb-persistent-cortex--semantic-recall) · [Downloads](#-download-manager--cortex-harvester) · [Session vault](#-session--cookie-jar-vault) · [Script vault](#-script-vault--lancedb-semantic-macro-engine)
+- **Inspection** — [Network & API streams](#-live-network--api-stream-interceptor) · [WebSocket & SSE](#-real-time-websocket--sse-interceptor)
+- **Operating it** — [System tray](#-system-tray--background-minimization-out-of-the-way) · [MCP tools (59 advertised)](#-standardized-semantic-mcp-tools-59-advertised)
+- **Building on it** — [Codebase & docs](#-codebase-directory-structure--documentation) · [Quickstart](#-quickstart) · [Testing](#-testing) · [OKF knowledge](#-documentation--knowledge-okf)
+- **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 
 ---
 

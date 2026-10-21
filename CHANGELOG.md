@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > semver (where a feature would bump the minor). Each patch still gets its own Added/Fixed/Changed section
 > here, so the history stays precise.
 
-## [Unreleased]
+## [1.4.2] - 2026-10-21
 
 ### Added
 
@@ -589,6 +589,7 @@ Live Cyberdeck, `bridge_health` driven 600× through the bundled stdio server:
 
 See [docs/PROPOSED_ABSTRACTIONS.md](./docs/PROPOSED_ABSTRACTIONS.md) for the design and status.
 
+[1.4.2]: https://github.com/hyperbolictonic/kuang-grade-mark-eleven/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/hyperbolictonic/kuang-grade-mark-eleven/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/hyperbolictonic/kuang-grade-mark-eleven/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/hyperbolictonic/kuang-grade-mark-eleven/compare/v1.2.0...v1.3.0
