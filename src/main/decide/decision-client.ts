@@ -56,7 +56,7 @@ export interface DecisionCall {
   model?: string;
 }
 
-export type DecisionFailureCode = 'NOT_CONFIGURED' | 'BAD_REQUEST' | 'UPSTREAM_ERROR' | 'TIMEOUT';
+export type DecisionFailureCode = 'NOT_CONFIGURED' | 'BAD_REQUEST' | 'UPSTREAM_ERROR' | 'TIMEOUT' | 'NO_DECISION';
 
 export interface DecisionResult {
   ok: boolean;
@@ -307,7 +307,7 @@ export function onDecision(listener: (event: DecisionEvent) => void): () => void
   return () => listeners.delete(listener);
 }
 
-function emitDecision(event: DecisionEvent): void {
+export function emitDecisionEvent(event: DecisionEvent): void {
   for (const listener of listeners) {
     try {
       listener(event);
@@ -347,17 +347,17 @@ export async function runDecision(call: DecisionCall): Promise<DecisionResult> {
         hint: 'Set KUANG_DECISION_PROTOCOL (typesafe | local-onnx) and, for typesafe, KUANG_DECISION_URL (+ _KEY, optional _MODEL), or write data/decision.json. See docs/DECISION_MODELS.md.',
       },
     };
-    emitDecision({ ...record, latencyMs: Date.now() - startedAt, error: result.error });
+    emitDecisionEvent({ ...record, latencyMs: Date.now() - startedAt, error: result.error });
     return result;
   }
   if (!call.questions || typeof call.questions !== 'object' || !Object.keys(call.questions).length) {
     const result: DecisionResult = { ok: false, protocol: cfg.protocol, error: { code: 'BAD_REQUEST', message: 'decide needs at least one typed question.' } };
-    emitDecision({ ...record, protocol: cfg.protocol, latencyMs: Date.now() - startedAt, error: result.error });
+    emitDecisionEvent({ ...record, protocol: cfg.protocol, latencyMs: Date.now() - startedAt, error: result.error });
     return result;
   }
 
   const result = cfg.protocol === 'local-onnx' ? await runLocalOnnx(cfg, call) : await runTypesafe(cfg, call);
-  emitDecision({
+  emitDecisionEvent({
     ...record,
     protocol: result.protocol || cfg.protocol,
     model: result.model || record.model,

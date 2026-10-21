@@ -37577,12 +37577,31 @@ ${lines.join("\n")}`;
     parameters: {
       state: external_exports.any().describe("What the model reasons over: a string, JSON (e.g. the components array), or an array of values"),
       questions: external_exports.record(external_exports.string(), external_exports.any()).describe('Typed questions keyed by name. For TypeSafe: {"operation":{"type":"choice","instructions":"\u2026","criteria":{"click":"Click a control","done":"The goal is met"}},"done":{"type":"noul","instructions":"\u2026"}} \u2014 choice takes criteria (option\u2192description), NOT options. Local open-jev takes options instead.'),
-      model: external_exports.string().optional().describe('Override the configured model for this call (e.g. "jev-1.13", "d1-3b")')
+      model: external_exports.string().optional().describe('Override the configured model for this call (e.g. "jev-1.13", "d1-3b")'),
+      guard: external_exports.object({
+        threshold: external_exports.coerce.number().min(0).max(1).optional().describe("Reject choices below this confidence (0\u20131)"),
+        operations: external_exports.array(external_exports.string()).optional().describe("Operations that may be accepted (default click/type_text/done/blocked)"),
+        components: external_exports.array(external_exports.object({ id: external_exports.union([external_exports.string(), external_exports.coerce.number()]), actions: external_exports.array(external_exports.string()).optional(), name: external_exports.string().optional() })).optional().describe("The components you offered (from observe as=components) \u2014 a target not in this list, or one that does not accept the operation, is rejected")
+      }).optional().describe("Validate the answer before trusting it: confidence gate, target membership, affordance match, done/operation contradiction"),
+      eliminate: external_exports.object({
+        max_attempts: external_exports.coerce.number().min(1).max(5).optional().describe("Total model calls including the first (default 3 when eliminate is set)")
+      }).optional().describe('Drop a rejected option and ask again with the rest; when everything is eliminated the result is accepted:false, fallback:"agent"')
     },
     endpoint: "/decide",
-    payload: (args) => ({ state: args?.state, questions: args?.questions || {}, model: args?.model }),
+    payload: (args) => ({
+      state: args?.state,
+      questions: args?.questions || {},
+      model: args?.model,
+      guard: args?.guard,
+      eliminate: args?.eliminate
+    }),
     format: (data) => {
       if (data.error) return `decide failed: ${data.error}`;
+      if (data.accepted === false) {
+        const reasons = (data.reasons || []).join("\n");
+        return `NO DECISION \u2014 the agent decides (${data.attempts} attempt${data.attempts === 1 ? "" : "s"})
+${reasons}`;
+      }
       const answers = data.answers || {};
       const lines = Object.entries(answers).map(([key, value]) => {
         if (value && typeof value === "object") {
@@ -37594,7 +37613,8 @@ ${lines.join("\n")}`;
         }
         return `${key}: ${value}`;
       });
-      return `${data.protocol || "decision"}(${data.model || "?"}) ${data.latencyMs ?? "?"}ms
+      const attempts = data.attempts > 1 ? ` \xB7 ${data.attempts} attempts` : "";
+      return `${data.protocol || "decision"}(${data.model || "?"}) ${data.latencyMs ?? "?"}ms${attempts}
 ${lines.join("\n")}`;
     }
   },
@@ -38602,6 +38622,7 @@ Rules of thumb:
 - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate (replaces sleeps).
 - act(mark_id? | selector? | x?+y?, action, text?, secret?, await_conditions?, timeout_ms?, dry_run?): unified click/focus/hover/type/press (mark badge, CSS selector, or coordinates) + post-conditions + delta. Selectors pierce open shadow roots and resolve a custom-element host to the control a mouse would hit. Typing is verified: a provable no-op returns ok:false with error.code TYPE_NO_EFFECT plus a typing evidence object (key counts, value lengths \u2014 never the text) and a hint that says whether input never arrived or the control refuses it (OTP \u2192 request_human_intervention).
 - expect(conditions[]): immediate assertion with per-condition evidence.
+- decide(state, questions?, model?): OPTIONAL typed decision model (absent unless a backend is configured; see Settings). One call, many questions: choice (takes criteria, option->description \u2014 NOT options), score, noul. Returns answers + confidence verbatim; never called implicitly; an answer is a component id, never a selector. Loop: observe(as:"components") -> decide -> act(mark_id) -> verify. GET /decisions lists the last 50 calls.
 - find(role?, name?, contains?, regex?, tag?, selector?): semantic search -> mark refs.
 - extract(kind:"list"|"table"|"tables"|"app_data"|"schema_org", ref?, selector?, type?): structured reads (rows, tables, every table, embedded JSON, typed JSON-LD).
 - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): harvest a lazy/infinite list in one call.

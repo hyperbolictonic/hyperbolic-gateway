@@ -983,11 +983,29 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       state: z.any().describe('What the model reasons over: a string, JSON (e.g. the components array), or an array of values'),
       questions: z.record(z.string(), z.any()).describe('Typed questions keyed by name. For TypeSafe: {"operation":{"type":"choice","instructions":"…","criteria":{"click":"Click a control","done":"The goal is met"}},"done":{"type":"noul","instructions":"…"}} — choice takes criteria (option→description), NOT options. Local open-jev takes options instead.'),
       model: z.string().optional().describe('Override the configured model for this call (e.g. "jev-1.13", "d1-3b")'),
+      guard: z.object({
+        threshold: z.coerce.number().min(0).max(1).optional().describe('Reject choices below this confidence (0–1)'),
+        operations: z.array(z.string()).optional().describe('Operations that may be accepted (default click/type_text/done/blocked)'),
+        components: z.array(z.object({ id: z.union([z.string(), z.coerce.number()]), actions: z.array(z.string()).optional(), name: z.string().optional() })).optional().describe('The components you offered (from observe as=components) — a target not in this list, or one that does not accept the operation, is rejected'),
+      }).optional().describe('Validate the answer before trusting it: confidence gate, target membership, affordance match, done/operation contradiction'),
+      eliminate: z.object({
+        max_attempts: z.coerce.number().min(1).max(5).optional().describe('Total model calls including the first (default 3 when eliminate is set)'),
+      }).optional().describe('Drop a rejected option and ask again with the rest; when everything is eliminated the result is accepted:false, fallback:"agent"'),
     },
     endpoint: '/decide',
-    payload: (args) => ({ state: args?.state, questions: args?.questions || {}, model: args?.model }),
+    payload: (args) => ({
+      state: args?.state,
+      questions: args?.questions || {},
+      model: args?.model,
+      guard: args?.guard,
+      eliminate: args?.eliminate,
+    }),
     format: (data) => {
       if (data.error) return `decide failed: ${data.error}`;
+      if (data.accepted === false) {
+        const reasons = (data.reasons || []).join('\n');
+        return `NO DECISION — the agent decides (${data.attempts} attempt${data.attempts === 1 ? '' : 's'})\n${reasons}`;
+      }
       const answers = data.answers || {};
       const lines = Object.entries(answers).map(([key, value]) => {
         if (value && typeof value === 'object') {
@@ -999,7 +1017,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
         }
         return `${key}: ${value}`;
       });
-      return `${data.protocol || 'decision'}(${data.model || '?'}) ${data.latencyMs ?? '?'}ms\n${lines.join('\n')}`;
+      const attempts = data.attempts > 1 ? ` · ${data.attempts} attempts` : '';
+      return `${data.protocol || 'decision'}(${data.model || '?'}) ${data.latencyMs ?? '?'}ms${attempts}\n${lines.join('\n')}`;
     },
   },
   {

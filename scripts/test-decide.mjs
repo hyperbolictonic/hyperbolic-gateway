@@ -62,6 +62,8 @@ async function main() {
 
   const received = { bodies: [], auth: [] };
   let failMode = false;
+  /** Optional queue of answers; when empty the default answer is used. */
+  let answerQueue = [];
 
   const mock = await startMock((req, res) => {
     let raw = '';
@@ -75,14 +77,17 @@ async function main() {
         res.end(JSON.stringify({ error: 'upstream exploded' }));
         return;
       }
+      const answers = answerQueue.length
+        ? answerQueue.shift()
+        : {
+            operation: { type: 'choice', choice: 'click', confidence: 0.91, probabilities: { click: 0.91, done: 0.05, type_text: 0.04 } },
+            is_done: { type: 'noul', noul: 0.02, confidence: 0.97 },
+          };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
           model: body?.model,
-          answers: {
-            operation: { type: 'choice', choice: 'click', confidence: 0.91, probabilities: { click: 0.91, done: 0.05, type_text: 0.04 } },
-            is_done: { type: 'noul', noul: 0.02, confidence: 0.97 },
-          },
+          answers,
           usage: { input_tokens: 42, output_tokens: 0 },
         })
       );
@@ -127,7 +132,81 @@ async function main() {
     check('the key travels as a bearer token', received.auth[0] === 'Bearer test-key-123', String(received.auth[0]));
     check('latency is reported', typeof decided.json?.latencyMs === 'number' && decided.json.latencyMs >= 0, `${decided.json?.latencyMs}ms`);
 
-    // ---- 3. Upstream failure is not papered over ---------------------------
+    // ---- 3. Guarded mode: eliminate a rejected option and re-ask -------------
+    const guardBody = {
+      state: 'Goal: sign in. Components: [7] input "Email" {type}; [8] input "Password" {type}; [9] button "Sign in" {click}.',
+      guard: {
+        threshold: 0.5,
+        components: [
+          { id: 7, actions: ['type'] },
+          { id: 8, actions: ['type'] },
+          { id: 9, actions: ['click'] },
+        ],
+      },
+      eliminate: { max_attempts: 3 },
+      questions: {
+        operation: { type: 'choice', instructions: 'Next operation?', criteria: { click: 'Click', type_text: 'Type', done: 'Done' } },
+        target: { type: 'choice', instructions: 'Which component?', criteria: { '7': 'Email', '8': 'Password', '9': 'Sign in' } },
+      },
+    };
+
+    // First answer names a component that was never offered; the second is valid.
+    answerQueue = [
+      { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '99', confidence: 0.8 } },
+      { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '9', confidence: 0.8 } },
+    ];
+    const guarded = await bridge('/decide', 'POST', guardBody);
+    check(
+      'a rejected target is eliminated and the call is retried',
+      guarded.json?.accepted === true && guarded.json?.attempts === 2 && guarded.json?.answers?.target?.choice === '9',
+      `attempts=${guarded.json?.attempts} removed=${JSON.stringify(guarded.json?.removed)}`
+    );
+    check(
+      'the elimination is recorded with its reason',
+      (guarded.json?.rejections || []).some((r) => r.option === '99' && /not in the offered list/.test(r.reason)),
+      (guarded.json?.rejections || []).map((r) => r.option).join(', ')
+    );
+    check(
+      'the retry no longer offers the eliminated option',
+      !received.bodies[received.bodies.length - 1]?.questions?.target?.criteria?.['99'],
+      'target criteria without 99'
+    );
+
+    // Every attempt names an impossible component: exhaustion, and the agent decides.
+    answerQueue = [
+      { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '99', confidence: 0.8 } },
+      { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '98', confidence: 0.8 } },
+    ];
+    const exhausted = await bridge('/decide', 'POST', { ...guardBody, eliminate: { max_attempts: 2 } });
+    check(
+      'exhaustion falls back to the agent instead of acting',
+      exhausted.json?.accepted === false && exhausted.json?.fallback === 'agent' && exhausted.json?.exhausted === true,
+      `accepted=${exhausted.json?.accepted} fallback=${exhausted.json?.fallback}`
+    );
+
+    // Low confidence is rejected by the threshold even when the target is valid.
+    answerQueue = [{ operation: { type: 'choice', choice: 'click', confidence: 0.2 }, target: { type: 'choice', choice: '9', confidence: 0.2 } }];
+    const lowConfidence = await bridge('/decide', 'POST', { ...guardBody, eliminate: { max_attempts: 1 } });
+    check(
+      'a low-confidence answer is not accepted',
+      lowConfidence.json?.accepted === false && /below the/.test((lowConfidence.json?.reasons || []).join(' ')),
+      (lowConfidence.json?.reasons || [])[0]
+    );
+
+    // An action the component does not accept is rejected (a textbox cannot be clicked).
+    answerQueue = [
+      { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '7', confidence: 0.9 } },
+      { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '9', confidence: 0.9 } },
+    ];
+    const wrongAffordance = await bridge('/decide', 'POST', guardBody);
+    check(
+      'a target that cannot perform the operation is rejected',
+      wrongAffordance.json?.accepted === true &&
+        (wrongAffordance.json?.rejections || []).some((r) => /does not accept/.test(r.reason)),
+      (wrongAffordance.json?.rejections || [])[0]?.reason
+    );
+
+    // ---- 4. Upstream failure is not papered over ---------------------------
     failMode = true;
     const failed = await bridge('/decide', 'POST', { state: 'x', questions: { q: { type: 'noul', instructions: '?' } } });
     check('an upstream failure surfaces as an error', failed.status === 502 && failed.json?.code === 'UPSTREAM_ERROR', `HTTP ${failed.status} ${failed.json?.code}`);

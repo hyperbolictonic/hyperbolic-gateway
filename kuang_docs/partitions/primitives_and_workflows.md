@@ -194,6 +194,52 @@ which failure you have:
 For clicks, the equivalent evidence is the returned delta (`urlChanged`, revision, marks) —
 never assume a click worked because `ok` is true.
 
+### R9 — the decision loop (optional; only when `decide` is configured)
+A decision model picks **which component**; Kuang executes and proves it. One round trip per step:
+
+```
+1  observe(as = "components")                      # role, name, value, state, region, actions; ids are mark ids
+2  decide(state = <goal + that table>, questions)   # ONE call: operation + targets + is_done, in parallel
+3  act(mark_id = <chosen id>, action = <operation>) # verified: box, focus, typing.landed
+4  check the delta / typing verdict, then repeat from 1
+```
+
+Question set (keep every head narrow — a target list for `click` must only contain clickable components):
+
+```json
+{ "operation":   { "type": "choice", "instructions": "What is the next operation?",
+                   "criteria": { "click": "Actuate a control…", "type_text": "Type into a field…",
+                                 "done": "The goal is already satisfied…", "blocked": "A CAPTCHA, consent or login wall…" } },
+  "click_target": { "type": "choice", "instructions": "Which component to click?",
+                    "criteria": { "9": "Sign in button", "12": "Reject optional cookies" } },
+  "is_done":      { "type": "noul", "instructions": "Does the visible state satisfy the goal?" } }
+```
+
+Three rules that matter more than the plumbing:
+
+1. **`choice` takes `criteria`, not `options`.** TypeSafe reports a wrong shape as
+   `422 "Upstream request failed: Endpoint is unavailable."` — which looks like an auth failure. It isn't.
+2. **Every option needs a real description.** Bare option keys cost accuracy: a local model went 5/10 → 7/10
+   with descriptions, and a `blocked` option described as "a wall" stopped being answered as `click`.
+3. **Execute the head that matches the chosen operation**, and only when it exists. `done`/`blocked` need no
+   target. Never turn an answer into a selector, coordinate or script — it is a component id, nothing more.
+
+`decide` is absent unless a backend is configured. `GET /decisions` returns the last 50 calls (backend,
+latency, questions, answers, or the typed failure) so a loop can be inspected after the fact.
+
+**Never trust an answer blindly — guard it, then eliminate.**
+```
+decide(state, questions, guard = {threshold: 0.55, components}, eliminate = {max_attempts: 3})
+  accepted:true   → act(mark_id = target) → verify (delta / typing.landed)
+  accepted:false  → exhausted:true, fallback:"agent", reasons[] → YOU decide; no action was taken
+```
+The guard rejects: confidence below the threshold, a target that was not in the offered list, a target whose
+`actions` do not include the operation, and a `done` answer that contradicts the operation. Each rejection
+removes that option and re-asks, so the model cannot repeat the same mistake; when the options run out the
+call returns `fallback:"agent"`. The ladder is **model → eliminate + retry → agent**. If an `act` afterwards
+fails (`TYPE_NO_EFFECT`, no delta), treat the chosen step as wrong: re-observe, pick the next candidate, and
+hand over to a human if the page is a wall.
+
 ## 6. Input Delivery & Background Rendering (operational guarantees)
 
 - **Focus-independent input.** Mouse / keys / wheel are dispatched over the tab's

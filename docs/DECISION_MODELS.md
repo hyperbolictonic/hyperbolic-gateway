@@ -184,6 +184,31 @@ work, and on CPU it would be seconds per decision.
 
 `choice` takes **`criteria`** (option → description), not `options` — see the note above.
 
+### Guard + elimination — what happens when the model is wrong
+
+A decision is only acted on if it passes deterministic checks Kuang can make without judgement:
+
+| check | rejects when |
+| :--- | :--- |
+| confidence gate | the chosen option's confidence is below `guard.threshold` |
+| target membership | the chosen id was not in the `guard.components` list that was offered |
+| affordance match | the component's `actions` do not include the chosen operation (a textbox cannot be clicked) |
+| contradiction | the `done` question is true while the operation is something else |
+
+With `eliminate` set, a rejected option is **removed from that question** and the model is asked again
+with what's left — one call per attempt, capped at `max_attempts` (default 3, max 5):
+
+```json
+{ "guard": { "threshold": 0.55, "components": [ {"id": 7, "actions": ["type"]}, {"id": 9, "actions": ["click"]} ] },
+  "eliminate": { "max_attempts": 3 } }
+```
+
+When every candidate is eliminated the result is **`accepted:false, exhausted:true, fallback:"agent"`**
+with `reasons`, `rejections` and the `removed` map — no action is taken, and the agent decides. That is the
+ladder: **model → remove the rejected option and retry → (if exhausted) deterministic checks and the agent**.
+A failed `act` afterwards is the last signal: `typing.landed:false` or an unchanged delta means the chosen
+step did not work, so re-observe and try the next candidate, then hand over to a human.
+
 3. Execute the head matching the chosen operation: `act(mark_id=…)`.
 4. **Verify** — the existing guarantees do the work: `typing.landed`, the delta, occlusion, the 0×0 guard.
 5. The ledger records what the policy chose *and* whether it worked, which is the data to evaluate it with.

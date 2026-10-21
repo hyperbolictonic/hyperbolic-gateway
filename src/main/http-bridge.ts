@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { BrowserChassis } from './browser-chassis.js';
 import { APP_VERSION } from '../shared/version.js';
 import { runDecision, decisionStatus } from './decide/decision-client.js';
+import { decideGuarded } from './decide/decision-guard.js';
 
 function logBridge(message: string, isError = false) {
   const timestamp = new Date().toISOString();
@@ -723,11 +724,22 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
           return;
         }
         const body = await readBody();
-        const result = await runDecision({
-          state: body?.state,
-          questions: body?.questions || {},
-          model: body?.model,
-        });
+        // Guarded mode is opt-in: `guard`/`eliminate` turn validation + elimination on, otherwise
+        // this stays a raw pass-through to the model.
+        const useGuard = body?.guard !== undefined || body?.eliminate !== undefined;
+        const result = useGuard
+          ? await decideGuarded({
+              state: body?.state,
+              questions: body?.questions || {},
+              model: body?.model,
+              guard: body?.guard || {},
+              maxAttempts: body?.eliminate?.max_attempts ?? body?.eliminate?.maxAttempts ?? (body?.eliminate ? 3 : 1),
+            })
+          : await runDecision({
+              state: body?.state,
+              questions: body?.questions || {},
+              model: body?.model,
+            });
         if (result.ok) {
           sendJson({ success: true, ...result });
         } else {

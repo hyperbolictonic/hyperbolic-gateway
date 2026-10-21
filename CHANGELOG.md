@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`decide` guard + elimination — the fallback ladder.** A decision is now checked before it is trusted:
+  confidence below `guard.threshold`, a target that was not in the offered `guard.components`, a target whose
+  `actions` do not include the operation, or a `done` answer contradicting the operation are all **rejected**.
+  With `eliminate:{max_attempts}`, the rejected option is removed from that question and the model is asked
+  again with what's left (capped at 5). When everything is eliminated the call returns
+  `accepted:false, exhausted:true, fallback:"agent"` with `reasons`, `rejections` and `removed` — **no action
+  is taken and the agent decides**. Ladder: model → eliminate + retry → agent. Covered by six new checks in
+  `npm run test:decide` (17 total), including "the retry no longer offers the eliminated option".
 - **DECISIONS tab in the HUD — shown only when a decision model is configured.** Mirrors every call to the
   decision model as it happens: backend + model, latency, each question with its type, the answers (choice +
   confidence, `noul` as yes/no with probability, score + level) or the typed failure, and a truncated state
