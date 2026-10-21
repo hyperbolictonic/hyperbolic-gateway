@@ -68,6 +68,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `"commit"` — a meaningless identifier to any reader, human or model. Accessible-name computation now
   prefers `value` for `submit`/`button`/`reset` inputs before falling back to `name`.
 
+### Changed
+
+- **Decision-model docs corrected: TypeSafe `choice` takes `criteria`, not `options`.** The docs and the
+  `decide` parameter example used `options: [...]`, which the OpenCode gateway rejects with
+  `422 "Upstream request failed: Endpoint is unavailable."` — an error that reads like an auth failure or an
+  outage and cost an afternoon of credential hunting. `criteria` is an option → description map; `noul` and
+  `score` are unaffected. open-jev (the local path) still takes `options`.
+- **Measured on the four-case page bench** (`npm run bench:decision -- --bridge`): **Jev 1.13 9/10 field
+  answers at 404 ms p50**, versus `kev-0.6b` 4/10 at 1,591 ms and `open-jev` 7/10 at 750 ms. Jev is now the
+  recommended backend; the local ONNX path stays labelled experimental.
+
 ## [1.3.0] - 2026-10-20
 
 ### Fixed

@@ -127,17 +127,34 @@ with **no model bundled**: `kev-0.6b` (Qwen3-0.6B, 0.34 GB) by default, or `open
 
 `scripts/bench-decision-model.mjs` runs four realistic page states (empty password + a dead submit, an
 already-signed-in page, a cookie banner, a CAPTCHA) using the exact payload Kuang sends — a goal plus the
-component table, with target options restricted by each component's `actions`:
+component list, with target options restricted by each component's `actions`. Run it against the configured
+backend (`--bridge`) or a local model (`kev-0.6b cpu`):
 
-| Model | Field answers correct | p50 latency (CPU) |
+| Backend | Field answers correct | p50 latency |
 | :--- | :--- | :--- |
-| `kev-0.6b` | **5 / 12** | 1,118 ms |
-| `open-jev` (DeBERTa-v3-large) | **7 / 12** | 750 ms |
+| **Jev 1.13** (OpenCode Console) | **9 / 10** | **404 ms** |
+| `kev-0.6b` (local, Qwen3-0.6B) | 4 / 10 | 1,591 ms |
+| `open-jev` (local, DeBERTa-v3-large) | 7 / 10 | 750 ms |
 
-Both are mechanically sound and both are **out of domain** for page decisions: kev-0.6b never chose
-`blocked`, and defaulted to component 1; DeBERTa was closer but low-confidence (0.25–0.5) and still picked
-the wrong target. Treat the local path as experimental, use `decide` answers only with a confidence
-threshold and a deterministic fallback, and re-run the bench before trusting another model.
+Jev answered three of the four scenarios exactly right; its only miss was the CAPTCHA, where it chose
+`click` (0.60) on the Verify button instead of `blocked` — a defensible reading. The local models are
+mechanically sound and out of domain: they never chose `blocked`, and defaulted to component 1. **Use Jev
+for page decisions; treat the local path as experimental.**
+
+### Question shape: `choice` takes `criteria`, not `options`
+
+TypeSafe's `choice` question expects a **map of option → description** in `criteria`:
+
+```json
+{ "type": "choice",
+  "instructions": "What is the next operation?",
+  "criteria": { "click": "Click a control", "type_text": "Type into a field", "done": "The goal is met" } }
+```
+
+Sending `options: [...]` instead does **not** return a validation error — the OpenCode gateway answers
+`422 {"message":"Upstream request failed: Endpoint is unavailable."}`, which reads like an auth failure or
+an outage and sent us chasing the key for a while. `noul` and `score` are unaffected (`score` takes an
+array of level criteria). open-jev, by contrast, takes `options`.
 
 **d1-3B is not supported by `open-jev`.** Its `detectFamily()` only accepts configs with an `open_jev` or
 `kev` section, and LiquidAI's d1-3B is `lfm2_vl` — the snippet on its model card does not work against the
@@ -154,12 +171,14 @@ work, and on CPU it would be seconds per decision.
 
 ```json
 {
-  "operation":  { "type": "choice", "instructions": "What is the next operation?", "options": ["click", "type_text", "done", "blocked"] },
-  "click_target": { "type": "choice", "instructions": "Which component to click?", "options": ["7", "9", "12"] },
-  "type_target":  { "type": "choice", "instructions": "Which component to type into?", "options": ["1", "2"] },
+  "operation":  { "type": "choice", "instructions": "What is the next operation?", "criteria": { "click": "Click a control", "type_text": "Type into a field", "done": "The goal is met", "blocked": "A wall: CAPTCHA, consent, login" } },
+  "click_target": { "type": "choice", "instructions": "Which component to click?", "criteria": { "7": "Email field", "9": "Sign in button", "12": "Dismiss banner" } },
+  "type_target":  { "type": "choice", "instructions": "Which component to type into?", "criteria": { "1": "Email field", "2": "Password field" } },
   "is_done":      { "type": "noul", "instructions": "Does the visible state satisfy the goal?" }
 }
 ```
+
+`choice` takes **`criteria`** (option → description), not `options` — see the note above.
 
 3. Execute the head matching the chosen operation: `act(mark_id=…)`.
 4. **Verify** — the existing guarantees do the work: `typing.landed`, the delta, occlusion, the 0×0 guard.

@@ -981,7 +981,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       'Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default — experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
     parameters: {
       state: z.any().describe('What the model reasons over: a string, JSON (e.g. the components array), or an array of values'),
-      questions: z.record(z.string(), z.any()).describe('Typed questions keyed by name, e.g. {"operation":{"type":"choice","instructions":"…","options":["click","type_text","done"]},"done":{"type":"noul","instructions":"…"}}'),
+      questions: z.record(z.string(), z.any()).describe('Typed questions keyed by name. For TypeSafe: {"operation":{"type":"choice","instructions":"…","criteria":{"click":"Click a control","done":"The goal is met"}},"done":{"type":"noul","instructions":"…"}} — choice takes criteria (option→description), NOT options. Local open-jev takes options instead.'),
       model: z.string().optional().describe('Override the configured model for this call (e.g. "jev-1.13", "d1-3b")'),
     },
     endpoint: '/decide',
