@@ -84,9 +84,15 @@ export interface TypingOutcome {
   beforeinputs: number;
   inputs: number;
   landed: boolean | null;
+  /** Which channel produced the winning (or final) attempt. */
+  channel?: TypingChannel;
+  /** Every channel tried, in order (keys, insertText, paste). */
+  attempted?: TypingChannel[];
   /** True when the control was re-rendered mid-type, so no verdict is possible. */
   detached?: boolean;
 }
+
+export type TypingChannel = 'keys' | 'insertText' | 'paste';
 
 export interface ActionLedgerOptions {
   /** Directory to write into (default: `<cwd>/data`). */

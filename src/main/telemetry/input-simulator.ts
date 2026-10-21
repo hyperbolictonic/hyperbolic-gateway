@@ -1,4 +1,4 @@
-import { BrowserWindow, type WebContents } from 'electron';
+import { BrowserWindow, clipboard, type WebContents } from 'electron';
 import { generateOrganicTrajectory, type Point, type PathStep, type ChaosKinematicsOptions } from './bezier.js';
 
 export interface InputTelemetryReporter {
@@ -393,6 +393,54 @@ export class HumanizedInputSimulator {
   /**
    * Types text with humanized cadence, realistic inter-key variance, and word pauses.
    */
+  /**
+   * Insert text the way `Input.insertText` does: **no key events at all**, but `beforeinput` and
+   * `input` still fire. Components that filter `keydown` (a common pattern in web-component text
+   * fields) accept this where synthetic keystrokes are silently dropped.
+   *
+   * Deliberately a fallback, never the default: it is not a humanlike path (no per-key timing, no
+   * keydown), so it should only run after real typing has been *proved* to have had no effect.
+   */
+  public async insertText(webContents: WebContents, text: string): Promise<boolean> {
+    if (webContents && !webContents.isDestroyed()) {
+      try {
+        webContents.focus();
+      } catch {}
+    }
+    const ok = await this.cdp(webContents, 'Input.insertText', { text });
+    if (ok) this.lastInputTransport = 'cdp';
+    return ok;
+  }
+
+  /**
+   * Paste `text` into the focused control through the real clipboard (trusted paste, which most
+   * controls accept as normal user behaviour). The previous clipboard contents are restored so a
+   * probe never eats what the human had copied.
+   */
+  public async pasteText(webContents: WebContents, text: string): Promise<boolean> {
+    if (!webContents || webContents.isDestroyed()) return false;
+    let previous = '';
+    try {
+      // Electron 44 exposes the clipboard asynchronously.
+      previous = await clipboard.readText();
+    } catch {}
+    try {
+      await clipboard.writeText(text);
+      webContents.focus();
+      webContents.paste();
+      // Give the renderer a beat to apply the paste before the clipboard is restored.
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      this.lastInputTransport = 'native';
+      return true;
+    } catch {
+      return false;
+    } finally {
+      try {
+        await clipboard.writeText(previous);
+      } catch {}
+    }
+  }
+
   public async typeText(
     webContents: WebContents,
     text: string,

@@ -199,6 +199,8 @@ export class BrowserChassis {
       typeMark: (id, text, opts) => this.typeMark(id, text, opts),
       clickElement: (selector, coords) => this.clickElement(selector, coords),
       typeText: (text, selector, opts) => this.typeText(text, selector, opts),
+      insertText: (text) => this.simulator.insertText(this.getActiveWebContents(), text),
+      pasteText: (text) => this.simulator.pasteText(this.getActiveWebContents(), text),
       moveMouseTo: (target) => this.moveMouse(target),
       pressKey: (key) => this.pressKey(key),
       snapshotRenderedPage: (opts) => this.snapshotRenderedPage(opts),

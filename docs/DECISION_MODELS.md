@@ -184,6 +184,53 @@ work, and on CPU it would be seconds per decision.
 
 `choice` takes **`criteria`** (option → description), not `options` — see the note above.
 
+### Who writes the text? (the answer is: the agent)
+
+Jev is decision-only. It answers `choice` / `score` / `noul` over a state and **never generates text** —
+there is no prose path in it at all. So the split is:
+
+```
+Jev (decide)      → operation = "type_text", target = "8"     a decision
+the agent (LLM)   → the string to type                        generation, over MCP
+Kuang (act)       → focus, keys, verify (typing.landed)        execution + proof
+```
+
+This is deliberate: Kuang ships **no text-generation model**. jev-ultrafast embeds a small LLM
+(`mercury-2.5` in its example) because it owns the whole loop; here the loop lives in the agent, which
+already has a model. That keeps Kuang local-first and key-free, and keeps the words under the agent's
+control. In practice: `decide` says *which* field and *that* typing is next; the agent supplies the text
+via `act(mark_id, action:"type", text:"…")`.
+
+**Roadmap:** an *optional* text helper — the equivalent of jev-ultrafast's small model — for runners that
+have no LLM of their own. It would sit behind the same off-by-default config as `decide` (an
+OpenAI-compatible endpoint or `open-jev`-style local model), be called **only** for `TYPE_TEXT`, and would
+still hand its output to `act`, which verifies it. Not built; the agent is the text model today.
+
+### Handing over to a human (HIL) — a question, not a tool
+
+Yes: the decision model is the right place to *decide* that a human is needed, because that is an
+epistemic judgement over the page, not an action. Keep it as a question and let the agent execute it:
+
+```json
+{ "operation": { "type": "choice", "instructions": "What is the next operation?", "criteria": { "click": "…", "type_text": "…", "done": "…", "blocked": "…" } },
+  "handoff":   { "type": "noul",   "instructions": "Does this situation require a HUMAN — a CAPTCHA, a 2FA/one-time code, a payment confirmation, an identity check, or anything the agent must not do itself?" },
+  "handoff_for": { "type": "choice", "instructions": "What should the human do?", "criteria": { "captcha": "Solve the CAPTCHA", "otp": "Read and enter the code sent to the account", "consent": "Decide on the consent prompt", "payment": "Approve or complete payment", "identity": "Complete an identity check" } } }
+```
+
+Then the runner branches on the probability, not on the model's prose:
+
+```
+const d = decide(state, questions, guard, { max_attempts: 3 })
+if (d.answers?.handoff?.noul >= 0.6) request_human_intervention({ reason: d.answers.handoff_for.choice })
+else if (d.accepted) act(mark_id = d.answers.target.choice, action = d.answers.operation.choice)
+else /* fallback: agent decides */
+```
+
+Two guardrails worth keeping: the model **never calls HIL itself** (it returns a probability; the agent
+acts), and the existing mechanical signals — `TYPE_NO_EFFECT` after the input ladder, `blocked`, an
+unchanged delta — remain valid reasons to hand over even when the model says otherwise. The human is the
+last rung of the same ladder: **model → eliminate + retry → deterministic checks → agent → human**.
+
 ### Guard + elimination — what happens when the model is wrong
 
 A decision is only acted on if it passes deterministic checks Kuang can make without judgement:

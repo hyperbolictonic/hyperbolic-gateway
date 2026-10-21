@@ -68,7 +68,7 @@ export function attachContextMenu(wc: WebContents, options: ContextMenuOptions):
           click: () => options.onOpenLinkInNewTab?.(params.linkURL),
         },
         { label: 'Open link in system browser', click: () => void shell.openExternal(params.linkURL) },
-        { label: 'Copy link address', click: () => clipboard.writeText(params.linkURL) },
+        { label: 'Copy link address', click: () => void clipboard.writeText(params.linkURL) },
         { type: 'separator' }
       );
     }
@@ -76,7 +76,7 @@ export function attachContextMenu(wc: WebContents, options: ContextMenuOptions):
     if (params.mediaType === 'image' && params.srcURL) {
       template.push(
         { label: 'Copy image', click: () => wc.copyImageAt(params.x, params.y) },
-        { label: 'Copy image address', click: () => clipboard.writeText(params.srcURL) },
+        { label: 'Copy image address', click: () => void clipboard.writeText(params.srcURL) },
         { label: 'Save image as…', click: () => wc.downloadURL(params.srcURL) },
         { type: 'separator' }
       );
@@ -91,8 +91,8 @@ export function attachContextMenu(wc: WebContents, options: ContextMenuOptions):
       { label: 'Forward', enabled: canGoForward, click: () => (history ? history.goForward() : (wc as any).goForward?.()) },
       { label: 'Reload', click: () => wc.reload() },
       { type: 'separator' },
-      { label: 'Copy page URL', click: () => clipboard.writeText(wc.getURL()) },
-      { label: 'Copy page address as Markdown link', click: () => clipboard.writeText(`[${wc.getTitle()}](${wc.getURL()})`) },
+      { label: 'Copy page URL', click: () => void clipboard.writeText(wc.getURL()) },
+      { label: 'Copy page address as Markdown link', click: () => void clipboard.writeText(`[${wc.getTitle()}](${wc.getURL()})`) },
       { type: 'separator' },
       {
         label: 'Inspect element',

@@ -2,7 +2,7 @@ import type { WebContents } from 'electron';
 import type { HarvestedConstruct } from '../../shared/types.js';
 import { APP_VERSION } from '../../shared/version.js';
 import type { MarkItem } from '../marks/marks-overlay.js';
-import type { TransitionRecord, FieldFacts, TypingOutcome } from '../telemetry/action-ledger.js';
+import type { TransitionRecord, FieldFacts, TypingOutcome, TypingChannel } from '../telemetry/action-ledger.js';
 import {
   targetBoxScript,
   fieldFactsScript,
@@ -47,6 +47,10 @@ export interface PrimitivesHost {
   typeMark(id: number, text: string, opts?: { secret?: boolean; clearFirst?: boolean }): Promise<string>;
   clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string>;
   typeText(text: string, selector?: string, opts?: { clearFirst?: boolean }): Promise<string>;
+  /** CDP text insertion — no key events. Fallback when keystrokes are provably ignored. */
+  insertText(text: string): Promise<boolean>;
+  /** Clipboard paste into the focused control, restoring the previous clipboard. */
+  pasteText(text: string): Promise<boolean>;
   moveMouseTo(target: { x: number; y: number }): Promise<void>;
   pressKey(key: string): Promise<string>;
   snapshotRenderedPage(opts: any): Promise<any>;
@@ -1031,6 +1035,34 @@ export class Primitives {
         if (text.length > 0) {
           const probe = await this.host.evaluate(inputProbeReadScript()).catch(() => null);
           typing = this.verdictForTyping(probe, text.length, clearFirst);
+
+          // Input-method ladder. Keys are the humanlike default; only when real keystrokes
+          // provably reached the page and changed nothing do we try the other channels
+          // (CDP insertText, then clipboard paste), re-verifying each. Some web-component
+          // fields filter `keydown` entirely, and those accept insertion or paste.
+          if (typing && typing.landed === false && typing.keydowns > 0) {
+            // Preserve the evidence from the keystroke attempt: each fallback channel gets a fresh
+            // probe, and its own counters would otherwise erase the proof that keys *did* arrive
+            // (a paste produces no keydowns at all).
+            const keyAttempt = typing;
+            const attempted: TypingChannel[] = ['keys'];
+            for (const channel of ['insertText', 'paste'] as const) {
+              await this.host.evaluate(inputProbeInstallScript(locator)).catch(() => null);
+              const sent = channel === 'insertText' ? await this.host.insertText(text) : await this.host.pasteText(text);
+              const probe2 = await this.host.evaluate(inputProbeReadScript()).catch(() => null);
+              if (!sent) continue;
+              const verdict = this.verdictForTyping(probe2, text.length, false);
+              if (!verdict) continue;
+              attempted.push(channel);
+              typing = {
+                ...verdict,
+                channel,
+                keydowns: Math.max(verdict.keydowns, keyAttempt.keydowns),
+                attempted,
+              };
+              if (verdict.landed) break;
+            }
+          }
         }
         break;
       }
@@ -1155,12 +1187,15 @@ export class Primitives {
     // clear_first + retyping the identical value leaves the length unchanged but is not a no-op.
     const identicalRetype = clearFirst && base.afterLength > 0 && base.afterLength === typedChars;
     const landed = noEventsAtAll ? false : base.changed === true || identicalRetype;
-    return { ...base, landed };
+    return { ...base, landed, channel: 'keys', attempted: ['keys'] };
   }
 
   private typingHint(t: TypingOutcome): string {
     if (t.keydowns === 0) {
       return 'No trusted key events reached the page — focus was not on the target (the click may have been occluded) or the app window is not focused. Re-check with act(action:"focus") or bridge_health.';
+    }
+    if (t.channel && t.channel !== 'keys') {
+      return `The control rejected every input channel — keystrokes, CDP text insertion and clipboard paste (value ${t.beforeLength} → ${t.afterLength}, keydowns ${t.keydowns}). It enforces its own input rules (a code field or a masked widget); call request_human_intervention rather than retrying.`;
     }
     return `The control received ${t.keydowns} key event(s) and ${t.beforeinputs} beforeinput event(s) but its value did not change — it rejects synthetic input. One-time-code/OTP inputs and some framework-controlled fields behave this way; call request_human_intervention instead of retrying.`;
   }

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Input-method ladder for typing — fixes the field that ignored keystrokes.** When real keystrokes
+  provably reached the page and changed nothing, `act(type)` now retries the same text through **CDP
+  `Input.insertText`** (no key events, but `beforeinput`/`input` fire — accepted by components that filter
+  `keydown`), then through a **real clipboard paste** (restoring the previous clipboard afterwards), and
+  re-verifies each rung. The outcome reports `typing.channel` (`keys` / `insertText` / `paste`) and
+  `typing.attempted`; the ledger records them. A field that swallows keydown is now filled (verified in
+  `test:act`: `channel=insertText`, value `740106`); a control that rejects every channel still returns
+  `TYPE_NO_EFFECT`, but the hint now says *"rejected every input channel — keystrokes, CDP text insertion
+  and clipboard paste… call request_human_intervention"* instead of blaming focus.
+- **Docs: who writes the typed text, and HIL as a decision.** Jev never generates text — it decides that an
+  operation is `type_text` and which field; **the agent** supplies the string. Kuang ships no generation
+  model (jev-ultrafast embeds one because it owns the loop; ours is the caller). Human-in-the-loop is
+  documented as a pair of questions (`handoff` noul + `handoff_for` choice) that the runner turns into
+  `request_human_intervention`, with a roadmap note for an optional small text helper behind the same
+  off-by-default config.
 - **`decide` guard + elimination — the fallback ladder.** A decision is now checked before it is trusted:
   confidence below `guard.threshold`, a target that was not in the offered `guard.components`, a target whose
   `actions` do not include the operation, or a `done` answer contradicting the operation are all **rejected**.

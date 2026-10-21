@@ -28,6 +28,7 @@ const PAGE = [
   '<h1>Act fixture</h1>',
   '<form aria-label="Signup"><x-signup></x-signup></form>',
   '<x-otp></x-otp>',
+  '<x-keyless></x-keyless>',
   '<script>',
   'window.__clicks = 0;',
   'class XSignup extends HTMLElement {',
@@ -51,6 +52,16 @@ const PAGE = [
   '}',
   'customElements.define("x-signup", XSignup);',
   'customElements.define("x-otp", XOtP);',
+  'class XKeyless extends HTMLElement {',
+  '  connectedCallback() {',
+  '    const root = this.attachShadow({ mode: "open" });',
+  '    root.innerHTML = "<input id=\\"keyless\\" aria-label=\\"Keyless code\\" inputmode=\\"numeric\\">";',
+  '    // A field that swallows key events entirely (common in web-component code inputs),',
+  '    // but accepts text insertion and paste — the case the input ladder exists for.',
+  '    root.getElementById("keyless").addEventListener("keydown", (e) => e.preventDefault());',
+  '  }',
+  '}',
+  'customElements.define("x-keyless", XKeyless);',
   '</script></body></html>',
 ].join('\n').replace('XOtP', 'XOtp');
 
@@ -196,6 +207,20 @@ async function main() {
       `keydowns=${otp.typing?.keydowns}, landed=${otp.typing?.landed}`
     );
     check('the hint points at the human', /request_human_intervention/.test(otp.error?.hint || ''), 'OTP → hand over');
+    check(
+      'the ladder is recorded: keys, insertion and paste all rejected',
+      otp.typing?.channel === 'paste' && /every input channel/.test(otp.error?.hint || ''),
+      `channel=${otp.typing?.channel}`
+    );
+
+    // ---- 3b. A field that ignores keys but accepts insertion -----------------
+    const keyless = await bridge('/act', 'POST', { selector: '#keyless', action: 'type', text: '740106' });
+    const keylessValue = await evaluate('document.querySelector("x-keyless").shadowRoot.getElementById("keyless").value');
+    check(
+      'a keydown-filtering field is filled through the fallback channel',
+      keyless.ok === true && keyless.typing?.channel === 'insertText' && keylessValue === '740106',
+      `channel=${keyless.typing?.channel} value=${JSON.stringify(keylessValue)}`
+    );
 
     const record = await ledgerRecord('#otp');
     check(

@@ -240,6 +240,24 @@ call returns `fallback:"agent"`. The ladder is **model → eliminate + retry →
 fails (`TYPE_NO_EFFECT`, no delta), treat the chosen step as wrong: re-observe, pick the next candidate, and
 hand over to a human if the page is a wall.
 
+**Who writes the typed text?** Not Jev — it only decides. The **agent** supplies the string (`act(mark_id,
+action:"type", text:"…")`), because Kuang ships no generation model. jev-ultrafast embeds a small LLM for
+this; ours is the calling agent.
+
+**Human-in-the-loop is a question, not an action.** Ask the model whether a human is required, and let the
+runner act on the probability:
+```json
+{ "handoff":     { "type": "noul",   "instructions": "Does this require a HUMAN — CAPTCHA, 2FA/one-time code, payment, identity check?" },
+  "handoff_for": { "type": "choice", "instructions": "What should the human do?",
+                   "criteria": { "captcha": "Solve the CAPTCHA", "otp": "Enter the emailed code",
+                                 "consent": "Decide the consent prompt", "payment": "Complete payment" } } }
+```
+```
+handoff.noul >= 0.6 → request_human_intervention(reason = handoff_for.choice)
+```
+The model never calls HIL itself, and the mechanical signals (`TYPE_NO_EFFECT` after the input ladder,
+`blocked`, an unchanged delta) stay valid reasons to hand over even when the model disagrees.
+
 ## 6. Input Delivery & Background Rendering (operational guarantees)
 
 - **Focus-independent input.** Mouse / keys / wheel are dispatched over the tab's
