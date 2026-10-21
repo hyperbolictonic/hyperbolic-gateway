@@ -130,6 +130,18 @@ export function validateAnswers(answers: Record<string, any>, guard: DecisionGua
     }
   }
 
+  // Contradiction: a terminal operation has nothing to act on.
+  if (operation === 'done' || operation === 'blocked') {
+    const targetAnswer = Object.entries(answers || {}).find(([id, a]) => /target/i.test(id) && a && typeof a === 'object' && 'choice' in a);
+    if (targetAnswer) {
+      rejections.push({
+        question: 'operation',
+        option: String(operation),
+        reason: `operation "${operation}" needs no target, but a target (${(targetAnswer[1] as any).choice}) was chosen`,
+      });
+    }
+  }
+
   // Contradiction: claims the goal is met while also choosing another operation.
   const doneP = answers?.done?.noul ?? answers?.done?.probability;
   const isDone = typeof doneP === 'number' ? doneP >= 0.5 : answers?.done?.answer;

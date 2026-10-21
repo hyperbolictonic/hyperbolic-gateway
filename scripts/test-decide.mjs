@@ -185,6 +185,20 @@ async function main() {
       `accepted=${exhausted.json?.accepted} fallback=${exhausted.json?.fallback}`
     );
 
+    // A terminal operation with a target is incoherent: reject the operation, re-ask.
+    answerQueue = [
+      { operation: { type: 'choice', choice: 'done', confidence: 0.9 }, target: { type: 'choice', choice: '9', confidence: 0.9 } },
+      { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '9', confidence: 0.9 } },
+    ];
+    const terminal = await bridge('/decide', 'POST', guardBody);
+    check(
+      'a terminal operation cannot also carry a target',
+      terminal.json?.accepted === true &&
+        terminal.json?.attempts === 2 &&
+        (terminal.json?.rejections || []).some((r) => /needs no target/.test(r.reason)),
+      (terminal.json?.rejections || [])[0]?.reason
+    );
+
     // Low confidence is rejected by the threshold even when the target is valid.
     answerQueue = [{ operation: { type: 'choice', choice: 'click', confidence: 0.2 }, target: { type: 'choice', choice: '9', confidence: 0.2 } }];
     const lowConfidence = await bridge('/decide', 'POST', { ...guardBody, eliminate: { max_attempts: 1 }, include_page_text: false });

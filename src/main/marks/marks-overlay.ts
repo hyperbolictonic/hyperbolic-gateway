@@ -198,6 +198,8 @@ export class MarksOverlay {
           if (tag === 'select') out.push('select');
           const clickable =
             tag === 'a' || tag === 'button' || tag === 'summary' || tag === 'select' ||
+            // A label associated with a control (radio, checkbox, sort toggle) is how a human clicks it.
+            (tag === 'label' && (el.control || el.htmlFor || el.querySelector('input, select, textarea'))) ||
             ['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'image'].includes(type) ||
             ['button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'option', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'treeitem'].includes(role) ||
             (a('aria-haspopup') && a('aria-haspopup') !== 'false') ||
