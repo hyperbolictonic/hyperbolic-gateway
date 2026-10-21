@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { HostBrowserProfile } from '../telemetry/host-fingerprint.js';
 import type { TabSummary } from '../../shared/types.js';
+import { attachContextMenu } from '../menu/context-menu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -81,6 +82,26 @@ export class TabManager {
     this.options.mainWindow.contentView.addChildView(view);
 
     const wc = view.webContents;
+
+    // Right-click: copy/paste/select-all, link and image actions, reload, inspect element.
+    // A WebContentsView has no default context menu, so without this the browser is unusable
+    // by hand even though every action exists in the API.
+    if (!(wc as any).__kuangContextMenu) {
+      (wc as any).__kuangContextMenu = true;
+      attachContextMenu(wc, {
+        window: this.options.mainWindow,
+        onOpenLinkInNewTab: (url) => {
+          try {
+            const tab = this.createTab(url);
+            this.switchTab(tab.id);
+          } catch (err) {
+            // Worst case the link still opens via "open in system browser".
+            this.options.onLog?.('warn', `Could not open link in a new tab: ${(err as Error)?.message || err}`);
+          }
+        },
+        onLog: (level, message) => this.options.onLog?.(level, message),
+      });
+    }
 
     // Also covers reused views (e.g. a prerendered view promoted to a tab), where the
     // webPreferences above are not re-applied.

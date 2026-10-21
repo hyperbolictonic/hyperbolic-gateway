@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Native right-click menu in browsing tabs.** A `WebContentsView` has no default context menu, so
+  copy/paste/select-all, link and image actions, reload and **inspect element** were unreachable by hand
+  even though the API had them. Each right-click now builds a menu from the click's own context: Undo/Redo/
+  Cut/Copy/Paste/Paste-as-plain-text/Select-all in editable fields, Copy + "Search the web for …" over a
+  selection, Open-in-new-tab / Open-in-system-browser / Copy-link-address over a link, Copy image / Copy
+  image address / Save image as… over an image, plus Back/Forward/Reload, Copy page URL, Copy as Markdown
+  link, Inspect element (opens DevTools at that pixel) and Open DevTools. Actions are issued against the
+  tab's own `webContents`, because Electron menu roles target the focused window — which here is the shell,
+  not the tab. Spellcheck suggestions are included when Chromium has them.
 - **Settings tab (HUD) for the decision model.** A `⚙️ SETTINGS` button opens a dialog with the
   backend (`off` / `typesafe` / `d1-onnx`), model, endpoint, key, revision and device, a status badge
   showing what the app will actually use, and **Test connection** — which runs a real one-question
