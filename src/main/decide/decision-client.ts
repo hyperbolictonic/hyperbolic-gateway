@@ -190,7 +190,12 @@ async function runTypesafe(cfg: DecisionConfig, call: DecisionCall): Promise<Dec
           code: 'UPSTREAM_ERROR',
           status: res.status,
           message: `Decision endpoint returned HTTP ${res.status}: ${(text || '').slice(0, 300)}`,
-          hint: res.status === 401 || res.status === 403 ? 'check KUANG_DECISION_KEY' : undefined,
+          hint:
+            res.status === 401 || res.status === 403
+              ? /opencode\.ai/i.test(cfg.url || '')
+                ? 'The key was rejected upstream. Verify it on its own with: curl https://opencode.ai/inference/v1/models -H "Authorization: Bearer $KEY" (200 = valid). Jev is an OpenCode *Console* pay-as-you-go model, so an OpenCode Go subscription key will not authorise it, and a TypeSafe key does not work on the opencode.ai endpoint.'
+                : 'The key was rejected upstream — check KUANG_DECISION_KEY (a TypeSafe key for api.typesafe.ai; an OpenCode Console key for opencode.ai/inference/systemone).'
+              : undefined,
         },
       };
     }
