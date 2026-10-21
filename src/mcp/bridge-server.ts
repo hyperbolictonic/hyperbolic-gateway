@@ -225,11 +225,22 @@ export function createBridgeMcpServer() {
     version: APP_VERSION,
   });
 
-  for (const tool of TOOLS_CATALOG) {
-    // The decision model is opt-in: when no backend is configured, `decide` is not registered at all
-    // (so it cannot appear in tools/list and cannot be called by name). The bridge route
-    // `POST /decide` still exists and answers NOT_CONFIGURED with setup instructions.
-    if ((tool.name === 'decide' || tool.name === 'drive') && !decisionStatus().configured) continue;
+  // When a decision model is configured, its tools are the most interesting thing on the surface:
+  // register them first so `tools/list` leads with `drive` and `decide` instead of burying them
+  // among 59 browser tools. When it is not configured they are not registered at all.
+  const decisionConfigured = decisionStatus().configured;
+  const orderedTools = decisionConfigured
+    ? [
+        ...TOOLS_CATALOG.filter((t) => t.name === 'drive' || t.name === 'decide'),
+        ...TOOLS_CATALOG.filter((t) => t.name !== 'drive' && t.name !== 'decide'),
+      ]
+    : TOOLS_CATALOG;
+
+  for (const tool of orderedTools) {
+    // The decision model is opt-in: when no backend is configured, `decide`/`drive` are not
+    // registered at all (so they cannot appear in tools/list and cannot be called by name). The
+    // bridge routes still exist and answer NOT_CONFIGURED with setup instructions.
+    if ((tool.name === 'decide' || tool.name === 'drive') && !decisionConfigured) continue;
 
     // Phase 4: fold discoverability guidance into the advertised description so it
     // travels with every tools/list entry in any agent framework.

@@ -38346,8 +38346,13 @@ function createBridgeMcpServer() {
     name: "kuang-grade-mark-eleven",
     version: APP_VERSION
   });
-  for (const tool of TOOLS_CATALOG) {
-    if ((tool.name === "decide" || tool.name === "drive") && !decisionStatus().configured) continue;
+  const decisionConfigured = decisionStatus().configured;
+  const orderedTools = decisionConfigured ? [
+    ...TOOLS_CATALOG.filter((t) => t.name === "drive" || t.name === "decide"),
+    ...TOOLS_CATALOG.filter((t) => t.name !== "drive" && t.name !== "decide")
+  ] : TOOLS_CATALOG;
+  for (const tool of orderedTools) {
+    if ((tool.name === "decide" || tool.name === "drive") && !decisionConfigured) continue;
     const tier = TOOL_TIERS[tool.name];
     const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
     server.tool(tool.name, `${prefix}${tool.description}`, tool.parameters, async (args) => {

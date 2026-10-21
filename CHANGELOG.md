@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > This is a deliberate, temporary deviation from strict semver; each increment still gets its own
 > Added/Fixed/Changed section here.
 
+## [1.4.2.2] - 2026-10-21
+
+Small increment: the optional decision tools are advertised **first** when active, and the docs say so.
+
+### Changed
+
+- **`drive` and `decide` are registered at the top of `tools/list`** when a decision model is configured —
+  the goal-driven loop is the most interesting thing on the surface when it is available, and it was buried
+  among 59 browser tools. When no model is configured they are still absent entirely. Verified through the
+  real stdio server: `tools: 61`, `first 5: drive, decide, navigate_to, press_key, scroll_page`.
+- **README states the surface honestly:** badge is `59 +2 optional`, the tools section heading is
+  `59 advertised · +2 optional`, and a note explains that the two appear only when configured and are
+  listed first. The `**59 advertised tools**` claim is unchanged for the default surface, so the manual
+  generator's guard still holds.
+
 ## [1.4.2.1] - 2026-10-21
 
 Documentation-only increment: the README navigation index, and the versioning rule for four-part tags.
