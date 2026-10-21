@@ -188,7 +188,10 @@
         <div id="tab-content-logs" class="flex-1 p-3 overflow-hidden flex-col hidden font-mono text-xs">
           <div class="flex items-center justify-between mb-2">
             <span class="font-bold text-base-content text-[11px]">MCP DIRECTIVE STREAM</span>
-            <span id="log-count" class="badge badge-xs badge-neutral">0 events</span>
+            <div class="flex items-center gap-2">
+              <span id="log-count" class="badge badge-xs badge-neutral">0 events</span>
+              <button id="copy-logs-btn" class="btn btn-xs btn-outline font-mono text-[10px]" title="Copy the log stream">COPY</button>
+            </div>
           </div>
           <div id="logs-container" class="flex-1 bg-base-100 border border-base-300 rounded p-2 overflow-y-auto space-y-1.5 text-[11px]">
             <div class="text-base-content/40 italic text-center py-4">Listening on MCP Stdio transport...</div>
@@ -202,7 +205,10 @@
               <span class="font-bold text-secondary text-[11px]">DECISION MODEL</span>
               <span id="decision-backend-badge" class="badge badge-xs badge-secondary">—</span>
             </div>
-            <span id="decision-count" class="badge badge-xs badge-neutral">0 calls</span>
+            <div class="flex items-center gap-2">
+              <span id="decision-count" class="badge badge-xs badge-neutral">0 calls</span>
+              <button id="copy-decisions-btn" class="btn btn-xs btn-outline font-mono text-[10px]" title="Copy the decision log">COPY</button>
+            </div>
           </div>
           <div id="decision-feed" class="flex-1 bg-base-100 border border-base-300 rounded p-2 overflow-y-auto space-y-1.5 text-[11px]">
             <div class="text-base-content/40 italic text-center py-4">No decisions yet — call decide() or use Test connection.</div>

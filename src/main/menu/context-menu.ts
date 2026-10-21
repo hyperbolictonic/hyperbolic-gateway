@@ -36,22 +36,33 @@ export function attachContextMenu(wc: WebContents, options: ContextMenuOptions):
       template.push({ type: 'separator' });
     }
 
+    const copySelection = () => {
+      // Prefer the text Chromium reports for this click: `wc.copy()` acts on whatever has focus in
+      // the webContents, and opening a native menu can move that focus to the shell.
+      if (params.selectionText) void clipboard.writeText(params.selectionText);
+      else wc.copy();
+    };
+    const withFocus = (action: () => void) => {
+      wc.focus();
+      setTimeout(action, 0);
+    };
+
     if (params.isEditable) {
       template.push(
-        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: can.canUndo, click: () => wc.undo() },
-        { label: 'Redo', accelerator: 'CmdOrCtrl+Y', enabled: can.canRedo, click: () => wc.redo() },
+        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: can.canUndo, click: () => withFocus(() => wc.undo()) },
+        { label: 'Redo', accelerator: 'CmdOrCtrl+Y', enabled: can.canRedo, click: () => withFocus(() => wc.redo()) },
         { type: 'separator' },
-        { label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: can.canCut, click: () => wc.cut() },
-        { label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: can.canCopy, click: () => wc.copy() },
-        { label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: can.canPaste, click: () => wc.paste() },
-        { label: 'Paste as plain text', enabled: can.canPaste, click: () => wc.pasteAndMatchStyle() },
-        { label: 'Select all', accelerator: 'CmdOrCtrl+A', click: () => wc.selectAll() },
+        { label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: can.canCut, click: () => withFocus(() => wc.cut()) },
+        { label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: can.canCopy, click: copySelection },
+        { label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: can.canPaste, click: () => withFocus(() => wc.paste()) },
+        { label: 'Paste as plain text', enabled: can.canPaste, click: () => withFocus(() => wc.pasteAndMatchStyle()) },
+        { label: 'Select all', accelerator: 'CmdOrCtrl+A', click: () => withFocus(() => wc.selectAll()) },
         { type: 'separator' }
       );
     } else if (params.selectionText.trim()) {
       const selected = params.selectionText.trim();
       template.push(
-        { label: 'Copy', accelerator: 'CmdOrCtrl+C', click: () => wc.copy() },
+        { label: 'Copy', accelerator: 'CmdOrCtrl+C', click: copySelection },
         {
           label: `Search the web for “${truncate(selected, 24)}”`,
           click: () => void shell.openExternal(`https://duckduckgo.com/?q=${encodeURIComponent(selected)}`),

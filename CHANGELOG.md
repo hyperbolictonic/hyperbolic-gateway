@@ -108,6 +108,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The age-gate rule fired on pages that merely *mentioned* a gate.** The patterns included bare
+  `captcha`, `18+`, `18 or older`, `adult content` and `mature content`, and guarded calls scan the page
+  text — so documentation, forum posts and our own manual (which documents reCAPTCHA) tripped it. The rule
+  is now **verb-anchored gate copy only** ("verify your age/birthday", "birthday to continue", "are you 18",
+  "must be 18", "adults only", "age-restricted", "18+ only/required/content", "reCAPTCHA/hCaptcha/Turnstile",
+  "verify you are human", "I'm not a robot", "human verification"), scans only the **first 1200 characters**,
+  and **ignores app-internal pages** (`mark-eleven:`, `about:`, …). Verified: `github.com/login` answers 200
+  with no gate; `/r/petite` still stops at 409 in 1 ms.
+- **Copying out of the HUD was unreliable.** The right-click Copy used `wc.copy()`, which acts on whatever
+  has focus in the tab — and opening a native menu can move focus to the shell, so the clipboard stayed
+  empty. It now writes the click's own `selectionText` when there is one, and focuses the tab before
+  Cut/Paste/Undo/Redo/Select-all. **MATRIX LOGS** and **DECISIONS** also gained a **COPY** button that writes
+  their content through the main process (`app:copy-text`), so copying never depends on selection or focus.
+
 - **Submit inputs were labelled with their `name` attribute instead of their visible label.** GitHub's
   `<input type="submit" name="commit" value="Sign in">` appeared in marks and the component table as
   `"commit"` — a meaningless identifier to any reader, human or model. Accessible-name computation now

@@ -222,6 +222,22 @@ tabBtnDecisions.addEventListener('click', () => {
   void syncDecisions();
 });
 
+// One-click copy for the HUD panels: selection + Ctrl+C is unreliable when a native menu or the
+// browsing view owns focus, and the construct panel already had a COPY button of its own.
+const copyLogsBtn = document.getElementById('copy-logs-btn') as HTMLButtonElement | null;
+copyLogsBtn?.addEventListener('click', async () => {
+  await window.electronAPI?.copyToClipboard(logsContainer.innerText);
+  copyLogsBtn.textContent = 'COPIED';
+  setTimeout(() => (copyLogsBtn.textContent = 'COPY'), 1200);
+});
+
+const copyDecisionsBtn = document.getElementById('copy-decisions-btn') as HTMLButtonElement | null;
+copyDecisionsBtn?.addEventListener('click', async () => {
+  await window.electronAPI?.copyToClipboard(decisionFeed.innerText);
+  copyDecisionsBtn.textContent = 'COPIED';
+  setTimeout(() => (copyDecisionsBtn.textContent = 'COPY'), 1200);
+});
+
 setInterval(() => {
   if (document.visibilityState === 'visible') void syncDecisions();
 }, 8000);

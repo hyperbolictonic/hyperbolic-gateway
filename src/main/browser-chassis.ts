@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { BrowserWindow, nativeImage, ipcMain, WebContentsView, type WebContents } from 'electron';
+import { BrowserWindow, nativeImage, ipcMain, clipboard, WebContentsView, type WebContents } from 'electron';
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
@@ -448,6 +448,12 @@ export class BrowserChassis {
     }));
     ipcMain.handle('settings:save-decision', async (_, config: any) => saveDecisionConfig(config));
     ipcMain.handle('chassis:get-decisions', async () => this.decisionLog);
+    // Reliable text copy for the HUD: selecting text inside a WebContentsView shell is not always
+    // possible, and the clipboard is async in Electron 44.
+    ipcMain.handle('app:copy-text', async (_, text: string) => {
+      await clipboard.writeText(String(text ?? ''));
+      return { ok: true };
+    });
     ipcMain.handle('settings:test-decision', async () => {
       const started = Date.now();
       const result = await runDecision({

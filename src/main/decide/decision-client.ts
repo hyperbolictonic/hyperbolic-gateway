@@ -55,6 +55,8 @@ export interface DecisionCall {
   questions: Record<string, unknown>;
   /** Optional per-call overrides (e.g. a different model), never credentials. */
   model?: string;
+  /** URL of the page the state came from — lets the gate rule ignore app-internal pages. */
+  pageUrl?: string;
 }
 
 export type DecisionFailureCode = 'NOT_CONFIGURED' | 'BAD_REQUEST' | 'UPSTREAM_ERROR' | 'TIMEOUT' | 'NO_DECISION' | 'HUMAN_REQUIRED';
@@ -361,7 +363,7 @@ export async function runDecision(call: DecisionCall): Promise<DecisionResult> {
 
   // Sensitive gate: ask a human, not a model. Checked before any network call, so it cannot be
   // out-voted by a confident answer and cannot spend an attempt.
-  const gate = detectSensitiveGate(call.state);
+  const gate = detectSensitiveGate(call.state, { url: call.pageUrl });
   if (gate) {
     const result: DecisionResult = {
       ok: false,

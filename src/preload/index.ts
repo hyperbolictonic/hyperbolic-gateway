@@ -23,6 +23,7 @@ export interface ElectronAPI {
   saveDecisionSettings: (config: any) => Promise<{ ok: boolean; status: any }>;
   testDecisionModel: () => Promise<any>;
   getDecisions: () => Promise<any[]>;
+  copyToClipboard: (text: string) => Promise<{ ok: boolean }>;
   onDecision: (callback: (event: any) => void) => () => void;
   onTabsUpdated: (callback: (tabs: TabSummary[]) => void) => () => void;
   onStateUpdated: (callback: (state: ChassisState) => void) => () => void;
@@ -61,6 +62,7 @@ const api: ElectronAPI = {
   saveDecisionSettings: (config: any) => ipcRenderer.invoke('settings:save-decision', config),
   testDecisionModel: () => ipcRenderer.invoke('settings:test-decision'),
   getDecisions: () => ipcRenderer.invoke('chassis:get-decisions'),
+  copyToClipboard: (text: string) => ipcRenderer.invoke('app:copy-text', text),
 
   onDecision: (callback) => {
     const handler = (_: any, event: any) => callback(event);

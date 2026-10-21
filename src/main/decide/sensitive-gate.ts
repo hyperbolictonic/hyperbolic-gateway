@@ -23,23 +23,33 @@ export interface GateDetection {
 }
 
 const AGE_PATTERNS: RegExp[] = [
-  /age verification/i,
+  // Verb-anchored gate copy only: a post that merely contains "18+" or "adult content" must not
+  // stop automation. Every pattern here is something a wall says to the visitor.
   /verify (?:your|the user'?s) (?:age|birthday|date of birth)/i,
   /confirm (?:your|the user'?s) (?:age|birthday)/i,
   /birthday to continue/i,
-  /are you (?:at least )?(?:18|21|over 18|18 or older)/i,
-  /\b(?:18|21)\s*(?:\+|or (?:older|over))\b/i,
-  /you must be (?:at least )?(?:18|21)/i,
-  /adults? only|adult content|age[- ]restricted|mature content/i,
-  /this (?:content|page|community) (?:is|contains|may contain) (?:for )?(?:adults|mature)/i,
+  /age verification/i,
+  /are you (?:at least )?(?:18|21)\b/i,
+  /must be (?:at least )?(?:18|21)\b/i,
+  /adults? only/i,
+  /age[- ]restricted/i,
+  /(?:18|21)\+\s*(?:only|required|content)/i,
 ];
 
+// Deliberately not bare "captcha"/"robot": documentation, news and forum copy mention those words
+// constantly. A gate announces a *challenge*, not the concept.
 const CAPTCHA_PATTERNS: RegExp[] = [
-  /captcha/i,
+  /recaptcha|hcaptcha|turnstile/i,
   /verify (?:that )?you(?:'re| are) (?:a )?human/i,
-  /are you a (?:robot|human)/i,
+  /i'?m not a robot/i,
   /human verification/i,
 ];
+
+/** Our own app pages and blank tabs are never gates, whatever their copy says. */
+function isAppPage(url?: string): boolean {
+  if (!url) return false;
+  return /^(?:mark-eleven|about|chrome|devtools|file):/i.test(url);
+}
 
 function matchingLines(text: string, patterns: RegExp[]): string[] {
   const hits: string[] = [];
@@ -55,10 +65,16 @@ function matchingLines(text: string, patterns: RegExp[]): string[] {
 /**
  * Inspect the state Kuang is about to send. `state` may be the composed page text or the component
  * table; both contain the visible copy, which is where a gate announces itself.
+ *
+ * Only the **first 1200 characters** are scanned: gate copy is what a wall puts in front of you,
+ * while a page that merely *discusses* age gates mentions them further in. `url` lets the caller
+ * exclude app-internal pages (the manual documents reCAPTCHA, which would otherwise look like a gate).
  */
-export function detectSensitiveGate(state: unknown): GateDetection | null {
-  const text = typeof state === 'string' ? state : JSON.stringify(state ?? '');
-  if (!text) return null;
+export function detectSensitiveGate(state: unknown, opts: { url?: string } = {}): GateDetection | null {
+  if (isAppPage(opts.url)) return null;
+  const raw = typeof state === 'string' ? state : JSON.stringify(state ?? '');
+  if (!raw) return null;
+  const text = raw.slice(0, 1200);
 
   const age = matchingLines(text, AGE_PATTERNS);
   if (age.length) {
