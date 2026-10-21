@@ -81,9 +81,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `422 "Upstream request failed: Endpoint is unavailable."` — an error that reads like an auth failure or an
   outage and cost an afternoon of credential hunting. `criteria` is an option → description map; `noul` and
   `score` are unaffected. open-jev (the local path) still takes `options`.
-- **Measured on the four-case page bench** (`npm run bench:decision -- --bridge`): **Jev 1.13 9/10 field
-  answers at 404 ms p50**, versus `kev-0.6b` 4/10 at 1,591 ms and `open-jev` 7/10 at 750 ms. Jev is now the
-  recommended backend; the local ONNX path stays labelled experimental.
+- **Measured on the four-case page bench** (`npm run bench:decision -- --bridge`), with real criteria
+  descriptions and the same information given to each model: **Jev 1.13 10/10 at 376 ms p50**, versus
+  `kev-0.6b` 7/10 at 830 ms and `open-jev` 6/10 at 1,252 ms. The descriptions matter — `kev-0.6b` scored
+  5/10 with bare option keys, and Jev's only earlier miss (CAPTCHA → `click`) disappeared once the `blocked`
+  criterion described a wall. Jev is now the recommended backend; the local ONNX path stays experimental.
 
 ## [1.3.0] - 2026-10-20
 

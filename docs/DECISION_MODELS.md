@@ -132,14 +132,18 @@ backend (`--bridge`) or a local model (`kev-0.6b cpu`):
 
 | Backend | Field answers correct | p50 latency |
 | :--- | :--- | :--- |
-| **Jev 1.13** (OpenCode Console) | **9 / 10** | **404 ms** |
-| `kev-0.6b` (local, Qwen3-0.6B) | 4 / 10 | 1,591 ms |
-| `open-jev` (local, DeBERTa-v3-large) | 6 / 10 | 774 ms |
+| **Jev 1.13** (OpenCode Console) | **10 / 10** | **376 ms** |
+| `kev-0.6b` (local, Qwen3-0.6B) | 7 / 10 | 830 ms |
+| `open-jev` (local, DeBERTa-v3-large) | 6 / 10 | 1,252 ms |
 
-Jev answered three of the four scenarios exactly right; its only miss was the CAPTCHA, where it chose
-`click` (0.60) on the Verify button instead of `blocked` — a defensible reading. The local models are
-mechanically sound and out of domain: they never chose `blocked`, and defaulted to component 1. **Use Jev
-for page decisions; treat the local path as experimental.**
+All three were given the same information: each option carries a one-line description (`criteria` for
+TypeSafe, `descriptions` for open-jev). That matters — with bare option keys `kev-0.6b` scored 5/10, and
+with descriptions 7/10; Jev's CAPTCHA miss (`click` instead of `blocked`) disappeared entirely once the
+`blocked` criterion actually described a wall. **Write real criteria, not `"Choose \"click\""`.**
+
+Jev answers every scenario exactly right, including `blocked` at 0.96 and `done` at 0.96. The local models
+never once chose `blocked`, which is the single most important decision on a hostile page. **Use Jev for page
+decisions; treat the local path as experimental.**
 
 ### Question shape: `choice` takes `criteria`, not `options`
 
