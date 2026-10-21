@@ -724,19 +724,32 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
           return;
         }
         const body = await readBody();
-        // Guarded mode is opt-in: `guard`/`eliminate` turn validation + elimination on, otherwise
-        // this stays a raw pass-through to the model.
+        // A guarded call (the decision loop) inspects the real page text as well as the caller's
+        // state: a wall announces itself in copy ("Verify your birthday to continue") that the
+        // component table alone does not carry. Raw `decide` stays a pure pipe.
         const useGuard = body?.guard !== undefined || body?.eliminate !== undefined;
+        let state = body?.state;
+        if (body?.include_page_text === true || (body?.include_page_text !== false && useGuard)) {
+          try {
+            const page = await chassis.getPrimitives().observe({ as: 'text', budget: 4000 });
+            const pageText = typeof page?.text === 'string' ? page.text.slice(0, 4000) : '';
+            if (pageText.trim()) {
+              state = `${typeof state === 'string' ? state : JSON.stringify(state ?? '')}\n\nVisible page text:\n${pageText}`;
+            }
+          } catch {
+            // No page context available (e.g. called before a tab exists) — carry on with the state.
+          }
+        }
         const result = useGuard
           ? await decideGuarded({
-              state: body?.state,
+              state,
               questions: body?.questions || {},
               model: body?.model,
               guard: body?.guard || {},
               maxAttempts: body?.eliminate?.max_attempts ?? body?.eliminate?.maxAttempts ?? (body?.eliminate ? 3 : 1),
             })
           : await runDecision({
-              state: body?.state,
+              state,
               questions: body?.questions || {},
               model: body?.model,
             });

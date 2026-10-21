@@ -144,6 +144,7 @@ async function main() {
         ],
       },
       eliminate: { max_attempts: 3 },
+      include_page_text: false,
       questions: {
         operation: { type: 'choice', instructions: 'Next operation?', criteria: { click: 'Click', type_text: 'Type', done: 'Done' } },
         target: { type: 'choice', instructions: 'Which component?', criteria: { '7': 'Email', '8': 'Password', '9': 'Sign in' } },
@@ -177,7 +178,7 @@ async function main() {
       { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '99', confidence: 0.8 } },
       { operation: { type: 'choice', choice: 'click', confidence: 0.9 }, target: { type: 'choice', choice: '98', confidence: 0.8 } },
     ];
-    const exhausted = await bridge('/decide', 'POST', { ...guardBody, eliminate: { max_attempts: 2 } });
+    const exhausted = await bridge('/decide', 'POST', { ...guardBody, eliminate: { max_attempts: 2 }, include_page_text: false });
     check(
       'exhaustion falls back to the agent instead of acting',
       exhausted.json?.accepted === false && exhausted.json?.fallback === 'agent' && exhausted.json?.exhausted === true,
@@ -186,7 +187,7 @@ async function main() {
 
     // Low confidence is rejected by the threshold even when the target is valid.
     answerQueue = [{ operation: { type: 'choice', choice: 'click', confidence: 0.2 }, target: { type: 'choice', choice: '9', confidence: 0.2 } }];
-    const lowConfidence = await bridge('/decide', 'POST', { ...guardBody, eliminate: { max_attempts: 1 } });
+    const lowConfidence = await bridge('/decide', 'POST', { ...guardBody, eliminate: { max_attempts: 1 }, include_page_text: false });
     check(
       'a low-confidence answer is not accepted',
       lowConfidence.json?.accepted === false && /below the/.test((lowConfidence.json?.reasons || []).join(' ')),
@@ -220,6 +221,8 @@ async function main() {
       questions: { q: { type: 'noul', instructions: 'Is this a gate?' } },
       guard: { threshold: 0.5 },
       eliminate: { max_attempts: 3 },
+      include_page_text: false,
+      include_page_text: false,
     });
     check('a guarded call also hands over instead of retrying', gatedGuarded.json?.code === 'HUMAN_REQUIRED' && gatedGuarded.json?.fallback === 'human', `fallback=${gatedGuarded.json?.fallback}`);
 

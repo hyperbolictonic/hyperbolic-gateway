@@ -237,12 +237,19 @@ Some walls are not obstacles to route around. Confirming an age, solving a CAPTC
 human" is a statement **only a person can make**, so Kuang checks for them *before* any model is asked:
 
 ```
-state contains age-gate copy ("verify your age", "are you 18", "18 or older", "adult content", …)
+state contains age-gate copy ("verify your age/birthday", "birthday to continue",
+   "18 or older", "adult content", "mature content", …)
    → HTTP 409 { code: "HUMAN_REQUIRED", gate: "age_verification", error, hint: matched lines }
    → no model call, no elimination, no retry — call request_human_intervention
 ```
 
-The same applies to CAPTCHA / "verify you are human" copy. Two properties matter:
+The same applies to CAPTCHA / "verify you are human" copy. Three properties matter:
+
+- **It sees the real page.** Guarded calls append the live page text to the state before asking
+  (`include_page_text`, on by default for `guard`/`eliminate`, off for a raw `decide`), because a wall
+  announces itself in copy that the component table does not carry — `/r/petite` shows only two buttons,
+  "Not Now" and "Verify", while the page says *"Verify your birthday to continue. This page may contain
+  mature content."* — the exact case that must not be clicked.
 
 - **It runs first**, so a confident model cannot out-vote it — a 0.98 "blocked" is still a decision, and
   the rule here is *do not decide at all*. The gate spends zero model calls (asserted in `test:decide`).

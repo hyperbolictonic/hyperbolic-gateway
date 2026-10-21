@@ -10,13 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Age verification and CAPTCHA are hard human hand-offs.** Before any model call, `decide` scans the state
-  for age-gate copy ("verify your age", "are you 18", "18 or older", "adult content", …) and for CAPTCHA /
-  "verify you are human" copy, and returns **HTTP 409 `HUMAN_REQUIRED`** with the `gate` kind and the matched
-  lines — **no model call, no elimination, no retry**. A confident answer cannot out-vote it, because the
-  rule is "do not decide at all", and a `Date of birth` signup field does not match (tested both ways). New:
-  `src/main/decide/sensitive-gate.ts`. The live `/r/petite` run is the worked example: behind Reddit's
-  verification wall the model wavered at 0.44 `click`, the guard rejected it, and the retry said `blocked`
-  0.98 — which is exactly the case that should have been a human hand-off, not a decision.
+  — and, for guarded calls, the **live page text** (`include_page_text`, on by default with
+  `guard`/`eliminate`) — for age-gate copy ("verify your age/birthday", "birthday to continue", "18 or
+  older", "adult content", "mature content", …) and for CAPTCHA / "verify you are human" copy. It returns
+  **HTTP 409 `HUMAN_REQUIRED`** with the `gate` kind and the matched lines — **no model call, no elimination,
+  no retry**. A confident answer cannot out-vote it, because the rule is "do not decide at all", and a
+  `Date of birth` signup field does not match (tested both ways). New: `src/main/decide/sensitive-gate.ts`.
+  The `/r/petite` run is the worked example: the component table exposed only "Not Now" / "Verify", the page
+  said *"Verify your birthday to continue. This page may contain mature content."*, and the gate now stops
+  there in 1 ms without asking the model — after an earlier run had wavered at `click` 0.44.
 - **DECISIONS is the first tab whenever a decision model is active**, and is selected on reveal, so the
   live view of what the model is choosing is the default panel instead of something to hunt for.
 - **The HIL banner no longer covers the page.** It was centred across the app with `alert-warning`; it is now

@@ -37585,7 +37585,8 @@ ${lines.join("\n")}`;
       }).optional().describe("Validate the answer before trusting it: confidence gate, target membership, affordance match, done/operation contradiction"),
       eliminate: external_exports.object({
         max_attempts: external_exports.coerce.number().min(1).max(5).optional().describe("Total model calls including the first (default 3 when eliminate is set)")
-      }).optional().describe('Drop a rejected option and ask again with the rest; when everything is eliminated the result is accepted:false, fallback:"agent"')
+      }).optional().describe('Drop a rejected option and ask again with the rest; when everything is eliminated the result is accepted:false, fallback:"agent"'),
+      include_page_text: external_exports.coerce.boolean().optional().describe("Append the live page text to the state before asking (default: on for guarded calls). Needed for sensitive-gate detection, whose copy lives in the page, not the component table")
     },
     endpoint: "/decide",
     payload: (args) => ({
@@ -37593,7 +37594,8 @@ ${lines.join("\n")}`;
       questions: args?.questions || {},
       model: args?.model,
       guard: args?.guard,
-      eliminate: args?.eliminate
+      eliminate: args?.eliminate,
+      include_page_text: args?.include_page_text
     }),
     format: (data) => {
       if (data.error) return `decide failed: ${data.error}`;

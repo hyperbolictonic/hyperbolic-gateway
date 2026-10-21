@@ -24,13 +24,14 @@ export interface GateDetection {
 
 const AGE_PATTERNS: RegExp[] = [
   /age verification/i,
-  /verify (?:your|the user'?s) age/i,
-  /confirm (?:your|the user'?s) age/i,
+  /verify (?:your|the user'?s) (?:age|birthday|date of birth)/i,
+  /confirm (?:your|the user'?s) (?:age|birthday)/i,
+  /birthday to continue/i,
   /are you (?:at least )?(?:18|21|over 18|18 or older)/i,
   /\b(?:18|21)\s*(?:\+|or (?:older|over))\b/i,
   /you must be (?:at least )?(?:18|21)/i,
-  /adults? only|adult content|age[- ]restricted/i,
-  /this (?:content|page|community) (?:is|contains) (?:for )?(?:adults|mature)/i,
+  /adults? only|adult content|age[- ]restricted|mature content/i,
+  /this (?:content|page|community) (?:is|contains|may contain) (?:for )?(?:adults|mature)/i,
 ];
 
 const CAPTCHA_PATTERNS: RegExp[] = [
