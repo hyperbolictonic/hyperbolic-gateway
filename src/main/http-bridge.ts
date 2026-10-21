@@ -754,9 +754,29 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
               model: body?.model,
             });
         if (result.ok) {
+          // "Blocked" without a deterministic match is not a compliance boundary we can prove.
+          // The agent decides: it may know the site, or it may call request_human_intervention.
+          const operation = (result as any).answers?.operation?.choice;
+          if (operation === 'blocked' && !(result as any).gate) {
+            (result as any).hint =
+              'No deterministic gate matched (no age-verification or CAPTCHA copy). The agent decides: if this is a compliance boundary — age, CAPTCHA, payment, identity — call request_human_intervention; otherwise choose the next step yourself.';
+          }
           sendJson({ success: true, ...result });
         } else {
           const code = result.error?.code;
+          // A sensitive gate is a hand-off, not just an error: raise the HIL request from Kuang so
+          // the human is actually asked (throttled per URL, and skipped if one is already open).
+          if (code === 'HUMAN_REQUIRED') {
+            const hint = result.error?.hint || '';
+            const evidence = hint.replace(/^Matched:\s*/i, '').split(/\s*\|\s*/).filter(Boolean);
+            // Do NOT await the intervention: its promise resolves when the *human* acts, which can
+            // take minutes. The request itself is registered synchronously before the first await,
+            // so the caller gets 409 immediately with the banner already up.
+            void chassis.requestHumanForGate(
+              { kind: (result as any).gate, reason: result.error?.message || 'Human required', evidence },
+              chassis.getPageInfo().url
+            );
+          }
           const status = code === 'TIMEOUT' ? 504 : code === 'HUMAN_REQUIRED' ? 409 : code === 'UPSTREAM_ERROR' ? 502 : 400;
           sendJson(
             {

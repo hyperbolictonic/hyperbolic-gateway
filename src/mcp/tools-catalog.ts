@@ -1020,7 +1020,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
         return `${key}: ${value}`;
       });
       const attempts = data.attempts > 1 ? ` · ${data.attempts} attempts` : '';
-      return `${data.protocol || 'decision'}(${data.model || '?'}) ${data.latencyMs ?? '?'}ms${attempts}\n${lines.join('\n')}`;
+      const hint = data.hint ? `\n\n${data.hint}` : '';
+      return `${data.protocol || 'decision'}(${data.model || '?'}) ${data.latencyMs ?? '?'}ms${attempts}\n${lines.join('\n')}${hint}`;
     },
   },
   {

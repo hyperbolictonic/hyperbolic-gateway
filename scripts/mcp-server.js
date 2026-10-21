@@ -37616,8 +37616,11 @@ ${reasons}`;
         return `${key}: ${value}`;
       });
       const attempts = data.attempts > 1 ? ` \xB7 ${data.attempts} attempts` : "";
+      const hint = data.hint ? `
+
+${data.hint}` : "";
       return `${data.protocol || "decision"}(${data.model || "?"}) ${data.latencyMs ?? "?"}ms${attempts}
-${lines.join("\n")}`;
+${lines.join("\n")}${hint}`;
     }
   },
   {

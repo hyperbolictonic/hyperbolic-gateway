@@ -10,6 +10,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > semver (where a feature would bump the minor). Each patch still gets its own Added/Fixed/Changed section
 > here, so the history stays precise.
 
+## [Unreleased]
+
+### Changed
+
+- **A sensitive gate now raises the human hand-off itself.** `decide` returning `409 HUMAN_REQUIRED` used
+  to end with advice ("call `request_human_intervention`") and nothing else — nothing was actually asked.
+  Kuang now opens a HIL request for the page (reason + the matched lines) as part of the gate, skipped while
+  another request is already open, and **without blocking the 409** (the intervention's promise resolves when
+  the human acts, which can take minutes). On `/r/petite` the banner appears with *"Verify your birthday to
+  continue"* attached; the decision still spends no model call.
+- **An *undetermined* wall goes to the agent, not the human.** If the model answers `blocked` but no gate copy
+  matches, the result is a normal decision carrying a hint ("if this is a compliance boundary — age, CAPTCHA,
+  payment, identity — call `request_human_intervention`; otherwise choose the next step yourself"). Human
+  attention is spent only on a boundary Kuang can name and quote.
+
+### Fixed
+
+- **The HUD could not select text.** The shell's `<html>` carried Tailwind's `select-none`, so nothing could
+  be highlighted and right-click Copy had nothing to copy. Removed for the shell (the tab strip keeps it).
+  Page content was never affected — the Set-of-Marks overlay and the phosphor cursor canvas are both
+  `pointer-events: none`, and agent input goes over CDP.
+
 ## [1.4.1] - 2026-10-21
 
 ### Fixed

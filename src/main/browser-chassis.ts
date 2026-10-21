@@ -44,6 +44,8 @@ export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
   /** Recent decision-model calls, mirrored to the HUD (newest last, capped at 50). */
   private decisionLog: DecisionEvent[] = [];
+  /** Throttle for gate-triggered human hand-offs (one per URL per few minutes). */
+  private lastGateHil: { url: string; at: number } | null = null;
   private tabManager: TabManager | null = null;
   private simulator: HumanizedInputSimulator;
   private harvester: ConstructHarvester;
@@ -469,6 +471,21 @@ export class BrowserChassis {
 
   public getCortex(): CortexDB {
     return cortex;
+  }
+
+  /**
+   * A sensitive gate needs a person. Raise the hand-off from Kuang itself rather than relying on the
+   * caller to do it: the rule already decided that a human is required, so waiting for another round
+   * trip only wastes the agent's turn. Throttled per URL, and skipped while a request is already open.
+   */
+  public async requestHumanForGate(gate: { kind?: string; reason: string; evidence?: string[] }, url?: string): Promise<void> {
+    // Only one request at a time: while one is open the human is already being asked. Once it is
+    // resolved, a fresh gate may ask again — that is the correct behaviour, not spam, because the
+    // human explicitly cleared the previous request.
+    if (this.hilManager.getActiveRequest()) return;
+    const pageUrl = url || this.getPageInfo().url;
+    const detail = gate.evidence && gate.evidence.length ? ` — matched: ${gate.evidence.join(' | ')}` : '';
+    await this.requestHumanIntervention(`${gate.reason}${detail}`, { url: pageUrl, bringToFront: true }).catch(() => null);
   }
 
   /** Recent decision-model calls, for `GET /decisions` and the HUD's DECISIONS tab. */

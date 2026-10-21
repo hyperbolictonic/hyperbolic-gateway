@@ -262,9 +262,13 @@ The model never calls HIL itself, and the mechanical signals (`TYPE_NO_EFFECT` a
 calls, the live page text (`include_page_text`, on by default with `guard`/`eliminate`) — for age-verification
 copy ("verify your age/birthday", "birthday to continue", "18 or older", "adult content", "mature content")
 and for CAPTCHA / "verify you are human" copy. If found, `decide` returns **HTTP 409 `HUMAN_REQUIRED`** (with
-`gate` and the matched lines), spends **no** model call, and does not eliminate or retry — the agent calls
-`request_human_intervention`. A `Date of birth` field in an ordinary signup form is *not* a gate and does not
-trigger it. The guarded-call page scan is why this works on `/r/petite`: the component table only shows
+`gate` and the matched lines), spends **no** model call, does not eliminate or retry, and **raises the HIL
+request itself**, so the human is actually asked rather than merely advised. A `Date of birth` field in an
+ordinary signup form is *not* a gate and does not trigger it.
+
+**If it cannot be determined, the agent decides.** A model answer of `blocked` with no matching gate copy is a
+normal decision (with a hint): the agent may call `request_human_intervention` itself, or choose another step.
+Human attention is spent only on a boundary Kuang can name and quote. The guarded-call page scan is why this works on `/r/petite`: the component table only shows
 "Not Now" / "Verify", while the page says "Verify your birthday to continue".
 
 ## 6. Input Delivery & Background Rendering (operational guarantees)

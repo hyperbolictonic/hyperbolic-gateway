@@ -214,6 +214,17 @@ async function main() {
       questions: { q: { type: 'noul', instructions: 'Is this a gate?' } },
     });
     check('age verification is a human hand-off', gated.status === 409 && gated.json?.code === 'HUMAN_REQUIRED', `HTTP ${gated.status} ${gated.json?.code}`);
+    let hil = null;
+    for (let i = 0; i < 10; i++) {
+      hil = await (await fetch(`${BRIDGE}/hil/active`)).json().catch(() => null);
+      if (hil?.active?.id) break;
+      await sleep(200);
+    }
+    check(
+      'the gate asks the human itself',
+      Boolean(hil?.active?.id) && /verify your birthday|age verification|human/i.test(hil.active.reason || ''),
+      hil?.active ? `${hil.active.id} · ${(hil.active.reason || '').slice(0, 60)}` : 'no active request'
+    );
     check('the gate spends no model call', received.bodies.length === beforeGate, `${received.bodies.length - beforeGate} upstream call(s)`);
 
     const gatedGuarded = await bridge('/decide', 'POST', {
@@ -241,6 +252,17 @@ async function main() {
     check('decision surface run', false, err.message);
   } finally {
     mock.close();
+    // A gate test raises a real HIL request; leave the app clean.
+    try {
+      const active = await (await fetch(`${BRIDGE}/hil/active`)).json().catch(() => null);
+      if (active?.active?.id) {
+        await fetch(`${BRIDGE}/hil/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: active.active.id, notes: 'test cleanup' }),
+        });
+      }
+    } catch {}
     fs.rmSync(CONFIG, { force: true });
     if (hadConfig && fs.existsSync(BACKUP)) {
       fs.copyFileSync(BACKUP, CONFIG);

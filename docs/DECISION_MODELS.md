@@ -231,6 +231,17 @@ acts), and the existing mechanical signals — `TYPE_NO_EFFECT` after the input 
 unchanged delta — remain valid reasons to hand over even when the model says otherwise. The human is the
 last rung of the same ladder: **model → eliminate + retry → deterministic checks → agent → human**.
 
+### Who decides that a human is needed
+
+| signal | who decides | why |
+| :--- | :--- | :--- |
+| **Deterministic gate** — age-verification or CAPTCHA copy is present | **Kuang → human** (hard stop, auto HIL) | A compliance boundary is not a judgement call. Kuang raises the hand-off itself and returns 409. |
+| Model answers `blocked`, but no gate copy matches | **the agent** | "Blocked" may be a login wall, a paywall, a dead end, or a badly-classified normal page. The agent can see the goal and the site; it decides, and may call `request_human_intervention` itself. The result carries a hint saying exactly that. |
+| Anything else | **the agent** | Normal loop. |
+
+So the rule is: **if it cannot be *determined* that a human is required, it goes to the agent, not the human.**
+Kuang only spends a human's attention on a boundary it can name and quote.
+
 ### Sensitive gates — age verification and CAPTCHA are never the model's call
 
 Some walls are not obstacles to route around. Confirming an age, solving a CAPTCHA, or asserting "I am
@@ -256,8 +267,10 @@ The same applies to CAPTCHA / "verify you are human" copy. Three properties matt
 - **It is narrow.** A `Date of birth` field in a signup form is ordinary data entry and does **not** match;
   only gate copy does. That false-positive case is a test too.
 
-When a decision loop sees `HUMAN_REQUIRED`, it must stop and notify a human — in the HUD that is the
-`alert-warning` HIL banner, anchored to the side panel so it never covers the page the human must act on.
+When a decision loop sees `HUMAN_REQUIRED`, it must stop and notify a human. Kuang now does the notifying
+itself: the gate opens a HIL request for the page (reason + matched lines), throttled to one per URL per
+five minutes and skipped while another request is open. In the HUD that is the `alert-warning` banner,
+anchored bottom-right so it never covers the page the human must act on.
 
 ### Guard + elimination — what happens when the model is wrong
 
