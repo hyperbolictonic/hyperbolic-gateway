@@ -19,8 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`decide` — an optional decision-model surface, off unless configured.** One tool (and `POST /decide`
   on the bridge) that forwards `state` + typed `questions` to a decision model and returns the answers
   **verbatim**: no prompt assembly, no rewritten retries, no synthesis, and `UPSTREAM_ERROR`/`TIMEOUT`
-  with **no answers** when the upstream fails. When nothing is configured the tool is **not advertised**
-  (`GET /decide` and `/health.decision` say so) and calls return `NOT_CONFIGURED` with setup instructions.
+  with **no answers** when the upstream fails. When nothing is configured the tool is **not registered**
+  at all (`POST /decide` still answers `NOT_CONFIGURED` with setup instructions, and `/health.decision`
+  reports the state). The MCP tool list is built when the stdio server starts, so a newly saved backend
+  appears after the MCP server reconnects; the bridge picks it up on the next call.
   Two backends, chosen by config rather than code: **hosted Jev** (`protocol:"typesafe"`, e.g.
   `jev-1.13`) and **in-process ONNX** (`protocol:"local-onnx"`, via `open-jev`). Config lives in env vars
   or `data/decision.json` (gitignored). See [`docs/DECISION_MODELS.md`](./docs/DECISION_MODELS.md).

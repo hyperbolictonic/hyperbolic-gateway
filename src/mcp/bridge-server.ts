@@ -226,8 +226,9 @@ export function createBridgeMcpServer() {
   });
 
   for (const tool of TOOLS_CATALOG) {
-    // The decision model is opt-in: when no backend is configured, `decide` is not advertised
-    // at all (it remains callable and returns NOT_CONFIGURED, which explains how to set it up).
+    // The decision model is opt-in: when no backend is configured, `decide` is not registered at all
+    // (so it cannot appear in tools/list and cannot be called by name). The bridge route
+    // `POST /decide` still exists and answers NOT_CONFIGURED with setup instructions.
     if (tool.name === 'decide' && !decisionStatus().configured) continue;
 
     // Phase 4: fold discoverability guidance into the advertised description so it

@@ -37573,7 +37573,7 @@ ${lines.join("\n")}`;
   // ---------------------------------------------------------------------------
   {
     name: "decide",
-    description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local LiquidAI d1-3B ONNX model (d1-onnx, one forward pass, accepts images). Returns NOT_CONFIGURED when no backend is set.',
+    description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default \u2014 experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
     parameters: {
       state: external_exports.any().describe("What the model reasons over: a string, JSON (e.g. the components array), or an array of values"),
       questions: external_exports.record(external_exports.string(), external_exports.any()).describe('Typed questions keyed by name, e.g. {"operation":{"type":"choice","instructions":"\u2026","options":["click","type_text","done"]},"done":{"type":"noul","instructions":"\u2026"}}'),
@@ -38100,14 +38100,15 @@ function readConfigFile() {
 }
 function resolveDecisionConfig() {
   const file2 = readConfigFile() || {};
-  const protocol = (process.env.KUANG_DECISION_PROTOCOL || file2.protocol || "").toLowerCase();
-  if (protocol !== "typesafe" && protocol !== "d1-onnx") return null;
+  const rawProtocol = (process.env.KUANG_DECISION_PROTOCOL || file2.protocol || "").toLowerCase();
+  const protocol = rawProtocol === "d1-onnx" ? "local-onnx" : rawProtocol;
+  if (protocol !== "typesafe" && protocol !== "local-onnx") return null;
   const url2 = process.env.KUANG_DECISION_URL || file2.url || void 0;
   if (protocol === "typesafe" && !url2) return null;
   return {
     protocol,
     url: url2,
-    model: process.env.KUANG_DECISION_MODEL || file2.model || (protocol === "typesafe" ? "jev-1.13" : "d1-3b"),
+    model: process.env.KUANG_DECISION_MODEL || file2.model || (protocol === "typesafe" ? "jev-1.13" : "kev-0.6b"),
     key: process.env.KUANG_DECISION_KEY || file2.key || void 0,
     revision: process.env.KUANG_DECISION_REVISION || file2.revision || void 0,
     device: process.env.KUANG_DECISION_DEVICE || file2.device || void 0,
@@ -38122,7 +38123,7 @@ function decisionStatus() {
     protocol: cfg.protocol,
     model: cfg.model,
     endpoint: cfg.protocol === "typesafe" ? cfg.url : "in-process",
-    local: cfg.protocol === "d1-onnx"
+    local: cfg.protocol === "local-onnx"
   };
 }
 
