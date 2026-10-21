@@ -59,20 +59,8 @@ jobs:
       - name: Build (tsc + vite + MCP bundle)
         run: pnpm build
 
-      # electron-builder.json pins electronDist to the local install, which is the *host* Electron.
-      # On a non-Windows runner that would package the wrong runtime, so drop it there.
-      - name: Use the runner's Electron (non-Windows)
-        if: matrix.platform != 'win'
-        shell: bash
-        run: |
-          node -e "
-          const fs = require('fs');
-          const file = 'electron-builder.json';
-          const json = JSON.parse(fs.readFileSync(file, 'utf8'));
-          delete json.electronDist;
-          fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
-          console.log('electronDist removed for', process.platform);
-          "
+      # electron-builder resolves/downloads the correct Electron for the target platform. It used to
+      # be pinned to node_modules/electron/dist, which does not exist on a pnpm CI checkout.
 
       - name: Linux packaging deps
         if: matrix.platform == 'linux'

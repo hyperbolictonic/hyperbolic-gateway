@@ -23,9 +23,9 @@ configured, and only for Windows in practice.
 
 ### Blockers to fix before any non-Windows artefact is trustworthy
 
-1. **`electronDist` is pinned to the host** (`"electronDist": "node_modules/electron/dist"` in
-   `electron-builder.json`). That is the Windows Electron; a Linux/mac build would package the wrong runtime.
-   Remove it (electron-builder downloads the correct dist per target) or scope it to `win` only.
+1. ~~**`electronDist` is pinned to the host**~~ — **fixed.** After the first CI run: the pin pointed at
+   `node_modules/electron/dist`, which **does not exist on a pnpm checkout**, so packaging failed on Windows
+   too. Removed; electron-builder now resolves/downloads the correct Electron for the target platform.
 2. **Native deps are host-only.** Only `@lancedb/lancedb-win32-x64-msvc` is installed. A macOS/Linux package
    would ship without the `.node` binary and Cortex would crash on first use. Each platform must install
    its own (CI does this naturally; cross-building from Windows does not).

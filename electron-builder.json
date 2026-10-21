@@ -19,7 +19,6 @@
     "**/@lancedb/**"
   ],
   "npmRebuild": false,
-  "electronDist": "node_modules/electron/dist",
   "win": {
     "target": [
       {
