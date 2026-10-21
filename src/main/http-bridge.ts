@@ -5,6 +5,7 @@ import type { BrowserChassis } from './browser-chassis.js';
 import { APP_VERSION } from '../shared/version.js';
 import { runDecision, decisionStatus } from './decide/decision-client.js';
 import { decideGuarded } from './decide/decision-guard.js';
+import { driveTask } from './drive/driver.js';
 
 function logBridge(message: string, isError = false) {
   const timestamp = new Date().toISOString();
@@ -713,6 +714,28 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       // ---- optional decision model (off unless configured) -------------------
+      if (req.method === 'POST' && pathname === '/drive') {
+        const body = await readBody();
+        if (!decisionStatus().configured) {
+          sendJson({ success: false, error: 'No decision model is configured.', code: 'NOT_CONFIGURED' }, 400);
+          return;
+        }
+        const result = await driveTask(chassis.getPrimitives(), {
+          goal: String(body?.goal || ''),
+          values: body?.values && typeof body.values === 'object' ? body.values : undefined,
+          maxSteps: body?.max_steps ?? body?.maxSteps,
+          threshold: body?.threshold,
+          maxAttempts: body?.max_attempts ?? body?.maxAttempts,
+          dryRun: body?.dry_run === true || body?.dryRun === true,
+          includePageText: body?.include_page_text !== false,
+        });
+        if (result.status === 'human_required') {
+          void chassis.requestHumanForGate({ kind: result.gate, reason: result.message, evidence: result.reasons }, result.url);
+        }
+        // 200 with a status field: the transcript matters more than the HTTP code here.
+        sendJson({ success: true, ...result });
+        return;
+      }
       if (req.method === 'GET' && pathname === '/decisions') {
         const decisions = chassis.getDecisionEvents();
         sendJson({ success: true, count: decisions.length, decisions });

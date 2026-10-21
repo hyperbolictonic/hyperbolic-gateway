@@ -973,6 +973,38 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   // These complement the procedural verbs above; nothing is replaced.
   // ---------------------------------------------------------------------------
   {
+    name: 'drive',
+    description:
+      'OPTIONAL goal-driven UI loop (absent unless a decision model is configured). Repeats observe(as:"components") → decide → act until the goal is reached or a stop condition fires, with one decision call per step instead of an agent turn per step. ' +
+      'Text is never generated: pass `values` keyed by field name (or component id); if the next step needs a value you have not supplied, it stops with status "needs_input", names the field, and you call again with the value. ' +
+      'Stops on: done · blocked (no deterministic gate matched, so YOU decide) · human_required (age/CAPTCHA; the hand-off is raised) · needs_agent (no acceptable action, or a contradiction the guard rejected) · failed · max_steps. ' +
+      'Every step is in `steps` (operation, target, chars typed, warning). Use dry_run to see the first planned step without acting. Prefer this over hand-scripting long forms; use `decide` directly when you want to choose each step yourself.',
+    parameters: {
+      goal: z.string().describe('What to accomplish, in one sentence (e.g. "search London → Maldives, 1–7 Nov, cheapest")'),
+      values: z.record(z.string(), z.string()).optional().describe('Text to type, keyed by field name or component id (case-insensitive, contains-matching)'),
+      max_steps: z.coerce.number().min(1).max(25).optional().default(10).describe('Stop after this many actions (default 10)'),
+      threshold: z.coerce.number().min(0).max(1).optional().describe('Minimum confidence to accept a decision (default 0.45)'),
+      dry_run: z.coerce.boolean().optional().default(false).describe('Plan the first step and return without acting'),
+    },
+    endpoint: '/drive',
+    payload: (args) => ({
+      goal: args?.goal,
+      values: args?.values,
+      max_steps: args?.max_steps,
+      threshold: args?.threshold,
+      dry_run: args?.dry_run,
+    }),
+    format: (data) => {
+      if (data.error) return `drive failed: ${data.error}`;
+      const lines = (data.steps || []).map((s: any) =>
+        `${s.step}. ${s.operation} #${s.target} "${(s.targetName || '').slice(0, 40)}"${s.typedChars ? ` (${s.typedChars} chars)` : ''} ${s.ok ? '✓' : '✗'}${s.urlChanged ? ' → navigated' : ''}${s.warning ? ` ⚠ ${s.warning.slice(0, 80)}` : ''}`
+      );
+      const head = `drive · ${data.status} · ${(data.steps || []).length} step(s) · ${data.durationMs ?? '?'}ms`;
+      const tail = data.field ? `\nNeeds value for: #${data.field.id} "${data.field.name}"` : '';
+      return `${head}\n${lines.join('\n')}${lines.length ? '\n' : ''}${data.message || ''}${tail}`;
+    },
+  },
+  {
     name: 'decide',
     description:
       'OPTIONAL decision model (absent unless configured — see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no — never prose. ' +

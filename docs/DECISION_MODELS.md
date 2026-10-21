@@ -299,6 +299,32 @@ click. The warning exists so an agent cannot claim it was not told.
   "warning": "\"Verify\" sits behind an age-verification wall. If a human has not resolved the hand-off, stop and call request_human_intervention." }
 ```
 
+### Driving a UI: `drive`
+
+`drive({ goal, values })` runs the loop in code — observe components → decide → act → repeat — with
+**one decision call per step** instead of an agent turn per step. It is plumbing, not policy: the questions
+are fixed, it never interprets the goal, and it never generates text.
+
+```
+drive({ goal: "search London → Maldives, 1–7 Nov", values: { "Where from?": "London" } })
+→ { status: "needs_input", field: { id: 11, name: "Where from?" } }   ← supply the value, call again
+→ { status: "done" | "blocked" | "human_required" | "needs_agent" | "failed" | "max_steps",
+    steps: [{ step, operation, target, targetName, typedChars, ok, urlChanged, warning }] }
+```
+
+Stops, all typed: `done` · `blocked` (no deterministic gate matched → **you** decide) · `human_required`
+(age/CAPTCHA, hand-off raised) · `needs_agent` (guard rejected everything, or a contradiction) · `failed`
+· `max_steps`. `dry_run` plans the first step without acting.
+
+Measured on the Skyscanner “London → Maldives, 1–7 Nov” form: **four steps in 18 s** (destination,
+autocomplete suggestion, both dates), then `needs_agent` because the model wanted to type again but kept
+choosing click-only components. That is the design: the loop eats the repetitive steps and hands back the
+moment it cannot justify a move. The agent finished the flow with one click on Search.
+
+**Runner-side alternative:** [`scripts/drive-example.mjs`](../scripts/drive-example.mjs) implements the same
+loop over the plain HTTP API (~80 lines) for runners that want their own retries, logging or policy. Both
+paths use the same guard, the same verification and the same ledger.
+
 ### Guard + elimination — what happens when the model is wrong
 
 A decision is only acted on if it passes deterministic checks Kuang can make without judgement:

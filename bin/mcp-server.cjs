@@ -37572,6 +37572,36 @@ ${lines.join("\n")}`;
   // These complement the procedural verbs above; nothing is replaced.
   // ---------------------------------------------------------------------------
   {
+    name: "drive",
+    description: 'OPTIONAL goal-driven UI loop (absent unless a decision model is configured). Repeats observe(as:"components") \u2192 decide \u2192 act until the goal is reached or a stop condition fires, with one decision call per step instead of an agent turn per step. Text is never generated: pass `values` keyed by field name (or component id); if the next step needs a value you have not supplied, it stops with status "needs_input", names the field, and you call again with the value. Stops on: done \xB7 blocked (no deterministic gate matched, so YOU decide) \xB7 human_required (age/CAPTCHA; the hand-off is raised) \xB7 needs_agent (no acceptable action, or a contradiction the guard rejected) \xB7 failed \xB7 max_steps. Every step is in `steps` (operation, target, chars typed, warning). Use dry_run to see the first planned step without acting. Prefer this over hand-scripting long forms; use `decide` directly when you want to choose each step yourself.',
+    parameters: {
+      goal: external_exports.string().describe('What to accomplish, in one sentence (e.g. "search London \u2192 Maldives, 1\u20137 Nov, cheapest")'),
+      values: external_exports.record(external_exports.string(), external_exports.string()).optional().describe("Text to type, keyed by field name or component id (case-insensitive, contains-matching)"),
+      max_steps: external_exports.coerce.number().min(1).max(25).optional().default(10).describe("Stop after this many actions (default 10)"),
+      threshold: external_exports.coerce.number().min(0).max(1).optional().describe("Minimum confidence to accept a decision (default 0.45)"),
+      dry_run: external_exports.coerce.boolean().optional().default(false).describe("Plan the first step and return without acting")
+    },
+    endpoint: "/drive",
+    payload: (args) => ({
+      goal: args?.goal,
+      values: args?.values,
+      max_steps: args?.max_steps,
+      threshold: args?.threshold,
+      dry_run: args?.dry_run
+    }),
+    format: (data) => {
+      if (data.error) return `drive failed: ${data.error}`;
+      const lines = (data.steps || []).map(
+        (s) => `${s.step}. ${s.operation} #${s.target} "${(s.targetName || "").slice(0, 40)}"${s.typedChars ? ` (${s.typedChars} chars)` : ""} ${s.ok ? "\u2713" : "\u2717"}${s.urlChanged ? " \u2192 navigated" : ""}${s.warning ? ` \u26A0 ${s.warning.slice(0, 80)}` : ""}`
+      );
+      const head = `drive \xB7 ${data.status} \xB7 ${(data.steps || []).length} step(s) \xB7 ${data.durationMs ?? "?"}ms`;
+      const tail = data.field ? `
+Needs value for: #${data.field.id} "${data.field.name}"` : "";
+      return `${head}
+${lines.join("\n")}${lines.length ? "\n" : ""}${data.message || ""}${tail}`;
+    }
+  },
+  {
     name: "decide",
     description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default \u2014 experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
     parameters: {
@@ -38317,7 +38347,7 @@ function createBridgeMcpServer() {
     version: APP_VERSION
   });
   for (const tool of TOOLS_CATALOG) {
-    if (tool.name === "decide" && !decisionStatus().configured) continue;
+    if ((tool.name === "decide" || tool.name === "drive") && !decisionStatus().configured) continue;
     const tier = TOOL_TIERS[tool.name];
     const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
     server.tool(tool.name, `${prefix}${tool.description}`, tool.parameters, async (args) => {

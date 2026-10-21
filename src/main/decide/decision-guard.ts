@@ -119,7 +119,9 @@ export function validateAnswers(answers: Record<string, any>, guard: DecisionGua
         continue;
       }
       if (operation && component.actions && component.actions.length && operation !== 'done' && operation !== 'blocked') {
-        if (!component.actions.includes(operation)) {
+        // The operation vocabulary ("type_text") and the affordance vocabulary ("type") differ.
+        const requiredAction = operation === 'type_text' ? 'type' : operation;
+        if (!component.actions.includes(requiredAction)) {
           rejections.push({
             question: id,
             option: chosen,

@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`drive` — the observe → decide → act loop, in code.** Optional (like `decide`): with a decision model
+  configured, `drive({ goal, values })` repeats `observe(as:"components")` → guarded `decide` → verified
+  `act` until the goal is reached or it must stop, with **one decision call per step** instead of an agent
+  turn per step. Plumbing, not policy: fixed questions, no goal interpretation, and **no text generation** —
+  a `type_text` step without a supplied value returns `status:"needs_input"` naming the field. Typed stops:
+  `done` · `blocked` (no deterministic gate matched → the agent decides) · `human_required` (age/CAPTCHA,
+  hand-off raised) · `needs_agent` (guard rejected everything / contradiction) · `failed` · `max_steps`, with a
+  per-step transcript and `dry_run`. Measured on the Skyscanner London→Maldives form: **4 steps in 18 s**
+  (destination, autocomplete commit, both dates), then an honest `needs_agent`.
+- **`scripts/drive-example.mjs`** — the same loop in ~80 lines against the plain HTTP API, for runners that
+  want their own retries, logging or policy. Both paths share the guard, verification and the ledger.
+  `npm run drive -- --url … --goal … --values '{…}'` runs it.
+
 - **`decide(include_screenshot: true)` — the model can see the page.** The viewport is captured, scaled into
   TypeSafe's image limits (longest side ≤ 1568, shortest ≥ 280) and attached as an image asset referenced
   from the state, with the `TypeSafe-Danger-Zone-Images` header. Useful where text and the component table
