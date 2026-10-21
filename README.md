@@ -52,17 +52,19 @@ Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP
 
 ## 🧭 Index
 
-- **Philosophy** — [Neuromancer inspiration](#-neuromancer-inspiration--cyberpunk-canon) · [A punk-ethos alternative to browser clouds](#-a-punk-ethos-diy-alternative-to-browser-use-playwright-agents--hosted-browser-clouds)
-- **The deck** — [Theme & Cyberdeck UI](#-theme--cyberdeck-interface) · [Ghost cursor telemetry](#-ghost-cursor-telemetry-engine) · [Focus-independent input](#-focus-independent-input--background-rendering) · [Multi-tab browsing](#-hardware-accelerated-multi-tab-browsing)
-- **Reading the web** — [Orthogonal primitive layer](#-orthogonal-primitive-layer) · [Construct harvester](#-token-efficient-construct-harvester) · [Set-of-Marks](#-set-of-marks-som-visual-grounding)
-- **Driving the web** — [Shield-breaker](#-autonomous-shield-breaker-cookie--gdpr-destroyer) · [Form filler](#-single-turn-batch-form-filler) · [Human-in-the-loop](#-human-in-the-loop-hil-intervention-protocol)
-- **Memory & data** — [Cortex](#-lancedb-persistent-cortex--semantic-recall) · [Downloads](#-download-manager--cortex-harvester) · [Session vault](#-session--cookie-jar-vault) · [Script vault](#-script-vault--lancedb-semantic-macro-engine)
-- **Inspection** — [Network & API streams](#-live-network--api-stream-interceptor) · [WebSocket & SSE](#-real-time-websocket--sse-interceptor)
-- **Operating it** — [System tray](#-system-tray--background-minimization-out-of-the-way) · [MCP tools (59 advertised)](#-standardized-semantic-mcp-tools-59-advertised)
-- **Building on it** — [Codebase & docs](#-codebase-directory-structure--documentation) · [Quickstart](#-quickstart) · [Testing](#-testing) · [OKF knowledge](#-documentation--knowledge-okf)
+- **Philosophy** — [Neuromancer inspiration](#sec-neuromancer-inspiration-cyberpunk-canon) · [A punk-ethos alternative to browser clouds](#sec-a-punk-ethos-diy-alternative-to-browser-use-play)
+- **The deck** — [Theme & Cyberdeck UI](#sec-theme-cyberdeck-interface) · [Ghost cursor telemetry](#sec-ghost-cursor-telemetry-engine) · [Focus-independent input](#sec-focus-independent-input-background-rendering) · [Multi-tab browsing](#sec-hardware-accelerated-multi-tab-browsing)
+- **Reading the web** — [Orthogonal primitive layer](#sec-orthogonal-primitive-layer) · [Construct harvester](#sec-token-efficient-construct-harvester) · [Set-of-Marks](#sec-set-of-marks-som-visual-grounding)
+- **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
+- **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine)
+- **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
+- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (59 advertised)](#sec-standardized-semantic-mcp-tools-59-advertised)
+- **Building on it** — [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
 - **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 
 ---
+
+<a id="sec-neuromancer-inspiration-cyberpunk-canon" name="sec-neuromancer-inspiration-cyberpunk-canon"></a>
 
 ## 🌌 Neuromancer Inspiration & Cyberpunk Canon
 
@@ -77,6 +79,8 @@ In William Gibson's genre-defining cyberpunk masterpiece *Neuromancer*, console 
 - **The LanceDB Cortex as ROM Personality Construct:** Provides persistent semantic recall and memory traces so your local AI agent retains research context and bookmarks across browsing sessions.
 
 ---
+
+<a id="sec-a-punk-ethos-diy-alternative-to-browser-use-play" name="sec-a-punk-ethos-diy-alternative-to-browser-use-play"></a>
 
 ## 🤘 A Punk-Ethos, DIY Alternative to browser-use, Playwright Agents & Hosted Browser Clouds
 
@@ -177,6 +181,8 @@ No — it's an experimental prototype for local AI research. That's rather the p
 
 ---
 
+<a id="sec-theme-cyberdeck-interface" name="sec-theme-cyberdeck-interface"></a>
+
 ## 🎨 Theme & Cyberdeck Interface
 
 Built with **Tailwind CSS v4** and **DaisyUI 5**:
@@ -191,6 +197,8 @@ Built with **Tailwind CSS v4** and **DaisyUI 5**:
 
 ---
 
+<a id="sec-ghost-cursor-telemetry-engine" name="sec-ghost-cursor-telemetry-engine"></a>
+
 ## 🕹️ Ghost Cursor Telemetry Engine
 
 - **Organic Bézier Trajectories:** Natural cubic Bézier curve calculation with quintic ease-in/ease-out acceleration, micro-jitter, and target deceleration.
@@ -198,6 +206,8 @@ Built with **Tailwind CSS v4** and **DaisyUI 5**:
 - **Anti-Bot Defense Bypass:** Avoids heuristic bot triggers by behaving like an authentic human operator; every interaction is `isTrusted: true` because it is genuine browser input, not a synthetic DOM `.click()`.
 
 ---
+
+<a id="sec-focus-independent-input-background-rendering" name="sec-focus-independent-input-background-rendering"></a>
 
 ## 🎛️ Focus-Independent Input & Background Rendering
 
@@ -208,6 +218,8 @@ Two real-desktop failure modes are handled explicitly so long harvests and HIL f
 - **Viewport gating is explicit.** Real input needs a non-zero viewport; a fresh or hidden tab can briefly report `0x0`. Call `set_window_visibility({ visible: true })` and wait for a non-zero viewport before acting. Showing the window is otherwise only needed to make it visible to a human (HIL).
 
 ---
+
+<a id="sec-orthogonal-primitive-layer" name="sec-orthogonal-primitive-layer"></a>
 
 ## 🧩 Orthogonal Primitive Layer
 
@@ -236,6 +248,8 @@ The older tool list is being consolidated onto **a few orthogonal verbs** — on
 
 ---
 
+<a id="sec-token-efficient-construct-harvester" name="sec-token-efficient-construct-harvester"></a>
+
 ## 📄 Token-Efficient Construct Harvester
 
 - **Pure Node.js:** Powered by Mozilla Readability and Turndown. No external Python or platform-specific binaries required.
@@ -259,6 +273,8 @@ The older tool list is being consolidated onto **a few orthogonal verbs** — on
 
 ---
 
+<a id="sec-lancedb-persistent-cortex-semantic-recall" name="sec-lancedb-persistent-cortex-semantic-recall"></a>
+
 ## 🧠 LanceDB Persistent Cortex & Semantic Recall
 
 Mark Eleven features an embedded, serverless vector database (**LanceDB**) combined with Tantivy-powered Full-Text Search (BM25) stored locally under `./data/cortex/`.
@@ -270,6 +286,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
+<a id="sec-hardware-accelerated-multi-tab-browsing" name="sec-hardware-accelerated-multi-tab-browsing"></a>
+
 ## 📑 Hardware-Accelerated Multi-Tab Browsing
 
 - **Electron `WebContentsView` Isolation:** Independent navigation state, separate history stacks, and zero-flicker view swapping.
@@ -277,6 +295,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Dynamic DaisyUI 5 Tab Bar Strip:** Real-time loading spinners, active indicators, title truncations, and memory reclamation upon tab closure.
 
 ---
+
+<a id="sec-autonomous-shield-breaker-cookie-gdpr-destroyer" name="sec-autonomous-shield-breaker-cookie-gdpr-destroyer"></a>
 
 ## 🛡️ Autonomous Shield-Breaker (Cookie & GDPR Destroyer)
 
@@ -286,6 +306,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Manual Directive:** Agents can also manually call `dismiss_consent` whenever unexpected overlays block the viewport.
 
 ---
+
+<a id="sec-set-of-marks-som-visual-grounding" name="sec-set-of-marks-som-visual-grounding"></a>
 
 ## 🎯 Set-of-Marks (SoM) Visual Grounding
 
@@ -308,6 +330,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
+<a id="sec-single-turn-batch-form-filler" name="sec-single-turn-batch-form-filler"></a>
+
 ## 📝 Single-Turn Batch Form Filler
 
 - **Instantaneous Multi-Input Population:** Fills complex checkout forms, flight booking screens, or multi-field search bars in a single turn without round-trip LLM latency.
@@ -315,6 +339,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Flexible Field Types:** Supports text inputs, password fields, dropdown `<select>` menus, checkboxes, and radio buttons with optional automatic form submission (`submit_selector`).
 
 ---
+
+<a id="sec-download-manager-cortex-harvester" name="sec-download-manager-cortex-harvester"></a>
 
 ## 📥 Download Manager & Cortex Harvester
 
@@ -325,6 +351,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
+<a id="sec-session-cookie-jar-vault" name="sec-session-cookie-jar-vault"></a>
+
 ## 🔐 Session & Cookie Jar Vault
 
 - **Stateful Auth Persistence:** Captures and restores active session cookies, `localStorage`, and `sessionStorage` into encrypted/structured snapshots under `./data/sessions/<name>.json`.
@@ -333,6 +361,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Legacy aliases:** `save_session(name)` / `restore_session(name)` / `list_sessions()` still work (same vault) but are hidden from `tools/list`.
 
 ---
+
+<a id="sec-live-network-api-stream-interceptor" name="sec-live-network-api-stream-interceptor"></a>
 
 ## 📡 Live Network & API Stream Interceptor
 
@@ -343,6 +373,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
+<a id="sec-real-time-websocket-sse-interceptor" name="sec-real-time-websocket-sse-interceptor"></a>
+
 ## ⚡ Real-Time WebSocket & SSE Interceptor
 
 - **Duplex Stream Surveillance:** Captures duplex frames across persistent `wss://` WebSockets and Server-Sent Events (`text/event-stream`).
@@ -352,6 +384,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
+<a id="sec-script-vault-lancedb-semantic-macro-engine" name="sec-script-vault-lancedb-semantic-macro-engine"></a>
+
 ## 💾 Script Vault & LanceDB Semantic Macro Engine
 
 - **Reusable Automation Macros:** Store, recall, and execute custom JavaScript DOM extraction and automation scripts under `./data/scripts/<name>.json`.
@@ -359,6 +393,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Parameter Injection:** `run_script(name, args)` executes vaulted scripts inside the active tab with dynamic runtime arguments and closure isolation.
 
 ---
+
+<a id="sec-system-tray-background-minimization-out-of-the-w" name="sec-system-tray-background-minimization-out-of-the-w"></a>
 
 ## 🗔 System Tray & Background Minimization ("Out of the Way")
 
@@ -368,6 +404,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **MCP Tools:** `set_window_visibility({ visible?, focus? })` and `configure_system_tray({ close_to_tray })`.
 
 ---
+
+<a id="sec-human-in-the-loop-hil-intervention-protocol" name="sec-human-in-the-loop-hil-intervention-protocol"></a>
 
 ## 🚨 Human-In-The-Loop (HIL) Intervention Protocol
 
@@ -381,6 +419,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **MCP Tools:** `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, and non-blocking `send_notification`.
 
 ---
+
+<a id="sec-standardized-semantic-mcp-tools-59-advertised" name="sec-standardized-semantic-mcp-tools-59-advertised"></a>
 
 ## 🔌 Standardized Semantic MCP Tools (59 Advertised)
 
@@ -473,6 +513,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
+<a id="sec-codebase-directory-structure-documentation" name="sec-codebase-directory-structure-documentation"></a>
+
 ## 🗺️ Codebase Directory Structure & Documentation
 
 Each folder contains a dedicated `README.md` detailing its responsibilities, dependencies, and internal workflows:
@@ -506,6 +548,8 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 
 ---
 
+<a id="sec-quickstart" name="sec-quickstart"></a>
+
 ## 🚀 Quickstart
 
 ### Development Mode (with Live Reloading)
@@ -537,6 +581,8 @@ Add this to your MCP configuration (`claude_desktop_config.json` / `mcp_config.j
 
 ---
 
+<a id="sec-testing" name="sec-testing"></a>
+
 ## 🧪 Testing
 
 All suites run against the live Cyberdeck on `http://127.0.0.1:4111` (start the app first):
@@ -552,6 +598,8 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
 
 ---
 
+<a id="sec-documentation-knowledge-okf" name="sec-documentation-knowledge-okf"></a>
+
 ## 📚 Documentation & Knowledge (OKF)
 
 - **[`CHANGELOG.md`](./CHANGELOG.md)** — release history and migration-relevant changes.
@@ -564,6 +612,8 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
   - `mark-eleven://okf/partitions/selector-and-som` · `captcha-and-anti-bot` · `browser-navigation` · `primitives-and-workflows`.
 
 ---
+
+<a id="sec-license" name="sec-license"></a>
 
 ## 📄 License
 
