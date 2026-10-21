@@ -134,7 +134,7 @@ backend (`--bridge`) or a local model (`kev-0.6b cpu`):
 | :--- | :--- | :--- |
 | **Jev 1.13** (OpenCode Console) | **9 / 10** | **404 ms** |
 | `kev-0.6b` (local, Qwen3-0.6B) | 4 / 10 | 1,591 ms |
-| `open-jev` (local, DeBERTa-v3-large) | 7 / 10 | 750 ms |
+| `open-jev` (local, DeBERTa-v3-large) | 6 / 10 | 774 ms |
 
 Jev answered three of the four scenarios exactly right; its only miss was the CAPTCHA, where it chose
 `click` (0.60) on the Verify button instead of `blocked` — a defensible reading. The local models are
