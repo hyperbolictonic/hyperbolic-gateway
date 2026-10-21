@@ -19,8 +19,8 @@ const emit = (build) => {
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `build=${build}\n`);
 };
 
-if (!tag) {
-  console.log('no tag supplied (manual run) — building all platforms');
+if (!tag || !/^v\d/.test(tag)) {
+  console.log(`no release tag supplied (${tag || 'empty'} — manual run) — building all platforms`);
   emit(true);
   process.exit(0);
 }
