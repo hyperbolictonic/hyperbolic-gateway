@@ -729,30 +729,63 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         // component table alone does not carry. Raw `decide` stays a pure pipe.
         const useGuard = body?.guard !== undefined || body?.eliminate !== undefined;
         let state = body?.state;
+        let usedPageText = false;
         if (body?.include_page_text === true || (body?.include_page_text !== false && useGuard)) {
           try {
             const page = await chassis.getPrimitives().observe({ as: 'text', budget: 4000 });
             const pageText = typeof page?.text === 'string' ? page.text.slice(0, 4000) : '';
             if (pageText.trim()) {
               state = `${typeof state === 'string' ? state : JSON.stringify(state ?? '')}\n\nVisible page text:\n${pageText}`;
+              usedPageText = true;
             }
           } catch {
             // No page context available (e.g. called before a tab exists) — carry on with the state.
           }
         }
+        let assets: Record<string, unknown> | undefined;
+        let screenshotNote: string | undefined;
+        if (body?.include_screenshot === true) {
+          // Jev accepts images in the state, referenced by name from a top-level `assets` map.
+          // Only the hosted backend is multimodal; say so rather than silently dropping the image.
+          if (decisionStatus().protocol === 'typesafe') {
+            const shot = await chassis.captureScreenshotJpeg().catch(() => null);
+            if (shot) {
+              const ref = `kuang-shot-${Date.now().toString(36)}`;
+              const text = typeof state === 'string' ? state : JSON.stringify(state ?? '');
+              state = {
+                text: `${text}\n\nA screenshot of the visible viewport (${shot.width}x${shot.height}) is attached as \`${ref}\`.`,
+                screenshot: ref,
+              };
+              assets = { [ref]: { type: 'image', format: 'jpg', data_base64: shot.base64 } };
+              screenshotNote = `${shot.width}x${shot.height} jpeg attached`;
+            } else {
+              screenshotNote = 'capture failed — decided without an image';
+            }
+          } else {
+            screenshotNote = 'ignored: the local ONNX model is text-only';
+          }
+        }
+
         const result = useGuard
           ? await decideGuarded({
               state,
+              pageUrl: usedPageText ? chassis.getPageInfo().url : undefined,
               questions: body?.questions || {},
               model: body?.model,
+              assets,
               guard: body?.guard || {},
               maxAttempts: body?.eliminate?.max_attempts ?? body?.eliminate?.maxAttempts ?? (body?.eliminate ? 3 : 1),
             })
           : await runDecision({
               state,
+              pageUrl: usedPageText ? chassis.getPageInfo().url : undefined,
               questions: body?.questions || {},
               model: body?.model,
+              assets,
             });
+        if (screenshotNote || (result as any).imageNote) {
+          (result as any).screenshot = (result as any).imageNote || screenshotNote;
+        }
         if (result.ok) {
           // "Blocked" without a deterministic match is not a compliance boundary we can prove.
           // The agent decides: it may know the site, or it may call request_human_intervention.

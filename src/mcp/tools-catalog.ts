@@ -992,6 +992,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
         max_attempts: z.coerce.number().min(1).max(5).optional().describe('Total model calls including the first (default 3 when eliminate is set)'),
       }).optional().describe('Drop a rejected option and ask again with the rest; when everything is eliminated the result is accepted:false, fallback:"agent"'),
       include_page_text: z.coerce.boolean().optional().describe('Append the live page text to the state before asking (default: on for guarded calls). Needed for sensitive-gate detection, whose copy lives in the page, not the component table'),
+      include_screenshot: z.coerce.boolean().optional().describe('Attach a JPEG of the visible viewport to the state (hosted Jev only; the local ONNX models are text-only). Useful when the page is visual — CAPTCHA, age gate, layout the component table cannot describe'),
     },
     endpoint: '/decide',
     payload: (args) => ({
@@ -1001,6 +1002,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       guard: args?.guard,
       eliminate: args?.eliminate,
       include_page_text: args?.include_page_text,
+      include_screenshot: args?.include_screenshot,
     }),
     format: (data) => {
       if (data.error) return `decide failed: ${data.error}`;

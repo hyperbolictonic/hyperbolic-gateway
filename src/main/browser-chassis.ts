@@ -474,6 +474,39 @@ export class BrowserChassis {
   }
 
   /**
+   * Capture the visible viewport as a baseline JPEG inside TypeSafe's image limits (longest side
+   * ≤ 1568, shortest ≥ 280). Used by `decide(include_screenshot)` so the model can see the page.
+   */
+  public async captureScreenshotJpeg(maxSide = 1400, quality = 82): Promise<{ base64: string; width: number; height: number } | null> {
+    try {
+      const wc = this.getActiveWebContents();
+      const image = await this.capturePageWithRetry(wc, this.getViewportBounds());
+      if (!image || image.isEmpty()) return null;
+      const size = image.getSize();
+      if (!size.width || !size.height) return null;
+
+      const shrink = Math.min(1, maxSide / Math.max(size.width, size.height));
+      let out = shrink < 1
+        ? image.resize({ width: Math.round(size.width * shrink), height: Math.round(size.height * shrink), quality: 'good' })
+        : image;
+
+      const after = out.getSize();
+      const smallest = Math.min(after.width, after.height);
+      if (smallest > 0 && smallest < 280) {
+        const grow = 280 / smallest;
+        out = out.resize({ width: Math.round(after.width * grow), height: Math.round(after.height * grow), quality: 'good' });
+      }
+
+      const final = out.getSize();
+      const buffer = out.toJPEG(quality);
+      return { base64: buffer.toString('base64'), width: final.width, height: final.height };
+    } catch (err: any) {
+      this.addLog('warn', `Screenshot capture failed: ${err?.message || err}`);
+      return null;
+    }
+  }
+
+  /**
    * A sensitive gate needs a person. Raise the hand-off from Kuang itself rather than relying on the
    * caller to do it: the rule already decided that a human is required, so waiting for another round
    * trip only wastes the agent's turn. Throttled per URL, and skipped while a request is already open.

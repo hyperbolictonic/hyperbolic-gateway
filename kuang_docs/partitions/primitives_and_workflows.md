@@ -268,7 +268,13 @@ ordinary signup form is *not* a gate and does not trigger it.
 
 **If it cannot be determined, the agent decides.** A model answer of `blocked` with no matching gate copy is a
 normal decision (with a hint): the agent may call `request_human_intervention` itself, or choose another step.
-Human attention is spent only on a boundary Kuang can name and quote. The guarded-call page scan is why this works on `/r/petite`: the component table only shows
+Human attention is spent only on a boundary Kuang can name and quote.
+
+**Seeing the page.** `decide(include_screenshot: true)` attaches a viewport JPEG as a TypeSafe image asset
+(resized into its 280–1568 px limits). Caveat: the OpenCode gateway strips the `TypeSafe-Danger-Zone-Images`
+header, so images only work when the endpoint is `api.typesafe.ai`; otherwise Kuang retries without the image
+and reports that it did. `act` also returns a `warning` when a click target sits behind a gate — a warning,
+not a refusal, because a human may have asked for that click. The guarded-call page scan is why this works on `/r/petite`: the component table only shows
 "Not Now" / "Verify", while the page says "Verify your birthday to continue".
 
 ## 6. Input Delivery & Background Rendering (operational guarantees)

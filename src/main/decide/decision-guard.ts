@@ -46,6 +46,8 @@ export interface GuardedDecision {
   fallback?: 'agent' | 'human';
   /** Set when a sensitive gate stopped the call before the model (age verification, CAPTCHA). */
   gate?: 'age_verification' | 'captcha';
+  /** Set when an image was dropped because the endpoint would not accept it. */
+  imageNote?: string;
   latencyMs?: number;
   error?: DecisionResult['error'];
 }
@@ -173,6 +175,8 @@ export async function decideGuarded(opts: {
   model?: string;
   guard?: DecisionGuard;
   maxAttempts?: number;
+  assets?: Record<string, unknown>;
+  pageUrl?: string;
 }): Promise<GuardedDecision> {
   const guard = opts.guard || {};
   const maxAttempts = Math.max(1, Math.min(Number(opts.maxAttempts ?? 1), 5));
@@ -183,7 +187,7 @@ export async function decideGuarded(opts: {
   const started = Date.now();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const result = await runDecision({ state: opts.state, questions, model: opts.model });
+    const result = await runDecision({ state: opts.state, questions, model: opts.model, assets: opts.assets, pageUrl: opts.pageUrl });
     if (!result.ok) {
       // A sensitive gate is not a failed attempt: no model was called, no option is elimable.
       // Hand straight to the human.
@@ -230,6 +234,8 @@ export async function decideGuarded(opts: {
         rejections,
         reasons,
         latencyMs: Date.now() - started,
+        imageNote: (result as any).imageNote,
+        gate: (result as any).gate,
       };
     }
 

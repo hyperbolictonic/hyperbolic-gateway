@@ -12,6 +12,7 @@ import {
   type TargetBox,
   type TargetLocator,
 } from './dom-targeting.js';
+import { detectSensitiveGate } from '../decide/sensitive-gate.js';
 
 /**
  * Primitives — the orthogonal observe / act / wait layer.
@@ -1073,6 +1074,10 @@ export class Primitives {
         throw new PrimitiveError('NOT_SUPPORTED', `Unsupported act action "${action}"`);
     }
 
+    // Clicking through an age/CAPTCHA wall is a claim only a human can make. We do not refuse —
+    // a human may have explicitly asked for it — but the result says so plainly.
+    const gateWarning = action === 'click' ? await this.gateWarningFor(target?.text || '') : undefined;
+
     let awaited: WaitResult | null = null;
     if (opts.await && opts.await.length) {
       awaited = await this.waitFor(opts.await, { timeoutMs: opts.timeoutMs });
@@ -1101,7 +1106,7 @@ export class Primitives {
     const typingFailed = typing !== null && typing.landed === false;
     const typingHint = typingFailed ? this.typingHint(typing!) : undefined;
     const ok = !typingFailed;
-    const hints = [(awaited as any)?.hint, typingHint].filter(Boolean).join('; ') || undefined;
+    const hints = [(awaited as any)?.hint, typingHint, gateWarning].filter(Boolean).join('; ') || undefined;
 
     // Record the transition: this is the dataset a runner-side decision model learns from.
     // Never the typed text — only its length, plus whether it landed.
@@ -1148,6 +1153,7 @@ export class Primitives {
     };
 
     if (typing) result.typing = typing;
+    if (gateWarning) result.warning = gateWarning;
     if (typingFailed) {
       result.error = {
         code: 'TYPE_NO_EFFECT',
@@ -1190,8 +1196,23 @@ export class Primitives {
     return { ...base, landed, channel: 'keys', attempted: ['keys'] };
   }
 
-  private typingHint(t: TypingOutcome): string {
-    if (t.keydowns === 0) {
+  /**
+   * Warn when a click target looks like an age/CAPTCHA gate control. Only the page copy decides
+   * whether a gate is present — the target's own label merely triggers the (single) page read, so
+   * ordinary "Continue" buttons on normal pages cost one extra evaluate at worst.
+   */
+  private async gateWarningFor(targetText: string): Promise<string | undefined> {
+    if (!targetText || !/verify|continue|enter|age|birthday|18|captcha|robot|human|i'?m/i.test(targetText)) return undefined;
+    const pageText = await this.host
+      .evaluate('(document.body ? document.body.innerText : "").slice(0, 1500)')
+      .catch(() => '');
+    const gate = detectSensitiveGate(pageText, { url: this.host.getPageInfo().url });
+    if (!gate) return undefined;
+    const kind = gate.kind === 'age_verification' ? 'age-verification' : 'CAPTCHA';
+    return `"${targetText.slice(0, 60)}" sits behind a ${kind} wall. If a human has not resolved the hand-off, stop and call request_human_intervention.`;
+  }
+
+  private typingHint(t: TypingOutcome): string {    if (t.keydowns === 0) {
       return 'No trusted key events reached the page — focus was not on the target (the click may have been occluded) or the app window is not focused. Re-check with act(action:"focus") or bridge_health.';
     }
     if (t.channel && t.channel !== 'keys') {

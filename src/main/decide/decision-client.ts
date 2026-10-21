@@ -57,6 +57,8 @@ export interface DecisionCall {
   model?: string;
   /** URL of the page the state came from — lets the gate rule ignore app-internal pages. */
   pageUrl?: string;
+  /** Image assets referenced from the state (TypeSafe format: {ref: {type, format, data_base64}}). */
+  assets?: Record<string, unknown>;
 }
 
 export type DecisionFailureCode = 'NOT_CONFIGURED' | 'BAD_REQUEST' | 'UPSTREAM_ERROR' | 'TIMEOUT' | 'NO_DECISION' | 'HUMAN_REQUIRED';
@@ -70,6 +72,8 @@ export interface DecisionResult {
   usage?: unknown;
   /** Set when a sensitive gate (age verification, CAPTCHA) stopped the call before the model. */
   gate?: 'age_verification' | 'captcha';
+  /** Note about an image that could not be sent (endpoint rejected / not multimodal). */
+  imageNote?: string;
   error?: { code: DecisionFailureCode; message: string; hint?: string; status?: number };
 }
 
@@ -174,8 +178,15 @@ async function runTypesafe(cfg: DecisionConfig, call: DecisionCall): Promise<Dec
       headers: {
         'Content-Type': 'application/json',
         ...(cfg.key ? { Authorization: `Bearer ${cfg.key}` } : {}),
+        // Images are behind a "danger zone" flag on TypeSafe; only send it when there are assets.
+        ...(call.assets && Object.keys(call.assets).length ? { 'TypeSafe-Danger-Zone-Images': 'true' } : {}),
       },
-      body: JSON.stringify({ model: call.model || cfg.model, state: call.state, questions: call.questions }),
+      body: JSON.stringify({
+        model: call.model || cfg.model,
+        state: call.state,
+        questions: call.questions,
+        ...(call.assets && Object.keys(call.assets).length ? { assets: call.assets } : {}),
+      }),
       signal: controller.signal,
     });
     const text = await res.text();
@@ -186,6 +197,13 @@ async function runTypesafe(cfg: DecisionConfig, call: DecisionCall): Promise<Dec
       // keep the raw body for the error below
     }
     if (!res.ok) {
+      const textLower = (text || '').toLowerCase();
+      // Some gateways strip unknown headers. If TypeSafe says images are not enabled, retry once
+      // without the image rather than failing the decision — and report that the image was skipped.
+      if (call.assets && Object.keys(call.assets).length && res.status === 400 && textLower.includes('images are experimental')) {
+        const retry = await runTypesafe(cfg, { ...call, assets: undefined });
+        return { ...retry, imageNote: 'the endpoint rejected the image (header not forwarded); decided without it' };
+      }
       return {
         ok: false,
         protocol: 'typesafe',
