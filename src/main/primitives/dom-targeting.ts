@@ -109,6 +109,23 @@ function kqContainsComposed(ancestor, node) {
   }
   return false;
 }
+/**
+ * Pick a point that actually belongs to the element. Large card links (Reddit posts, product tiles)
+ * routinely have their geometric centre covered by a nested overlay/thumbnail, so clicking the centre
+ * hits a sibling and nothing happens. Try the centre, then a few offsets, and require the hit to be
+ * the element itself or a descendant of it.
+ */
+function kqSafePoint(el) {
+  const r = el.getBoundingClientRect();
+  const offsets = [[0.5, 0.5], [0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7], [0.5, 0.18], [0.5, 0.82], [0.18, 0.5], [0.82, 0.5]];
+  for (let i = 0; i < offsets.length; i++) {
+    const x = Math.round(r.left + r.width * offsets[i][0]);
+    const y = Math.round(r.top + r.height * offsets[i][1]);
+    const hit = kqAtPoint(x, y);
+    if (hit && (hit === el || kqContainsComposed(el, hit))) return { x: x, y: y, covered: false };
+  }
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), covered: true };
+}
 function kqActive() {  let el = document.activeElement;
   let guard = 0;
   while (el && el.shadowRoot && el.shadowRoot.activeElement && guard++ < 25) {
@@ -188,11 +205,11 @@ export function targetBoxScript(locator: TargetLocator): string {
   ${scroll}
   const target = ${locator.point ? 'host' : 'kqResolveControl(host)'};
   if (!target) return null;
-  const r = target.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const x = Math.round(r.left + r.width / 2);
-  const y = Math.round(r.top + r.height / 2);
+  const point = kqSafePoint(target);
+  const x = point.x;
+  const y = point.y;
   return {
     x: x,
     y: y,

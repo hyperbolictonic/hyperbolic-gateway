@@ -514,11 +514,10 @@ export class MarksOverlay {
               try { el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); } catch {}
               rect = el.getBoundingClientRect();
             }
-            return {
-              x: Math.round(rect.left + rect.width / 2),
-              y: Math.round(rect.top + rect.height / 2),
-            };
-          })()
+            // A large card link's centre is often covered by a nested overlay; click a point that
+            // belongs to the element instead (kqSafePoint tries several offsets).
+            const point = kqSafePoint(el);
+            return { x: point.x, y: point.y, covered: point.covered === true };          })()
         `);
         if (liveInfo) {
           return {

@@ -1010,9 +1010,29 @@ export class BrowserChassis {
   }
 
   public getPageInfo(): { url: string; title: string; isLoading: boolean; activeTabId?: string } {
+    // Read the live document URL/title. Reddit (and most SPAs) navigate with pushState, which fires
+    // no did-navigate event — the cached tab URL then stays stale and an `act` delta reports
+    // urlChanged:false for a click that actually worked.
+    let url = this.state.currentUrl;
+    let title = this.state.pageTitle;
+    try {
+      const active = this.tabManager?.getActiveTab();
+      const live = active?.view?.webContents;
+      if (live && !live.isDestroyed()) {
+        const liveUrl = live.getURL();
+        const liveTitle = live.getTitle();
+        if (liveUrl) url = liveUrl;
+        if (liveTitle) title = liveTitle;
+        // Keep the tab bar's cached values in step with what the page actually is.
+        if (active.url !== url) active.url = url;
+        if (active.title !== title) active.title = title;
+      }
+    } catch {
+      // No active tab yet — fall back to the cached state.
+    }
     return {
-      url: this.state.currentUrl,
-      title: this.state.pageTitle,
+      url,
+      title,
       isLoading: this.state.isLoading,
       activeTabId: this.state.activeTabId,
     };
