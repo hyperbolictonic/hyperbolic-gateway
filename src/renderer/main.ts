@@ -488,7 +488,7 @@ function showHilBanner(req: { id: string; reason: string }) {
   // Anchored to the side panel (right), not across the middle: a human is being asked to act in
   // the *browser*, so the notice must not cover the thing they need to look at.
   banner.className =
-    'alert alert-warning shadow-2xl fixed top-3 right-3 z-50 w-[min(420px,calc(100vw-1.5rem))] flex items-center justify-between border-2 border-warning font-mono text-xs';
+    'alert alert-warning shadow-2xl fixed bottom-10 right-3 z-50 w-[min(420px,calc(100vw-1.5rem))] flex items-center justify-between border-2 border-warning font-mono text-xs';
 
   // Built with textContent, never innerHTML: `reason` can quote page copy (the sensitive-gate rule
   // puts matched lines in it), and page copy is attacker-controlled.

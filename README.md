@@ -12,7 +12,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.4.0-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-1.4.1-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-59-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />

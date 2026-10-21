@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { BrowserChassis } from './browser-chassis.js';
 import { startHttpBridge } from './http-bridge.js';
+import { attachContextMenu } from './menu/context-menu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +56,13 @@ async function createWindow() {
   });
 
   chassis.setWindow(mainWindow);
+
+  // The shell (HUD) has its own context menu: without it, right-click copy/paste/inspect does
+  // nothing anywhere outside a browsing tab. Inspection targets the shell's own renderer.
+  attachContextMenu(mainWindow.webContents, {
+    window: mainWindow,
+    onLog: (level, message) => console.log(`[HUD context menu] ${level}: ${message}`),
+  });
 
   // Dev server or production bundle
   if (process.env.VITE_DEV_SERVER_URL) {

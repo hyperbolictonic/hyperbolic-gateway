@@ -64,7 +64,7 @@ export class ShieldBreaker {
 
           for (const el of candidateElements) {
             try {
-              const text = (el.textContent || (el as HTMLInputElement).value || '').trim();
+              const text = (el.textContent || el.value || '').trim();
               if (!text || text.length > 40) continue;
 
               for (const pattern of acceptPatterns) {

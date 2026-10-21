@@ -363,6 +363,9 @@ export class BrowserChassis {
     if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
     this.addLog('action', `MCP Directive: new_tab(${url || 'about:blank'})`);
     const tab = this.tabManager.createTab(url);
+    // A tab opened directly at a URL is a navigation too: arm the same late-consent sweep, or a
+    // cookie wall on a freshly opened tab would never be dismissed.
+    if (url && /^https?:/i.test(url)) this.scheduleConsentSweep();
     return {
       id: tab.id,
       title: tab.title,
@@ -557,14 +560,82 @@ export class BrowserChassis {
     const navPromise = wc.loadURL(formattedUrl);
 
     if (autoDismissConsent) {
-      setTimeout(() => {
-        this.dismissConsent().catch(() => {});
-      }, 1800);
+      // Consent walls frequently mount *after* load — a hydration delay, or after a login/redirect
+      // (Reddit's cookie dialog arrives post-signin). One timed attempt at 1.8s missed those, so
+      // sweep a few settle points; each sweep is gated by a cheap consent-only DOM check, so this
+      // never clicks an ordinary dialog.
+      this.scheduleConsentSweep();
     }
 
     await navPromise;
     this.bumpRevision();
     return `Navigated to ${formattedUrl}`;
+  }
+
+  private consentSweepTimers: NodeJS.Timeout[] = [];
+
+  private clearConsentSweep(): void {
+    for (const timer of this.consentSweepTimers) clearTimeout(timer);
+    this.consentSweepTimers = [];
+  }
+
+  /** Schedule late consent attempts after a navigation; replaces any sweep already pending. */
+  private scheduleConsentSweep(delays: number[] = [900, 2600, 6000]): void {
+    this.clearConsentSweep();
+    for (const delay of delays) {
+      const timer = setTimeout(() => {
+        void this.sweepConsent();
+      }, delay);
+      timer.unref?.();
+      this.consentSweepTimers.push(timer);
+    }
+  }
+
+  /**
+   * Dismiss a consent overlay only if a consent-like element is actually present. Deliberately
+   * narrower than `dismissConsent`'s full scan (which also handles modal barriers): an automatic
+   * sweep must never close a login dialog or a genuine prompt the user needs to see.
+   */
+  private async sweepConsent(): Promise<void> {
+    let wc: WebContents;
+    try {
+      wc = this.getActiveWebContents();
+    } catch {
+      return;
+    }
+    if (!wc || wc.isDestroyed()) return;
+
+    const consentPresent = await wc
+      .executeJavaScript(
+        `(() => {
+          const sel = [
+            '#onetrust-accept-btn-handler',
+            '[id*="onetrust" i] button',
+            '[id*="cookiebot" i] button',
+            '[id*="didomi" i] button',
+            '[class*="cookie-consent" i] button',
+            '[class*="cookie-banner" i] button',
+            'button[id*="cookie-accept" i]',
+            'button[class*="cookie-accept" i]',
+            'button[id*="accept-all" i]',
+            'button[class*="accept-all" i]',
+            '[aria-label*="accept all" i]',
+            '[aria-label*="accept cookies" i]',
+          ].join(',');
+          const el = document.querySelector(sel);
+          if (!el) return false;
+          const r = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return r.width > 0 && r.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+        })()`
+      )
+      .catch(() => false);
+
+    if (!consentPresent) return;
+    const result = await this.dismissConsent().catch(() => null);
+    if (result?.dismissed) {
+      this.addLog('info', `Late consent overlay dismissed (${result.framework || 'generic'}) ${result.message ? '— ' + result.message : ''}`);
+    }
   }
 
   public async dismissConsent(): Promise<ShieldDismissResult> {
