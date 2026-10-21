@@ -22,6 +22,8 @@ export interface ElectronAPI {
   getDecisionSettings: () => Promise<{ stored: any; status: any }>;
   saveDecisionSettings: (config: any) => Promise<{ ok: boolean; status: any }>;
   testDecisionModel: () => Promise<any>;
+  getDecisions: () => Promise<any[]>;
+  onDecision: (callback: (event: any) => void) => () => void;
   onTabsUpdated: (callback: (tabs: TabSummary[]) => void) => () => void;
   onStateUpdated: (callback: (state: ChassisState) => void) => () => void;
   onTelemetry: (callback: (event: TelemetryEvent) => void) => () => void;
@@ -58,6 +60,13 @@ const api: ElectronAPI = {
   getDecisionSettings: () => ipcRenderer.invoke('settings:get-decision'),
   saveDecisionSettings: (config: any) => ipcRenderer.invoke('settings:save-decision', config),
   testDecisionModel: () => ipcRenderer.invoke('settings:test-decision'),
+  getDecisions: () => ipcRenderer.invoke('chassis:get-decisions'),
+
+  onDecision: (callback) => {
+    const handler = (_: any, event: any) => callback(event);
+    ipcRenderer.on('chassis:decision', handler);
+    return () => ipcRenderer.removeListener('chassis:decision', handler);
+  },
 
   onTabsUpdated: (callback) => {
     const handler = (_: any, tabs: TabSummary[]) => callback(tabs);

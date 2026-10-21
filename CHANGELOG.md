@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **DECISIONS tab in the HUD — shown only when a decision model is configured.** Mirrors every call to the
+  decision model as it happens: backend + model, latency, each question with its type, the answers (choice +
+  confidence, `noul` as yes/no with probability, score + level) or the typed failure, and a truncated state
+  preview. It appears when a backend is saved in Settings and disappears when the backend is set to Off, so
+  the panel never advertises something that isn't there. Backed by a ring buffer (last 50 calls) in the main
+  process, exposed as `GET /decisions` so an agent can inspect what the model decided without scraping the UI.
 - **Native right-click menu in browsing tabs.** A `WebContentsView` has no default context menu, so
   copy/paste/select-all, link and image actions, reload and **inspect element** were unreachable by hand
   even though the API had them. Each right-click now builds a menu from the click's own context: Undo/Redo/

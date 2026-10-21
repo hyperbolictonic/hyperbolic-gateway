@@ -134,6 +134,9 @@
           <button id="tab-btn-logs" role="tab" class="tab font-mono text-xs">
             MATRIX LOGS
           </button>
+          <button id="tab-btn-decisions" role="tab" class="tab font-mono text-xs hidden">
+            DECISIONS
+          </button>
         </div>
 
         <!-- Tab 1: Telemetry View -->
@@ -189,6 +192,20 @@
           </div>
           <div id="logs-container" class="flex-1 bg-base-100 border border-base-300 rounded p-2 overflow-y-auto space-y-1.5 text-[11px]">
             <div class="text-base-content/40 italic text-center py-4">Listening on MCP Stdio transport...</div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Decision Model (appears only when a backend is configured) -->
+        <div id="tab-content-decisions" class="flex-1 p-3 overflow-hidden flex-col hidden font-mono text-xs">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-secondary text-[11px]">DECISION MODEL</span>
+              <span id="decision-backend-badge" class="badge badge-xs badge-secondary">—</span>
+            </div>
+            <span id="decision-count" class="badge badge-xs badge-neutral">0 calls</span>
+          </div>
+          <div id="decision-feed" class="flex-1 bg-base-100 border border-base-300 rounded p-2 overflow-y-auto space-y-1.5 text-[11px]">
+            <div class="text-base-content/40 italic text-center py-4">No decisions yet — call decide() or use Test connection.</div>
           </div>
         </div>
 

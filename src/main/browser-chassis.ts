@@ -6,7 +6,7 @@ import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
-import { readStoredDecisionConfig, saveDecisionConfig, decisionStatus, runDecision } from './decide/decision-client.js';
+import { readStoredDecisionConfig, saveDecisionConfig, decisionStatus, runDecision, onDecision, type DecisionEvent } from './decide/decision-client.js';
 import { targetBoxScript, focusControlScript, DEEP_DOM_HELPERS, type TargetBox } from './primitives/dom-targeting.js';
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
@@ -42,6 +42,8 @@ import { Researcher, type ResearchOptions, type ResearchOutcome } from './resear
 
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
+  /** Recent decision-model calls, mirrored to the HUD (newest last, capped at 50). */
+  private decisionLog: DecisionEvent[] = [];
   private tabManager: TabManager | null = null;
   private simulator: HumanizedInputSimulator;
   private harvester: ConstructHarvester;
@@ -88,6 +90,17 @@ export class BrowserChassis {
   private targetConsoleLogs: Array<{ level: string; message: string; line: number; sourceId: string; timestamp: number }> = [];
 
   constructor() {
+    // Mirror every decision call into the HUD's DECISIONS tab. The listener is passive: it cannot
+    // delay or fail a decision (see emitDecision), and the ring buffer lets a late-joining renderer
+    // catch up.
+    onDecision((event) => {
+      this.decisionLog.push(event);
+      if (this.decisionLog.length > 50) this.decisionLog.shift();
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('chassis:decision', event);
+      }
+    });
+
     this.harvester = new ConstructHarvester();
     this.simulator = new HumanizedInputSimulator({
       onMouseMove: (point, velocity) => {
@@ -432,6 +445,7 @@ export class BrowserChassis {
       status: decisionStatus(),
     }));
     ipcMain.handle('settings:save-decision', async (_, config: any) => saveDecisionConfig(config));
+    ipcMain.handle('chassis:get-decisions', async () => this.decisionLog);
     ipcMain.handle('settings:test-decision', async () => {
       const started = Date.now();
       const result = await runDecision({
@@ -444,6 +458,11 @@ export class BrowserChassis {
 
   public getCortex(): CortexDB {
     return cortex;
+  }
+
+  /** Recent decision-model calls, for `GET /decisions` and the HUD's DECISIONS tab. */
+  public getDecisionEvents(): DecisionEvent[] {
+    return this.decisionLog;
   }
   private async indexTabQuietly(tab: TabInstance) {
     try {

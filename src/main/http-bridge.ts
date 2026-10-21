@@ -712,6 +712,11 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       // ---- optional decision model (off unless configured) -------------------
+      if (req.method === 'GET' && pathname === '/decisions') {
+        const decisions = chassis.getDecisionEvents();
+        sendJson({ success: true, count: decisions.length, decisions });
+        return;
+      }
       if (pathname === '/decide' && (req.method === 'GET' || req.method === 'POST')) {
         if (req.method === 'GET') {
           sendJson({ success: true, ...decisionStatus() });

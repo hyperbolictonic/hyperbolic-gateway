@@ -31,6 +31,12 @@ const tabBtnLogs = document.getElementById('tab-btn-logs') as HTMLButtonElement;
 const tabContentTelemetry = document.getElementById('tab-content-telemetry') as HTMLElement;
 const tabContentConstruct = document.getElementById('tab-content-construct') as HTMLElement;
 const tabContentLogs = document.getElementById('tab-content-logs') as HTMLElement;
+const tabBtnDecisions = document.getElementById('tab-btn-decisions') as HTMLButtonElement;
+const tabContentDecisions = document.getElementById('tab-content-decisions') as HTMLElement;
+const decisionFeed = document.getElementById('decision-feed') as HTMLElement;
+const decisionCount = document.getElementById('decision-count') as HTMLElement;
+const decisionBackendBadge = document.getElementById('decision-backend-badge') as HTMLElement;
+let decisionCalls = 0;
 
 // Dynamic Lists & Preview
 const telemetryFeed = document.getElementById('telemetry-feed') as HTMLElement;
@@ -100,22 +106,84 @@ function renderTrail() {
 requestAnimationFrame(renderTrail);
 
 // Tab switching
-function switchTab(activeTab: 'telemetry' | 'construct' | 'logs') {
+function switchTab(activeTab: 'telemetry' | 'construct' | 'logs' | 'decisions') {
   tabBtnTelemetry.classList.toggle('tab-active', activeTab === 'telemetry');
   tabBtnConstruct.classList.toggle('tab-active', activeTab === 'construct');
   tabBtnLogs.classList.toggle('tab-active', activeTab === 'logs');
+  tabBtnDecisions.classList.toggle('tab-active', activeTab === 'decisions');
 
   tabContentTelemetry.classList.toggle('hidden', activeTab !== 'telemetry');
   tabContentConstruct.classList.toggle('hidden', activeTab !== 'construct');
   tabContentLogs.classList.toggle('hidden', activeTab !== 'logs');
+  tabContentDecisions.classList.toggle('hidden', activeTab !== 'decisions');
 
   tabContentConstruct.classList.toggle('flex', activeTab === 'construct');
   tabContentLogs.classList.toggle('flex', activeTab === 'logs');
+  tabContentDecisions.classList.toggle('flex', activeTab === 'decisions');
 }
 
 tabBtnTelemetry.addEventListener('click', () => switchTab('telemetry'));
 tabBtnConstruct.addEventListener('click', () => switchTab('construct'));
 tabBtnLogs.addEventListener('click', () => switchTab('logs'));
+tabBtnDecisions.addEventListener('click', () => switchTab('decisions'));
+
+// ---- Decision model mirror (tab appears only when a backend is configured) -------------------
+function setDecisionTabVisible(visible: boolean, status?: any) {
+  tabBtnDecisions.classList.toggle('hidden', !visible);
+  decisionBackendBadge.textContent = status?.configured ? `${status.protocol} · ${status.model}` : '—';
+  decisionBackendBadge.className = status?.local ? 'badge badge-xs badge-warning' : 'badge badge-xs badge-secondary';
+  if (!visible && tabBtnDecisions.classList.contains('tab-active')) switchTab('logs');
+}
+
+async function refreshDecisionTab() {
+  try {
+    const { status } = await window.electronAPI!.getDecisionSettings();
+    setDecisionTabVisible(Boolean(status?.configured), status);
+  } catch {
+    setDecisionTabVisible(false);
+  }
+}
+
+function appendDecision(event: any) {
+  decisionCalls++;
+  decisionCount.textContent = `${decisionCalls} call${decisionCalls === 1 ? '' : 's'}`;
+  decisionFeed.querySelector('.italic')?.remove();
+
+  const row = document.createElement('div');
+  row.className = `border-l-2 pl-2 py-1 ${event.ok ? 'border-secondary/60' : 'border-error'}`;
+
+  const head = document.createElement('div');
+  head.className = 'text-[10px] text-base-content/50';
+  head.textContent = `${new Date(event.ts).toLocaleTimeString()} · ${event.protocol || '?'} · ${event.model || '?'} · ${event.latencyMs ?? '?'}ms`;
+
+  const body = document.createElement('div');
+  if (event.ok) {
+    const parts = Object.entries(event.answers || {}).map(([key, value]: [string, any]) => {
+      if (value && typeof value === 'object') {
+        if (typeof value.noul === 'number') return `${key}=${value.noul >= 0.5 ? 'yes' : 'no'} (${value.noul.toFixed(2)})`;
+        if (value.choice !== undefined) return `${key}=${value.choice} (${Number(value.confidence ?? 0).toFixed(2)})`;
+        if (value.score !== undefined) return `${key}=${value.score} ${value.level ?? ''}`;
+      }
+      return `${key}=${String(value)}`;
+    });
+    body.textContent = parts.join(' · ') || '(no answers)';
+  } else {
+    body.className = 'text-error';
+    body.textContent = `${event.error?.code || 'ERROR'} — ${event.error?.message || 'no answer'}`;
+  }
+
+  const state = document.createElement('div');
+  state.className = 'text-[10px] text-base-content/40 truncate';
+  state.textContent = event.statePreview || '';
+
+  row.append(head, body, state);
+  decisionFeed.prepend(row);
+  while (decisionFeed.children.length > 40) decisionFeed.lastElementChild?.remove();
+}
+
+window.electronAPI?.onDecision(appendDecision);
+window.electronAPI?.getDecisions().then((events) => (events || []).forEach(appendDecision)).catch(() => {});
+refreshDecisionTab();
 
 // Form Submit (Manual Navigation)
 urlForm.addEventListener('submit', async (e) => {
@@ -464,6 +532,7 @@ if (settingsBtn && settingsModal) {
     try {
       const saved = await window.electronAPI!.saveDecisionSettings(payload);
       showStatus(saved?.status, payload);
+      setDecisionTabVisible(Boolean(saved?.status?.configured), saved?.status);
       showResult(
         'success',
         saved?.ok

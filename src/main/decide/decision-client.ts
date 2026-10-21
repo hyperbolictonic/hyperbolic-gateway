@@ -286,11 +286,60 @@ async function runLocalOnnx(cfg: DecisionConfig, call: DecisionCall): Promise<De
   }
 }
 
+/** One completed decision call, for the HUD's DECISIONS tab. Never contains the API key. */
+export interface DecisionEvent {
+  ts: number;
+  protocol?: DecisionProtocol;
+  model?: string;
+  latencyMs?: number;
+  ok: boolean;
+  error?: { code?: DecisionFailureCode; message?: string };
+  statePreview: string;
+  questions: Array<{ id: string; type?: string; instruction?: string }>;
+  answers?: Record<string, unknown>;
+}
+
+const listeners = new Set<(event: DecisionEvent) => void>();
+
+/** Subscribe to completed decision calls (the HUD mirrors this; it never gates the call). */
+export function onDecision(listener: (event: DecisionEvent) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function emitDecision(event: DecisionEvent): void {
+  for (const listener of listeners) {
+    try {
+      listener(event);
+    } catch {
+      // A UI listener must never break a decision.
+    }
+  }
+}
+
+function summarizeQuestions(questions: Record<string, any>): DecisionEvent['questions'] {
+  return Object.entries(questions || {}).map(([id, q]: [string, any]) => ({
+    id,
+    type: q?.type,
+    instruction: typeof q?.instructions === 'string' ? q.instructions.slice(0, 120) : undefined,
+  }));
+}
+
 /** One decision call. Never throws: failures are returned as typed results. */
 export async function runDecision(call: DecisionCall): Promise<DecisionResult> {
+  const startedAt = Date.now();
   const cfg = resolveDecisionConfig();
+  const record: DecisionEvent = {
+    ts: startedAt,
+    protocol: cfg?.protocol,
+    model: call.model || cfg?.model,
+    ok: false,
+    statePreview: (typeof call.state === 'string' ? call.state : JSON.stringify(call.state ?? '')).slice(0, 160),
+    questions: summarizeQuestions(call.questions || {}),
+  };
+
   if (!cfg) {
-    return {
+    const result: DecisionResult = {
       ok: false,
       error: {
         code: 'NOT_CONFIGURED',
@@ -298,9 +347,24 @@ export async function runDecision(call: DecisionCall): Promise<DecisionResult> {
         hint: 'Set KUANG_DECISION_PROTOCOL (typesafe | local-onnx) and, for typesafe, KUANG_DECISION_URL (+ _KEY, optional _MODEL), or write data/decision.json. See docs/DECISION_MODELS.md.',
       },
     };
+    emitDecision({ ...record, latencyMs: Date.now() - startedAt, error: result.error });
+    return result;
   }
   if (!call.questions || typeof call.questions !== 'object' || !Object.keys(call.questions).length) {
-    return { ok: false, protocol: cfg.protocol, error: { code: 'BAD_REQUEST', message: 'decide needs at least one typed question.' } };
+    const result: DecisionResult = { ok: false, protocol: cfg.protocol, error: { code: 'BAD_REQUEST', message: 'decide needs at least one typed question.' } };
+    emitDecision({ ...record, protocol: cfg.protocol, latencyMs: Date.now() - startedAt, error: result.error });
+    return result;
   }
-  return cfg.protocol === 'local-onnx' ? runLocalOnnx(cfg, call) : runTypesafe(cfg, call);
+
+  const result = cfg.protocol === 'local-onnx' ? await runLocalOnnx(cfg, call) : await runTypesafe(cfg, call);
+  emitDecision({
+    ...record,
+    protocol: result.protocol || cfg.protocol,
+    model: result.model || record.model,
+    latencyMs: result.latencyMs ?? Date.now() - startedAt,
+    ok: result.ok,
+    error: result.error,
+    answers: result.answers,
+  });
+  return result;
 }
