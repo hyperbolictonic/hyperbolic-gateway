@@ -63,7 +63,18 @@ on:
     tags: ['v*']
 
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs: { build: "${{ steps.check.outputs.build }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: node scripts/check-release-tag.mjs "${{ github.ref_name }}"
+
   build:
+    needs: guard
+    # Four-part tags emit build=false → the matrix is skipped, not failed. Manual runs build.
+    if: needs.guard.outputs.build == 'true'
     strategy:
       fail-fast: false
       matrix:

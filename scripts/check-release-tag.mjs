@@ -12,8 +12,16 @@
 import fs from 'node:fs';
 
 const tag = (process.argv[2] || '').trim();
+
+// Emit a decision for the workflow: docs-only tags skip the matrix instead of failing it, and a
+// manual run (no tag) builds everything.
+const emit = (build) => {
+  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `build=${build}\n`);
+};
+
 if (!tag) {
-  console.log('no tag supplied (manual run) — nothing to check');
+  console.log('no tag supplied (manual run) — building all platforms');
+  emit(true);
   process.exit(0);
 }
 
@@ -21,13 +29,14 @@ const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
 const stripped = tag.replace(/^v/, '');
 const parts = stripped.split('.');
 
+
 if (parts.length >= 4) {
-  console.error(
-    `Tag ${tag} is a four-part (documentation-only) increment, but this workflow packages installers.\n` +
-      'Per docs/BUILDING.md §7, four-part tags never produce artefacts. Either drop the tag, or bump\n' +
-      `package.json to a three-part version (currently ${version}) and retag.`
+  console.log(
+    `Tag ${tag} is a four-part (documentation-only) increment — skipping installer builds.\n` +
+      'Per docs/BUILDING.md §7, four-part tags never produce artefacts.'
   );
-  process.exit(1);
+  emit(false);
+  process.exit(0);
 }
 
 if (stripped !== version) {
@@ -39,4 +48,5 @@ if (stripped !== version) {
   process.exit(1);
 }
 
+emit(true);
 console.log(`tag ${tag} matches package.json ${version} — safe to package`);

@@ -11,17 +11,23 @@ jobs:
   guard:
     name: release tag guard
     runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Tag must match package.json for artefact releases
+        id: check
         run: node scripts/check-release-tag.mjs "${{ github.ref_name }}"
 
   build:
     name: ${{ matrix.platform }}
     needs: guard
+    # Four-part tags (v1.4.2.1, …) are documentation-only: the guard emits build=false and the
+    # matrix is skipped rather than failing. A manual run (no tag) emits build=true.
+    if: needs.guard.outputs.build == 'true'
     strategy:
       fail-fast: false
       matrix:
