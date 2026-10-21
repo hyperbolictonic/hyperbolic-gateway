@@ -747,7 +747,13 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         if (body?.include_screenshot === true) {
           // Jev accepts images in the state, referenced by name from a top-level `assets` map.
           // Only the hosted backend is multimodal; say so rather than silently dropping the image.
-          if (decisionStatus().protocol === 'typesafe') {
+          const endpoint = decisionStatus().endpoint || '';
+          if (/opencode\.ai/i.test(endpoint)) {
+            // The OpenCode gateway does not forward TypeSafe's Danger-Zone header (verified directly),
+            // so an image can only end in a 400. Refuse up front and say why.
+            screenshotNote =
+              'disabled: the OpenCode gateway does not forward TypeSafe headers — images only work against api.typesafe.ai';
+          } else if (decisionStatus().protocol === 'typesafe') {
             const shot = await chassis.captureScreenshotJpeg().catch(() => null);
             if (shot) {
               const ref = `kuang-shot-${Date.now().toString(36)}`;

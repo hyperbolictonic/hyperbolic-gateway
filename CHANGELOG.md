@@ -17,11 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`decide(include_screenshot: true)` — the model can see the page.** The viewport is captured, scaled into
   TypeSafe's image limits (longest side ≤ 1568, shortest ≥ 280) and attached as an image asset referenced
   from the state, with the `TypeSafe-Danger-Zone-Images` header. Useful where text and the component table
-  are not enough: a CAPTCHA, an age gate, or a modal that looks like a form. **Caveat:** the OpenCode gateway
-  does not forward that header (verified with a direct request), so images currently work only against
-  `api.typesafe.ai`. Kuang detects the specific 400, retries the decision without the image, and reports
-  `screenshot: "the endpoint rejected the image (header not forwarded)…"` rather than failing. The local ONNX
-  models are text-only and say so.
+  are not enough: a CAPTCHA, an age gate, or a modal that looks like a form. **The OpenCode gateway does not
+  forward headers** (verified with a direct request: identical 400 with and without it), so images are
+  **disabled up front** when the configured endpoint is `opencode.ai` — the result says
+  `screenshot: "disabled: the OpenCode gateway does not forward TypeSafe headers — images only work against
+  api.typesafe.ai"` and no call is wasted. Screenshots work against `api.typesafe.ai` with a TypeSafe key; the
+  local ONNX models are text-only and say so. (A 400 mentioning "Images are experimental" from any other
+  gateway is still retried once without the image, as a safety net.)
 - **`act` warns when a click target sits behind a gate.** It does not refuse — a human may have resolved the
   hand-off and asked for exactly that click — but the result carries `warning` naming the wall, so an agent
   cannot claim it was not told.

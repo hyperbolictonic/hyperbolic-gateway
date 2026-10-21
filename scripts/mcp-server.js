@@ -37587,7 +37587,7 @@ ${lines.join("\n")}`;
         max_attempts: external_exports.coerce.number().min(1).max(5).optional().describe("Total model calls including the first (default 3 when eliminate is set)")
       }).optional().describe('Drop a rejected option and ask again with the rest; when everything is eliminated the result is accepted:false, fallback:"agent"'),
       include_page_text: external_exports.coerce.boolean().optional().describe("Append the live page text to the state before asking (default: on for guarded calls). Needed for sensitive-gate detection, whose copy lives in the page, not the component table"),
-      include_screenshot: external_exports.coerce.boolean().optional().describe("Attach a JPEG of the visible viewport to the state (hosted Jev only; the local ONNX models are text-only). Useful when the page is visual \u2014 CAPTCHA, age gate, layout the component table cannot describe")
+      include_screenshot: external_exports.coerce.boolean().optional().describe("Attach a JPEG of the visible viewport to the state. Hosted Jev only, and NOT through the OpenCode gateway (it does not forward the required TypeSafe header) \u2014 with opencode.ai the image is skipped and the result says so. Works against api.typesafe.ai.")
     },
     endpoint: "/decide",
     payload: (args) => ({

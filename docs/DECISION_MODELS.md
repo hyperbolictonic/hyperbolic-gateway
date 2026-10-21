@@ -279,11 +279,14 @@ looks like a form but is an ad. `decide(include_screenshot: true)` captures the 
 TypeSafe's image limits (longest side ≤ 1568, shortest ≥ 280), and attaches it as an asset referenced from
 the state, with the `TypeSafe-Danger-Zone-Images: true` header.
 
-**Known limitation (2026-10):** the OpenCode gateway **does not forward that header**, so TypeSafe answers
-`400 Images are experimental`. Kuang detects exactly that error, retries the same decision **without** the
-image, and reports `screenshot: "the endpoint rejected the image (header not forwarded); decided without it"`.
-Screenshots therefore work today only when `url` points at `api.typesafe.ai` with a TypeSafe key. The local
-ONNX models are text-only and say so.
+**Known limitation (2026-10): the OpenCode gateway does not forward headers.** TypeSafe needs
+`TypeSafe-Danger-Zone-Images: true`; `opencode.ai/inference/...` drops it (verified with a direct request:
+the same 400 with and without the header). Kuang therefore **disables the attachment when the configured
+endpoint is `opencode.ai`** and reports
+`screenshot: "disabled: the OpenCode gateway does not forward TypeSafe headers — images only work against
+api.typesafe.ai"`. Screenshots work today only when `url` points at `api.typesafe.ai` with a TypeSafe key.
+The local ONNX models are text-only and say so. (As a safety net for other gateways, a 400 mentioning
+"Images are experimental" is retried once without the image rather than failing the decision.)
 
 ### Clicking near a gate: a warning, not a refusal
 
