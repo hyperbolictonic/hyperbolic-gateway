@@ -542,10 +542,10 @@
         <!-- BEGIN GENERATED: complete tool list — regenerate with `npm run manual:tools` -->
         <details style="margin-top:18px;">
           <summary style="cursor:pointer; font-weight:700; font-size:15px; color:var(--accent); padding:6px 0;">
-            Complete tool list — all 59 advertised (click to expand)
+            Complete tool list — 59 advertised + 2 optional (click to expand)
           </summary>
           <p style="font-size:12px; color:var(--text-muted);">
-            Every advertised tool grouped by area. 23 deprecated aliases (e.g. <code>go_to_url</code>,
+            Every advertised tool grouped by area. Rows shaded amber are <strong>optional</strong>: they appear only when a decision model is configured, and are then listed first. 23 deprecated aliases (e.g. <code>go_to_url</code>,
             <code>get_page_markdown</code>, <code>click_element</code>) remain callable by name but are hidden from
             <code>tools/list</code>.
           </p>
@@ -559,6 +559,18 @@
               </tr>
             </thead>
             <tbody>
+              <tr style="background:rgba(234,179,8,0.10);">
+                <td><strong>⌥ Optional</strong></td>
+                <td><code>drive</code></td>
+                <td><code>goal</code>, <code>values?</code>, <code>max_steps?</code>, <code>threshold?</code>, <code>dry_run?</code></td>
+                <td><strong>Listed first when a decision model is configured.</strong> Runs observe → guarded decide → verified act in one call and returns a typed stop reason (<code>done</code>/<code>blocked</code>/<code>human_required</code>/<code>needs_agent</code>/<code>failed</code>/<code>max_steps</code>). Absent otherwise.</td>
+              </tr>
+              <tr style="background:rgba(234,179,8,0.10);">
+                <td></td>
+                <td><code>decide</code></td>
+                <td><code>state</code>, <code>questions</code>, <code>model?</code>, <code>guard?</code>, <code>eliminate?</code>, <code>include_page_text?</code>, <code>include_screenshot?</code></td>
+                <td><strong>Listed first when configured.</strong> One typed decision (<code>choice</code>/<code>score</code>/<code>noul</code>) over a state, answers forwarded verbatim, with an optional guard + elimination. Absent otherwise.</td>
+              </tr>
               <tr>
                 <td><strong>Primitives &amp; Abstraction</strong></td>
                 <td><code>observe</code></td>

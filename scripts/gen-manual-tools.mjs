@@ -44,10 +44,14 @@ for (const line of readme) {
   const [cat, tool, params, desc] = cells;
   if (cat) category = cat.replace(/\*\*/g, '');
   if (!tool) continue;
-  rows.push({ category, deprecated: tool.startsWith('†'), tool: tool.replace(/^†\s*/, ''), params, desc });
+  const optional = tool.startsWith('⌥');
+  rows.push({ category, deprecated: tool.startsWith('†'), optional, tool: tool.replace(/^[†⌥]\s*/, ''), params, desc });
 }
 
-const advertised = rows.filter((r) => !r.deprecated);
+const advertised = rows.filter((r) => !r.deprecated && !r.optional);
+const optionalRows = rows.filter((r) => r.optional);
+// Optional tools are listed first, matching tools/list order when a decision model is active.
+const listed = [...optionalRows, ...advertised];
 
 // Guard: the README states its own advertised count — fail loudly if they disagree.
 const claimed = readme.join('\n').match(/\*\*(\d+) advertised tools\*\*/);
@@ -65,12 +69,13 @@ const inline = (s) =>
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
 let lastCat = null;
-const body = advertised
+const body = listed
   .map((r) => {
     const catCell = r.category !== lastCat ? `<strong>${inline(r.category)}</strong>` : '';
     lastCat = r.category;
     return [
-      '              <tr>',
+      // Optional tools get an amber shade in the manual, mirroring the ⌥ marker in the README.
+      r.optional ? '              <tr style="background:rgba(234,179,8,0.10);">' : '              <tr>',
       `                <td>${catCell}</td>`,
       `                <td>${inline(r.tool)}</td>`,
       `                <td>${inline(r.params) || '_none_'}</td>`,
@@ -84,10 +89,10 @@ const generated = [
   BEGIN,
   '        <details style="margin-top:18px;">',
   '          <summary style="cursor:pointer; font-weight:700; font-size:15px; color:var(--accent); padding:6px 0;">',
-  `            Complete tool list — all ${advertised.length} advertised (click to expand)`,
+  `            Complete tool list — ${advertised.length} advertised${optionalRows.length ? ` + ${optionalRows.length} optional` : ''} (click to expand)`,
   '          </summary>',
   '          <p style="font-size:12px; color:var(--text-muted);">',
-  `            Every advertised tool grouped by area. ${DEPRECATED_ALIASES} deprecated aliases (e.g. <code>go_to_url</code>,`,
+  `            Every advertised tool grouped by area. Rows shaded amber are <strong>optional</strong>: they appear only when a decision model is configured, and are then listed first. ${DEPRECATED_ALIASES} deprecated aliases (e.g. <code>go_to_url</code>,`,
   '            <code>get_page_markdown</code>, <code>click_element</code>) remain callable by name but are hidden from',
   '            <code>tools/list</code>.',
   '          </p>',

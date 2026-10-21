@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > This is a deliberate, temporary deviation from strict semver; each increment still gets its own
 > Added/Fixed/Changed section here.
 
+## [1.4.2.3] - 2026-10-21
+
+Small increment: the optional tools are rows in the tool table, not a footnote.
+
+### Changed
+
+- **`drive` and `decide` now appear in the README tool table** — marked `⌥`, listed first, with a one-line
+  description saying they are the primary tools when a decision model is configured and absent otherwise. The
+  separate "+2 optional" blurb is down to a single sentence.
+- **The manual generator understands the `⌥` marker:** optional rows are excluded from the advertised count
+  (still 59, so the guard holds), rendered first, and shaded amber with a legend ("rows shaded amber are
+  optional: they appear only when a decision model is configured, and are then listed first").
+
 ## [1.4.2.2] - 2026-10-21
 
 Small increment: the optional decision tools are advertised **first** when active, and the docs say so.

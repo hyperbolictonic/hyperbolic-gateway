@@ -422,7 +422,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ## 🔌 Standardized Semantic MCP Tools (59 advertised · +2 optional)
 
-> **+2 optional, listed first when active:** `drive` and `decide` are advertised only when a decision model is configured in Settings. With one active they are registered ahead of everything else, so `tools/list` leads with the goal-driven loop instead of burying it among the browser tools.
+> **+2 optional, listed first when active:** `drive` and `decide` — rows marked ⌥ — appear only when a decision model is configured. The rest of this table is always available.
 >
 > **59 advertised tools** (81 registered entries; **23 deprecated aliases are hidden from `tools/list`** but stay callable by name and return a `deprecated → use "X"` notice — rows marked `†` below). Seven MCP **resources** are also exposed: `mark-eleven://skills/guide`, `mark-eleven://tools/recommended`, `mark-eleven://okf/manifest`, and four partition playbooks.
 
@@ -430,6 +430,8 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 | Category | Tool | Parameters | Description |
 | :--- | :--- | :--- | :--- |
+| **⌥ Optional** | ⌥ `drive` | `goal`, `values?`, `max_steps?`, `threshold?`, `dry_run?` | **Listed first when a decision model is configured.** Runs observe → guarded decide → verified act in one call and returns a typed stop reason (`done`/`blocked`/`human_required`/`needs_agent`/`failed`/`max_steps`). Absent otherwise. |
+| **⌥ Optional** | ⌥ `decide` | `state`, `questions`, `model?`, `guard?`, `eliminate?`, `include_page_text?`, `include_screenshot?` | **Listed first when configured.** One typed decision (`choice`/`score`/`noul`) over a state, answers forwarded verbatim, with an optional guard + elimination. Absent otherwise. |
 | **Primitives & Abstraction** | `observe` | `as?: 'markdown' \| 'text' \| 'ax' \| 'som'`, `region?: number \| string`, `budget?: number`, `cursor?: string`, `include_offscreen?: boolean`, `limit?: number` | **The page read (TIER 1).** One budgeted observation model with projections. Use `budget` + `next_cursor` to page a large page instead of truncating. Absorbed `get_page_markdown` / `harvest_markdown` / `list_marks`; structured reads live on `extract`. |
 | | `act` | `mark_id?: number`, `selector?: string`, `x?: number`, `y?: number`, `action?: 'click' \| 'focus' \| 'hover' \| 'type' \| 'press'`, `text?: string`, `secret?: boolean`, `clear_first?: boolean`, `await_conditions?: object[]`, `timeout_ms?: number`, `dry_run?: boolean` | **The** interaction entry point: one humanlike action addressed by mark ref, CSS selector, or coordinates, with optional post-conditions and a delta report. Selectors pierce open shadow roots and resolve a custom-element host to the control a mouse would hit. `secret: true` redacts typed text from logs; `dry_run: true` resolves without acting. **Typing appends by default** - pass `clear_first: true` on a pre-filled field (origins, search boxes, comboboxes) to replace instead (trusted Ctrl+A + Backspace). **Typing is verified**: a provable no-op returns `ok: false` with `error.code: "TYPE_NO_EFFECT"` and `typing` evidence (key counts and value lengths - never the text). |
 | | `wait_for` | `conditions: object[]`, `require?: 'any' \| 'all'`, `timeout_ms?: number`, `poll_ms?: number` | Declarative readiness gate — polls until every/any condition holds, then returns. The primitive that replaces blind sleeps. |
