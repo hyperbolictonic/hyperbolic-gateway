@@ -128,11 +128,25 @@ tabBtnLogs.addEventListener('click', () => switchTab('logs'));
 tabBtnDecisions.addEventListener('click', () => switchTab('decisions'));
 
 // ---- Decision model mirror (tab appears only when a backend is configured) -------------------
+let decisionTabActive = false;
 function setDecisionTabVisible(visible: boolean, status?: any) {
   tabBtnDecisions.classList.toggle('hidden', !visible);
   decisionBackendBadge.textContent = status?.configured ? `${status.protocol} · ${status.model}` : '—';
   decisionBackendBadge.className = status?.local ? 'badge badge-xs badge-warning' : 'badge badge-xs badge-secondary';
-  if (!visible && tabBtnDecisions.classList.contains('tab-active')) switchTab('logs');
+
+  const tablist = document.querySelector('[role="tablist"]');
+  if (visible && tablist && tablist.firstElementChild !== tabBtnDecisions) {
+    // First tab while a decision model is active: this is the live view of what it is choosing.
+    tablist.prepend(tabBtnDecisions);
+  }
+  if (visible && !decisionTabActive) {
+    decisionTabActive = true;
+    switchTab('decisions');
+  }
+  if (!visible) {
+    decisionTabActive = false;
+    if (tabBtnDecisions.classList.contains('tab-active')) switchTab('telemetry');
+  }
 }
 
 async function refreshDecisionTab() {
@@ -144,7 +158,14 @@ async function refreshDecisionTab() {
   }
 }
 
+const seenDecisions = new Set<string>();
+const decisionKey = (event: any) => `${event.ts}|${event.model}|${event.latencyMs}`;
+
 function appendDecision(event: any) {
+  const key = decisionKey(event);
+  if (seenDecisions.has(key)) return;
+  seenDecisions.add(key);
+
   decisionCalls++;
   decisionCount.textContent = `${decisionCalls} call${decisionCalls === 1 ? '' : 's'}`;
   decisionFeed.querySelector('.italic')?.remove();
@@ -179,11 +200,33 @@ function appendDecision(event: any) {
   row.append(head, body, state);
   decisionFeed.prepend(row);
   while (decisionFeed.children.length > 40) decisionFeed.lastElementChild?.remove();
+
+  // A decision just arrived: the backend must be configured, so reveal the tab even if the
+  // last visibility check ran before the config existed.
+  if (tabBtnDecisions.classList.contains('hidden')) void refreshDecisionTab();
 }
 
 window.electronAPI?.onDecision(appendDecision);
-window.electronAPI?.getDecisions().then((events) => (events || []).forEach(appendDecision)).catch(() => {});
-refreshDecisionTab();
+
+// The ring buffer lives in the main process and resets on restart, so re-sync periodically and
+// whenever the tab is opened: a decision made before the window loaded still shows up.
+async function syncDecisions() {
+  try {
+    const events = await window.electronAPI!.getDecisions();
+    (events || []).forEach(appendDecision);
+  } catch {}
+  await refreshDecisionTab();
+}
+
+tabBtnDecisions.addEventListener('click', () => {
+  void syncDecisions();
+});
+
+setInterval(() => {
+  if (document.visibilityState === 'visible') void syncDecisions();
+}, 8000);
+
+void syncDecisions();
 
 // Form Submit (Manual Navigation)
 urlForm.addEventListener('submit', async (e) => {
@@ -426,22 +469,37 @@ function showHilBanner(req: { id: string; reason: string }) {
   removeHilBanner();
   const banner = document.createElement('div');
   banner.id = 'hud-hil-banner';
+  // Anchored to the side panel (right), not across the middle: a human is being asked to act in
+  // the *browser*, so the notice must not cover the thing they need to look at.
   banner.className =
-    'alert alert-warning shadow-2xl absolute top-3 left-1/2 -translate-x-1/2 z-50 w-auto max-w-xl flex items-center justify-between border-2 border-warning font-mono text-xs';
-  banner.innerHTML = `
-    <div class="flex items-center gap-2">
-      <span class="text-base">⚠️</span>
-      <div>
-        <div class="font-bold text-[10px] uppercase tracking-wider text-warning-content">Human Action Needed</div>
-        <div class="text-xs text-base-content">${req.reason}</div>
-      </div>
-    </div>
-    <button id="hud-hil-resolve-btn" class="btn btn-xs btn-success font-mono font-bold ml-4">DONE</button>
-  `;
+    'alert alert-warning shadow-2xl fixed top-3 right-3 z-50 w-[min(420px,calc(100vw-1.5rem))] flex items-center justify-between border-2 border-warning font-mono text-xs';
+
+  // Built with textContent, never innerHTML: `reason` can quote page copy (the sensitive-gate rule
+  // puts matched lines in it), and page copy is attacker-controlled.
+  const wrap = document.createElement('div');
+  wrap.className = 'flex items-center gap-2';
+  const icon = document.createElement('span');
+  icon.className = 'text-base';
+  icon.textContent = '⚠️';
+  const col = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'font-bold text-[10px] uppercase tracking-wider text-warning-content';
+  title.textContent = 'Human Action Needed';
+  const reason = document.createElement('div');
+  reason.className = 'text-xs text-base-content';
+  reason.textContent = req.reason;
+  col.append(title, reason);
+  wrap.append(icon, col);
+
+  const btn = document.createElement('button');
+  btn.id = 'hud-hil-resolve-btn';
+  btn.className = 'btn btn-xs btn-success font-mono font-bold ml-4';
+  btn.textContent = 'DONE';
+
+  banner.append(wrap, btn);
   document.body.appendChild(banner);
 
-  const btn = banner.querySelector('#hud-hil-resolve-btn');
-  btn?.addEventListener('click', async () => {
+  btn.addEventListener('click', async () => {
     btn.textContent = 'RESUMING...';
     await window.electronAPI.resolveHil(req.id, 'User clicked DONE in Cyberdeck HUD');
     removeHilBanner();

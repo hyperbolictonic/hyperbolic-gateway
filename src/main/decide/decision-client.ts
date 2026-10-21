@@ -36,6 +36,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { detectSensitiveGate } from './sensitive-gate.js';
 
 export type DecisionProtocol = 'typesafe' | 'local-onnx';
 
@@ -56,7 +57,7 @@ export interface DecisionCall {
   model?: string;
 }
 
-export type DecisionFailureCode = 'NOT_CONFIGURED' | 'BAD_REQUEST' | 'UPSTREAM_ERROR' | 'TIMEOUT' | 'NO_DECISION';
+export type DecisionFailureCode = 'NOT_CONFIGURED' | 'BAD_REQUEST' | 'UPSTREAM_ERROR' | 'TIMEOUT' | 'NO_DECISION' | 'HUMAN_REQUIRED';
 
 export interface DecisionResult {
   ok: boolean;
@@ -65,6 +66,8 @@ export interface DecisionResult {
   answers?: Record<string, unknown>;
   latencyMs?: number;
   usage?: unknown;
+  /** Set when a sensitive gate (age verification, CAPTCHA) stopped the call before the model. */
+  gate?: 'age_verification' | 'captcha';
   error?: { code: DecisionFailureCode; message: string; hint?: string; status?: number };
 }
 
@@ -356,8 +359,25 @@ export async function runDecision(call: DecisionCall): Promise<DecisionResult> {
     return result;
   }
 
-  const result = cfg.protocol === 'local-onnx' ? await runLocalOnnx(cfg, call) : await runTypesafe(cfg, call);
-  emitDecisionEvent({
+  // Sensitive gate: ask a human, not a model. Checked before any network call, so it cannot be
+  // out-voted by a confident answer and cannot spend an attempt.
+  const gate = detectSensitiveGate(call.state);
+  if (gate) {
+    const result: DecisionResult = {
+      ok: false,
+      protocol: cfg.protocol,
+      gate: gate.kind,
+      error: {
+        code: 'HUMAN_REQUIRED',
+        message: gate.reason,
+        hint: gate.evidence.length ? `Matched: ${gate.evidence.join(' | ')}` : undefined,
+      },
+    };
+    emitDecisionEvent({ ...record, protocol: cfg.protocol, latencyMs: Date.now() - startedAt, ok: false, error: result.error });
+    return result;
+  }
+
+  const result = cfg.protocol === 'local-onnx' ? await runLocalOnnx(cfg, call) : await runTypesafe(cfg, call);  emitDecisionEvent({
     ...record,
     protocol: result.protocol || cfg.protocol,
     model: result.model || record.model,

@@ -258,6 +258,12 @@ handoff.noul >= 0.6 → request_human_intervention(reason = handoff_for.choice)
 The model never calls HIL itself, and the mechanical signals (`TYPE_NO_EFFECT` after the input ladder,
 `blocked`, an unchanged delta) stay valid reasons to hand over even when the model disagrees.
 
+**Sensitive gates outrank the model.** Before any model call, Kuang scans the state for age-verification
+copy ("verify your age", "are you 18", "18 or older", "adult content") and for CAPTCHA / "verify you are
+human" copy. If found, `decide` returns **HTTP 409 `HUMAN_REQUIRED`** (with `gate` and the matched lines),
+spends **no** model call, and does not eliminate or retry — the agent calls `request_human_intervention`.
+A `Date of birth` field in an ordinary signup form is *not* a gate and does not trigger it.
+
 ## 6. Input Delivery & Background Rendering (operational guarantees)
 
 - **Focus-independent input.** Mouse / keys / wheel are dispatched over the tab's

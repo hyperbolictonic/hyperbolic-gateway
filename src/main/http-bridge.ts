@@ -744,14 +744,17 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
           sendJson({ success: true, ...result });
         } else {
           const code = result.error?.code;
-          const status = code === 'TIMEOUT' ? 504 : code === 'UPSTREAM_ERROR' ? 502 : 400;
+          const status = code === 'TIMEOUT' ? 504 : code === 'HUMAN_REQUIRED' ? 409 : code === 'UPSTREAM_ERROR' ? 502 : 400;
           sendJson(
             {
               success: false,
               // `error` stays a string: the MCP client turns it into "HTTP 400: <error>".
               error: result.error?.message || 'decision call failed',
               code,
+              gate: (result as any).gate,
               hint: result.error?.hint,
+              fallback: (result as any).fallback,
+              reasons: (result as any).reasons,
               upstreamStatus: result.error?.status,
               protocol: result.protocol,
               latencyMs: result.latencyMs,

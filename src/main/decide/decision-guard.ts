@@ -43,7 +43,9 @@ export interface GuardedDecision {
   /** True when every candidate was eliminated without an acceptable answer. */
   exhausted?: boolean;
   /** Present when the caller must decide (the model could not produce an acceptable answer). */
-  fallback?: 'agent';
+  fallback?: 'agent' | 'human';
+  /** Set when a sensitive gate stopped the call before the model (age verification, CAPTCHA). */
+  gate?: 'age_verification' | 'captcha';
   latencyMs?: number;
   error?: DecisionResult['error'];
 }
@@ -183,6 +185,24 @@ export async function decideGuarded(opts: {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const result = await runDecision({ state: opts.state, questions, model: opts.model });
     if (!result.ok) {
+      // A sensitive gate is not a failed attempt: no model was called, no option is elimable.
+      // Hand straight to the human.
+      if (result.error?.code === 'HUMAN_REQUIRED') {
+        return {
+          ok: false,
+          accepted: false,
+          fallback: 'human',
+          gate: result.gate,
+          protocol: result.protocol,
+          model: result.model,
+          attempts: attempt,
+          removed,
+          rejections,
+          reasons: [result.error.message, result.error.hint].filter(Boolean) as string[],
+          latencyMs: Date.now() - started,
+          error: result.error,
+        };
+      }
       return {
         ok: false,
         accepted: false,

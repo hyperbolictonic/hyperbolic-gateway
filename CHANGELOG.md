@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Age verification and CAPTCHA are hard human hand-offs.** Before any model call, `decide` scans the state
+  for age-gate copy ("verify your age", "are you 18", "18 or older", "adult content", …) and for CAPTCHA /
+  "verify you are human" copy, and returns **HTTP 409 `HUMAN_REQUIRED`** with the `gate` kind and the matched
+  lines — **no model call, no elimination, no retry**. A confident answer cannot out-vote it, because the
+  rule is "do not decide at all", and a `Date of birth` signup field does not match (tested both ways). New:
+  `src/main/decide/sensitive-gate.ts`. The live `/r/petite` run is the worked example: behind Reddit's
+  verification wall the model wavered at 0.44 `click`, the guard rejected it, and the retry said `blocked`
+  0.98 — which is exactly the case that should have been a human hand-off, not a decision.
+- **DECISIONS is the first tab whenever a decision model is active**, and is selected on reveal, so the
+  live view of what the model is choosing is the default panel instead of something to hunt for.
+- **The HIL banner no longer covers the page.** It was centred across the app with `alert-warning`; it is now
+  anchored to the side panel (top-right, max 420 px), so a human being asked to act can still see the
+  browser. It is also built with `textContent` instead of `innerHTML` — the reason can quote page copy (the
+  sensitive-gate rule puts matched lines in it), and page copy is attacker-controlled.
 - **Input-method ladder for typing — fixes the field that ignored keystrokes.** When real keystrokes
   provably reached the page and changed nothing, `act(type)` now retries the same text through **CDP
   `Input.insertText`** (no key events, but `beforeinput`/`input` fire — accepted by components that filter

@@ -231,6 +231,27 @@ acts), and the existing mechanical signals — `TYPE_NO_EFFECT` after the input 
 unchanged delta — remain valid reasons to hand over even when the model says otherwise. The human is the
 last rung of the same ladder: **model → eliminate + retry → deterministic checks → agent → human**.
 
+### Sensitive gates — age verification and CAPTCHA are never the model's call
+
+Some walls are not obstacles to route around. Confirming an age, solving a CAPTCHA, or asserting "I am
+human" is a statement **only a person can make**, so Kuang checks for them *before* any model is asked:
+
+```
+state contains age-gate copy ("verify your age", "are you 18", "18 or older", "adult content", …)
+   → HTTP 409 { code: "HUMAN_REQUIRED", gate: "age_verification", error, hint: matched lines }
+   → no model call, no elimination, no retry — call request_human_intervention
+```
+
+The same applies to CAPTCHA / "verify you are human" copy. Two properties matter:
+
+- **It runs first**, so a confident model cannot out-vote it — a 0.98 "blocked" is still a decision, and
+  the rule here is *do not decide at all*. The gate spends zero model calls (asserted in `test:decide`).
+- **It is narrow.** A `Date of birth` field in a signup form is ordinary data entry and does **not** match;
+  only gate copy does. That false-positive case is a test too.
+
+When a decision loop sees `HUMAN_REQUIRED`, it must stop and notify a human — in the HUD that is the
+`alert-warning` HIL banner, anchored to the side panel so it never covers the page the human must act on.
+
 ### Guard + elimination — what happens when the model is wrong
 
 A decision is only acted on if it passes deterministic checks Kuang can make without judgement:

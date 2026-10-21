@@ -206,7 +206,30 @@ async function main() {
       (wrongAffordance.json?.rejections || [])[0]?.reason
     );
 
-    // ---- 4. Upstream failure is not papered over ---------------------------
+    // ---- 4. Sensitive gates never reach the model --------------------------
+    const beforeGate = received.bodies.length;
+    const gated = await bridge('/decide', 'POST', {
+      state: 'Are you over 18? Verify your age to continue.',
+      questions: { q: { type: 'noul', instructions: 'Is this a gate?' } },
+    });
+    check('age verification is a human hand-off', gated.status === 409 && gated.json?.code === 'HUMAN_REQUIRED', `HTTP ${gated.status} ${gated.json?.code}`);
+    check('the gate spends no model call', received.bodies.length === beforeGate, `${received.bodies.length - beforeGate} upstream call(s)`);
+
+    const gatedGuarded = await bridge('/decide', 'POST', {
+      state: 'You must be 18 or older to view this community.',
+      questions: { q: { type: 'noul', instructions: 'Is this a gate?' } },
+      guard: { threshold: 0.5 },
+      eliminate: { max_attempts: 3 },
+    });
+    check('a guarded call also hands over instead of retrying', gatedGuarded.json?.code === 'HUMAN_REQUIRED' && gatedGuarded.json?.fallback === 'human', `fallback=${gatedGuarded.json?.fallback}`);
+
+    const birthDate = await bridge('/decide', 'POST', {
+      state: 'Signup form. [1] input "Date of birth" {type}; [2] button "Continue" {click}',
+      questions: { q: { type: 'noul', instructions: 'Is this a gate?' } },
+    });
+    check('an ordinary birthday field is not mistaken for a gate', birthDate.status === 200 && birthDate.json?.ok === true, `HTTP ${birthDate.status}`);
+
+    // ---- 5. Upstream failure is not papered over ---------------------------
     failMode = true;
     const failed = await bridge('/decide', 'POST', { state: 'x', questions: { q: { type: 'noul', instructions: '?' } } });
     check('an upstream failure surfaces as an error', failed.status === 502 && failed.json?.code === 'UPSTREAM_ERROR', `HTTP ${failed.status} ${failed.json?.code}`);
