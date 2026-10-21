@@ -6,9 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **Versioning during the 1.4 line:** changes ship as **`1.4.x` patches — including new features** — and the
-> minor number is reserved for milestones worth naming. This is a deliberate, temporary deviation from strict
-> semver (where a feature would bump the minor). Each patch still gets its own Added/Fixed/Changed section
-> here, so the history stays precise.
+> minor number is reserved for milestones worth naming. For small increments (documentation, a one-line fix)
+> the **git tag and release title take a fourth number** — `v1.4.2.1`, `v1.4.2.2`, … — so a docs-only release
+> does not consume a patch number. `package.json` and `APP_VERSION` stay **three-part**, because npm and
+> electron-builder require valid semver; a release tagged `v1.4.2.1` therefore reports `1.4.2` in `/health`.
+> This is a deliberate, temporary deviation from strict semver; each increment still gets its own
+> Added/Fixed/Changed section here.
+
+## [1.4.2.1] - 2026-10-21
+
+Documentation-only increment: the README navigation index, and the versioning rule for four-part tags.
+
+### Changed
+
+- **README index moved to the top.** It now sits directly under the logo/badge block instead of after the
+  intro, the release notes and the architecture principles — i.e. where you actually start reading. All 24
+  links resolve (explicit `<a id>` anchors, not GitHub heading slugs).
+- **Versioning:** small increments take a fourth number in the tag/release (`v1.4.2.1`); `package.json` and
+  `APP_VERSION` stay three-part because npm and electron-builder require semver.
 
 ## [1.4.2] - 2026-10-21
 

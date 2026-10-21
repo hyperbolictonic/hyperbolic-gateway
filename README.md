@@ -19,6 +19,18 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20x64-64748b" />
 </p>
 
+## 🧭 Index
+
+- **Philosophy** — [Neuromancer inspiration](#sec-neuromancer-inspiration-cyberpunk-canon) · [A punk-ethos alternative to browser clouds](#sec-a-punk-ethos-diy-alternative-to-browser-use-play)
+- **The deck** — [Theme & Cyberdeck UI](#sec-theme-cyberdeck-interface) · [Ghost cursor telemetry](#sec-ghost-cursor-telemetry-engine) · [Focus-independent input](#sec-focus-independent-input-background-rendering) · [Multi-tab browsing](#sec-hardware-accelerated-multi-tab-browsing)
+- **Reading the web** — [Orthogonal primitive layer](#sec-orthogonal-primitive-layer) · [Construct harvester](#sec-token-efficient-construct-harvester) · [Set-of-Marks](#sec-set-of-marks-som-visual-grounding)
+- **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
+- **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine)
+- **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
+- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (59 advertised)](#sec-standardized-semantic-mcp-tools-59-advertised)
+- **Building on it** — [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
+- **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
+
 ---
 
 ### **Grade Eleven is a Web Browser for your Local AI.**
@@ -47,20 +59,6 @@ Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP
 2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can act directly by coordinate, selector, or mark badge (`act`).
 3. **Full Developer Console & Script Execution:** Gives the agent full console access (`get_console_logs`) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (`evaluate_javascript`) to interact with complex SPAs.
 4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches **real input events over the Chrome DevTools Protocol** (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `mouseWheel`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence. CDP delivery is **focus-independent** — it lands even when another application owns the OS foreground — with `webContents.sendInputEvent` kept only as a fallback.
-
----
-
-## 🧭 Index
-
-- **Philosophy** — [Neuromancer inspiration](#sec-neuromancer-inspiration-cyberpunk-canon) · [A punk-ethos alternative to browser clouds](#sec-a-punk-ethos-diy-alternative-to-browser-use-play)
-- **The deck** — [Theme & Cyberdeck UI](#sec-theme-cyberdeck-interface) · [Ghost cursor telemetry](#sec-ghost-cursor-telemetry-engine) · [Focus-independent input](#sec-focus-independent-input-background-rendering) · [Multi-tab browsing](#sec-hardware-accelerated-multi-tab-browsing)
-- **Reading the web** — [Orthogonal primitive layer](#sec-orthogonal-primitive-layer) · [Construct harvester](#sec-token-efficient-construct-harvester) · [Set-of-Marks](#sec-set-of-marks-som-visual-grounding)
-- **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
-- **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine)
-- **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
-- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (59 advertised)](#sec-standardized-semantic-mcp-tools-59-advertised)
-- **Building on it** — [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
-- **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 
 ---
 
