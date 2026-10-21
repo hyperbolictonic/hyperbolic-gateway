@@ -41,6 +41,8 @@
 > [!IMPORTANT]
 > **RESEARCH PURPOSES ONLY**: This software is provided strictly for educational, testing, and local AI agent research purposes. It is **not intended for malicious use**, automated credential stuffing, unauthorized exploitation, or violating third-party websites' Terms of Service. Users are responsible for complying with all applicable laws and terms.
 
+**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/kuang-grade-mark-eleven/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Kuang Grade Mark Eleven.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
+
 Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP) server that empowers multimodal LLM Agents (such as Bonsai 2 27B, Gemini, Claude, and GPT-4o) to operate the live, open web **like a human operator inside a real, visible Chromium browser instance**.
 
 > [!NOTE]

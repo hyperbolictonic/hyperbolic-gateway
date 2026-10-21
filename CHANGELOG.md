@@ -13,6 +13,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > This is a deliberate, temporary deviation from strict semver; each increment still gets its own
 > Added/Fixed/Changed section here.
 
+## [1.4.3] - 2026-10-21
+
+First release with **downloadable installers**, built by CI on GitHub runners.
+
+### Added
+
+- **Windows** — `…-Setup-1.4.3.exe` (NSIS, choose install directory), `…-Portable-1.4.3.exe`, `…-1.4.3-win.zip`.
+- **macOS** — `…-1.4.3.dmg` and `.zip`, **x64 and arm64**. **Unsigned**: Gatekeeper blocks the first launch;
+  right-click → **Open**, or `xattr -dr com.apple.quarantine "/Applications/Kuang Grade Mark Eleven.app"`.
+  No macOS auto-update until a Developer ID is borrowed (Squirrel.Mac refuses unsigned bundles).
+- **Linux** — `…-1.4.3.AppImage` (the only self-updating format), `.deb`, `.tar.gz`.
+
+### Fixed
+
+- **`electron-builder` needs `author.email`** for the `.deb` maintainer field — that was the only Linux build
+  failure; `package.json` now carries a proper author.
+- **The host-pinned `electronDist` is gone.** It pointed at `node_modules/electron/dist`, which does not exist
+  on a pnpm checkout, and broke packaging on **every** platform including Windows.
+
+### Notes
+
+- Windows is unsigned for now (SmartScreen warning, install works). macOS is unsigned as decided — see above.
+- `portable` never self-updates; `deb`/`tar.gz` are manual upgrades.
+- Builds are artefacts of `.github/workflows/build.yml`; publishing them to a release is a deliberate step
+  (see `docs/BUILDING.md` §4).
+
 ## [1.4.2.4] - 2026-10-21
 
 ### Added
