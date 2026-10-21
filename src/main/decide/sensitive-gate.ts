@@ -82,7 +82,7 @@ export function detectSensitiveGate(state: unknown, opts: { url?: string } = {})
       kind: 'age_verification',
       evidence: age,
       reason:
-        'Age verification detected. Confirming age is a statement only a human can make — do not click through it. Call request_human_intervention and let the human decide.',
+        'Age verification detected — this needs a human, not a decision. Do not click through it; complete it in the browser (the hand-off has been raised), then click DONE.',
     };
   }
 
@@ -92,7 +92,7 @@ export function detectSensitiveGate(state: unknown, opts: { url?: string } = {})
       kind: 'captcha',
       evidence: captcha,
       reason:
-        'A CAPTCHA / human-verification challenge is present. Solving it is a human declaration — call request_human_intervention.',
+        'A CAPTCHA / human-verification challenge is present — this needs a human, not a decision. Solve it in the browser (the hand-off has been raised), then click DONE.',
     };
   }
 

@@ -222,7 +222,7 @@ async function main() {
     }
     check(
       'the gate asks the human itself',
-      Boolean(hil?.active?.id) && /verify your birthday|age verification|human/i.test(hil.active.reason || ''),
+      Boolean(hil?.active?.id) && /birthday|age verification|human|needs a human/i.test(hil.active.reason || ''),
       hil?.active ? `${hil.active.id} · ${(hil.active.reason || '').slice(0, 60)}` : 'no active request'
     );
     check('the gate spends no model call', received.bodies.length === beforeGate, `${received.bodies.length - beforeGate} upstream call(s)`);
