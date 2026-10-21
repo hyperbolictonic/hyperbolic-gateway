@@ -1,0 +1,98 @@
+name: build
+
+# Produces installers for all three platforms. Artefacts only — publishing is a separate,
+# deliberate step (see docs/BUILDING.md §4).
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  guard:
+    name: release tag guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tag must match package.json for artefact releases
+        run: node scripts/check-release-tag.mjs "${{ github.ref_name }}"
+
+  build:
+    name: ${{ matrix.platform }}
+    needs: guard
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # npm cannot install this tree (a dependency uses a `patch:` protocol); pnpm is required.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (tsc + vite + MCP bundle)
+        run: pnpm build
+
+      # electron-builder.json pins electronDist to the local install, which is the *host* Electron.
+      # On a non-Windows runner that would package the wrong runtime, so drop it there.
+      - name: Use the runner's Electron (non-Windows)
+        if: matrix.platform != 'win'
+        shell: bash
+        run: |
+          node -e "
+          const fs = require('fs');
+          const file = 'electron-builder.json';
+          const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+          delete json.electronDist;
+          fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
+          console.log('electronDist removed for', process.platform);
+          "
+
+      - name: Linux packaging deps
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libarchive-tools rpm
+
+      # Unsigned by decision (docs/BUILDING.md §5): macOS ships unsigned until the Developer ID is
+      # borrowed, and macOS auto-update stays disabled until then.
+      - name: Package (unsigned)
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          EXTRA=""
+          if [ "${{ matrix.platform }}" = "mac" ]; then EXTRA="-c.mac.identity=null"; fi
+          pnpm exec electron-builder --${{ matrix.platform }} --publish never $EXTRA
+
+      - name: Collect artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-artifacts
+          if-no-files-found: warn
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
+            release/*.tar.gz
+            release/*.blockmap
+            release/*.yml

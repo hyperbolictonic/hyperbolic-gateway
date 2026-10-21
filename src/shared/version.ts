@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Single source of truth for the application version.
  *
  * Keep this in sync with `package.json#version`. It is surfaced to agents and

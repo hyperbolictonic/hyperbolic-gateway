@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://agent-orcha.dev/schemas/okf-v1.json",
   "okfVersion": "1.0.0",
   "bundleId": "kuang_browser_docs",

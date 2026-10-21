@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Shadow-DOM-aware element resolution for the interaction path.
  *
  * `document.querySelector` cannot cross a shadow boundary, and neither can a CSS

@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > This is a deliberate, temporary deviation from strict semver; each increment still gets its own
 > Added/Fixed/Changed section here.
 
+## [1.4.2.4] - 2026-10-21
+
+### Added
+
+- **Cross-platform build pipeline (scoped + phase 1).** [`docs/BUILDING.md`](./docs/BUILDING.md) covers installers
+  for all three platforms, signing (macOS ships **unsigned first**), GitHub Releases, and `electron-updater` — with
+  the key interaction that **four-part tags are documentation-only**: the updater compares the three-part app
+  version, so anything shipping binaries must bump `package.json` and tag exactly.
+  `.github/workflows/build.yml` builds on `windows-latest` / `ubuntu-latest` / `macos-latest` (artefacts only,
+  unsigned), dropping the host-pinned `electronDist` on non-Windows so the correct Electron is packaged.
+  `scripts/check-release-tag.mjs` fails a release build when a tag is four-part or does not match `package.json`.
+- **The manual now documents the decision layer.** A new section in the default-tab manual covers the optional
+  `decide` / `drive` tools, the split (model picks the component, the agent supplies text, Kuang verifies), guard +
+  elimination, gate hand-offs, the screenshot limitation on the OpenCode gateway, and the measured bench numbers.
+  The manual's tool heading and paragraph state **59 advertised · +2 optional**, matching the shaded rows.
+
+### Fixed
+
+- **UTF-8 BOMs removed** from `package.json`, `kuang_docs/okf.json` and three TypeScript files (left by earlier
+  PowerShell writes). Strict JSON parsers — including the new release-tag check — rejected `package.json` until
+  this was fixed.
+
 ## [1.4.2.3] - 2026-10-21
 
 Small increment: the optional tools are rows in the tool table, not a footnote.
@@ -632,6 +654,7 @@ Live Cyberdeck, `bridge_health` driven 600× through the bundled stdio server:
 
 See [docs/PROPOSED_ABSTRACTIONS.md](./docs/PROPOSED_ABSTRACTIONS.md) for the design and status.
 
+[1.4.2.4]: https://github.com/hyperbolictonic/kuang-grade-mark-eleven/compare/v1.4.2...v1.4.2.4
 [1.4.2]: https://github.com/hyperbolictonic/kuang-grade-mark-eleven/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/hyperbolictonic/kuang-grade-mark-eleven/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/hyperbolictonic/kuang-grade-mark-eleven/compare/v1.3.0...v1.4.0

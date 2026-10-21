@@ -607,7 +607,10 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
 - **[`CHANGELOG.md`](./CHANGELOG.md)** — release history and migration-relevant changes.
 - **[`docs/`](./docs/README.md)** — the documentation hub: concept lore, subsystem specs, field notes, and the abstraction roadmap.
 - **[`docs/PROPOSED_ABSTRACTIONS.md`](./docs/PROPOSED_ABSTRACTIONS.md)** — the primitive-layer design and its status (A1–A6, B, C, D).
-- **[`docs/FIELD_NOTES_2026-10-18.md`](./docs/FIELD_NOTES_2026-10-18.md)** — root-caused findings from hardening the TIER-1 path on real SPAs.
+- **[`docs/FIELD_NOTES_2026-10-18.md`](./docs/FIELD_NOTES_2026-10-18.md)** - root-caused findings from hardening the TIER-1 path on real SPAs.
+- **[`docs/FIELD_NOTES_2026-10-20_SIGNUP.md`](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md)** - the signup dogfood run: three silent no-ops, and the plan they produced.
+- **[`docs/DECISION_MODELS.md`](./docs/DECISION_MODELS.md)** - the optional decision layer: `decide` / `drive`, guard + elimination, gates, screenshots, and who decides what.
+- **[`docs/BUILDING.md`](./docs/BUILDING.md)** - installers for Windows/macOS/Linux, signing (macOS unsigned first), GitHub Releases, and auto-update.
 - **[`kuang_docs/`](./kuang_docs/okf.json)** — the **OKF bundle** (`kuang_browser_docs`): playbook/reference partitions, also served to agents as standard MCP resources:
   - `mark-eleven://skills/guide` — the full operational manual.
   - `mark-eleven://okf/manifest` — the bundle manifest.

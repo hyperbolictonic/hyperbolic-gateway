@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Optional decision-model bridge — **off unless configured**.
  *
  * Kuang surfaces facts; a decision model picks between them. This module is the only place

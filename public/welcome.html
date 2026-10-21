@@ -360,10 +360,12 @@
 
       <!-- Semantic MCP Tools Table -->
       <section class="section-card">
-        <h2>🔌 Standardized Semantic MCP Tools (59 Advertised)</h2>
+        <h2>🔌 Standardized Semantic MCP Tools (59 advertised · +2 optional)</h2>
         <p>
           59 advertised tools (81 registered entries; 23 deprecated aliases stay callable by name but are hidden from
-          <code>tools/list</code>), plus 7 OKF resources
+          <code>tools/list</code>), <strong>plus two optional tools — <code>drive</code> and <code>decide</code> — shown
+          shaded above and listed first when a decision model is configured</strong> (see the Decision Layer section
+          below). Seven OKF resources are also exposed:
           (<code>mark-eleven://skills/guide</code>, <code>mark-eleven://tools/recommended</code>, <code>mark-eleven://okf/manifest</code>, and four partition playbooks).
         </p>
         <p style="border-left: 3px solid var(--accent); background: #f8fafc; padding: 10px 14px; border-radius: 0 8px 8px 0;">
@@ -929,6 +931,57 @@
           </table>
         </details>
         <!-- END GENERATED: complete tool list -->
+      </section>
+
+      <section class="section-card">
+        <h2>⚙️ Optional Decision Layer — <code>decide</code> &amp; <code>drive</code></h2>
+        <p>
+          Kuang works without it. When a decision model is configured — <strong>Settings → Decision model</strong>
+          in the HUD, or <code>KUANG_DECISION_*</code> environment variables, or <code>data/decision.json</code> —
+          two extra tools are advertised <strong>first</strong> in <code>tools/list</code>. With none configured
+          they are absent entirely, so nothing offers a tool that would only answer <code>NOT_CONFIGURED</code>.
+        </p>
+        <p style="border-left: 3px solid var(--accent); background: #f8fafc; padding: 10px 14px; border-radius: 6px;">
+          <strong>The split:</strong> Jev picks <em>which component</em> and <em>what operation</em>; the
+          <strong>agent</strong> supplies text; Kuang executes and verifies every action. The model never writes prose,
+          never becomes a selector, and is never called behind your back.
+        </p>
+
+        <h3><code>decide</code> — one typed decision</h3>
+        <p>
+          Send a state plus typed questions (<code>choice</code> / <code>score</code> / <code>noul</code>) and get the
+          answers back verbatim, with probabilities and confidence. TypeSafe's <code>choice</code> takes
+          <strong><code>criteria</code></strong> (option → description), <em>not</em> <code>options</code> — the wrong
+          shape comes back as a misleading <code>422</code>.
+        </p>
+        <p>
+          <strong>Guard + elimination:</strong> pass <code>guard</code> to reject low confidence, targets that were not
+          offered, targets that cannot perform the operation, and <code>done</code>/<code>blocked</code> answers that
+          also name a target. <code>eliminate</code> removes a rejected option and asks again (max 5); when nothing
+          survives the call returns <code>accepted:false, fallback:"agent"</code> and <strong>no action is taken</strong>.
+        </p>
+        <p>
+          <strong>Human hand-offs:</strong> age-verification and CAPTCHA copy is detected <em>before</em> any model call.
+          <code>decide</code> returns <code>409 HUMAN_REQUIRED</code>, spends no model call, and raises the HIL request
+          itself. A model-only <code>blocked</code> with no matching copy is handed to the <strong>agent</strong> to
+          decide. Enabled gate calls can attach a viewport <strong>screenshot</strong> — hosted TypeSafe only; the
+          OpenCode gateway does not forward the required header, so images are disabled there and the result says so.
+        </p>
+
+        <h3><code>drive</code> — the loop, in code</h3>
+        <p>
+          <code>drive({ goal, values })</code> repeats observe → guarded decide → verified act until the goal is met or it
+          must stop: <code>done</code>, <code>blocked</code>, <code>human_required</code>, <code>needs_agent</code>,
+          <code>failed</code>, <code>max_steps</code>. It never invents text: a typing step without a supplied value
+          returns <code>needs_input</code> naming the field, and you call again with it. <code>dry_run</code> plans the
+          first step without acting.
+        </p>
+        <p style="font-size:12px; color: var(--text-muted);">
+          Measured on four page scenarios: Jev 1.13 <strong>10/10 at ~376 ms</strong>; local <code>kev-0.6b</code> 7/10 at
+          ~830 ms; <code>open-jev</code> 6/10 at ~1.25 s. The local path is labelled experimental for that reason. Full
+          design notes, the runner-side example (<code>scripts/drive-example.mjs</code>) and the update/signing plan:
+          <code>docs/DECISION_MODELS.md</code> and <code>docs/BUILDING.md</code>.
+        </p>
       </section>
 
       <div class="footer-note">
