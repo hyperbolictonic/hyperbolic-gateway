@@ -69,6 +69,11 @@ jobs:
       - name: Build (tsc + vite + MCP bundle)
         run: pnpm build
 
+      # Offline check: every catalog tool must map to a route the bridge serves. Cheap, and it
+      # catches the most common breakage before packaging.
+      - name: MCP contract test (offline)
+        run: node scripts/test-mcp-contract.mjs
+
       # electron-builder resolves/downloads the correct Electron for the target platform. It used to
       # be pinned to node_modules/electron/dist, which does not exist on a pnpm CI checkout.
 
