@@ -82,7 +82,9 @@ async function createWindow() {
 
   // Start Autonomous HTTP Bridge
   try {
-    startHttpBridge(chassis);
+    const configuredPort = Number(process.env.KUANG_BRIDGE_PORT);
+    const bridgePort = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 4111;
+    startHttpBridge(chassis, bridgePort);
   } catch (err: any) {
     chassis.addLog('warn', `HTTP Bridge notice: ${err?.message || err}`);
   }

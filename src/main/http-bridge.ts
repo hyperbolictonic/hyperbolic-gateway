@@ -1061,8 +1061,14 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
   });
 
   server.on('error', (err: any) => {
-    logBridge(`HTTP Bridge server error on port ${port}: ${err?.message || err}`, true);
-    chassis.addLog('warn', `HTTP Bridge server error on port ${port}: ${err?.message || err}`);
+    const inUse = err?.code === 'EADDRINUSE';
+    const message = inUse
+      ? `Port ${port} is already in use — another Cyberdeck (dev or installed) is probably running. ` +
+        'Only one bridge can own a port: close the other instance, or start this one with ' +
+        'KUANG_BRIDGE_PORT=<other port> and point the MCP server at it with KUANG_BRIDGE_URL.'
+      : `HTTP Bridge server error on port ${port}: ${err?.message || err}`;
+    logBridge(message, true);
+    chassis.addLog('warn', message);
   });
 
   server.listen(port, '127.0.0.1', () => {

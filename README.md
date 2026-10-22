@@ -561,6 +561,12 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 pnpm dev
 ```
 
+> **One bridge per port.** Dev and installed builds share the default bridge port **4111**
+> (`KUANG_BRIDGE_PORT` overrides it). They also have separate single-instance locks, so both *can* run at
+> once — and the second one's bridge fails with `EADDRINUSE`, leaving the MCP tools pointed at the other
+> window. Close one, or run the second with `KUANG_BRIDGE_PORT=4112` and set `KUANG_BRIDGE_URL` for its
+> MCP server to match.
+
 ### Production Build & Launch
 ```bash
 pnpm run build
