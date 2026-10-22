@@ -1,9 +1,10 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { BrowserChassis } from './browser-chassis.js';
 import { startHttpBridge } from './http-bridge.js';
 import { attachContextMenu } from './menu/context-menu.js';
+import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +63,16 @@ async function createWindow() {
   attachContextMenu(mainWindow.webContents, {
     window: mainWindow,
     onLog: (level, message) => console.log(`[HUD context menu] ${level}: ${message}`),
+  });
+
+  // ---- updates (optional, packaged builds only) -------------------------------------------
+  ipcMain.handle('app:update-status', () => updaterState());
+  ipcMain.handle('app:update-check', () => checkForUpdates());
+  ipcMain.handle('app:update-install', () => installUpdate());
+  void initUpdater((state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('app:update-status', state);
+    }
   });
 
   // Dev server or production bundle

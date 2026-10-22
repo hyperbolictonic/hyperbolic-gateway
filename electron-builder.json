@@ -3,6 +3,14 @@
   "appId": "com.hyperbolictonic.kuang-grade-mark-eleven",
   "productName": "Kuang Grade Mark Eleven",
   "copyright": "Copyright © 2026 HyperbolicTonic",
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "hyperbolictonic",
+      "repo": "kuang-grade-mark-eleven",
+      "releaseType": "release"
+    }
+  ],
   "directories": {
     "output": "release"
   },

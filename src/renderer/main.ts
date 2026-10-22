@@ -646,6 +646,49 @@ if (settingsBtn && settingsModal) {
   closeBtn.addEventListener('click', () => settingsModal.close());
 }
 
+// ---- Auto-update banner (packaged builds only; the main process disables it elsewhere) ------
+const updateBanner = document.getElementById('update-banner') as HTMLElement | null;
+const updateText = document.getElementById('update-text') as HTMLElement | null;
+const updateAction = document.getElementById('update-action') as HTMLButtonElement | null;
+
+function renderUpdateState(state: any) {
+  if (!updateBanner || !updateText || !updateAction) return;
+  const show = (text: string, withAction = false) => {
+    updateText.textContent = text;
+    updateBanner.classList.remove('hidden');
+    updateBanner.classList.add('flex');
+    updateAction.classList.toggle('hidden', !withAction);
+  };
+  const hide = () => {
+    updateBanner.classList.add('hidden');
+    updateBanner.classList.remove('flex');
+  };
+
+  switch (state?.status) {
+    case 'available':
+      show(`Update ${state.version ? `v${state.version}` : ''} found — downloading…`);
+      break;
+    case 'downloading':
+      show(`Downloading update${state.percent ? ` ${state.percent}%` : ''}…`);
+      break;
+    case 'ready':
+      show(`Update ${state.version ? `v${state.version}` : ''} ready`, true);
+      break;
+    default:
+      // idle / checking / disabled / error stay quiet — there is nothing for the human to do.
+      hide();
+  }
+}
+
+updateAction?.addEventListener('click', async () => {
+  updateAction.disabled = true;
+  updateAction.textContent = 'RESTARTING…';
+  await window.electronAPI?.installUpdate();
+});
+
+window.electronAPI?.onUpdateStatus(renderUpdateState);
+window.electronAPI?.getUpdateStatus().then(renderUpdateState).catch(() => {});
+
 // About Modal & Viewport Visibility Management
 const aboutBtn = document.getElementById('about-btn') as HTMLButtonElement | null;
 const aboutModal = document.getElementById('about_modal') as HTMLDialogElement | null;

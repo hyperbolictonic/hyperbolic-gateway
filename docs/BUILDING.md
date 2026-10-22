@@ -234,7 +234,7 @@ with artefacts.
 | :--- | :--- | :--- | :--- |
 | **1** | Remove/scope `electronDist`; add `release`-tag check; `.github/workflows/build.yml` (matrix, unsigned, artefacts only) | ~½ day | low — Windows path unchanged |
 | **2** | Run the Linux + macOS jobs, fix runtime issues found (tray, native deps, key dispatch); publish Linux AppImage/deb unsigned | 1–2 days | medium — untested UI paths |
-| **3** | Wire `electron-updater` + HUD prompts; publish Windows + Linux feeds (`latest.yml`, `latest-linux.yml`); test an update cycle with two consecutive versions | ~1 day | medium — needs two real releases |
+| **3** | ~~Wire `electron-updater` + HUD prompts~~ — **done in 1.4.4** (Windows + Linux; macOS deferred with signing). Feed metadata (`latest*.yml`) ships with each release; the remaining check is one real upgrade cycle between consecutive versions | ~1 day | medium — needs two real releases |
 | **4a** | macOS **unsigned**: build `dmg`/`zip`, publish with the Gatekeeper workaround in the release notes; **mac auto-update stays disabled** | ~½ day | low — but users must right-click → Open |
 | **4b** | macOS signing + notarisation once the cert is borrowed; publish `latest-mac.yml`, enable mac updates, verify Squirrel.Mac applies one | ~1 day after the cert | external dependency, low code risk |
 | **5** | Windows signing (OV cert or Azure Trusted Signing); staged rollout; optional beta channel | later | procurement |

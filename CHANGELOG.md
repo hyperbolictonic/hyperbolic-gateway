@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > This is a deliberate, temporary deviation from strict semver; each increment still gets its own
 > Added/Fixed/Changed section here.
 
+## [1.4.4] - 2026-10-22
+
+### Added
+
+- **Auto-update from GitHub Releases** (Windows and Linux). `electron-updater` checks 30 s after startup and
+  every 6 h, downloads in the background (sha512-verified against the published `latest.yml`), installs on
+  quit, and the HUD shows *"Update v… found — downloading…"* followed by a **RESTART** action. Deliberately
+  conservative: **off in dev builds** (`app.isPackaged` false) and **off on unsigned macOS**, where Squirrel.Mac
+  refuses to apply updates — it comes back on when the Developer ID arrives. `electron-builder` now declares a
+  GitHub `publish` provider so the feed metadata points at this repository.
+- **`KUANG_BRIDGE_PORT`** — the HTTP bridge port is configurable (still 4111 by default), so a dev build and an
+  installed build can run side by side. Point the second MCP server at it with `KUANG_BRIDGE_URL`.
+
+### Fixed
+
+- **A port collision used to fail silently.** Dev and installed builds shared 4111 and have separate
+  single-instance locks, so both could run: the second bridge logged `EADDRINUSE` and kept going **without a
+  bridge**, while the MCP tools drove the other window. The log now names the cause and the fix, and the
+  README documents running two instances.
+
 ## [1.4.3] - 2026-10-21
 
 First release with **downloadable installers**, built by CI on GitHub runners.

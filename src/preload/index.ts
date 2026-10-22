@@ -24,6 +24,10 @@ export interface ElectronAPI {
   testDecisionModel: () => Promise<any>;
   getDecisions: () => Promise<any[]>;
   copyToClipboard: (text: string) => Promise<{ ok: boolean }>;
+  getUpdateStatus: () => Promise<any>;
+  checkForUpdates: () => Promise<any>;
+  installUpdate: () => Promise<boolean>;
+  onUpdateStatus: (callback: (state: any) => void) => () => void;
   onDecision: (callback: (event: any) => void) => () => void;
   onTabsUpdated: (callback: (tabs: TabSummary[]) => void) => () => void;
   onStateUpdated: (callback: (state: ChassisState) => void) => () => void;
@@ -63,6 +67,15 @@ const api: ElectronAPI = {
   testDecisionModel: () => ipcRenderer.invoke('settings:test-decision'),
   getDecisions: () => ipcRenderer.invoke('chassis:get-decisions'),
   copyToClipboard: (text: string) => ipcRenderer.invoke('app:copy-text', text),
+  getUpdateStatus: () => ipcRenderer.invoke('app:update-status'),
+  checkForUpdates: () => ipcRenderer.invoke('app:update-check'),
+  installUpdate: () => ipcRenderer.invoke('app:update-install'),
+
+  onUpdateStatus: (callback) => {
+    const handler = (_: any, state: any) => callback(state);
+    ipcRenderer.on('app:update-status', handler);
+    return () => ipcRenderer.removeListener('app:update-status', handler);
+  },
 
   onDecision: (callback) => {
     const handler = (_: any, event: any) => callback(event);

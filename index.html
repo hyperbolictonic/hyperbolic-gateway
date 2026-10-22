@@ -304,6 +304,12 @@
   </form>
 </dialog>
 
+<!-- Update banner (packaged builds; hidden in dev and on unsigned macOS) -->
+<div id="update-banner" class="fixed bottom-10 left-3 z-50 items-center gap-2 rounded-box border border-info/50 bg-base-300/95 px-3 py-2 font-mono text-xs shadow-xl hidden">
+  <span id="update-text" class="text-base-content/80">Checking for updates…</span>
+  <button id="update-action" class="btn btn-xs btn-primary font-mono hidden">RESTART</button>
+</div>
+
 <dialog id="about_modal" class="modal">
       <div class="modal-box bg-base-300 border border-base-100 max-w-4xl p-6 shadow-2xl space-y-6">
         <!-- Modal Header -->
