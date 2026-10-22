@@ -1,5 +1,8 @@
 # 🖥️ Kuang Grade Mark Eleven — Main Process (`src/main/`)
 
+> The full architecture lowdown (system maps, call paths, findings) lives in
+> [docs/CODEBASE.md](../../docs/CODEBASE.md).
+
 This directory is the brain of the Electron desktop application and visible Chromium navigator. It runs in pure Node.js with direct access to native operating system APIs, window management, and hardware acceleration.
 
 ---

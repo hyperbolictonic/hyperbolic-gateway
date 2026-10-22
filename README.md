@@ -12,28 +12,51 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.4.2-22d3ee" />
-  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-59%20%2B2%20optional-a3e635" />
+  <img alt="version" src="https://img.shields.io/badge/version-1.4.5-22d3ee" />
+  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-62%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
-  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20x64-64748b" />
+  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-64748b" />
 </p>
 
 ## 🧭 Index
 
-- **Philosophy** — [Neuromancer inspiration](#sec-neuromancer-inspiration-cyberpunk-canon) · [A punk-ethos alternative to browser clouds](#sec-a-punk-ethos-diy-alternative-to-browser-use-play)
+- **About** — [What it is](#sec-what-it-is) · [A punk-ethos alternative to browser clouds](#sec-a-punk-ethos-diy-alternative-to-browser-use-play)
 - **The deck** — [Theme & Cyberdeck UI](#sec-theme-cyberdeck-interface) · [Ghost cursor telemetry](#sec-ghost-cursor-telemetry-engine) · [Focus-independent input](#sec-focus-independent-input-background-rendering) · [Multi-tab browsing](#sec-hardware-accelerated-multi-tab-browsing)
 - **Reading the web** — [Orthogonal primitive layer](#sec-orthogonal-primitive-layer) · [Construct harvester](#sec-token-efficient-construct-harvester) · [Set-of-Marks](#sec-set-of-marks-som-visual-grounding)
 - **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
 - **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
 - **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (62 advertised)](#sec-standardized-semantic-mcp-tools-62-advertised)
-- **Building on it** — [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
+- **Building on it** — [Architecture lowdown](./docs/CODEBASE.md) · [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
 - **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
+- **Release notes** — [What shipped](#sec-release-notes) · [All releases](./CHANGELOG.md)
+- **Lore** — [Neuromancer inspiration](#sec-neuromancer-inspiration-cyberpunk-canon)
 
 ---
 
-### **Grade Eleven is a Web Browser for your Local AI.**
+<a id="sec-what-it-is" name="sec-what-it-is"></a>
+
+## 🕶️ What it is
+
+**Kuang Grade Mark Eleven is a visible, stateful web browser that any MCP agent can drive.**
+
+Most agent browsers are a library you integrate, or a cloud you rent. Kuang is a desktop application you
+own: a real Chromium window on your machine, controlled over the Model Context Protocol. Your agent runs
+where you already run it — local or remote — and Kuang supplies the browser, the input, and the memory.
+
+- **A real browser, not a simulation.** Visible Chromium with hardware acceleration, persistent cookies,
+  real tabs, downloads, and a human-sized viewport. No headless fingerprint.
+- **Structured first, pixels when needed.** `observe` returns a compact, addressable view of the page
+  (markdown, text, accessibility tree, or Set-of-Marks). `take_screenshot` is there when layout matters.
+- **Input that looks human.** Clicks and keys travel over the Chrome DevTools Protocol with Bézier paths
+  and Gaussian typing cadence — and they land even when another application owns the foreground.
+- **State that survives.** LanceDB memory, bookmark and session vaults, download harvesting and a script
+  vault mean the next session starts where the last one stopped.
+- **Self-hosted by construction.** `stdio` MCP plus a localhost bridge. No account, no dashboard, and no
+  telemetry leaving the machine.
+
+![Kuang Grade Mark Eleven with the built-in manual open](docs/assets/manual.png)
 
 > [!WARNING]
 > **EXPERIMENTAL PROTOTYPE**: Kuang Grade Mark Eleven is currently under active, experimental development. Tool contracts, telemetry tuning, and database schemas may evolve rapidly. Built for developers experimenting with multimodal local AI agents.
@@ -42,43 +65,6 @@
 > **RESEARCH PURPOSES ONLY**: This software is provided strictly for educational, testing, and local AI agent research purposes. It is **not intended for malicious use**, automated credential stuffing, unauthorized exploitation, or violating third-party websites' Terms of Service. Users are responsible for complying with all applicable laws and terms.
 
 **Installers:** grab them from [Releases](https://github.com/hyperbolictonic/kuang-grade-mark-eleven/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Kuang Grade Mark Eleven.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
-
-Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP) server that empowers multimodal LLM Agents (such as Bonsai 2 27B, Gemini, Claude, and GPT-4o) to operate the live, open web **like a human operator inside a real, visible Chromium browser instance**.
-
-> [!NOTE]
-> **What's new in 1.4.2** — **a decision model in the loop, and a loop that drives it.** This patch adds **`drive`** (observe → guarded decide → verified act, one decision call per step, with a typed stop reason and a text hand-off), **screenshots for `decide`** (hosted TypeSafe only — the OpenCode gateway drops the image header, so images are disabled there and the result says so), **gate hand-offs raised by Kuang itself**, consent sweeps at 0.9/2.6/6 s, clickable labels, and selectable HUD text. It builds on the 1.4.0 work: **a decision model in the loop, and the evidence that it worked.** `observe(as:"components")` returns a decision-ready table (role, name, value, region, and the actions each component accepts); an optional `decide` tool asks a typed decision model (Jev 1.13 via OpenCode's Console endpoint, or a local ONNX model) for the operation and target, **guarded** by confidence, target membership and affordance checks, with rejected options eliminated and retried, and `fallback:"agent"` when nothing survives. **Age verification and CAPTCHA are hard human hand-offs** — detected before any model call. Typing gained an input-method ladder (keys → CDP `insertText` → paste) for fields that ignore keystrokes, `act` now sees SPA navigations and clicks large card links at a point that belongs to them, and the HUD gained a Settings dialog, a conditional DECISIONS tab, a right-click menu, and a HIL banner that stays off the viewport. Measured: **Jev 10/10 on the page bench at ~376 ms**. **59 tools** (+ `decide` and `drive` when configured). See [CHANGELOG.md](./CHANGELOG.md).
->
-> **What's new in 1.3.0** — **the page is now readable and addressable through shadow DOM, and the tool no longer reports success for actions that did nothing.** `observe(as:"markdown")` harvests the *composed* tree (open shadow roots, live form values, passwords reduced to a length) with a minimal, stable envelope (`reader`, `extracted_chars`/`page_chars`, `shadow_roots`) and working `budget`/`next_cursor` paging; `act` resolves selectors through shadow roots to the control a mouse would hit, **verifies that typing landed** (`ok:false` + `TYPE_NO_EFFECT` + evidence, distinguishing "input never arrived" from "the control refuses it"), and reports `target.field` for web-component controls; Set-of-Marks, `find` and `act(mark_id)` traverse open shadow roots too. All found by dogfooding a real signup flow — see [docs/FIELD_NOTES_2026-10-20_SIGNUP.md](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md). **62 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md).
->
-> **What's new in 1.2.0** — an **autonomous discovery layer**. `llm_surface` detects a site's own Markdown/Text representation (`/llms.txt`, a `<link rel="alternate">` hint, or content negotiation) and `llm_fetch` reads it (**gated** on an advertised surface); `search_web` runs multi-engine search in a detached view with automatic fallback; `deep_crawl` walks a site breadth-first, distilling and indexing every page into Cortex; `research_topic` searches → gathers → distils → indexes and returns **cited extractive evidence**. Plus typed JSON-LD (`schema_org`) and every-table extraction on `extract`, one shared reusable off-screen view (fixes flaky detached reads), and an explicit **TIER 1/2/3 map** across the docs and the default-tab Manual. **62 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md) and [TODO_RESEARCH_CRAWL.md](./TODO_RESEARCH_CRAWL.md).
->
-> **What's new in 1.1.1** — **MCP stdio reliability hardening** so the `kuang` tool namespace can no longer "just go away". Per-call diagnostics now go to the file log only, stderr is a short bounded boot banner (backpressure-aware, 16 KiB hard cap, lines dropped rather than queued), a `KUANG_BRIDGE_TIMEOUT_MS` ceiling (default 300 s) stops a wedged Cyberdeck from hanging a tool call, and closing `stdin` shuts the child down cleanly. Reproduced and verified: stderr unread, 600 calls → **601/601 responses, 0 timeouts** (was 158 responses then a stall). See [CHANGELOG.md](./CHANGELOG.md) and [docs/HANDOFF_ORCHA_MCP_STDERR.md](./docs/HANDOFF_ORCHA_MCP_STDERR.md).
->
-> **What's new in 1.1.0** — an **orthogonal primitive layer** (`observe` · `act` · `wait_for` · `expect` · `find` · `extract` · `collect_all` · `page_state`/`diff` · `export_har` · `context_*`) that removes blind sleeps and guessy selectors, **focus-independent CDP input** (clicks/typing land even when another app owns the foreground), and **background-render hardening** so occluded windows still hydrate and scroll. 16 new tools, 1 new OKF playbook partition. See [docs/PROPOSED_ABSTRACTIONS.md](./docs/PROPOSED_ABSTRACTIONS.md).
-
-### 🎯 Core Architecture Principles
-1. **100% Real Browser Chassis:** No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Mark Eleven runs a full-fledged, visible Chromium instance (`headless: false`) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
-2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can act directly by coordinate, selector, or mark badge (`act`).
-3. **Full Developer Console & Script Execution:** Gives the agent full console access (`get_console_logs`) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (`evaluate_javascript`) to interact with complex SPAs.
-4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches **real input events over the Chrome DevTools Protocol** (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `mouseWheel`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence. CDP delivery is **focus-independent** — it lands even when another application owns the OS foreground — with `webContents.sendInputEvent` kept only as a fallback.
-
----
-
-<a id="sec-neuromancer-inspiration-cyberpunk-canon" name="sec-neuromancer-inspiration-cyberpunk-canon"></a>
-
-## 🌌 Neuromancer Inspiration & Cyberpunk Canon
-
-> *"A Kuang Grade Mark Eleven penetration program. Icebreaker. The military stuff, the heavy artillery."*  
-> — **William Gibson, *Neuromancer* (1984)**
-
-In William Gibson's genre-defining cyberpunk masterpiece *Neuromancer*, console cowboys Case and the ROM personality construct of the Dixie Flatline jack into the Matrix using an **Ono-Sendai Cyberspace 7** deck. Their ultimate weapon: the **Kuang Grade Mark Eleven**—a mythical military-grade icebreaker designed to slice through the impenetrable corporate ICE surrounding the Tessier-Ashpool mainframe.
-
-**Kuang Grade Mark Eleven** channels this lineage:
-- **Piercing the Modern Web's "ICE":** Headless automation (Puppeteer, Playwright) is routinely flagged and blocked by Cloudflare, Datadome, and behavioral bot sensors. Mark Eleven provides a tactile, visible Chromium cyberdeck that operates with authentic human telemetry.
-- **The Ghost Cursor as Neural Trodes:** Dispatches organic cubic Bézier pointer movement and Gaussian typing cadences, behaving like an authentic human operator seated at the console.
-- **The LanceDB Cortex as ROM Personality Construct:** Provides persistent semantic recall and memory traces so your local AI agent retains research context and bookmarks across browsing sessions.
-
----
 
 <a id="sec-a-punk-ethos-diy-alternative-to-browser-use-play" name="sec-a-punk-ethos-diy-alternative-to-browser-use-play"></a>
 
@@ -178,6 +164,14 @@ Locally, in LanceDB ("Cortex"): harvested pages and vaulted scripts are embedded
 No — it's an experimental prototype for local AI research. That's rather the point.
 
 > **Punk ethos, not carte blanche.** Owning your tooling doesn't change the law: the **RESEARCH PURPOSES ONLY** terms at the top of this README still apply. The point is *ownership and readability*, not immunity.
+
+---
+
+### 🎯 Core Architecture Principles
+1. **100% Real Browser Chassis:** No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Mark Eleven runs a full-fledged, visible Chromium instance (`headless: false`) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
+2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can act directly by coordinate, selector, or mark badge (`act`).
+3. **Full Developer Console & Script Execution:** Gives the agent full console access (`get_console_logs`) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (`evaluate_javascript`) to interact with complex SPAs.
+4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches **real input events over the Chrome DevTools Protocol** (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `mouseWheel`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence. CDP delivery is **focus-independent** — it lands even when another application owns the OS foreground — with `webContents.sendInputEvent` kept only as a fallback.
 
 ---
 
@@ -433,7 +427,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-<a id="sec-standardized-semantic-mcp-tools-59-advertised" name="sec-standardized-semantic-mcp-tools-59-advertised"></a>
+<a id="sec-standardized-semantic-mcp-tools-62-advertised" name="sec-standardized-semantic-mcp-tools-62-advertised"></a>
 
 ## 🔌 Standardized Semantic MCP Tools (62 advertised · +2 optional)
 
@@ -541,8 +535,8 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 
 | Directory | Documentation Link | Description |
 | :--- | :--- | :--- |
-| **`docs/`** | [docs/README.md](./docs/README.md) | Central documentation hub, concept lore, and architectural specifications. |
-| **`scripts/`** | [scripts/README.md](./scripts/README.md) | Automated test harnesses, logo embedders, and the standalone `mcp-server.js` stdio runner. |
+| **`docs/`** | [docs/CODEBASE.md](./docs/CODEBASE.md) | Architecture lowdown, field notes, decision-model notes, build and packaging docs. |
+| **`scripts/`** | [scripts/README.md](./scripts/README.md) | Test harnesses, release helpers (`check-release-tag`, `release-notes`), the MCP bundle build, and one-off tools. |
 | **`public/`** | [public/README.md](./public/README.md) | Static web root and the built-in offline Cyberdeck Manual (`welcome.html`). |
 | **`public/assets/`** | [public/assets/README.md](./public/assets/README.md) | Tactical high-resolution brand insignia (Ono-Sendai 7, Kuang Grade, Mark Eleven). |
 | **`src/`** | [src/README.md](./src/README.md) | Root source directory organizing process-isolated TypeScript modules. |
@@ -565,6 +559,10 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`src/renderer/`** | [src/renderer/README.md](./src/renderer/README.md) | DaisyUI 5 Cyberdeck HUD, phosphor radar trail canvas, and Cortex modal dialogs. |
 | **`src/shared/`** | [src/shared/README.md](./src/shared/README.md) | Shared TypeScript contracts, telemetry events, and construct schemas. |
 | **`src/mcp/`** | [src/mcp/README.md](./src/mcp/README.md) | In-process TypeScript MCP server definition for zero-overhead unified execution. |
+| **`src/main/decide/` + `drive/`** | [docs/DECISION_MODELS.md](./docs/DECISION_MODELS.md) | Optional typed decision client, guard, human gate detection, and the observe → decide → act loop. |
+| **`src/main/recording/`** | [src/main/recording/recording-service.ts](./src/main/recording/recording-service.ts) | Timelapse configuration, window capture handshake, file writing, and the recordings registry. |
+| **`src/main/search/` · `crawl/` · `research/`** | [src/mcp/README.md](./src/mcp/README.md) | Multi-engine search, breadth-first crawl, and cited research. |
+| **`src/main/updates/`** | [docs/BUILDING.md](./docs/BUILDING.md) | `electron-updater` wiring and release feed handling. |
 
 ---
 
@@ -657,6 +655,45 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
 
 <a id="sec-license" name="sec-license"></a>
 
+<a id="sec-release-notes" name="sec-release-notes"></a>
+
+## 📦 Release notes
+
+> [!NOTE]
+> **What's new in 1.4.5** — **timelapse recording, a human-only tool gate, and a client-config generator.** The REC button records the Cyberdeck window as a true timelapse: frames are captured every `intervalMs` and stamped `1000/fps` apart, so one minute of work becomes about two seconds of video at the defaults. `record_start`, `record_stop` and `list_recordings` return the absolute `.webm` path. A separate, **human-only** switch removes those tools from `tools/list` and makes the bridge refuse them. Settings is now a full-viewport, tabbed view (**Decision model / Recording / MCP clients**); the client tab generates copy-ready configs for OpenCode, Claude Desktop/Code, Cursor, VS Code, Windsurf, Google Antigravity, Gemini CLI, Atomic Chat and Zed, on either the bundled Electron runtime (no Node install) or system Node. **62 advertised tools** (+2 optional).
+>
+> **What's new in 1.4.4** — **auto-update.** `electron-updater` checks 30 s after startup and every 6 hours, downloads in the background (sha512-verified), installs on quit, and offers **RESTART** in the HUD. It is off in dev builds and on unsigned macOS. `KUANG_BRIDGE_PORT` makes the bridge port configurable so a dev build and an installed build can run side by side, and a port collision now names `EADDRINUSE` instead of failing silently.
+>
+> **What's new in 1.4.2** — **a decision model in the loop, and a loop that drives it.** This patch adds **`drive`** (observe → guarded decide → verified act, one decision call per step, with a typed stop reason and a text hand-off), **screenshots for `decide`** (hosted TypeSafe only — the OpenCode gateway drops the image header, so images are disabled there and the result says so), **gate hand-offs raised by Kuang itself**, consent sweeps at 0.9/2.6/6 s, clickable labels, and selectable HUD text. It builds on the 1.4.0 work: **a decision model in the loop, and the evidence that it worked.** `observe(as:"components")` returns a decision-ready table (role, name, value, region, and the actions each component accepts); an optional `decide` tool asks a typed decision model (Jev 1.13 via OpenCode's Console endpoint, or a local ONNX model) for the operation and target, **guarded** by confidence, target membership and affordance checks, with rejected options eliminated and retried, and `fallback:"agent"` when nothing survives. **Age verification and CAPTCHA are hard human hand-offs** — detected before any model call. Typing gained an input-method ladder (keys → CDP `insertText` → paste) for fields that ignore keystrokes, `act` now sees SPA navigations and clicks large card links at a point that belongs to them, and the HUD gained a Settings dialog, a conditional DECISIONS tab, a right-click menu, and a HIL banner that stays off the viewport. Measured: **Jev 10/10 on the page bench at ~376 ms**. **59 tools** (+ `decide` and `drive` when configured). See [CHANGELOG.md](./CHANGELOG.md).
+>
+> **What's new in 1.3.0** — **the page is now readable and addressable through shadow DOM, and the tool no longer reports success for actions that did nothing.** `observe(as:"markdown")` harvests the *composed* tree (open shadow roots, live form values, passwords reduced to a length) with a minimal, stable envelope (`reader`, `extracted_chars`/`page_chars`, `shadow_roots`) and working `budget`/`next_cursor` paging; `act` resolves selectors through shadow roots to the control a mouse would hit, **verifies that typing landed** (`ok:false` + `TYPE_NO_EFFECT` + evidence, distinguishing "input never arrived" from "the control refuses it"), and reports `target.field` for web-component controls; Set-of-Marks, `find` and `act(mark_id)` traverse open shadow roots too. All found by dogfooding a real signup flow — see [docs/FIELD_NOTES_2026-10-20_SIGNUP.md](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md). **62 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md).
+>
+> **What's new in 1.2.0** — an **autonomous discovery layer**. `llm_surface` detects a site's own Markdown/Text representation (`/llms.txt`, a `<link rel="alternate">` hint, or content negotiation) and `llm_fetch` reads it (**gated** on an advertised surface); `search_web` runs multi-engine search in a detached view with automatic fallback; `deep_crawl` walks a site breadth-first, distilling and indexing every page into Cortex; `research_topic` searches → gathers → distils → indexes and returns **cited extractive evidence**. Plus typed JSON-LD (`schema_org`) and every-table extraction on `extract`, one shared reusable off-screen view (fixes flaky detached reads), and an explicit **TIER 1/2/3 map** across the docs and the default-tab Manual. **62 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md) and [TODO_RESEARCH_CRAWL.md](./TODO_RESEARCH_CRAWL.md).
+>
+> **What's new in 1.1.1** — **MCP stdio reliability hardening** so the `kuang` tool namespace can no longer "just go away". Per-call diagnostics now go to the file log only, stderr is a short bounded boot banner (backpressure-aware, 16 KiB hard cap, lines dropped rather than queued), a `KUANG_BRIDGE_TIMEOUT_MS` ceiling (default 300 s) stops a wedged Cyberdeck from hanging a tool call, and closing `stdin` shuts the child down cleanly. Reproduced and verified: stderr unread, 600 calls → **601/601 responses, 0 timeouts** (was 158 responses then a stall). See [CHANGELOG.md](./CHANGELOG.md) and [docs/HANDOFF_ORCHA_MCP_STDERR.md](./docs/HANDOFF_ORCHA_MCP_STDERR.md).
+>
+> **What's new in 1.1.0** — an **orthogonal primitive layer** (`observe` · `act` · `wait_for` · `expect` · `find` · `extract` · `collect_all` · `page_state`/`diff` · `export_har` · `context_*`) that removes blind sleeps and guessy selectors, **focus-independent CDP input** (clicks/typing land even when another app owns the foreground), and **background-render hardening** so occluded windows still hydrate and scroll. 16 new tools, 1 new OKF playbook partition. See [docs/PROPOSED_ABSTRACTIONS.md](./docs/PROPOSED_ABSTRACTIONS.md).
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE) © 2026 hyperbolictonic.
+
+---
+
+<a id="sec-neuromancer-inspiration-cyberpunk-canon" name="sec-neuromancer-inspiration-cyberpunk-canon"></a>
+
+## 🌌 Neuromancer Inspiration & Cyberpunk Canon
+
+> *"A Kuang Grade Mark Eleven penetration program. Icebreaker. The military stuff, the heavy artillery."*  
+> — **William Gibson, *Neuromancer* (1984)**
+
+In William Gibson's genre-defining cyberpunk masterpiece *Neuromancer*, console cowboys Case and the ROM personality construct of the Dixie Flatline jack into the Matrix using an **Ono-Sendai Cyberspace 7** deck. Their ultimate weapon: the **Kuang Grade Mark Eleven**—a mythical military-grade icebreaker designed to slice through the impenetrable corporate ICE surrounding the Tessier-Ashpool mainframe.
+
+**Kuang Grade Mark Eleven** channels this lineage:
+- **Piercing the Modern Web's "ICE":** Headless automation (Puppeteer, Playwright) is routinely flagged and blocked by Cloudflare, Datadome, and behavioral bot sensors. Mark Eleven provides a tactile, visible Chromium cyberdeck that operates with authentic human telemetry.
+- **The Ghost Cursor as Neural Trodes:** Dispatches organic cubic Bézier pointer movement and Gaussian typing cadences, behaving like an authentic human operator seated at the console.
+- **The LanceDB Cortex as ROM Personality Construct:** Provides persistent semantic recall and memory traces so your local AI agent retains research context and bookmarks across browsing sessions.
+
+---

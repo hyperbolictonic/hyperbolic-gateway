@@ -6,13 +6,16 @@ Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade 
 
 ## 📑 Contents
 
+- [CODEBASE.md](./CODEBASE.md) — Architecture lowdown: system maps, call paths, findings, optimisations, and an airline-search walkthrough.
+- [BUILDING.md](./BUILDING.md) — Installers, CI, signing, auto-update and the release policy.
+- [DECISION_MODELS.md](./DECISION_MODELS.md) — The optional `decide` / `drive` decision layer.
 - [concept.md](./concept.md) — The foundational concept, design philosophy, and lore behind the Kuang Grade Mark Eleven Cyberdeck.
 - [TODO.md](./TODO.md) — Agent capability roadmap, prioritized from foundational utilities to high-bandwidth cognitive features and biomechanical kinematics.
 - [PROPOSED_ABSTRACTIONS.md](./PROPOSED_ABSTRACTIONS.md) — The orthogonal primitive layer (observe/act/wait_for/…) design, status (A1–A6, B, C, D), and verification record.
 - [FIELD_NOTES_2026-10-18.md](./FIELD_NOTES_2026-10-18.md) — Root-caused field findings from hardening the TIER-1 harvest path on real SPAs.
 - [FIX_PLAN_2026-10-18.md](./FIX_PLAN_2026-10-18.md) — The remediation plan those findings produced.
 - [PACKAGING.md](./PACKAGING.md) — Distribution and installer notes.
-- [Root README.md](../README.md) — System overview, full 74-tool MCP reference, and architecture principles.
+- [Root README.md](../README.md) — System overview, the 62-tool MCP reference, and architecture principles.
 - [Plugin Skill Reference](../.agents/plugins/mark-eleven/skills/mark-eleven/SKILL.md) — Operational instructions for LLM agents utilizing Mark Eleven.
 - [OKF Bundle (kuang_docs)](../kuang_docs/okf.json) — Playbook/reference partitions exposed as MCP resources (`mark-eleven://okf/…`).
 

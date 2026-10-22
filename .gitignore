@@ -61,6 +61,7 @@ Thumbs.db
 *.png
 !public/assets/*.png
 !public/assets/**/*.png
+!docs/assets/*.png
 *.jpg
 !public/assets/*.jpg
 !public/assets/**/*.jpg

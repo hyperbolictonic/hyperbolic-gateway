@@ -129,6 +129,9 @@ jobs:
             -name '*.exe' -o -name '*.dmg' -o -name '*.zip' -o \
             -name '*.AppImage' -o -name '*.deb' -o -name '*.tar.gz' -o \
             -name '*.blockmap' -o -name 'latest*.yml' \) -exec cp {} assets/ \;
+          # GitHub turns spaces in asset names into dots, but electron-builder's feeds use
+          # hyphens. Rename here so the feed URL, the asset name and the updater agree.
+          for f in assets/*\ *; do [ -e "$f" ] && mv "$f" "${f// /-}"; done
           echo "Staged $(ls -1 assets | wc -l) assets:"
           ls -lh assets
 
