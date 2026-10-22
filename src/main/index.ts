@@ -5,6 +5,20 @@ import { BrowserChassis } from './browser-chassis.js';
 import { startHttpBridge } from './http-bridge.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
+import {
+  failRecording,
+  getRecordingConfig,
+  getRecordingStatus,
+  listRecordings,
+  loadRecordingConfig,
+  onRecordingStatus,
+  pickRecordingDir,
+  saveRecording,
+  saveRecordingConfig,
+  setRecordingWindow,
+  startRecording,
+  stopRecording,
+} from './recording/recording-service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +54,23 @@ app.on('second-instance', () => {
   }
 });
 
+// ---- recording IPC (registered once, not per window) --------------------------------------
+ipcMain.handle('recording:config:get', () => getRecordingConfig());
+ipcMain.handle('recording:config:save', (_event, config: any) => saveRecordingConfig(config || {}));
+ipcMain.handle('recording:pick-dir', () => pickRecordingDir());
+ipcMain.handle('recording:start', (_event, name?: string) => startRecording(typeof name === 'string' ? name : undefined));
+ipcMain.handle('recording:stop', () => stopRecording());
+ipcMain.handle('recording:status', () => getRecordingStatus());
+ipcMain.handle('recording:list', () => listRecordings());
+ipcMain.handle('recording:save', (_event, buffer: ArrayBuffer, frames: number) => saveRecording(buffer, Number(frames) || 0));
+ipcMain.on('recording:failed', (_event, message: string) => failRecording(String(message || 'Recording failed.')));
+
+onRecordingStatus((state) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('recording:status', state);
+  }
+});
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     title: 'Kuang Grade Mark Eleven // Cyberdeck',
@@ -57,6 +88,8 @@ async function createWindow() {
   });
 
   chassis.setWindow(mainWindow);
+  setRecordingWindow(mainWindow);
+  loadRecordingConfig();
 
   // The shell (HUD) has its own context menu: without it, right-click copy/paste/inspect does
   // nothing anywhere outside a browsing tab. Inspection targets the shell's own renderer.

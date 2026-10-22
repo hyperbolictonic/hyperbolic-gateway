@@ -25,9 +25,9 @@
 - **The deck** — [Theme & Cyberdeck UI](#sec-theme-cyberdeck-interface) · [Ghost cursor telemetry](#sec-ghost-cursor-telemetry-engine) · [Focus-independent input](#sec-focus-independent-input-background-rendering) · [Multi-tab browsing](#sec-hardware-accelerated-multi-tab-browsing)
 - **Reading the web** — [Orthogonal primitive layer](#sec-orthogonal-primitive-layer) · [Construct harvester](#sec-token-efficient-construct-harvester) · [Set-of-Marks](#sec-set-of-marks-som-visual-grounding)
 - **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
-- **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine)
+- **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
-- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (59 advertised)](#sec-standardized-semantic-mcp-tools-59-advertised)
+- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (62 advertised)](#sec-standardized-semantic-mcp-tools-62-advertised)
 - **Building on it** — [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
 - **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 
@@ -48,9 +48,9 @@ Mark Eleven is an interactive, stateful web-browsing Model Context Protocol (MCP
 > [!NOTE]
 > **What's new in 1.4.2** — **a decision model in the loop, and a loop that drives it.** This patch adds **`drive`** (observe → guarded decide → verified act, one decision call per step, with a typed stop reason and a text hand-off), **screenshots for `decide`** (hosted TypeSafe only — the OpenCode gateway drops the image header, so images are disabled there and the result says so), **gate hand-offs raised by Kuang itself**, consent sweeps at 0.9/2.6/6 s, clickable labels, and selectable HUD text. It builds on the 1.4.0 work: **a decision model in the loop, and the evidence that it worked.** `observe(as:"components")` returns a decision-ready table (role, name, value, region, and the actions each component accepts); an optional `decide` tool asks a typed decision model (Jev 1.13 via OpenCode's Console endpoint, or a local ONNX model) for the operation and target, **guarded** by confidence, target membership and affordance checks, with rejected options eliminated and retried, and `fallback:"agent"` when nothing survives. **Age verification and CAPTCHA are hard human hand-offs** — detected before any model call. Typing gained an input-method ladder (keys → CDP `insertText` → paste) for fields that ignore keystrokes, `act` now sees SPA navigations and clicks large card links at a point that belongs to them, and the HUD gained a Settings dialog, a conditional DECISIONS tab, a right-click menu, and a HIL banner that stays off the viewport. Measured: **Jev 10/10 on the page bench at ~376 ms**. **59 tools** (+ `decide` and `drive` when configured). See [CHANGELOG.md](./CHANGELOG.md).
 >
-> **What's new in 1.3.0** — **the page is now readable and addressable through shadow DOM, and the tool no longer reports success for actions that did nothing.** `observe(as:"markdown")` harvests the *composed* tree (open shadow roots, live form values, passwords reduced to a length) with a minimal, stable envelope (`reader`, `extracted_chars`/`page_chars`, `shadow_roots`) and working `budget`/`next_cursor` paging; `act` resolves selectors through shadow roots to the control a mouse would hit, **verifies that typing landed** (`ok:false` + `TYPE_NO_EFFECT` + evidence, distinguishing "input never arrived" from "the control refuses it"), and reports `target.field` for web-component controls; Set-of-Marks, `find` and `act(mark_id)` traverse open shadow roots too. All found by dogfooding a real signup flow — see [docs/FIELD_NOTES_2026-10-20_SIGNUP.md](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md). **59 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md).
+> **What's new in 1.3.0** — **the page is now readable and addressable through shadow DOM, and the tool no longer reports success for actions that did nothing.** `observe(as:"markdown")` harvests the *composed* tree (open shadow roots, live form values, passwords reduced to a length) with a minimal, stable envelope (`reader`, `extracted_chars`/`page_chars`, `shadow_roots`) and working `budget`/`next_cursor` paging; `act` resolves selectors through shadow roots to the control a mouse would hit, **verifies that typing landed** (`ok:false` + `TYPE_NO_EFFECT` + evidence, distinguishing "input never arrived" from "the control refuses it"), and reports `target.field` for web-component controls; Set-of-Marks, `find` and `act(mark_id)` traverse open shadow roots too. All found by dogfooding a real signup flow — see [docs/FIELD_NOTES_2026-10-20_SIGNUP.md](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md). **62 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md).
 >
-> **What's new in 1.2.0** — an **autonomous discovery layer**. `llm_surface` detects a site's own Markdown/Text representation (`/llms.txt`, a `<link rel="alternate">` hint, or content negotiation) and `llm_fetch` reads it (**gated** on an advertised surface); `search_web` runs multi-engine search in a detached view with automatic fallback; `deep_crawl` walks a site breadth-first, distilling and indexing every page into Cortex; `research_topic` searches → gathers → distils → indexes and returns **cited extractive evidence**. Plus typed JSON-LD (`schema_org`) and every-table extraction on `extract`, one shared reusable off-screen view (fixes flaky detached reads), and an explicit **TIER 1/2/3 map** across the docs and the default-tab Manual. **59 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md) and [TODO_RESEARCH_CRAWL.md](./TODO_RESEARCH_CRAWL.md).
+> **What's new in 1.2.0** — an **autonomous discovery layer**. `llm_surface` detects a site's own Markdown/Text representation (`/llms.txt`, a `<link rel="alternate">` hint, or content negotiation) and `llm_fetch` reads it (**gated** on an advertised surface); `search_web` runs multi-engine search in a detached view with automatic fallback; `deep_crawl` walks a site breadth-first, distilling and indexing every page into Cortex; `research_topic` searches → gathers → distils → indexes and returns **cited extractive evidence**. Plus typed JSON-LD (`schema_org`) and every-table extraction on `extract`, one shared reusable off-screen view (fixes flaky detached reads), and an explicit **TIER 1/2/3 map** across the docs and the default-tab Manual. **62 advertised tools.** See [CHANGELOG.md](./CHANGELOG.md) and [TODO_RESEARCH_CRAWL.md](./TODO_RESEARCH_CRAWL.md).
 >
 > **What's new in 1.1.1** — **MCP stdio reliability hardening** so the `kuang` tool namespace can no longer "just go away". Per-call diagnostics now go to the file log only, stderr is a short bounded boot banner (backpressure-aware, 16 KiB hard cap, lines dropped rather than queued), a `KUANG_BRIDGE_TIMEOUT_MS` ceiling (default 300 s) stops a wedged Cyberdeck from hanging a tool call, and closing `stdin` shuts the child down cleanly. Reproduced and verified: stderr unread, 600 calls → **601/601 responses, 0 timeouts** (was 158 responses then a stall). See [CHANGELOG.md](./CHANGELOG.md) and [docs/HANDOFF_ORCHA_MCP_STDERR.md](./docs/HANDOFF_ORCHA_MCP_STDERR.md).
 >
@@ -351,6 +351,18 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
+<a id="sec-timelapse-recorder" name="sec-timelapse-recorder"></a>
+
+## 🎥 Timelapse Recorder
+
+- **Records the deck itself:** the **REC** button (next to SETTINGS) captures the Cyberdeck window as a timelapse — frames every `intervalMs`, played back at a chosen fps. One minute of work becomes two seconds of video at the 1 fps / 30 fps defaults.
+- **True re-timing, not a sped-up screen recording:** the renderer uses WebCodecs `VideoEncoder` with explicit frame timestamps and muxes VP9 into WebM with `webm-muxer` (`MediaRecorder` cannot retime frames).
+- **Settings → Recording:** enable/disable, output directory with **BROWSE…**, capture interval, playback fps, max width and bitrate; finished files are listed with **COPY PATH**.
+- **Programmatic hand-off:** `record_start` → `record_stop` returns the absolute `.webm` path (plus size, frames and speed-up), and `list_recordings` lists recent files newest-first. That path is a plain string you can type into a file-upload field; if the field only opens a native picker, hand it to a human.
+- **Why a path matters:** upload forms usually cannot be driven by setting a value — the browser requires a real file selection. Kuang gives the agent (or the human) the exact file to choose instead of guessing.
+
+---
+
 <a id="sec-session-cookie-jar-vault" name="sec-session-cookie-jar-vault"></a>
 
 ## 🔐 Session & Cookie Jar Vault
@@ -422,11 +434,11 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 <a id="sec-standardized-semantic-mcp-tools-59-advertised" name="sec-standardized-semantic-mcp-tools-59-advertised"></a>
 
-## 🔌 Standardized Semantic MCP Tools (59 advertised · +2 optional)
+## 🔌 Standardized Semantic MCP Tools (62 advertised · +2 optional)
 
 > **+2 optional, listed first when active:** `drive` and `decide` — rows marked ⌥ — appear only when a decision model is configured. The rest of this table is always available.
 >
-> **59 advertised tools** (81 registered entries; **23 deprecated aliases are hidden from `tools/list`** but stay callable by name and return a `deprecated → use "X"` notice — rows marked `†` below). Seven MCP **resources** are also exposed: `mark-eleven://skills/guide`, `mark-eleven://tools/recommended`, `mark-eleven://okf/manifest`, and four partition playbooks.
+> **62 advertised tools** (82 registered entries; **23 deprecated aliases are hidden from `tools/list`** but stay callable by name and return a `deprecated → use "X"` notice — rows marked `†` below). Seven MCP **resources** are also exposed: `mark-eleven://skills/guide`, `mark-eleven://tools/recommended`, `mark-eleven://okf/manifest`, and four partition playbooks.
 
 > **Tier map** (mirrors the `[TIER n]` prefixes the MCP surface puts on the advertised descriptions). **TIER 1 · prefer:** `observe` · `act` · `wait_for` · `expect` · `find` · `extract` · `collect_all` · `page_state` · `diff`. **TIER 2 · fallback:** `take_screenshot` · `snapshot_rendered_page` · `press_key`. **TIER 3 · use deliberately:** `evaluate_javascript` — powerful, just not the default. Every **other** tool is **unprefixed** — it is the only way to do its job. Start with `observe` → `act` → `wait_for` → `find` → `extract`/`collect_all`; the **Primitives & Abstraction** block is listed first for exactly that reason. **Editing this table?** Run `npm run manual:tools` to regenerate the default-tab Manual's collapsible full list from it.
 
@@ -484,6 +496,9 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `delete_bookmark` | `url_or_id: string` | Deletes bookmark by URL or unique ID. |
 | **Downloads & Docs** | `list_downloads` | _none_ | Lists all files downloaded into `data/downloads/` with sizes, state, and timestamps. |
 | | `read_download` | `filename_or_id: string` | Parses downloaded file (PDF, CSV, JSON, text) into token-efficient markdown. |
+| **Timelapse Recording** | `record_start` | `name?: string` | Starts a timelapse of the Cyberdeck window itself: frames are captured every few hundred ms and played back faster than real time. The finished `.webm` path becomes an ordinary value you can type into a file-upload field. |
+| | `record_stop` | _none_ | Stops the timelapse and saves it (VP9/WebM). Returns the absolute path, size, frame count and speed-up factor. |
+| | `list_recordings` | `limit?: number` | Lists finished timelapses as absolute paths, newest first — ready for upload fields. |
 | **Session Vault** | † `save_session` | `name?: string` | Captures active cookies and localStorage state into persistent JSON vault. |
 | | † `restore_session` | `name: string` | Rehydrates cookies and localStorage state into browser session. |
 | | † `list_sessions` | _none_ | Lists all stored session snapshots with timestamps and cookie counts. |

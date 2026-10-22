@@ -53,7 +53,11 @@
           <span>📄</span>
           <span>HARVEST</span>
         </button>
-        <button id="settings-btn" class="btn btn-sm btn-outline btn-primary font-mono text-xs gap-1.5" title="Settings — decision model (optional)">
+        <button id="record-btn" class="btn btn-sm btn-ghost font-mono text-xs gap-1.5 text-error/90 hover:bg-error/10" title="Record a timelapse of this window (Settings → Recording)">
+          <span id="record-dot" class="text-error animate-pulse">●</span>
+          <span id="record-label">REC</span>
+        </button>
+        <button id="settings-btn" class="btn btn-sm btn-outline btn-primary font-mono text-xs gap-1.5" title="Settings — decision model and recording">
           <span>⚙️</span>
           <span>SETTINGS</span>
         </button>
@@ -230,74 +234,149 @@
     </div>
 
     <!-- Help & About Modal -->
-    <!-- Settings Modal: optional decision model -->
+    <!-- Settings: full-viewport, tabbed -->
 <dialog id="settings-modal" class="modal">
-  <div class="modal-box bg-base-300 border border-primary/40 shadow-2xl max-w-2xl p-6 font-sans">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <h3 class="font-mono text-sm font-bold text-primary">⚙️ SETTINGS · DECISION MODEL</h3>
-        <p class="text-xs text-base-content/60 mt-1">
-          Optional. Kuang works without it — the <code class="font-mono">decide</code> tool only appears
-          when a backend is configured. Saved to <code class="font-mono">data/decision.json</code>.
-        </p>
-      </div>
-      <span id="settings-status-badge" class="badge badge-ghost font-mono text-xs whitespace-nowrap">checking…</span>
-    </div>
-
-    <form id="settings-form" class="mt-5 space-y-4">
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend font-mono text-xs">Backend</legend>
-        <select id="settings-protocol" class="select select-sm w-full font-mono text-xs">
-          <option value="">Off — no decision model</option>
-          <option value="typesafe">Hosted Jev (typesafe protocol)</option>
-          <option value="local-onnx">Local ONNX (open-jev · experimental)</option>
-        </select>
-        <p class="label font-mono text-[10px]">Hosted answers in 70–500 ms. Local runs on this machine (kev-0.6b, ≈0.34 GB) and measured 5/12 on the page-decision bench — treat it as experimental.</p>
-      </fieldset>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend font-mono text-xs">Model</legend>
-          <input id="settings-model" type="text" class="input input-sm w-full font-mono text-xs" placeholder="jev-1.13 / kev-0.6b" />
-        </fieldset>
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend font-mono text-xs">Device (local only)</legend>
-          <select id="settings-device" class="select select-sm w-full font-mono text-xs">
-            <option value="">auto</option>
-            <option value="webgpu">webgpu</option>
-            <option value="cpu">cpu</option>
-          </select>
-        </fieldset>
-      </div>
-
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend font-mono text-xs">Endpoint URL (hosted only)</legend>
-        <input id="settings-url" type="url" class="input input-sm w-full font-mono text-xs" placeholder="https://opencode.ai/inference/systemone/v1/systemone" />
-        <p class="label font-mono text-[10px]">Base host or the full <code class="font-mono">…/v1/systemone</code> URL. Use the OpenCode Console key with the OpenCode endpoint, or a TypeSafe key with <code class="font-mono">api.typesafe.ai</code>.</p>
-        <p class="label font-mono text-[10px] text-warning">Screenshots in <code class="font-mono">decide</code> need <code class="font-mono">api.typesafe.ai</code>: the OpenCode gateway does not forward TypeSafe headers, so images are skipped when this endpoint is opencode.ai.</p>
-      </fieldset>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend font-mono text-xs">API key (hosted only)</legend>
-          <input id="settings-key" type="password" class="input input-sm w-full font-mono text-xs" placeholder="stored locally, never logged" autocomplete="off" />
-        </fieldset>
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend font-mono text-xs">Model revision (local only)</legend>
-          <input id="settings-revision" type="text" class="input input-sm w-full font-mono text-[10px]" placeholder="pin an ONNX commit" />
-        </fieldset>
-      </div>
-
-      <div id="settings-test-result" class="alert alert-ghost alert-sm font-mono text-xs hidden"></div>
-
-      <div class="modal-action justify-between items-center border-t border-base-100 pt-3 mt-2">
-        <button type="button" id="settings-test-btn" class="btn btn-sm btn-outline font-mono text-xs">TEST CONNECTION</button>
-        <div class="flex items-center gap-2">
-          <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE</button>
-          <button type="button" id="settings-close-btn" class="btn btn-sm btn-ghost font-mono text-xs">CLOSE</button>
+  <div class="modal-box w-screen max-w-none h-screen max-h-none rounded-none p-0 bg-base-300 flex flex-col">
+    <div class="flex items-center justify-between gap-4 px-5 py-3 border-b border-base-100 bg-base-200">
+      <div class="flex items-center gap-4">
+        <span class="font-mono text-sm font-bold text-primary">⚙️ SETTINGS</span>
+        <div class="tabs tabs-boxed tabs-sm bg-base-100 font-mono text-[11px]">
+          <button type="button" id="settings-tab-decision" class="tab tab-active" data-settings-tab="decision">DECISION MODEL</button>
+          <button type="button" id="settings-tab-recording" class="tab" data-settings-tab="recording">RECORDING</button>
         </div>
       </div>
-    </form>
+      <div class="flex items-center gap-2">
+        <span id="settings-status-badge" class="badge badge-ghost font-mono text-xs whitespace-nowrap">checking…</span>
+        <button type="button" id="settings-close-btn" class="btn btn-sm btn-ghost font-mono text-xs">CLOSE</button>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-6">
+      <!-- Decision model -->
+      <section data-settings-panel="decision" class="max-w-2xl mx-auto w-full">
+        <div>
+          <h3 class="font-mono text-sm font-bold text-primary">DECISION MODEL</h3>
+          <p class="text-xs text-base-content/60 mt-1">
+            Optional. Kuang works without it — the <code class="font-mono">decide</code> tool only appears
+            when a backend is configured. Saved to <code class="font-mono">data/decision.json</code>.
+          </p>
+        </div>
+
+        <form id="settings-form" class="mt-5 space-y-4">
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Backend</legend>
+            <select id="settings-protocol" class="select select-sm w-full font-mono text-xs">
+              <option value="">Off — no decision model</option>
+              <option value="typesafe">Hosted Jev (typesafe protocol)</option>
+              <option value="local-onnx">Local ONNX (open-jev · experimental)</option>
+            </select>
+            <p class="label font-mono text-[10px]">Hosted answers in 70–500 ms. Local runs on this machine (kev-0.6b, ≈0.34 GB) and measured 5/12 on the page-decision bench — treat it as experimental.</p>
+          </fieldset>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Model</legend>
+              <input id="settings-model" type="text" class="input input-sm w-full font-mono text-xs" placeholder="jev-1.13 / kev-0.6b" />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Device (local only)</legend>
+              <select id="settings-device" class="select select-sm w-full font-mono text-xs">
+                <option value="">auto</option>
+                <option value="webgpu">webgpu</option>
+                <option value="cpu">cpu</option>
+              </select>
+            </fieldset>
+          </div>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Endpoint URL (hosted only)</legend>
+            <input id="settings-url" type="url" class="input input-sm w-full font-mono text-xs" placeholder="https://opencode.ai/inference/systemone/v1/systemone" />
+            <p class="label font-mono text-[10px]">Base host or the full <code class="font-mono">…/v1/systemone</code> URL. Use the OpenCode Console key with the OpenCode endpoint, or a TypeSafe key with <code class="font-mono">api.typesafe.ai</code>.</p>
+            <p class="label font-mono text-[10px] text-warning">Screenshots in <code class="font-mono">decide</code> need <code class="font-mono">api.typesafe.ai</code>: the OpenCode gateway does not forward TypeSafe headers, so images are skipped when this endpoint is opencode.ai.</p>
+          </fieldset>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">API key (hosted only)</legend>
+              <input id="settings-key" type="password" class="input input-sm w-full font-mono text-xs" placeholder="stored locally, never logged" autocomplete="off" />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Model revision (local only)</legend>
+              <input id="settings-revision" type="text" class="input input-sm w-full font-mono text-[10px]" placeholder="pin an ONNX commit" />
+            </fieldset>
+          </div>
+
+          <div id="settings-test-result" class="alert alert-ghost alert-sm font-mono text-xs hidden"></div>
+
+          <div class="flex justify-between items-center border-t border-base-100 pt-3 mt-2">
+            <button type="button" id="settings-test-btn" class="btn btn-sm btn-outline font-mono text-xs">TEST CONNECTION</button>
+            <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Recording -->
+      <section data-settings-panel="recording" class="hidden max-w-3xl mx-auto w-full">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="font-mono text-sm font-bold text-primary">TIMELAPSE RECORDER</h3>
+            <p class="text-xs text-base-content/60 mt-1">
+              Records this Cyberdeck window. A frame is captured every interval and played back at the
+              chosen frame rate, so the video plays faster than real time. At 1 fps capture and 30 fps
+              playback, one minute of work becomes two seconds of video.
+            </p>
+          </div>
+          <span id="settings-rec-status" class="badge badge-ghost font-mono text-xs whitespace-nowrap">idle</span>
+        </div>
+
+        <form id="settings-rec-form" class="mt-5 space-y-4">
+          <label class="label cursor-pointer justify-start gap-3 py-0">
+            <input id="settings-rec-enabled" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            <span class="label-text font-mono text-xs">Enable the recorder (REC button and recording tools)</span>
+          </label>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Output directory</legend>
+            <div class="join w-full">
+              <input id="settings-rec-dir" type="text" class="input input-sm join-item flex-1 font-mono text-xs" placeholder="where finished .webm files are written" />
+              <button type="button" id="settings-rec-browse" class="btn btn-sm btn-outline join-item font-mono text-xs">BROWSE…</button>
+            </div>
+            <p class="label font-mono text-[10px]">Finished files are `.webm` (VP9). <code class="font-mono">list_recordings</code> returns their absolute paths from this folder, ready to type into a file-upload field.</p>
+          </fieldset>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Capture every (ms)</legend>
+              <input id="settings-rec-interval" type="number" min="200" step="100" class="input input-sm w-full font-mono text-xs" />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Playback fps</legend>
+              <input id="settings-rec-fps" type="number" min="5" max="60" class="input input-sm w-full font-mono text-xs" />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Max width (px)</legend>
+              <input id="settings-rec-width" type="number" min="480" max="1920" step="1" class="input input-sm w-full font-mono text-xs" />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Bitrate (Mbps)</legend>
+              <input id="settings-rec-bitrate" type="number" min="0.5" max="20" step="0.5" class="input input-sm w-full font-mono text-xs" />
+            </fieldset>
+          </div>
+
+          <div id="settings-rec-result" class="alert alert-ghost alert-sm font-mono text-xs hidden"></div>
+
+          <div class="flex justify-between items-center border-t border-base-100 pt-3 mt-2">
+            <button type="button" id="settings-rec-refresh" class="btn btn-sm btn-ghost font-mono text-xs">REFRESH FILES</button>
+            <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE RECORDING SETTINGS</button>
+          </div>
+        </form>
+
+        <div class="mt-6">
+          <h4 class="font-mono text-xs font-bold text-base-content/70">RECENT TIMELAPSES</h4>
+          <ul id="settings-rec-list" class="mt-2 space-y-1"></ul>
+        </div>
+      </section>
+    </div>
   </div>
   <form method="dialog" class="modal-backdrop">
     <button>close</button>

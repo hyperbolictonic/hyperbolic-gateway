@@ -13,6 +13,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > This is a deliberate, temporary deviation from strict semver; each increment still gets its own
 > Added/Fixed/Changed section here.
 
+## [1.4.5] - 2026-10-22
+
+### Added
+
+- **Timelapse recorder.** The REC button records the Cyberdeck window itself; **Settings → Recording** holds
+  enable/disable, an output directory (with BROWSE), capture interval, playback fps, max width and bitrate. A
+  frame is captured every `intervalMs` but stamped as if it were `1000/fps` apart, so a 10-minute session
+  becomes a ~20-second video at the defaults — `MediaRecorder` cannot re-time frames, so this uses WebCodecs
+  `VideoEncoder` + `webm-muxer` (VP9/WebM, no ffmpeg dependency).
+- **`record_start`, `record_stop`, `list_recordings`.** `record_stop` returns the absolute `.webm` path (plus
+  bytes, frames, video seconds and speed-up), and `list_recordings` lists recent files newest-first. The path
+  is an ordinary string, so an agent can type it into a file-upload field that accepts a value — or hand it to
+  a human when the field only opens a native picker.
+- **Settings is now a full-viewport, tabbed view** — Decision Model and Recording — instead of a small modal.
+  The REC button shows the elapsed time while recording and opens the Recording tab when the feature is off.
+
+### Changed
+
+- The tool surface is now **62 always-advertised tools** (+2 optional decision tools); 82 registered entries.
+  The README table, the generated Manual list and the counts in both were regenerated with `npm run manual:tools`.
+
+### Notes
+
+- `webm-muxer@5.1.4` is deprecated upstream in favour of Mediabunny (≈11 MB unpacked). It is kept because it is
+  ~147 kB unpacked and the API is contained to `src/renderer/recording.ts`, making a later swap mechanical.
+- Capture rate is best-effort: software VP9 encoding of a 1280px window can take a few hundred milliseconds per
+  frame, so the interval is a floor rather than a guarantee.
+
 ## [1.4.4] - 2026-10-22
 
 ### Added

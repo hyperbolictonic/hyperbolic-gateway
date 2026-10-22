@@ -360,9 +360,9 @@
 
       <!-- Semantic MCP Tools Table -->
       <section class="section-card">
-        <h2>🔌 Standardized Semantic MCP Tools (59 advertised · +2 optional)</h2>
+        <h2>🔌 Standardized Semantic MCP Tools (62 advertised · +2 optional)</h2>
         <p>
-          59 advertised tools (81 registered entries; 23 deprecated aliases stay callable by name but are hidden from
+          62 advertised tools (82 registered entries; 23 deprecated aliases stay callable by name but are hidden from
           <code>tools/list</code>), <strong>plus two optional tools — <code>drive</code> and <code>decide</code> — shown
           shaded above and listed first when a decision model is configured</strong> (see the Decision Layer section
           below). Seven OKF resources are also exposed:
@@ -544,7 +544,7 @@
         <!-- BEGIN GENERATED: complete tool list — regenerate with `npm run manual:tools` -->
         <details style="margin-top:18px;">
           <summary style="cursor:pointer; font-weight:700; font-size:15px; color:var(--accent); padding:6px 0;">
-            Complete tool list — 59 advertised + 2 optional (click to expand)
+            Complete tool list — 62 advertised + 2 optional (click to expand)
           </summary>
           <p style="font-size:12px; color:var(--text-muted);">
             Every advertised tool grouped by area. Rows shaded amber are <strong>optional</strong>: they appear only when a decision model is configured, and are then listed first. 23 deprecated aliases (e.g. <code>go_to_url</code>,
@@ -832,6 +832,24 @@
                 <td>Parses downloaded file (PDF, CSV, JSON, text) into token-efficient markdown.</td>
               </tr>
               <tr>
+                <td><strong>Timelapse Recording</strong></td>
+                <td><code>record_start</code></td>
+                <td><code>name?: string</code></td>
+                <td>Starts a timelapse of the Cyberdeck window itself: frames are captured every few hundred ms and played back faster than real time. The finished <code>.webm</code> path becomes an ordinary value you can type into a file-upload field.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>record_stop</code></td>
+                <td>_none_</td>
+                <td>Stops the timelapse and saves it (VP9/WebM). Returns the absolute path, size, frame count and speed-up factor.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>list_recordings</code></td>
+                <td><code>limit?: number</code></td>
+                <td>Lists finished timelapses as absolute paths, newest first — ready for upload fields.</td>
+              </tr>
+              <tr>
                 <td><strong>Network Intelligence</strong></td>
                 <td><code>get_network_traffic</code></td>
                 <td><code>url_pattern?: string</code>, <code>method?: string</code>, <code>resource_type?: string</code>, <code>limit?: number</code>, <code>since?: number | 'last_action'</code></td>
@@ -931,6 +949,35 @@
           </table>
         </details>
         <!-- END GENERATED: complete tool list -->
+      </section>
+
+      <section class="section-card">
+        <h2>🎥 Timelapse Recorder</h2>
+        <p>
+          The HUD can record <em>itself</em> as a timelapse — useful for showing how an agent worked, or for
+          attaching a short clip to a form that asks for a video. The <strong>REC</strong> button sits next to
+          <strong>SETTINGS</strong>; the recorder's options live in <strong>Settings → Recording</strong>.
+        </p>
+        <p>
+          A frame is captured every <em>interval</em> (default 1000 ms) and played back at the chosen frame rate
+          (default 30 fps). One minute of real work therefore becomes about two seconds of video. The file is
+          VP9 in a WebM container, so it plays in browsers and uploads without transcoding.
+        </p>
+        <ul>
+          <li><strong>Enable the recorder</strong> — turns the REC button and the recording tools on or off.</li>
+          <li><strong>Output directory</strong> — where finished files are written. The default is the app's
+            <code>recordings/</code> folder; <strong>BROWSE…</strong> picks another directory.</li>
+          <li><strong>Capture every / Playback fps / Max width / Bitrate</strong> — trade file size against
+            smoothness. Lower the interval for busy interfaces; raise it for long sessions.</li>
+          <li><strong>Recent timelapses</strong> — every file with <strong>COPY PATH</strong>, so a path can be
+            pasted straight into a file-upload field.</li>
+        </ul>
+        <p>
+          Agents can do the same with <code>record_start</code>, <code>record_stop</code> and
+          <code>list_recordings</code>. <code>record_stop</code> returns the absolute path; that path is an
+          ordinary string, so it can be typed into an upload field that accepts a value, or handed to a human
+          when the field only opens a native file picker.
+        </p>
       </section>
 
       <section class="section-card">

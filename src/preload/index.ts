@@ -39,6 +39,18 @@ export interface ElectronAPI {
   getActiveHil: () => Promise<any>;
   onHilRequested: (callback: (request: any) => void) => () => void;
   onHilCleared: (callback: () => void) => () => void;
+  getRecordingConfig: () => Promise<any>;
+  saveRecordingConfig: (config: any) => Promise<any>;
+  pickRecordingDir: () => Promise<string | null>;
+  startRecording: (name?: string) => Promise<{ filename: string; config: any }>;
+  stopRecording: () => Promise<any>;
+  getRecordingStatus: () => Promise<any>;
+  listRecordings: () => Promise<Array<{ path: string; filename: string; bytes: number; modified: number }>>;
+  saveRecording: (buffer: ArrayBuffer, frames: number) => Promise<any>;
+  recordingFailed: (message: string) => void;
+  onRecordingBegin: (callback: (payload: any) => void) => () => void;
+  onRecordingStop: (callback: () => void) => () => void;
+  onRecordingStatus: (callback: (state: any) => void) => () => void;
 }
 
 const api: ElectronAPI = {
@@ -127,6 +139,34 @@ const api: ElectronAPI = {
     const handler = () => callback();
     ipcRenderer.on('hil:cleared', handler);
     return () => ipcRenderer.removeListener('hil:cleared', handler);
+  },
+
+  getRecordingConfig: () => ipcRenderer.invoke('recording:config:get'),
+  saveRecordingConfig: (config: any) => ipcRenderer.invoke('recording:config:save', config),
+  pickRecordingDir: () => ipcRenderer.invoke('recording:pick-dir'),
+  startRecording: (name?: string) => ipcRenderer.invoke('recording:start', name),
+  stopRecording: () => ipcRenderer.invoke('recording:stop'),
+  getRecordingStatus: () => ipcRenderer.invoke('recording:status'),
+  listRecordings: () => ipcRenderer.invoke('recording:list'),
+  saveRecording: (buffer: ArrayBuffer, frames: number) => ipcRenderer.invoke('recording:save', buffer, frames),
+  recordingFailed: (message: string) => ipcRenderer.send('recording:failed', message),
+
+  onRecordingBegin: (callback) => {
+    const handler = (_: any, payload: any) => callback(payload);
+    ipcRenderer.on('recording:begin', handler);
+    return () => ipcRenderer.removeListener('recording:begin', handler);
+  },
+
+  onRecordingStop: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('recording:stop', handler);
+    return () => ipcRenderer.removeListener('recording:stop', handler);
+  },
+
+  onRecordingStatus: (callback) => {
+    const handler = (_: any, state: any) => callback(state);
+    ipcRenderer.on('recording:status', handler);
+    return () => ipcRenderer.removeListener('recording:status', handler);
   },
 };
 

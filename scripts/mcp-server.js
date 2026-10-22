@@ -37068,6 +37068,50 @@ ${lines.join("\n")}`;
     payload: (args) => ({ filename: args.filename }),
     format: (data) => data.content || JSON.stringify(data, null, 2)
   },
+  // 7b. Timelapse recording
+  {
+    name: "record_start",
+    description: "Starts a timelapse recording of the Cyberdeck window itself. Frames are captured every few hundred milliseconds and played back faster than real time, so a long browsing/scrolling session becomes a short video. Stop with record_stop, which returns the absolute file path \u2014 ready to type into a file-upload field. Use list_recordings to find previous files.",
+    parameters: {
+      name: external_exports.string().optional().describe('Optional label appended to the filename (e.g. "listing-upload")')
+    },
+    endpoint: "/recording/start",
+    payload: (args) => ({ name: args?.name }),
+    format: (data) => `Recording started: ${data.filename}
+Output directory: ${data.config?.outputDir}
+Capture every ${data.config?.intervalMs}ms, playback at ${data.config?.fps}fps. Call record_stop to save it.`
+  },
+  {
+    name: "record_stop",
+    description: "Stops the timelapse and saves it as a .webm file. Returns the absolute path, byte size, frames captured and playback speed-up. The path can be typed directly into a file-upload field (or use list_recordings).",
+    parameters: {},
+    endpoint: "/recording/stop",
+    format: (data) => {
+      const rec = data.recording || data;
+      if (!rec?.path) return JSON.stringify(data, null, 2);
+      const mb = (rec.bytes / 1024 / 1024).toFixed(1);
+      return `Saved ${rec.path}
+${mb} MB \xB7 ${rec.frames} frames \xB7 ${rec.videoSeconds}s of video \xB7 ${rec.speedup}\xD7 speed-up`;
+    }
+  },
+  {
+    name: "list_recordings",
+    description: "Lists finished timelapse recordings as absolute file paths, newest first. Use the path with a file-upload field (set the file input through the page, or hand it to a human if the field cannot be set programmatically).",
+    parameters: {
+      limit: external_exports.coerce.number().optional().default(20).describe("Maximum recordings to return")
+    },
+    endpoint: "/recording/list",
+    method: "GET",
+    endpointFor: (args) => `/recording/list?limit=${Math.max(1, Number(args?.limit) || 20)}`,
+    format: (data) => {
+      const items = Array.isArray(data.recordings) ? data.recordings : [];
+      if (!data.enabled) return "Recording is disabled \u2014 enable it in Settings \u2192 Recording.";
+      if (items.length === 0) return `No timelapses yet. They are written to ${data.outputDir}.`;
+      const lines = items.map((item) => `- ${item.filename} (${(item.bytes / 1024 / 1024).toFixed(1)} MB) \u2014 ${item.path}`);
+      return `### Timelapses (${items.length})
+${lines.join("\n")}`;
+    }
+  },
   // 8. Sessions & Cookies
   {
     name: "save_session",

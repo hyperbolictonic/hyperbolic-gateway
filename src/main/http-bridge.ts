@@ -6,6 +6,13 @@ import { APP_VERSION } from '../shared/version.js';
 import { runDecision, decisionStatus } from './decide/decision-client.js';
 import { decideGuarded } from './decide/decision-guard.js';
 import { driveTask } from './drive/driver.js';
+import {
+  getRecordingConfig,
+  getRecordingStatus,
+  listRecordings,
+  startRecording,
+  stopRecording,
+} from './recording/recording-service.js';
 
 function logBridge(message: string, isError = false) {
   const timestamp = new Date().toISOString();
@@ -225,6 +232,46 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         const body = await readBody();
         const document = await chassis.readDownloadedDocument(body.filename || body.id);
         sendJson({ success: true, document });
+        return;
+      }
+
+      // ---- timelapse recording --------------------------------------------------------------
+      if (req.method === 'GET' && pathname === '/recording/status') {
+        sendJson({ success: true, ...getRecordingStatus() });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/recording/start') {
+        const body = await readBody();
+        try {
+          const started = await startRecording(typeof body?.name === 'string' ? body.name : undefined);
+          sendJson({ success: true, ...started, status: getRecordingStatus() });
+        } catch (err: any) {
+          sendJson({ success: false, error: String(err?.message || err), code: 'RECORDING_FAILED' }, 400);
+        }
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/recording/stop') {
+        try {
+          const result = await stopRecording();
+          sendJson({ success: true, recording: result, ...result });
+        } catch (err: any) {
+          sendJson({ success: false, error: String(err?.message || err), code: 'RECORDING_FAILED' }, 400);
+        }
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/recording/list') {
+        const limit = Number(url.searchParams.get('limit')) || 20;
+        const config = getRecordingConfig();
+        sendJson({
+          success: true,
+          enabled: config.enabled,
+          outputDir: config.outputDir,
+          recording: getRecordingStatus().recording,
+          recordings: listRecordings(limit),
+        });
         return;
       }
 
