@@ -124,21 +124,38 @@ Notes:
 
 ## 4. Publishing to GitHub Releases
 
-Two options; pick one and keep it consistent:
+Publishing is automated by the `publish` job in `.github/workflows/build.yml`, which runs after all three
+platform builds succeed:
 
-**A. electron-builder publishes** — `--publish always` with `GH_TOKEN`, and in `electron-builder.json`:
+1. downloads the `win-`, `linux-` and `mac-artifacts` bundles,
+2. stages the installers, zips, blockmaps and `latest*.yml` feeds,
+3. creates a **draft** release (if it does not exist) with notes extracted from `CHANGELOG.md`,
+4. uploads every asset with `--clobber` (re-runs are idempotent), then
+5. **publishes** only for a **patch** tag.
 
-```json
-"publish": [{ "provider": "github", "owner": "hyperbolictonic", "repo": "kuang-grade-mark-eleven", "releaseType": "release" }]
+| Tag | Result |
+| :--- | :--- |
+| `v1.4.6` (patch) | Published automatically (`gh release edit --draft=false --latest`). |
+| `v1.5.0` (minor) | Left as a fully-populated **draft**; publish with `gh release edit v1.5.0 --draft=false --latest`. |
+| `v2.0.0` (major) | Same: draft, human publishes. |
+| `v1.4.6.1` (four-part) | No build at all — the guard skips the matrix. |
+
+The job summary links the one-line publish command for drafts. `--latest` is required: the auto-updater finds
+the feed through GitHub's "latest release", not by scanning tags.
+
+**Manual fallback / re-publish:** run the workflow from a tag with the `publish` input, or locally:
+
+```bash
+gh run download <run-id> -D release-artifacts
+# flatten artifacts/release/* into one folder, then:
+gh release create v1.4.6 --draft --notes-file notes.md
+gh release upload v1.4.6 assets/* --clobber
+gh release edit v1.4.6 --draft=false --latest
 ```
 
-It creates/updates the release and uploads artefacts + `latest*.yml` in one step. Simple, but the release must
-already exist or be created by it, and a partial failure leaves a half-published release.
-
-**B. Build job uploads artefacts; a publish job assembles the release** (`gh release upload`) — more moving
-parts, but you can review artefacts before they go live, and a failed platform doesn't block the others.
-
-Recommendation: **B** for the first releases (reviewable), switch to **A** once the matrix is green twice.
+**Why not `electron-builder --publish always`?** Three OS jobs would race to create and update the same
+release, occasionally leaving a half-uploaded page. A single publish job also guarantees a release is only
+considered when *every* platform built.
 
 ---
 
