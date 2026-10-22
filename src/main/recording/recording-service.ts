@@ -15,8 +15,13 @@ import path from 'node:path';
 import { app, dialog, type BrowserWindow } from 'electron';
 
 export interface RecordingConfig {
-  /** Whether the recorder is available at all. */
+  /** Whether the recorder is available at all (the REC button and the tools). */
   enabled: boolean;
+  /**
+   * Human-only master switch for the MCP recording tools. Not exposed to any tool or HTTP
+   * route that an agent can reach: it is only written from the Settings panel over IPC.
+   */
+  toolsEnabled: boolean;
   /** Absolute directory for finished files. */
   outputDir: string;
   /** Real milliseconds between captured frames. */
@@ -44,6 +49,8 @@ export interface RecordingResult {
 export interface RecordingStatus {
   recording: boolean;
   enabled: boolean;
+  /** Human-only switch; false means the recording tools are hidden and refused. */
+  toolsEnabled: boolean;
   filename?: string;
   startedAt?: number;
   frames?: number;
@@ -53,6 +60,7 @@ export interface RecordingStatus {
 
 const DEFAULT_CONFIG = (): RecordingConfig => ({
   enabled: true,
+  toolsEnabled: true,
   outputDir: path.join(app.getPath('userData'), 'recordings'),
   intervalMs: 1000,
   fps: 30,
@@ -66,9 +74,15 @@ function configPath(): string {
 
 let mainWindow: BrowserWindow | null = null;
 let config: RecordingConfig = DEFAULT_CONFIG();
-let status: RecordingStatus = { recording: false, enabled: true };
+let status: RecordingStatus = { recording: false, enabled: true, toolsEnabled: true };
 let statusListener: ((s: RecordingStatus) => void) | null = null;
 let pending: { filename: string; startedAt: number; resolve: (r: RecordingResult) => void; reject: (e: Error) => void } | null = null;
+let pendingStart: {
+  resolve: () => void;
+  reject: (e: Error) => void;
+  timer: NodeJS.Timeout;
+} | null = null;
+let startBarrier: Promise<void> | null = null;
 
 export function onRecordingStatus(cb: (s: RecordingStatus) => void): void {
   statusListener = cb;
@@ -95,6 +109,7 @@ export function loadRecordingConfig(): RecordingConfig {
     config = DEFAULT_CONFIG();
   }
   status.enabled = config.enabled;
+  status.toolsEnabled = config.toolsEnabled;
   return config;
 }
 
@@ -106,6 +121,8 @@ export function saveRecordingConfig(input: Partial<RecordingConfig>): RecordingC
   const next: RecordingConfig = {
     ...config,
     ...input,
+    enabled: typeof input.enabled === 'boolean' ? input.enabled : config.enabled,
+    toolsEnabled: typeof input.toolsEnabled === 'boolean' ? input.toolsEnabled : config.toolsEnabled,
     intervalMs: clamp(Number(input.intervalMs ?? config.intervalMs), 200, 60_000),
     fps: clamp(Number(input.fps ?? config.fps), 5, 60),
     maxWidth: clamp(Number(input.maxWidth ?? config.maxWidth), 480, 1920),
@@ -118,6 +135,7 @@ export function saveRecordingConfig(input: Partial<RecordingConfig>): RecordingC
   }
   config = next;
   status.enabled = next.enabled;
+  status.toolsEnabled = next.toolsEnabled;
   try {
     fs.mkdirSync(path.dirname(configPath()), { recursive: true });
     fs.writeFileSync(configPath(), JSON.stringify(next, null, 2) + '\n', 'utf8');
@@ -172,6 +190,23 @@ export async function startRecording(name?: string): Promise<{ filename: string;
   const startedAt = Date.now();
 
   const sourceId = mainWindow.getMediaSourceId();
+
+  // Do not report success until the renderer has a live encoder. `record_start` becomes an
+  // honest "the recording is running" signal, and a stop racing ahead of capture is impossible.
+  const ready = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      if (pendingStart) {
+        pendingStart = null;
+        startBarrier = null;
+        failRecording('Timed out starting the recording.');
+      }
+      reject(new Error('Timed out starting the recording.'));
+    }, 15_000);
+    timer.unref?.();
+    pendingStart = { resolve, reject, timer };
+  });
+  startBarrier = ready.catch(() => undefined);
+
   mainWindow.webContents.send('recording:begin', {
     sourceId,
     filename,
@@ -182,14 +217,34 @@ export async function startRecording(name?: string): Promise<{ filename: string;
   });
 
   setStatus({ recording: true, enabled: config.enabled, filename, startedAt, frames: 0, error: undefined });
+
+  try {
+    await ready;
+  } finally {
+    startBarrier = null;
+  }
   return { filename, config: { ...config } };
+}
+
+/** Called by the renderer once the stream and encoder are actually running. */
+export function readyRecording(): void {
+  const start = pendingStart;
+  if (!start) return;
+  pendingStart = null;
+  clearTimeout(start.timer);
+  start.resolve();
 }
 
 /** Ask the renderer to finalise; the file is written when it calls `saveRecording`. */
 export async function stopRecording(): Promise<RecordingResult> {
+  // A stop can arrive while the renderer is still opening the capture stream. Wait for that
+  // handshake instead of failing (and instead of leaving an orphaned recording running).
+  if (startBarrier) {
+    await startBarrier;
+  }
   if (!status.recording) {
     if (status.lastResult) return status.lastResult;
-    throw new Error('Not recording.');
+    throw new Error(status.error || 'Not recording.');
   }
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Window disappeared.');
 
@@ -238,6 +293,12 @@ export function saveRecording(buffer: ArrayBuffer, frames: number): RecordingRes
 
 export function failRecording(message: string): void {
   setStatus({ recording: false, error: message });
+  const start = pendingStart;
+  pendingStart = null;
+  if (start) {
+    clearTimeout(start.timer);
+    start.reject(new Error(message));
+  }
   const active = pending;
   pending = null;
   active?.reject(new Error(message));

@@ -211,6 +211,21 @@ function extractCleanBase64(data: any): string {
   return typeof raw === 'string' ? raw.replace(/^data:image\/[a-z]+;base64,/, '') : '';
 }
 
+/** Names gated by Settings → Recording → "Let agents use the recording tools". */
+const RECORDING_TOOL_NAMES = new Set(['record_start', 'record_stop', 'list_recordings']);
+
+/** Short probe; a bridge that is down must not hide tools (it may start later). */
+async function recordingToolsAllowed(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/recording/status`, { signal: AbortSignal.timeout(1500) });
+    if (!res.ok) return true;
+    const data: any = await res.json();
+    return data?.toolsEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
 /** Tools whose response carries a native image part (see the Phase-3 screenshot merge). */
 const IMAGE_TOOLS = new Set([
   'take_screenshot',
@@ -219,11 +234,20 @@ const IMAGE_TOOLS = new Set([
   'list_marks',
 ]);
 
-export function createBridgeMcpServer() {
+export async function createBridgeMcpServer() {
   const server = new McpServer({
     name: 'kuang-grade-mark-eleven',
     version: APP_VERSION,
   });
+
+  // The recording tools are gated by a human-only switch in Settings → Recording. Probe the
+  // bridge once at startup: when the switch is off, they are not registered at all (so they
+  // cannot appear in tools/list). The bridge routes refuse them too, which covers sessions
+  // that were already connected when the switch was flipped.
+  const recordingToolsAvailable = await recordingToolsAllowed();
+  if (!recordingToolsAvailable) {
+    logMcp('[Recording] Tools are disabled by the human-only switch; not registering them.', 'boot');
+  }
 
   // When a decision model is configured, its tools are the most interesting thing on the surface:
   // register them first so `tools/list` leads with `drive` and `decide` instead of burying them
@@ -241,6 +265,7 @@ export function createBridgeMcpServer() {
     // registered at all (so they cannot appear in tools/list and cannot be called by name). The
     // bridge routes still exist and answer NOT_CONFIGURED with setup instructions.
     if ((tool.name === 'decide' || tool.name === 'drive') && !decisionConfigured) continue;
+    if (!recordingToolsAvailable && RECORDING_TOOL_NAMES.has(tool.name)) continue;
 
     // Phase 4: fold discoverability guidance into the advertised description so it
     // travels with every tools/list entry in any agent framework.
@@ -778,7 +803,7 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
 
 async function start() {
   logMcp('Initializing Mark Eleven MCP Server over stdio...', 'boot');
-  const server = createBridgeMcpServer();
+  const server = await createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logMcp('Connected to stdio transport. Listening for JSON-RPC messages.', 'boot');

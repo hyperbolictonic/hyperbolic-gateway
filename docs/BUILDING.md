@@ -247,8 +247,12 @@ with artefacts.
   the target OS/arch (LanceDB ships per-platform packages; CI installs the right one automatically).
 - **macOS notarisation** fails on hardened-runtime entitlements (JIT, unsigned memory) — Electron needs the usual
   set; test notarisation on a throwaway build before publishing.
-- **AppImage + `asarUnpack`** for `**/*.node` and `**/@lancedb/**` is already handled, but confirm the unpacked
-  tree exists in the AppImage (`squashfs-root/resources/app.asar.unpacked`).
+- **AppImage + `asarUnpack`** for `**/*.node`, `**/@lancedb/**` and `bin/**/*` is already handled, but confirm the
+  unpacked tree exists in the AppImage (`squashfs-root/resources/app.asar.unpacked`). `bin/` must be unpacked
+  because MCP clients execute `bin/mcp-server.cjs` with an external runtime (bundled Electron-as-Node or system
+  Node); a file inside `app.asar` cannot be run that way. The app then copies that file to
+  `userData/bin/mcp-server.cjs` for generated client configs, because the `resources/` path is temporary under
+  portable and AppImage builds.
 - **GitHub asset limits**: 2 GiB per file; our artefacts are far below that, but a universal macOS build plus
   Chromium approaches ~200 MB.
 - **Update feed and four-part tags** — see §7. This is the one that will silently break things if forgotten.

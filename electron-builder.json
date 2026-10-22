@@ -24,7 +24,8 @@
   "asar": true,
   "asarUnpack": [
     "**/*.node",
-    "**/@lancedb/**"
+    "**/@lancedb/**",
+    "bin/**/*"
   ],
   "npmRebuild": false,
   "win": {

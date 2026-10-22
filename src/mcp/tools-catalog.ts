@@ -484,7 +484,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'record_start',
     description:
-      'Starts a timelapse recording of the Cyberdeck window itself. Frames are captured every few hundred milliseconds and played back faster than real time, so a long browsing/scrolling session becomes a short video. Stop with record_stop, which returns the absolute file path — ready to type into a file-upload field. Use list_recordings to find previous files.',
+      'Starts a timelapse recording of the Cyberdeck window itself and returns once the capture stream is live. Frames are captured every few hundred milliseconds and played back faster than real time, so a long browsing/scrolling session becomes a short video. Stop with record_stop, which returns the absolute file path — ready to type into a file-upload field. Use list_recordings to find previous files.',
     parameters: {
       name: z.string().optional().describe('Optional label appended to the filename (e.g. "listing-upload")'),
     },

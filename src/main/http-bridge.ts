@@ -242,6 +242,17 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       if (req.method === 'POST' && pathname === '/recording/start') {
+        if (getRecordingConfig().toolsEnabled === false) {
+          sendJson(
+            {
+              success: false,
+              error: 'Recording tools are disabled in Settings → Recording (human-only switch).',
+              code: 'RECORDING_TOOLS_DISABLED',
+            },
+            403
+          );
+          return;
+        }
         const body = await readBody();
         try {
           const started = await startRecording(typeof body?.name === 'string' ? body.name : undefined);
@@ -253,6 +264,17 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       if (req.method === 'POST' && pathname === '/recording/stop') {
+        if (getRecordingConfig().toolsEnabled === false) {
+          sendJson(
+            {
+              success: false,
+              error: 'Recording tools are disabled in Settings → Recording (human-only switch).',
+              code: 'RECORDING_TOOLS_DISABLED',
+            },
+            403
+          );
+          return;
+        }
         try {
           const result = await stopRecording();
           sendJson({ success: true, recording: result, ...result });
@@ -263,11 +285,23 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
       }
 
       if (req.method === 'GET' && pathname === '/recording/list') {
+        if (getRecordingConfig().toolsEnabled === false) {
+          sendJson(
+            {
+              success: false,
+              error: 'Recording tools are disabled in Settings → Recording (human-only switch).',
+              code: 'RECORDING_TOOLS_DISABLED',
+            },
+            403
+          );
+          return;
+        }
         const limit = Number(url.searchParams.get('limit')) || 20;
         const config = getRecordingConfig();
         sendJson({
           success: true,
           enabled: config.enabled,
+          toolsEnabled: config.toolsEnabled,
           outputDir: config.outputDir,
           recording: getRecordingStatus().recording,
           recordings: listRecordings(limit),

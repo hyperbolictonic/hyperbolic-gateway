@@ -358,6 +358,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Records the deck itself:** the **REC** button (next to SETTINGS) captures the Cyberdeck window as a timelapse — frames every `intervalMs`, played back at a chosen fps. One minute of work becomes two seconds of video at the 1 fps / 30 fps defaults.
 - **True re-timing, not a sped-up screen recording:** the renderer uses WebCodecs `VideoEncoder` with explicit frame timestamps and muxes VP9 into WebM with `webm-muxer` (`MediaRecorder` cannot retime frames).
 - **Settings → Recording:** enable/disable, output directory with **BROWSE…**, capture interval, playback fps, max width and bitrate; finished files are listed with **COPY PATH**.
+- **Agent access is a separate, human-only switch:** *"Let agents use the recording tools"* removes `record_start`, `record_stop` and `list_recordings` from `tools/list` and makes the bridge refuse them with `RECORDING_TOOLS_DISABLED`. Only the Settings panel can flip it — no tool or HTTP route writes that flag.
 - **Programmatic hand-off:** `record_start` → `record_stop` returns the absolute `.webm` path (plus size, frames and speed-up), and `list_recordings` lists recent files newest-first. That path is a plain string you can type into a file-upload field; if the field only opens a native picker, hand it to a human.
 - **Why a path matters:** upload forms usually cannot be driven by setting a value — the browser requires a real file selection. Kuang gives the agent (or the human) the exact file to choose instead of guessing.
 
@@ -588,21 +589,34 @@ pnpm run build
 pnpm start
 ```
 
-### MCP Client Configuration (e.g. Claude Desktop, Cursor, Antigravity, Agent-Orcha)
-Add this to your MCP configuration (`claude_desktop_config.json` / `mcp_config.json`):
+### MCP Client Configuration (OpenCode, Claude, Cursor, Antigravity, Atomic Chat)
+
+The HUD's **Settings → MCP Clients** tab generates a correct, copy-ready config for *this* installation —
+OpenCode, Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Google Antigravity, Gemini CLI, Atomic Chat,
+Zed, and the generic `mcpServers` shape. It fills in the absolute server path and bridge port, and offers two
+runtimes:
+
+- **Bundled** (default) — runs the server on Kuang's own Electron runtime with `ELECTRON_RUN_AS_NODE=1`, so
+  **Node does not need to be installed**. Installed builds unpack `bin/` out of the asar precisely so this works.
+- **System Node** — `node bin/mcp-server.cjs`, requiring Node 20+ on `PATH`.
+
+A minimal Claude-style entry looks like this (the tab generates the real paths):
 ```json
 {
   "mcpServers": {
-    "mark-eleven": {
-      "command": "node",
-      "args": [
-        "<user>/Documents/<workspace>/kuang_grade_mark_eleven/bin/mcp-server.cjs"
-      ]
+    "kuang": {
+      "command": "C:\\Path\\To\\Kuang Grade Mark Eleven.exe",
+      "args": ["C:\\Users\\You\\AppData\\Roaming\\kuang-grade-mark-eleven\\bin\\mcp-server.cjs"],
+      "env": { "ELECTRON_RUN_AS_NODE": "1" }
     }
   }
 }
 ```
-> **Note:** The Mark Eleven Cyberdeck application must be running in the background (`pnpm run dev` or `pnpm start`) so the MCP stdio bridge runner can communicate with the active browser instance on `http://127.0.0.1:4111`.
+> **Note:** the Cyberdeck must be running (`pnpm run dev` or `pnpm start`) so the stdio server can reach the
+> browser instance on `http://127.0.0.1:4111`. If you run on another port with `KUANG_BRIDGE_PORT`, set
+> `KUANG_BRIDGE_URL` for the MCP server — the generated snippet includes it automatically. Installed builds copy
+> the server into `userData/bin/` (refreshed on update), because `resources/` is temporary for portable and
+> AppImage builds.
 
 ---
 

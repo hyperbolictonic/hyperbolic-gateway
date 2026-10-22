@@ -1,10 +1,13 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { BrowserChassis } from './browser-chassis.js';
 import { startHttpBridge } from './http-bridge.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
+import { APP_VERSION } from '../shared/version.js';
 import {
   failRecording,
   getRecordingConfig,
@@ -13,6 +16,7 @@ import {
   loadRecordingConfig,
   onRecordingStatus,
   pickRecordingDir,
+  readyRecording,
   saveRecording,
   saveRecordingConfig,
   setRecordingWindow,
@@ -31,6 +35,43 @@ if (!gotTheLock) {
 
 let mainWindow: BrowserWindow | null = null;
 const chassis = new BrowserChassis();
+
+const configuredPort = Number(process.env.KUANG_BRIDGE_PORT);
+const bridgePort = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 4111;
+
+/**
+ * A stable path to the stdio MCP server for generated client configs.
+ *
+ * Installed builds copy the asar-unpacked file into userData: `resources/` is temporary for
+ * portable and AppImage builds, so a config pointing inside it would break after the app exits.
+ * The copy is refreshed whenever the bundled file is newer (i.e. after an update).
+ */
+let cachedMcpServerPath: string | null = null;
+function ensureMcpServerPath(): string {
+  if (cachedMcpServerPath) return cachedMcpServerPath;
+
+  const devPath = path.join(app.getAppPath(), 'bin', 'mcp-server.cjs');
+  if (!app.isPackaged) {
+    cachedMcpServerPath = devPath;
+    return devPath;
+  }
+
+  const source = path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'mcp-server.cjs');
+  const target = path.join(app.getPath('userData'), 'bin', 'mcp-server.cjs');
+  try {
+    const sourceMtime = fs.statSync(source).mtimeMs;
+    const targetMtime = fs.existsSync(target) ? fs.statSync(target).mtimeMs : 0;
+    if (targetMtime < sourceMtime) {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(source, target);
+    }
+    cachedMcpServerPath = target;
+  } catch {
+    // Worst case, point at the bundled path: correct for installed (non-portable) builds.
+    cachedMcpServerPath = source;
+  }
+  return cachedMcpServerPath;
+}
 
 // The Cyberdeck is driven while the human's editor/terminal owns the foreground, so the
 // window is routinely *occluded*. Chromium then stops producing frames for it, which
@@ -63,7 +104,23 @@ ipcMain.handle('recording:stop', () => stopRecording());
 ipcMain.handle('recording:status', () => getRecordingStatus());
 ipcMain.handle('recording:list', () => listRecordings());
 ipcMain.handle('recording:save', (_event, buffer: ArrayBuffer, frames: number) => saveRecording(buffer, Number(frames) || 0));
+ipcMain.on('recording:ready', () => readyRecording());
 ipcMain.on('recording:failed', (_event, message: string) => failRecording(String(message || 'Recording failed.')));
+
+ipcMain.handle('app:connect-info', () => {
+  const serverPath = ensureMcpServerPath();
+  return {
+    platform: process.platform,
+    version: APP_VERSION,
+    bridgeUrl: `http://127.0.0.1:${bridgePort}`,
+    bridgePort,
+    serverPath,
+    serverExists: fs.existsSync(serverPath),
+    runtimePath: process.execPath,
+    packaged: app.isPackaged,
+    homedir: os.homedir(),
+  };
+});
 
 onRecordingStatus((state) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -126,8 +183,6 @@ async function createWindow() {
 
   // Start Autonomous HTTP Bridge
   try {
-    const configuredPort = Number(process.env.KUANG_BRIDGE_PORT);
-    const bridgePort = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 4111;
     startHttpBridge(chassis, bridgePort);
   } catch (err: any) {
     chassis.addLog('warn', `HTTP Bridge notice: ${err?.message || err}`);

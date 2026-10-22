@@ -971,12 +971,24 @@
             smoothness. Lower the interval for busy interfaces; raise it for long sessions.</li>
           <li><strong>Recent timelapses</strong> — every file with <strong>COPY PATH</strong>, so a path can be
             pasted straight into a file-upload field.</li>
+          <li><strong>Let agents use the recording tools</strong> — a <em>human-only</em> switch. While off,
+            <code>record_start</code>, <code>record_stop</code> and <code>list_recordings</code> are not registered in
+            <code>tools/list</code> and the bridge refuses them (<code>RECORDING_TOOLS_DISABLED</code>). No tool can
+            change this switch; only this panel can. Reconnect an already-running agent to see the change.</li>
         </ul>
         <p>
           Agents can do the same with <code>record_start</code>, <code>record_stop</code> and
           <code>list_recordings</code>. <code>record_stop</code> returns the absolute path; that path is an
           ordinary string, so it can be typed into an upload field that accepts a value, or handed to a human
           when the field only opens a native file picker.
+        </p>
+        <p>
+          To connect an agent, open <strong>Settings → MCP Clients</strong> and copy the config for your client
+          (OpenCode, Claude Desktop/Code, Cursor, VS Code, Windsurf, Google Antigravity, Gemini CLI, Atomic Chat,
+          Zed, or a generic <code>mcpServers</code> block). The tab fills in this installation's paths. The default
+          <strong>Bundled</strong> runtime uses Kuang's own Electron binary as Node
+          (<code>ELECTRON_RUN_AS_NODE=1</code>), so no Node installation is required; switch to
+          <strong>System Node</strong> if you prefer <code>node</code> from <code>PATH</code>.
         </p>
       </section>
 

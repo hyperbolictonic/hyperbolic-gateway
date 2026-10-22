@@ -131,6 +131,7 @@ export async function beginRecording(payload: BeginPayload): Promise<void> {
     fps: payload.fps,
   };
   capture();
+  window.electronAPI?.recordingReady?.();
 }
 
 export async function finishRecording(): Promise<void> {

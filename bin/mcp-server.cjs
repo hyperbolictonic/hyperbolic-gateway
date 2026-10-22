@@ -37071,7 +37071,7 @@ ${lines.join("\n")}`;
   // 7b. Timelapse recording
   {
     name: "record_start",
-    description: "Starts a timelapse recording of the Cyberdeck window itself. Frames are captured every few hundred milliseconds and played back faster than real time, so a long browsing/scrolling session becomes a short video. Stop with record_stop, which returns the absolute file path \u2014 ready to type into a file-upload field. Use list_recordings to find previous files.",
+    description: "Starts a timelapse recording of the Cyberdeck window itself and returns once the capture stream is live. Frames are captured every few hundred milliseconds and played back faster than real time, so a long browsing/scrolling session becomes a short video. Stop with record_stop, which returns the absolute file path \u2014 ready to type into a file-upload field. Use list_recordings to find previous files.",
     parameters: {
       name: external_exports.string().optional().describe('Optional label appended to the filename (e.g. "listing-upload")')
     },
@@ -38184,7 +38184,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.4";
+var APP_VERSION = "1.4.5";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
@@ -38379,17 +38379,32 @@ function extractCleanBase64(data) {
   const raw = data?.screenshot?.base64Image || data?.base64Image || data?.image || "";
   return typeof raw === "string" ? raw.replace(/^data:image\/[a-z]+;base64,/, "") : "";
 }
+var RECORDING_TOOL_NAMES = /* @__PURE__ */ new Set(["record_start", "record_stop", "list_recordings"]);
+async function recordingToolsAllowed() {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/recording/status`, { signal: AbortSignal.timeout(1500) });
+    if (!res.ok) return true;
+    const data = await res.json();
+    return data?.toolsEnabled !== false;
+  } catch {
+    return true;
+  }
+}
 var IMAGE_TOOLS = /* @__PURE__ */ new Set([
   "take_screenshot",
   "take_annotated_screenshot",
   "take_economy_screenshot",
   "list_marks"
 ]);
-function createBridgeMcpServer() {
+async function createBridgeMcpServer() {
   const server = new McpServer({
     name: "kuang-grade-mark-eleven",
     version: APP_VERSION
   });
+  const recordingToolsAvailable = await recordingToolsAllowed();
+  if (!recordingToolsAvailable) {
+    logMcp("[Recording] Tools are disabled by the human-only switch; not registering them.", "boot");
+  }
   const decisionConfigured = decisionStatus().configured;
   const orderedTools = decisionConfigured ? [
     ...TOOLS_CATALOG.filter((t) => t.name === "drive" || t.name === "decide"),
@@ -38397,6 +38412,7 @@ function createBridgeMcpServer() {
   ] : TOOLS_CATALOG;
   for (const tool of orderedTools) {
     if ((tool.name === "decide" || tool.name === "drive") && !decisionConfigured) continue;
+    if (!recordingToolsAvailable && RECORDING_TOOL_NAMES.has(tool.name)) continue;
     const tier = TOOL_TIERS[tool.name];
     const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
     server.tool(tool.name, `${prefix}${tool.description}`, tool.parameters, async (args) => {
@@ -38919,7 +38935,7 @@ function normalizeIncomingParams(params) {
 }
 async function start() {
   logMcp("Initializing Mark Eleven MCP Server over stdio...", "boot");
-  const server = createBridgeMcpServer();
+  const server = await createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logMcp("Connected to stdio transport. Listening for JSON-RPC messages.", "boot");

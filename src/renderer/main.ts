@@ -544,6 +544,7 @@ const settingsRecStatus = document.getElementById('settings-rec-status') as HTML
 const settingsRecList = document.getElementById('settings-rec-list') as HTMLElement | null;
 const settingsRecForm = document.getElementById('settings-rec-form') as HTMLFormElement | null;
 const settingsRecEnabled = document.getElementById('settings-rec-enabled') as HTMLInputElement | null;
+const settingsRecTools = document.getElementById('settings-rec-tools') as HTMLInputElement | null;
 const settingsRecDir = document.getElementById('settings-rec-dir') as HTMLInputElement | null;
 const settingsRecInterval = document.getElementById('settings-rec-interval') as HTMLInputElement | null;
 const settingsRecFps = document.getElementById('settings-rec-fps') as HTMLInputElement | null;
@@ -687,6 +688,7 @@ async function loadRecordingSettings() {
   try {
     const config = await window.electronAPI!.getRecordingConfig();
     if (settingsRecEnabled) settingsRecEnabled.checked = Boolean(config.enabled);
+    if (settingsRecTools) settingsRecTools.checked = config.toolsEnabled !== false;
     if (settingsRecDir) settingsRecDir.value = config.outputDir || '';
     if (settingsRecInterval) settingsRecInterval.value = String(config.intervalMs);
     if (settingsRecFps) settingsRecFps.value = String(config.fps);
@@ -743,6 +745,7 @@ settingsRecForm?.addEventListener('submit', async (event) => {
   try {
     const saved = await window.electronAPI!.saveRecordingConfig({
       enabled: settingsRecEnabled?.checked !== false,
+      toolsEnabled: settingsRecTools?.checked !== false,
       outputDir: settingsRecDir?.value.trim(),
       intervalMs: Number(settingsRecInterval?.value),
       fps: Number(settingsRecFps?.value),
@@ -793,8 +796,12 @@ if (settingsBtn && settingsModal) {
     for (const panel of settingsPanels) {
       panel.classList.toggle('hidden', panel.dataset.settingsPanel !== tab);
     }
+    badgeEl.classList.toggle('hidden', tab !== 'decision');
     if (tab === 'recording') {
       void loadRecordingSettings();
+    }
+    if (tab === 'clients') {
+      void loadConnectPanel();
     }
   };
   for (const button of settingsTabs) {
@@ -833,6 +840,9 @@ if (settingsBtn && settingsModal) {
       showResult('error', `Could not read settings: ${err?.message || err}`);
     }
     settingsModal.showModal();
+    const activeTab = settingsTabs.find((button) => button.classList.contains('tab-active'))?.dataset.settingsTab;
+    if (activeTab === 'recording') void loadRecordingSettings();
+    if (activeTab === 'clients') void loadConnectPanel();
   });
 
   settingsModal.addEventListener('close', () => {
@@ -894,6 +904,227 @@ if (settingsBtn && settingsModal) {
 
   closeBtn.addEventListener('click', () => settingsModal.close());
 }
+
+// ---- MCP client snippets (Settings → MCP Clients) ------------------------------------------
+type ConnectRuntime = 'bundled' | 'node';
+
+interface ConnectInfo {
+  platform: string;
+  version: string;
+  bridgeUrl: string;
+  bridgePort: number;
+  serverPath: string;
+  serverExists: boolean;
+  runtimePath: string;
+  packaged: boolean;
+  homedir: string;
+}
+
+interface ConnectClient {
+  id: string;
+  label: string;
+  file: (info: ConnectInfo) => string;
+  snippet: (info: ConnectInfo, runtime: ConnectRuntime) => string;
+  note?: string;
+}
+
+const connectClientEl = document.getElementById('connect-client') as HTMLSelectElement | null;
+const connectRuntimeEl = document.getElementById('connect-runtime') as HTMLSelectElement | null;
+const connectClientNameEl = document.getElementById('connect-client-name') as HTMLElement | null;
+const connectFileEl = document.getElementById('connect-file') as HTMLElement | null;
+const connectSnippetEl = document.getElementById('connect-snippet') as HTMLElement | null;
+const connectNoteEl = document.getElementById('connect-note') as HTMLElement | null;
+const connectCopyEl = document.getElementById('connect-copy') as HTMLButtonElement | null;
+
+let connectInfo: ConnectInfo | null = null;
+
+function runtimeParts(info: ConnectInfo, runtime: ConnectRuntime) {
+  const env: Record<string, string> = {};
+  if (runtime === 'bundled') env.ELECTRON_RUN_AS_NODE = '1';
+  if (info.bridgePort !== 4111) env.KUANG_BRIDGE_URL = info.bridgeUrl;
+  return runtime === 'bundled'
+    ? { command: info.runtimePath, args: [info.serverPath], env }
+    : { command: 'node', args: [info.serverPath], env };
+}
+
+const withEnv = (entry: Record<string, any>, env: Record<string, string>) =>
+  Object.keys(env).length ? { ...entry, env } : entry;
+
+const claudeStyle = (info: ConnectInfo, runtime: ConnectRuntime) => {
+  const { command, args, env } = runtimeParts(info, runtime);
+  return JSON.stringify({ mcpServers: { kuang: withEnv({ command, args }, env) } }, null, 2);
+};
+
+const quote = (value: string) => `"${value}"`;
+
+/** Join a home-relative config path with the host separator (display only). */
+const hpath = (info: ConnectInfo, ...parts: string[]) =>
+  [info.homedir, ...parts].join(info.platform === 'win32' ? '\\' : '/');
+
+const CONNECT_CLIENTS: ConnectClient[] = [
+  {
+    id: 'opencode',
+    label: 'OpenCode',
+    file: (info) => `${hpath(info, '.config', 'opencode', 'opencode.json')} (global) · opencode.json (project)`,
+    snippet: (info, runtime) => {
+      const { command, args, env } = runtimeParts(info, runtime);
+      const entry: Record<string, any> = { type: 'local', command: [command, ...args], enabled: true };
+      if (Object.keys(env).length) entry.environment = env;
+      return JSON.stringify({ $schema: 'https://opencode.ai/config.json', mcp: { kuang: entry } }, null, 2);
+    },
+    note: 'Restart OpenCode after saving. Tools appear under the `kuang` server name.',
+  },
+  {
+    id: 'claude-desktop',
+    label: 'Claude Desktop',
+    file: (info) =>
+      info.platform === 'win32'
+        ? `${info.homedir}\\AppData\\Roaming\\Claude\\claude_desktop_config.json`
+        : info.platform === 'darwin'
+          ? `${info.homedir}/Library/Application Support/Claude/claude_desktop_config.json`
+          : `${info.homedir}/.config/Claude/claude_desktop_config.json`,
+    snippet: claudeStyle,
+    note: 'Quit Claude Desktop completely (tray icon too) and reopen it after saving.',
+  },
+  {
+    id: 'claude-code',
+    label: 'Claude Code',
+    file: () => 'Run once in a terminal · or commit .mcp.json to the project',
+    snippet: (info, runtime) => {
+      const { command, args, env } = runtimeParts(info, runtime);
+      const parts = ['claude', 'mcp', 'add', 'kuang'];
+      for (const [key, value] of Object.entries(env)) parts.push('--env', `${key}=${value}`);
+      parts.push('--', quote(command), ...args.map(quote));
+      return parts.join(' ');
+    },
+    note: 'Use `claude mcp list` to verify. A project .mcp.json with the Claude Desktop shape also works.',
+  },
+  {
+    id: 'cursor',
+    label: 'Cursor',
+    file: (info) => `${hpath(info, '.cursor', 'mcp.json')} (global) · .cursor/mcp.json (project)`,
+    snippet: claudeStyle,
+    note: 'Cursor → Settings → MCP → refresh after saving.',
+  },
+  {
+    id: 'vscode',
+    label: 'VS Code (Copilot)',
+    file: () => '.vscode/mcp.json in the workspace',
+    snippet: (info, runtime) => {
+      const { command, args, env } = runtimeParts(info, runtime);
+      return JSON.stringify({ servers: { kuang: withEnv({ type: 'stdio', command, args }, env) } }, null, 2);
+    },
+    note: 'Needs an agent-mode request; run “MCP: List Servers” to start the server.',
+  },
+  {
+    id: 'windsurf',
+    label: 'Windsurf',
+    file: (info) => hpath(info, '.codeium', 'windsurf', 'mcp_config.json'),
+    snippet: claudeStyle,
+    note: 'Cascade → MCP → refresh after saving.',
+  },
+  {
+    id: 'antigravity',
+    label: 'Google Antigravity',
+    file: (info) =>
+      `${hpath(info, '.gemini', 'config', 'mcp_config.json')} (global) · .agents/mcp_config.json (workspace)`,
+    snippet: claudeStyle,
+    note: 'Antigravity rejects a `type` field — this snippet uses only command/args/env.',
+  },
+  {
+    id: 'gemini-cli',
+    label: 'Gemini CLI',
+    file: (info) => hpath(info, '.gemini', 'settings.json'),
+    snippet: claudeStyle,
+    note: 'Merge into the existing settings.json rather than replacing it.',
+  },
+  {
+    id: 'atomic-chat',
+    label: 'Atomic Chat',
+    file: () => 'Settings → MCP Servers → Add MCP Server → JSON editor',
+    snippet: claudeStyle,
+    note: 'Paste this into Atomic Chat’s JSON editor, or enter the same command/args in the add-server form.',
+  },
+  {
+    id: 'zed',
+    label: 'Zed',
+    file: (info) => hpath(info, '.config', 'zed', 'settings.json'),
+    snippet: (info, runtime) => {
+      const { command, args, env } = runtimeParts(info, runtime);
+      return JSON.stringify(
+        { context_servers: { kuang: { source: 'custom', command: { path: command, args, env } } } },
+        null,
+        2
+      );
+    },
+    note: 'Zed calls them context servers; they appear in the agent panel.',
+  },
+  {
+    id: 'generic',
+    label: 'Generic (mcpServers)',
+    file: () => 'Any client that accepts command / args / env over stdio',
+    snippet: claudeStyle,
+    note: 'The standard `mcpServers` wrapper used by most desktop clients.',
+  },
+];
+
+function populateConnectClients() {
+  if (!connectClientEl) return;
+  connectClientEl.replaceChildren();
+  for (const client of CONNECT_CLIENTS) {
+    const option = document.createElement('option');
+    option.value = client.id;
+    option.textContent = client.label;
+    connectClientEl.append(option);
+  }
+}
+
+function renderConnect() {
+  if (!connectInfo || !connectClientEl || !connectSnippetEl) return;
+  const client = CONNECT_CLIENTS.find((item) => item.id === connectClientEl.value) || CONNECT_CLIENTS[0];
+  const runtime = (connectRuntimeEl?.value === 'node' ? 'node' : 'bundled') as ConnectRuntime;
+
+  if (connectClientNameEl) connectClientNameEl.textContent = client.label;
+  if (connectFileEl) connectFileEl.textContent = client.file(connectInfo);
+  connectSnippetEl.textContent = client.snippet(connectInfo, runtime);
+
+  const notes: string[] = [];
+  if (client.note) notes.push(client.note);
+  notes.push(
+    runtime === 'bundled'
+      ? 'Runs on this app’s bundled runtime (ELECTRON_RUN_AS_NODE=1), so Node does not need to be installed.'
+      : 'Runs with `node` from PATH — Node 20 or newer is required.'
+  );
+  notes.push(
+    connectInfo.bridgePort === 4111
+      ? 'The Cyberdeck must already be running; the bridge listens on the default port 4111.'
+      : `KUANG_BRIDGE_URL=${connectInfo.bridgeUrl} is included because this instance uses port ${connectInfo.bridgePort}.`
+  );
+  if (!connectInfo.serverExists) notes.push(`⚠ MCP server not found at ${connectInfo.serverPath} — run npm run build:mcp.`);
+  if (connectNoteEl) connectNoteEl.textContent = notes.join(' ');
+}
+
+async function loadConnectPanel() {
+  if (!connectClientEl) return;
+  if (!connectClientEl.options.length) populateConnectClients();
+  try {
+    if (!connectInfo) connectInfo = await window.electronAPI!.getConnectInfo();
+    renderConnect();
+  } catch (err: any) {
+    if (connectSnippetEl) connectSnippetEl.textContent = `Could not read connection info: ${err?.message || err}`;
+  }
+}
+
+connectClientEl?.addEventListener('change', renderConnect);
+connectRuntimeEl?.addEventListener('change', renderConnect);
+connectCopyEl?.addEventListener('click', async () => {
+  const text = connectSnippetEl?.textContent || '';
+  if (!text) return;
+  await window.electronAPI?.copyToClipboard(text);
+  connectCopyEl.textContent = 'COPIED';
+  window.setTimeout(() => (connectCopyEl.textContent = 'COPY'), 1500);
+});
+populateConnectClients();
 
 // ---- Auto-update banner (packaged builds only; the main process disables it elsewhere) ------
 const updateBanner = document.getElementById('update-banner') as HTMLElement | null;

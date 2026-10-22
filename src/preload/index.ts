@@ -40,6 +40,17 @@ export interface ElectronAPI {
   onHilRequested: (callback: (request: any) => void) => () => void;
   onHilCleared: (callback: () => void) => () => void;
   getRecordingConfig: () => Promise<any>;
+  getConnectInfo: () => Promise<{
+    platform: string;
+    version: string;
+    bridgeUrl: string;
+    bridgePort: number;
+    serverPath: string;
+    serverExists: boolean;
+    runtimePath: string;
+    packaged: boolean;
+    homedir: string;
+  }>;
   saveRecordingConfig: (config: any) => Promise<any>;
   pickRecordingDir: () => Promise<string | null>;
   startRecording: (name?: string) => Promise<{ filename: string; config: any }>;
@@ -47,6 +58,7 @@ export interface ElectronAPI {
   getRecordingStatus: () => Promise<any>;
   listRecordings: () => Promise<Array<{ path: string; filename: string; bytes: number; modified: number }>>;
   saveRecording: (buffer: ArrayBuffer, frames: number) => Promise<any>;
+  recordingReady: () => void;
   recordingFailed: (message: string) => void;
   onRecordingBegin: (callback: (payload: any) => void) => () => void;
   onRecordingStop: (callback: () => void) => () => void;
@@ -142,6 +154,7 @@ const api: ElectronAPI = {
   },
 
   getRecordingConfig: () => ipcRenderer.invoke('recording:config:get'),
+  getConnectInfo: () => ipcRenderer.invoke('app:connect-info'),
   saveRecordingConfig: (config: any) => ipcRenderer.invoke('recording:config:save', config),
   pickRecordingDir: () => ipcRenderer.invoke('recording:pick-dir'),
   startRecording: (name?: string) => ipcRenderer.invoke('recording:start', name),
@@ -149,6 +162,7 @@ const api: ElectronAPI = {
   getRecordingStatus: () => ipcRenderer.invoke('recording:status'),
   listRecordings: () => ipcRenderer.invoke('recording:list'),
   saveRecording: (buffer: ArrayBuffer, frames: number) => ipcRenderer.invoke('recording:save', buffer, frames),
+  recordingReady: () => ipcRenderer.send('recording:ready'),
   recordingFailed: (message: string) => ipcRenderer.send('recording:failed', message),
 
   onRecordingBegin: (callback) => {
