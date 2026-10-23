@@ -283,6 +283,9 @@ function appendDecision(event: any) {
 }
 
 window.electronAPI?.onDecision(appendDecision);
+window.electronAPI?.onDecisionStatus((status) => {
+  setDecisionTabVisible(Boolean(status?.configured), status);
+});
 
 // The ring buffer lives in the main process and resets on restart, so re-sync periodically and
 // whenever the tab is opened: a decision made before the window loaded still shows up.

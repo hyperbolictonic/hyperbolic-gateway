@@ -621,6 +621,10 @@ export class BrowserChassis {
       this.addLog('warn', `Sidebar overlay failed to load: ${err?.message || err}`);
     }
 
+    this.sidebarView.webContents.on('did-finish-load', () => {
+      this.sidebarView?.webContents.send('chassis:decision-status', decisionStatus());
+    });
+
     this.positionSidebar();
   }
 
@@ -729,7 +733,11 @@ export class BrowserChassis {
       stored: readStoredDecisionConfig(),
       status: decisionStatus(),
     }));
-    ipcMain.handle('settings:save-decision', async (_, config: any) => saveDecisionConfig(config));
+    ipcMain.handle('settings:save-decision', async (_, config: any) => {
+      const result = await saveDecisionConfig(config);
+      this.sendToSurfaces('chassis:decision-status', decisionStatus());
+      return result;
+    });
     ipcMain.handle('chassis:get-decisions', async () => this.decisionLog);
     // Reliable text copy for the HUD: selecting text inside a WebContentsView shell is not always
     // possible, and the clipboard is async in Electron 44.
