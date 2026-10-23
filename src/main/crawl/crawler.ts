@@ -60,6 +60,8 @@ export interface CrawlerDeps {
   tryLlm?: (url: string) => Promise<{ content: string; via: string } | null>;
   /** Renders a page in a detached view and returns its Markdown + outgoing links. */
   renderPage: (url: string, pageOpts: { selector?: string }) => Promise<{ title: string; markdown: string; links: string[]; status: number }>;
+  /** Called before any page fetch; lets stealth mode enforce a domain cooldown. */
+  beforePage?: (url: string) => void | Promise<void>;
   indexPage?: (url: string, title: string, content: string) => Promise<void>;
   log?: (level: 'info' | 'warn' | 'action', message: string) => void;
 }
@@ -166,6 +168,24 @@ export class Crawler {
       let via: 'llm' | 'render' = 'render';
       let links: string[] = [];
       let error: string | undefined;
+
+      try {
+        await this.deps.beforePage?.(url);
+      } catch (err: any) {
+        error = err?.message || String(err);
+        notes.push(`skipped ${url}: ${error}`);
+        pages.push({
+          url,
+          title: url,
+          depth,
+          via: 'render',
+          bytes: 0,
+          links: 0,
+          indexed: false,
+          error,
+        });
+        continue;
+      }
 
       // 1. Cheap path — content-negotiated Markdown/Text.
       let usedLlm = false;
