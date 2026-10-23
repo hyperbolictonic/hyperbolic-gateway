@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { BrowserWindow, nativeImage, ipcMain, clipboard, WebContentsView, type WebContents } from 'electron';
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
@@ -26,6 +27,8 @@ import { Primitives } from './primitives/primitives.js';
 import { ScriptVault } from './scripts/script-vault.js';
 import type { ScriptItem } from './cortex/cortex-db.js';
 import { TrayManager } from './tray/tray-manager.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { HilManager, type HilRequest, type HilResolution, type NotificationOptions } from './hil/hil-manager.js';
 import {
   generateChaosTrajectory,
@@ -67,8 +70,11 @@ export class BrowserChassis {
   private actionLedger: ActionLedger;
   /** Reused off-screen view for detached reads (SERPs, Markdown alternates, crawls). */
   private utilView: WebContentsView | null = null;
-  /** When false, the telemetry sidebar is minimized and the browser gets the full window width. */
-  private sidebarVisible = true;
+  private sidebarView: WebContentsView | null = null;
+  private sidebarMode: 'docked' | 'floating' | 'collapsed' = 'floating';
+  private lastOpenSidebarMode: 'docked' | 'floating' = 'floating';
+  /** False while a full-window settings/dialog surface is open. */
+  private sidebarOverlayVisible = true;
   private utilQueue: Promise<void> = Promise.resolve();
   /** Monotonic page revision: bumped on navigation and every mutating action. */
   private revision = 0;
@@ -100,9 +106,7 @@ export class BrowserChassis {
     onDecision((event) => {
       this.decisionLog.push(event);
       if (this.decisionLog.length > 50) this.decisionLog.shift();
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('chassis:decision', event);
-      }
+      this.sendToSurfaces('chassis:decision', event);
     });
 
     this.harvester = new ConstructHarvester();
@@ -285,6 +289,7 @@ export class BrowserChassis {
     });
     this.setupTabManager();
     this.registerIpcHandlers();
+    this.setupSidebarView();
   }
 
   private setupTabManager() {
@@ -313,13 +318,12 @@ export class BrowserChassis {
         this.state.tabs = tabs;
         this.broadcastState();
         this.trayManager?.updateStatus(this.state.agentStatus, tabs.length, !!this.hilManager.getActiveRequest());
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          this.mainWindow.webContents.send('chassis:tabs-updated', tabs);
-        }
+        this.sendToSurfaces('chassis:tabs-updated', tabs);
       },
       onTabCreated: (tab: TabInstance) => {
         this.networkInterceptor.attach(tab.view.webContents);
       },
+      onViewAdded: () => this.bringSidebarToFront(),
       onLog: (level, msg) => this.addLog(level, msg),
       onConsoleLog: (log) => {
         this.targetConsoleLogs.push(log);
@@ -333,6 +337,7 @@ export class BrowserChassis {
     this.tabManager.createTab('about:blank');
 
     this.mainWindow.on('resize', () => {
+      this.positionSidebar();
       this.tabManager?.updateActiveTabBounds();
     });
   }
@@ -340,7 +345,7 @@ export class BrowserChassis {
   public getViewportBounds(): { x: number; y: number; width: number; height: number } {
     if (!this.mainWindow) return { x: 0, y: 0, width: 0, height: 0 };
     const [winWidth, winHeight] = this.mainWindow.getSize();
-    const rightPanelWidth = this.sidebarVisible ? 420 : 0;
+    const rightPanelWidth = this.sidebarMode === 'docked' ? 420 : 0;
     // With tab bar, top bar height is 100px (64px navbar + 36px tab bar)
     const topBarHeight = 100;
 
@@ -355,13 +360,119 @@ export class BrowserChassis {
     };
   }
 
-  public setSidebarVisible(visible: boolean): void {
-    this.sidebarVisible = Boolean(visible);
-    this.tabManager?.updateActiveTabBounds();
+  public getSidebarMode(): 'docked' | 'floating' | 'collapsed' {
+    return this.sidebarMode;
   }
 
-  public isSidebarVisible(): boolean {
-    return this.sidebarVisible;
+  public setSidebarMode(mode: 'docked' | 'floating' | 'collapsed'): void {
+    if (mode !== 'docked' && mode !== 'floating' && mode !== 'collapsed') return;
+    if (mode === 'docked' || mode === 'floating') this.lastOpenSidebarMode = mode;
+    this.sidebarMode = mode;
+    this.positionSidebar();
+    this.tabManager?.updateActiveTabBounds();
+    this.broadcastSidebarMode();
+  }
+
+  public toggleSidebarMode(): void {
+    if (this.sidebarMode === 'collapsed') {
+      this.setSidebarMode(this.lastOpenSidebarMode);
+    } else {
+      this.lastOpenSidebarMode = this.sidebarMode;
+      this.setSidebarMode('collapsed');
+    }
+  }
+
+  private sendToSurfaces(channel: string, payload: unknown): void {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send(channel, payload);
+    }
+    if (this.sidebarView && !this.sidebarView.webContents.isDestroyed()) {
+      this.sidebarView.webContents.send(channel, payload);
+    }
+  }
+
+  private broadcastSidebarMode(): void {
+    this.sendToSurfaces('chassis:sidebar-mode', this.sidebarMode);
+  }
+
+  private positionSidebar(): void {
+    if (!this.mainWindow || !this.sidebarView) return;
+    if (!this.sidebarOverlayVisible) {
+      this.sidebarView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+      return;
+    }
+
+    const [winWidth, winHeight] = this.mainWindow.getSize();
+    if (this.sidebarMode === 'collapsed') {
+      // Keep the collapsed overlay small so it only captures the toggle, not
+      // the page's right-edge scrollbar.
+      const width = 36;
+      const height = 60;
+      this.sidebarView.setBounds({
+        x: Math.max(0, winWidth - width),
+        y: 108,
+        width: Math.min(width, winWidth),
+        height: Math.min(height, Math.max(0, winHeight - 108)),
+      });
+      return;
+    }
+
+    const width = 420;
+    this.sidebarView.setBounds({
+      x: Math.max(0, winWidth - width),
+      y: 100,
+      width: Math.min(width, winWidth),
+      height: Math.max(0, winHeight - 100),
+    });
+  }
+
+  private setSidebarOverlayVisible(visible: boolean): void {
+    this.sidebarOverlayVisible = visible;
+    this.positionSidebar();
+  }
+
+  private bringSidebarToFront(): void {
+    if (!this.mainWindow || !this.sidebarView) return;
+    try {
+      this.mainWindow.contentView.removeChildView(this.sidebarView);
+    } catch {
+      // Not currently attached.
+    }
+    this.mainWindow.contentView.addChildView(this.sidebarView);
+    this.positionSidebar();
+  }
+
+  private setupSidebarView(): void {
+    if (!this.mainWindow) return;
+
+    this.sidebarView = new WebContentsView({
+      webPreferences: {
+        preload: path.join(__dirname, '../preload/index.js'),
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+        backgroundThrottling: false,
+      },
+    });
+    this.sidebarView.setBackgroundColor('#00000000');
+    this.mainWindow.contentView.addChildView(this.sidebarView);
+
+    try {
+      const devUrl = process.env.VITE_DEV_SERVER_URL;
+      if (devUrl) {
+        const url = new URL(devUrl);
+        url.searchParams.set('sidebar', '1');
+        this.sidebarView.webContents.loadURL(url.toString());
+      } else {
+        this.sidebarView.webContents.loadFile(path.join(__dirname, '../../dist/index.html'), {
+          query: { sidebar: '1' },
+        });
+      }
+    } catch (err: any) {
+      this.addLog('warn', `Sidebar overlay failed to load: ${err?.message || err}`);
+    }
+
+    this.positionSidebar();
   }
 
   public getActiveWebContents(): Electron.WebContents {
@@ -427,14 +538,17 @@ export class BrowserChassis {
 
     const setVisibility = (_: any, visible: boolean) => {
       this.tabManager?.setViewportVisibility(visible);
+      this.setSidebarOverlayVisible(visible);
     };
 
     ipcMain.handle('chassis:set-viewport-visibility', setVisibility);
     ipcMain.on('chassis:set-viewport-visibility', setVisibility);
 
-    const setSidebarVisibility = (_: any, visible: boolean) => this.setSidebarVisible(visible);
-    ipcMain.handle('chassis:set-sidebar-visibility', setSidebarVisibility);
-    ipcMain.on('chassis:set-sidebar-visibility', setSidebarVisibility);
+    ipcMain.handle('chassis:get-sidebar-mode', () => this.getSidebarMode());
+    ipcMain.on('chassis:set-sidebar-mode', (_: any, mode: 'docked' | 'floating' | 'collapsed') =>
+      this.setSidebarMode(mode),
+    );
+    ipcMain.on('chassis:toggle-sidebar-mode', () => this.toggleSidebarMode());
 
     // Cortex & Bookmarks IPC Handlers
     ipcMain.handle('cortex:recall', async (_, query: string, options?: any) => {
@@ -560,15 +674,11 @@ export class BrowserChassis {
   }
 
   private broadcastState() {
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('chassis:state-updated', this.state);
-    }
+    this.sendToSurfaces('chassis:state-updated', this.state);
   }
 
   private emitTelemetry(event: TelemetryEvent) {
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('chassis:telemetry', event);
-    }
+    this.sendToSurfaces('chassis:telemetry', event);
   }
 
   public addLog(level: 'info' | 'warn' | 'action', message: string) {
@@ -581,9 +691,7 @@ export class BrowserChassis {
     this.logs.unshift(entry);
     if (this.logs.length > 100) this.logs.pop();
 
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('chassis:log', entry);
-    }
+    this.sendToSurfaces('chassis:log', entry);
   }
 
   // MCP Operations on Active Tab
@@ -1087,6 +1195,7 @@ export class BrowserChassis {
 
     const construct = this.harvester.harvest(rawHtml, url, title, { shadowRoots: composed.shadowRoots });
     this.latestConstruct = construct;
+    this.sendToSurfaces('chassis:construct-harvested', construct);
 
     this.state.stats.tokensHarvested += construct.estimatedTokens;
     this.state.agentStatus = 'IDLE';

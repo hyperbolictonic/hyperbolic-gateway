@@ -5,10 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KUANG GRADE MARK ELEVEN // Visual Matrix Navigator</title>
     <link rel="stylesheet" href="./src/renderer/index.css" />
+    <script>
+      if (new URLSearchParams(location.search).has('sidebar')) {
+        document.documentElement.classList.add('sidebar-mode');
+      }
+    </script>
   </head>
   <body class="h-full flex flex-col overflow-hidden bg-base-200 font-sans">
     <!-- Top Cyberdeck Navbar -->
-    <header class="navbar bg-base-300 border-b border-base-100 px-4 h-16 min-h-16 flex items-center justify-between z-30 shadow-md">
+    <header id="app-header" class="navbar bg-base-300 border-b border-base-100 px-4 h-16 min-h-16 flex items-center justify-between z-30 shadow-md">
       <!-- Deck Branding & Status -->
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 font-mono font-bold tracking-wider text-base-content">
@@ -84,7 +89,7 @@
     </div>
 
     <!-- Main Workspace Split -->
-    <div class="flex-1 flex overflow-hidden relative">
+    <div id="main-workspace" class="flex-1 flex overflow-hidden relative">
       <!-- Left Area: Browser Viewport Placeholder / Canvas Overlay -->
       <div id="viewport-container" class="flex-1 relative bg-base-100 flex flex-col justify-between overflow-hidden">
         <!-- Floating HUD Header inside Viewport area -->
@@ -108,9 +113,14 @@
       <aside id="sidebar-panel" class="w-[420px] bg-base-200 border-l border-base-300 flex flex-col z-30 shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-3 py-1.5 border-b border-base-300 bg-base-300/40">
           <span class="font-mono text-[10px] uppercase tracking-wider text-base-content/50">Cyberdeck Panel</span>
-          <button id="sidebar-collapse-btn" class="btn btn-xs btn-ghost font-mono text-[10px]" title="Minimize the panel and give the browser the full width (Ctrl+Shift+B)">
-            MINIMIZE ⟩
-          </button>
+          <div class="flex items-center gap-1">
+            <button id="sidebar-dock-btn" class="btn btn-xs btn-ghost font-mono text-[10px]" title="Switch between floating over the page and docked beside it">
+              DOCK
+            </button>
+            <button id="sidebar-collapse-btn" class="btn btn-xs btn-ghost font-mono text-[10px]" title="Collapse to the floating toggle (Ctrl+Shift+B)">
+              MINIMIZE ⟩
+            </button>
+          </div>
         </div>
 
         <!-- Telemetry Stats Strip -->
@@ -241,6 +251,11 @@
         </footer>
       </aside>
     </div>
+
+    <!-- Floating reopen control for the native sidebar overlay -->
+    <button id="sidebar-rail-toggle" type="button" title="Show the Cyberdeck panel">
+      ◧
+    </button>
 
     <!-- Help & About Modal -->
     <!-- Settings: full-viewport, tabbed -->
