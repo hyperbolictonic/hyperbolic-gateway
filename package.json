@@ -20,6 +20,8 @@
     "build:mac": "npm run build && electron-builder --mac",
     "build:dist:all": "npm run build && electron-builder -mwl",
     "check:no-local-paths": "node scripts/check-no-local-paths.mjs",
+    "test:recipe": "node --test packages/recipe/test/render.test.ts packages/recipe/test/derive.test.ts packages/recipe/test/validate.test.ts",
+    "typecheck:recipe": "tsc -p packages/recipe/tsconfig.json",
     "fix:local-paths": "node scripts/check-no-local-paths.mjs --fix",
     "test:mcp": "node scripts/test-client.js",
     "test:mcp:all": "node scripts/test-all-mcp-tools.js",
