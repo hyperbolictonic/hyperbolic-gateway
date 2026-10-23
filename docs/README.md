@@ -9,7 +9,7 @@ Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade 
 - [CODEBASE.md](./CODEBASE.md) — Architecture lowdown: system maps, call paths, findings, optimisations, and an airline-search walkthrough.
 - [BUILDING.md](./BUILDING.md) — Installers, CI, signing, auto-update and the release policy.
 - [DECISION_MODELS.md](./DECISION_MODELS.md) — The optional `decide` / `drive` decision layer.
-- [KUANG_WRAP.md](./KUANG_WRAP.md) — The second MCP server for saved REST wrappers, host-bound secrets, and response recipes (design + slices).
+- [KUANG_WRAP.md](./KUANG_WRAP.md) - The second MCP server for saved REST wrappers and response recipes. S1 (store, executor, bridge, `kuang-wrap`) is implemented; host-bound secrets are the next gate.
 - [concept.md](./concept.md) — The foundational concept, design philosophy, and lore behind the Kuang Grade Mark Eleven Cyberdeck.
 - [TODO.md](./TODO.md) — Agent capability roadmap, prioritized from foundational utilities to high-bandwidth cognitive features and biomechanical kinematics.
 - [PROPOSED_ABSTRACTIONS.md](./PROPOSED_ABSTRACTIONS.md) — The orthogonal primitive layer (observe/act/wait_for/…) design, status (A1–A6, B, C, D), and verification record.

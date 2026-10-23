@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { BrowserChassis } from './browser-chassis.js';
 import { startHttpBridge } from './http-bridge.js';
+import { WrapExecutor } from './wrap/executor.js';
+import { WrapStore } from './wrap/store.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { APP_VERSION } from '../shared/version.js';
@@ -46,18 +48,20 @@ const bridgePort = Number.isFinite(configuredPort) && configuredPort > 0 ? confi
  * portable and AppImage builds, so a config pointing inside it would break after the app exits.
  * The copy is refreshed whenever the bundled file is newer (i.e. after an update).
  */
-let cachedMcpServerPath: string | null = null;
-function ensureMcpServerPath(): string {
-  if (cachedMcpServerPath) return cachedMcpServerPath;
+const cachedServerPaths = new Map<string, string>();
+function ensureBundledServerPath(filename: string): string {
+  const cached = cachedServerPaths.get(filename);
+  if (cached) return cached;
 
-  const devPath = path.join(app.getAppPath(), 'bin', 'mcp-server.cjs');
+  const devPath = path.join(app.getAppPath(), 'bin', filename);
   if (!app.isPackaged) {
-    cachedMcpServerPath = devPath;
+    cachedServerPaths.set(filename, devPath);
     return devPath;
   }
 
-  const source = path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'mcp-server.cjs');
-  const target = path.join(app.getPath('userData'), 'bin', 'mcp-server.cjs');
+  const source = path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', filename);
+  const target = path.join(app.getPath('userData'), 'bin', filename);
+  let resolved = source;
   try {
     const sourceMtime = fs.statSync(source).mtimeMs;
     const targetMtime = fs.existsSync(target) ? fs.statSync(target).mtimeMs : 0;
@@ -65,12 +69,20 @@ function ensureMcpServerPath(): string {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.copyFileSync(source, target);
     }
-    cachedMcpServerPath = target;
+    resolved = target;
   } catch {
     // Worst case, point at the bundled path: correct for installed (non-portable) builds.
-    cachedMcpServerPath = source;
   }
-  return cachedMcpServerPath;
+  cachedServerPaths.set(filename, resolved);
+  return resolved;
+}
+
+function ensureMcpServerPath(): string {
+  return ensureBundledServerPath('mcp-server.cjs');
+}
+
+function ensureWrapServerPath(): string {
+  return ensureBundledServerPath('wrap-server.cjs');
 }
 
 // The Cyberdeck is driven while the human's editor/terminal owns the foreground, so the
@@ -109,6 +121,7 @@ ipcMain.on('recording:failed', (_event, message: string) => failRecording(String
 
 ipcMain.handle('app:connect-info', () => {
   const serverPath = ensureMcpServerPath();
+  const wrapServerPath = ensureWrapServerPath();
   return {
     platform: process.platform,
     version: APP_VERSION,
@@ -116,6 +129,8 @@ ipcMain.handle('app:connect-info', () => {
     bridgePort,
     serverPath,
     serverExists: fs.existsSync(serverPath),
+    wrapServerPath,
+    wrapServerExists: fs.existsSync(wrapServerPath),
     runtimePath: process.execPath,
     packaged: app.isPackaged,
     homedir: os.homedir(),
@@ -183,7 +198,9 @@ async function createWindow() {
 
   // Start Autonomous HTTP Bridge
   try {
-    startHttpBridge(chassis, bridgePort);
+    const wrapStore = new WrapStore(path.join(app.getPath('userData'), 'wrap'));
+    const wrapExecutor = new WrapExecutor(wrapStore);
+    startHttpBridge(chassis, bridgePort, { store: wrapStore, executor: wrapExecutor });
   } catch (err: any) {
     chassis.addLog('warn', `HTTP Bridge notice: ${err?.message || err}`);
   }
