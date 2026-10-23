@@ -418,8 +418,11 @@ separate reusable recipe store is planned.
 - Settings → MCP Clients has a Server selector: Browser (`kuang`) or REST
   wrappers (`kuang-wrap`), with the same bundled-runtime / system-Node switch
   and bridge URL. The wrap snippet sets `KUANG_WRAP_TOKEN_FILE`.
-- Settings → Wrappers has a filterable wrapper list, a JSON editor, and a
-  credential manager. Both use IPC; no bridge route can write a secret.
+- Settings → Wrappers has a filterable wrapper list and a reusable create/edit
+  modal: name, ID, method, URL, credential picker, mutating switch, plus
+  advanced JSON for input schema, query/headers/body templates, and the recipe.
+  The credential manager below it can add a secret inline and edit metadata.
+  Both use IPC; no bridge route can write a secret.
 - `KUANG_WRAP_ALLOW_PRIVATE=1` permits localhost/private destinations;
   `KUANG_WRAP_ALLOW_HTTP=1` permits plain http; `KUANG_MCP_LOG=0` silences the
   wrap server file log; `KUANG_WRAP_TIMEOUT_MS` overrides its bridge timeout.
