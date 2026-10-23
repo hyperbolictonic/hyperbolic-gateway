@@ -358,6 +358,31 @@ test('injects a bound secret without exposing it in previews or audits', async (
   assert.doesNotMatch(JSON.stringify(audit), /super-secret/);
 });
 
+test('redacts a secret echoed by the upstream API', async () => {
+  const { store } = tempStore();
+  store.create(
+    listWrapper({
+      response: undefined,
+      request: { ...listWrapper().request, auth: 'demo-key' },
+    }),
+  );
+
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    secrets: { resolve: () => ({ ok: true, header: 'Authorization', value: 'Bearer super-secret' }) },
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({ echo: 'Bearer super-secret', nested: { token: 'super-secret' } }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+  });
+
+  const result = await executor.run('demo.list', { city: 'Paris' }, { includeRaw: true });
+  assert.equal(result.ok, true);
+  assert.doesNotMatch(JSON.stringify(result), /super-secret/);
+  assert.match(result.markdown, /<redacted>/);
+});
+
 test('refuses a secret that is not bound to the request host', async () => {
   const { store } = tempStore();
   store.create(listWrapper({ request: { ...listWrapper().request, auth: 'demo-key' } }));

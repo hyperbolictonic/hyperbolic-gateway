@@ -185,7 +185,7 @@ needs it. That keeps discovery cheap.
 
 ```bash
 npm run build:mcp        # writes bin/mcp-server.cjs and bin/wrap-server.cjs
-npm run test:wrap        # 20 offline store/executor/secret tests
+npm run test:wrap        # 21 offline store/executor/secret tests
 ```
 
 Open Settings → MCP Clients, choose **REST wrappers (kuang-wrap)** as the
@@ -303,6 +303,7 @@ writer; the MCP process and the bridge see names and metadata only.
 | Binding a secret to a host is human-only | Prevents agent-authored exfiltration |
 | No auth on cross-origin redirects | The injected header is dropped when the origin changes |
 | No credentials in query strings | Query strings end up in logs and proxies |
+| Upstream responses are scrubbed for the injected value | A debug/echo endpoint must not reflect the token back to the agent |
 | Audit log records method, host, status, bytes | Debugging without storing headers, bodies, or query strings |
 
 A secret is write-only in the UI. Editing it with a blank value preserves the
@@ -432,7 +433,7 @@ separate reusable recipe store is planned.
 | Slice | Scope | Gate |
 | --- | --- | --- |
 | **S0** ✅ | Pure recipe package, schema, tests, design | 25 tests pass, typecheck clean |
-| **S1** ✅ | Wrapper store, executor, `/wrap/*`, `kuang-wrap` MCP server, create/update/delete, dry-run and sample tests | 20 core tests now pass; a live GitHub API call returned Markdown and records |
+| **S1** ✅ | Wrapper store, executor, `/wrap/*`, `kuang-wrap` MCP server, create/update/delete, dry-run and sample tests | 21 core tests now pass; a live GitHub API call returned Markdown and records |
 | **S2a** ✅ | Rotating wrap bridge token, token-file handoff, 401 gate | Missing/stale token gets 401 before any wrapper or outbound request |
 | **S2** ✅ | `safeStorage`, host binding, Settings → Wrappers editor, audit | Unit tests prove a foreign-host secret is refused and a cross-origin redirect drops the injected header |
 | **S3** | Derived recipes, save/reuse, documents mode, pagination, Cortex indexing | A paginated API returns all pages up to the cap; documents are searchable |
@@ -446,7 +447,7 @@ separate reusable recipe store is planned.
 | Agent creates a wrapper pointing at an attacker host and attaches a secret | Host-bound secrets; human-only binding; no cross-origin auth redirect |
 | Local process calls the bridge and spends tokens | Rotating token, read from a user-private file; every `/wrap/*` route returns 401 without it. |
 | SSRF into localhost or cloud metadata | Scheme + DNS/IP checks; private hosts require `KUANG_WRAP_ALLOW_PRIVATE=1`. DNS rebinding remains a residual risk until the checked address is pinned in the socket. |
-| Credential leaks into logs | Bridge logs and previews redact credential-shaped keys; audit rows store host/status/bytes only; tests assert secret values are absent. |
+| Credential leaks into logs or responses | Bridge logs and previews redact credential-shaped keys; an upstream response that echoes a secret is redacted before rendering; audit rows store host/status/bytes only; tests assert values are absent. |
 | Prompt injection inside an API response | Response is data; it is rendered, never executed |
 | Tool-list exhaustion | Nine meta-tools; opt-in generated tools + cap in S4 |
 | Schema drift breaks a wrapper | `wrap_test` and clear upstream errors; `lastVerified` is stored but not refreshed yet |

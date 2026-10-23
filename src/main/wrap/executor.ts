@@ -159,6 +159,7 @@ export class WrapExecutor {
     }
 
     let secretHeader: string | undefined;
+    let secretValues: string[] = [];
     if (wrapper.request.auth) {
       if (!this.secrets) {
         return failure(
@@ -180,6 +181,7 @@ export class WrapExecutor {
 
       built.headers[resolved.header] = resolved.value;
       secretHeader = resolved.header;
+      secretValues = secretVariants(resolved.value);
     }
 
     const request: WrapPreview = {
@@ -218,7 +220,9 @@ export class WrapExecutor {
     }
 
     const json = parseJson(fetched.text, fetched.contentType);
-    const rendered = this.render(wrapper, json, fetched.text, fetched.contentType);
+    const safeJson = json === undefined ? undefined : redactDeep(json, secretValues);
+    const safeText = redactText(fetched.text, secretValues);
+    const rendered = this.render(wrapper, safeJson, safeText, fetched.contentType);
     const ok = fetched.response.ok;
     this.audit?.append({
       wrapper: wrapper.id,
@@ -241,8 +245,8 @@ export class WrapExecutor {
         contentType: fetched.contentType || undefined,
         bytes: fetched.bytes,
         truncated: fetched.truncated || undefined,
-        text: ok && json !== undefined ? undefined : clip(fetched.text, 1_000),
-        json: options.includeRaw ? json : undefined,
+        text: ok && json !== undefined ? undefined : clip(safeText, 1_000),
+        json: options.includeRaw ? safeJson : undefined,
       },
       markdown: rendered.markdown,
       records: rendered.records,
@@ -253,7 +257,7 @@ export class WrapExecutor {
     if (!ok) {
       const status = fetched.response.status;
       const message = `HTTP ${status}${fetched.response.statusText ? ` ${fetched.response.statusText}` : ''}`;
-      const excerpt = clip(fetched.text, 600);
+      const excerpt = clip(safeText, 600);
       result.markdown = excerpt
         ? `**${message}**\n\n\`\`\`\n${excerpt}\n\`\`\``
         : `**${message}**`;
@@ -469,6 +473,38 @@ function safeHost(url: string): string {
   } catch {
     return '';
   }
+}
+
+function secretVariants(value: string): string[] {
+  const variants = new Set<string>();
+  if (value) variants.add(value);
+  const withoutScheme = value.replace(/^[A-Za-z]+\s+/, '');
+  if (withoutScheme && withoutScheme !== value) variants.add(withoutScheme);
+  return [...variants];
+}
+
+function redactText(text: string, values: string[]): string {
+  if (!text || values.length === 0) return text;
+  let out = text;
+  for (const value of values) {
+    if (value) out = out.split(value).join('<redacted>');
+  }
+  return out;
+}
+
+function redactDeep(value: unknown, values: string[], depth = 0): unknown {
+  if (values.length === 0) return value;
+  if (depth > 100) return '<redacted-deep>';
+  if (typeof value === 'string') return redactText(value, values);
+  if (Array.isArray(value)) return value.map((item) => redactDeep(item, values, depth + 1));
+  if (isPlainObject(value)) {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      out[redactText(key, values)] = redactDeep(entry, values, depth + 1);
+    }
+    return out;
+  }
+  return value;
 }
 
 function parseJson(text: string, contentType: string): unknown {
