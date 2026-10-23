@@ -87,17 +87,17 @@ html.sidebar-mode #sidebar-panel {
   display: flex !important;
   width: 100% !important;
   height: 100vh;
-  border-left: 1px solid color-mix(in oklab, var(--color-base-300) 80%, transparent);
+  border-left: 1px solid color-mix(in oklab, var(--color-base-300) 82%, transparent);
   box-shadow: none;
 }
 html.sidebar-mode.sidebar-floating #sidebar-panel {
-  background: color-mix(in oklab, var(--color-base-200) 52%, transparent) !important;
+  background: color-mix(in oklab, var(--color-base-200) 84%, transparent) !important;
 }
 html.sidebar-mode.sidebar-floating #sidebar-panel .bg-base-100 {
-  background-color: color-mix(in oklab, var(--color-base-100) 42%, transparent);
+  background-color: color-mix(in oklab, var(--color-base-100) 78%, transparent);
 }
 html.sidebar-mode.sidebar-floating #sidebar-panel .bg-base-300 {
-  background-color: color-mix(in oklab, var(--color-base-300) 50%, transparent);
+  background-color: color-mix(in oklab, var(--color-base-300) 82%, transparent);
 }
 html.sidebar-mode.sidebar-collapsed #sidebar-panel {
   display: none !important;
@@ -108,7 +108,7 @@ html.sidebar-mode #sidebar-rail-toggle {
   display: none;
   position: fixed;
   top: 8px;
-  left: 4px;
+  right: 4px;
   width: 28px;
   height: 44px;
   align-items: center;
@@ -116,7 +116,7 @@ html.sidebar-mode #sidebar-rail-toggle {
   padding: 0;
   border-radius: 0.5rem;
   border: 1px solid color-mix(in oklab, var(--color-accent) 45%, transparent);
-  background: color-mix(in oklab, var(--color-base-300) 42%, transparent);
+  background: color-mix(in oklab, var(--color-base-300) 60%, transparent);
   color: var(--color-accent);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 15px;
@@ -129,5 +129,5 @@ html.sidebar-mode.sidebar-collapsed #sidebar-rail-toggle {
   display: flex;
 }
 html.sidebar-mode #sidebar-rail-toggle:hover {
-  background: color-mix(in oklab, var(--color-base-300) 62%, transparent);
+  background: color-mix(in oklab, var(--color-base-300) 68%, transparent);
 }

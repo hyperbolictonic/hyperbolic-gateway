@@ -368,6 +368,7 @@ export class BrowserChassis {
     if (mode !== 'docked' && mode !== 'floating' && mode !== 'collapsed') return;
     if (mode === 'docked' || mode === 'floating') this.lastOpenSidebarMode = mode;
     this.sidebarMode = mode;
+    this.addLog('action', `Sidebar mode: ${mode}`);
     this.positionSidebar();
     this.tabManager?.updateActiveTabBounds();
     this.broadcastSidebarMode();

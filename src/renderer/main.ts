@@ -69,6 +69,7 @@ window.addEventListener('resize', resizeCanvas);
 const SIDEBAR_MODE = new URLSearchParams(window.location.search).has('sidebar');
 document.documentElement.classList.toggle('sidebar-mode', SIDEBAR_MODE);
 
+const sidebarPanel = document.getElementById('sidebar-panel') as HTMLElement | null;
 const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn') as HTMLButtonElement | null;
 const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn') as HTMLButtonElement | null;
 const sidebarDockBtn = document.getElementById('sidebar-dock-btn') as HTMLButtonElement | null;
@@ -81,6 +82,13 @@ function applySidebarMode(mode: SidebarMode): void {
   document.documentElement.classList.toggle('sidebar-collapsed', mode === 'collapsed');
   document.documentElement.classList.toggle('sidebar-docked', mode === 'docked');
   document.documentElement.classList.toggle('sidebar-floating', mode === 'floating');
+
+  // Direct DOM fallback in addition to the CSS mode classes: the native view
+  // may receive this before its stylesheet has settled.
+  sidebarPanel?.classList.toggle('hidden', mode === 'collapsed');
+  if (sidebarRailToggle) {
+    sidebarRailToggle.style.display = mode === 'collapsed' ? 'flex' : 'none';
+  }
 
   if (sidebarToggleBtn) {
     sidebarToggleBtn.textContent = mode === 'collapsed' ? '◨' : '◧';
@@ -101,11 +109,21 @@ function toggleSidebar(): void {
 }
 
 sidebarToggleBtn?.addEventListener('click', toggleSidebar);
-sidebarCollapseBtn?.addEventListener('click', () => window.electronAPI?.setSidebarMode('collapsed'));
-sidebarDockBtn?.addEventListener('click', () => {
-  window.electronAPI?.setSidebarMode(currentSidebarMode === 'docked' ? 'floating' : 'docked');
+sidebarCollapseBtn?.addEventListener('click', () => {
+  // Apply locally first so the panel gives immediate feedback even if the
+  // native bounds update is delayed.
+  applySidebarMode('collapsed');
+  window.electronAPI?.setSidebarMode('collapsed');
 });
-sidebarRailToggle?.addEventListener('click', () => window.electronAPI?.setSidebarMode('floating'));
+sidebarDockBtn?.addEventListener('click', () => {
+  const target: SidebarMode = currentSidebarMode === 'docked' ? 'floating' : 'docked';
+  applySidebarMode(target);
+  window.electronAPI?.setSidebarMode(target);
+});
+sidebarRailToggle?.addEventListener('click', () => {
+  applySidebarMode('floating');
+  window.electronAPI?.setSidebarMode('floating');
+});
 window.addEventListener('keydown', (event) => {
   if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'b') {
     event.preventDefault();
