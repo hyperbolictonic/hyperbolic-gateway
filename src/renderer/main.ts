@@ -922,6 +922,7 @@ if (settingsBtn && settingsModal) {
       .replace(/[^a-z0-9._-]+/g, '-')
       .replace(/^[^a-z]+/, '')
       .replace(/[._-]{2,}/g, '-')
+      .replace(/[._-]+$/g, '')
       .slice(0, 80);
   }
 
