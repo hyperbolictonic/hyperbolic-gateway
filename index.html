@@ -264,6 +264,7 @@
         <div class="tabs tabs-boxed tabs-sm bg-base-100 font-mono text-[11px]">
           <button type="button" id="settings-tab-decision" class="tab tab-active" data-settings-tab="decision">DECISION MODEL</button>
           <button type="button" id="settings-tab-recording" class="tab" data-settings-tab="recording">RECORDING</button>
+          <button type="button" id="settings-tab-research" class="tab" data-settings-tab="research">RESEARCH</button>
           <button type="button" id="settings-tab-wrappers" class="tab" data-settings-tab="wrappers">WRAPPERS</button>
           <button type="button" id="settings-tab-clients" class="tab" data-settings-tab="clients">MCP CLIENTS</button>
         </div>
@@ -412,6 +413,67 @@
           <h4 class="font-mono text-xs font-bold text-base-content/70">RECENT TIMELAPSES</h4>
           <ul id="settings-rec-list" class="mt-2 space-y-1"></ul>
         </div>
+      </section>
+
+      <!-- Research / stealth -->
+      <section data-settings-panel="research" class="hidden max-w-3xl mx-auto w-full">
+        <h3 class="font-mono text-sm font-bold text-primary">RESEARCH &amp; STEALTH</h3>
+        <p class="text-xs text-base-content/60 mt-1">
+          Controls for <code class="font-mono">search_web</code>, <code class="font-mono">deep_crawl</code>, and
+          <code class="font-mono">research_topic</code>. Stealth mode uses a separate research session, optional proxy,
+          provider preference, politeness delays, and per-domain backoff after WAF/challenge pages. It does not bypass
+          CAPTCHAs.
+        </p>
+
+        <form id="settings-research-form" class="mt-5 space-y-4">
+          <label class="label cursor-pointer justify-start gap-3 py-0">
+            <input id="settings-research-enabled" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            <span class="label-text font-mono text-xs">Enable research stealth mode</span>
+          </label>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Search engine chain</legend>
+            <input id="settings-research-engines" type="text" class="input input-sm w-full font-mono text-xs" placeholder="duckduckgo, brave, google" autocomplete="off" />
+            <p class="label font-mono text-[10px]">Comma or <code class="font-mono">&gt;</code> separated. Order matters. DuckDuckGo/Brave are gentler than Google.</p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Custom search template (optional)</legend>
+            <input id="settings-research-url-template" type="text" class="input input-sm w-full font-mono text-xs" placeholder="https://searx.example/search?q={query}" autocomplete="off" />
+            <p class="label font-mono text-[10px]">A SearXNG instance or another provider URL containing <code class="font-mono">{query}</code>. When set, it is tried first.</p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Research proxy (optional)</legend>
+            <input id="settings-research-proxy" type="text" class="input input-sm w-full font-mono text-xs" placeholder="http://proxy.example:8080 or socks5://proxy.example:1080" autocomplete="off" />
+            <p class="label font-mono text-[10px]">Applied only to the isolated <code class="font-mono">persist:kuang-research</code> session, not your normal browsing tabs.</p>
+          </fieldset>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Domain cooldown (seconds)</legend>
+              <input id="settings-research-cooldown" type="number" min="30" max="86400" step="30" class="input input-sm w-full font-mono text-xs" />
+              <p class="label font-mono text-[10px]">After a WAF/challenge or 403/429, the host is paused and not retried.</p>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Politeness delay (ms)</legend>
+              <input id="settings-research-delay" type="number" min="0" max="10000" step="100" class="input input-sm w-full font-mono text-xs" />
+              <p class="label font-mono text-[10px]">Minimum delay between crawled pages and research sources.</p>
+            </fieldset>
+          </div>
+
+          <label class="label cursor-pointer justify-start gap-3 py-0">
+            <input id="settings-research-activate-view" type="checkbox" class="toggle toggle-sm toggle-accent" />
+            <span class="label-text font-mono text-xs">Activate the hidden view (focus/lifecycle emulation)</span>
+          </label>
+
+          <div id="settings-research-result" class="alert alert-ghost alert-sm font-mono text-xs hidden"></div>
+
+          <div class="flex justify-between items-center border-t border-base-100 pt-3 mt-2">
+            <button type="button" id="settings-research-reset" class="btn btn-sm btn-ghost font-mono text-xs">RESET RESEARCH COOKIES</button>
+            <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE RESEARCH SETTINGS</button>
+          </div>
+        </form>
       </section>
 
       <!-- Kuang Wrap: wrappers + credentials -->

@@ -11,6 +11,7 @@ import { createWrapToken, tokenFile } from './wrap/token.js';
 import { SecretStore } from './wrap/secrets.js';
 import type { SecretCipher } from './wrap/secrets.js';
 import { WrapAuditLog } from './wrap/audit.js';
+import { ResearchSettingsStore } from './research/settings.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { APP_VERSION } from '../shared/version.js';
@@ -93,6 +94,7 @@ function wrapDir(): string {
   return path.join(app.getPath('userData'), 'wrap');
 }
 
+let activeResearchSettings: ResearchSettingsStore | null = null;
 let activeWrapStore: WrapStore | null = null;
 let activeWrapSecrets: SecretStore | null = null;
 let activeWrapAudit: WrapAuditLog | null = null;
@@ -183,6 +185,30 @@ ipcMain.handle('wrap:secrets:delete', (_event, name: string) => {
 
 ipcMain.handle('wrap:audit:list', (_event, limit?: number) => {
   return activeWrapAudit ? activeWrapAudit.list(Number(limit) || 50) : [];
+});
+
+// Research / stealth settings. These affect search_web, deep_crawl, and
+// research_topic; proxy/session changes stay in main.
+ipcMain.handle('research:settings:get', () => {
+  return activeResearchSettings
+    ? activeResearchSettings.load()
+    : { schemaVersion: 1, enabled: false, engineChain: [], urlTemplate: '', proxyUrl: '', domainCooldownSec: 300, delayMs: 1000, activateView: true };
+});
+
+ipcMain.handle('research:settings:save', async (_event, settings: any) => {
+  if (!activeResearchSettings) return { ok: false, settings: null, errors: ['Research settings are not ready yet.'] };
+  const result = activeResearchSettings.save(settings);
+  if (result.ok) await chassis.setResearchSettings(result.settings);
+  return result;
+});
+
+ipcMain.handle('research:session:reset', async () => {
+  try {
+    await chassis.resetResearchSession();
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || String(err) };
+  }
 });
 
 // Wrapper editing from Settings. The store validates and normalises every
@@ -285,6 +311,9 @@ async function createWindow() {
 
   // Start Autonomous HTTP Bridge
   try {
+    activeResearchSettings = new ResearchSettingsStore(path.join(app.getPath('userData'), 'research-settings.json'));
+    await chassis.setResearchSettings(activeResearchSettings.load());
+
     const wrapStore = new WrapStore(wrapDir());
     activeWrapStore = wrapStore;
     const wrapSecrets = new SecretStore(wrapDir(), createSecretCipher());

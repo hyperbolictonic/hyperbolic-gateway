@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, nativeImage, ipcMain, clipboard, WebContentsView, type WebContents } from 'electron';
+import { BrowserWindow, nativeImage, ipcMain, clipboard, session, WebContentsView, type Session, type WebContents } from 'electron';
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
@@ -27,6 +27,11 @@ import { Primitives } from './primitives/primitives.js';
 import { ScriptVault } from './scripts/script-vault.js';
 import type { ScriptItem } from './cortex/cortex-db.js';
 import { TrayManager } from './tray/tray-manager.js';
+import {
+  DEFAULT_RESEARCH_SETTINGS,
+  looksLikeChallenge,
+  type ResearchSettings,
+} from './research/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { HilManager, type HilRequest, type HilResolution, type NotificationOptions } from './hil/hil-manager.js';
@@ -64,12 +69,20 @@ export class BrowserChassis {
   private hostProfile: HostBrowserProfile = detectHostBrowserProfile();
   private primitives: Primitives;
   private llmSurface: LlmSurface;
+  private researchLlmSurface: LlmSurface;
   private searchHub: SearchHub;
   private crawler: Crawler;
   private researcher: Researcher;
   private actionLedger: ActionLedger;
   /** Reused off-screen view for detached reads (SERPs, Markdown alternates, crawls). */
   private utilView: WebContentsView | null = null;
+  private researchSettings: ResearchSettings = {
+    ...DEFAULT_RESEARCH_SETTINGS,
+    engineChain: [...DEFAULT_RESEARCH_SETTINGS.engineChain],
+  };
+  private researchCooldowns = new Map<string, number>();
+  private researchSessionConfigured = false;
+
   private sidebarView: WebContentsView | null = null;
   private sidebarMode: 'docked' | 'floating' | 'collapsed' = 'floating';
   private lastOpenSidebarMode: 'docked' | 'floating' = 'floating';
@@ -236,6 +249,13 @@ export class BrowserChassis {
       log: (level, msg) => this.addLog(level, msg),
     });
 
+    this.researchLlmSurface = new LlmSurface({
+      getSession: () => this.getResearchSession(),
+      navigateForText: (url) => this.navigateForText(url),
+      userAgent: this.hostProfile.userAgent,
+      log: (level, msg) => this.addLog(level, msg),
+    });
+
     // Multi-engine web search (TODO_RESEARCH_CRAWL.md §5, Feature 5).
     this.searchHub = new SearchHub({
       load: (url, script, opts) => this.loadDetached(url, script, opts),
@@ -246,12 +266,13 @@ export class BrowserChassis {
     // Cheap path first: content-negotiated Markdown/Text, else a detached render.
     this.crawler = new Crawler({
       tryLlm: async (url) => {
-        const report = await this.llmSurface.probe(url);
+        const report = await this.researchLlmSurface.probe(url);
         if (!report.content_negotiation?.accepts_markdown) return null;
-        const r = await this.llmSurface.fetch({ url, as: 'markdown' });
+        const r = await this.researchLlmSurface.fetch({ url, as: 'markdown' });
         return { content: r.content, via: r.via };
       },
       renderPage: (url, pageOpts) => this.crawlRenderPage(url, pageOpts),
+      beforePage: (url) => this.assertResearchCooldown(url),
       indexPage: async (url, title, content) => {
         await cortex.indexPage(url, title, content);
       },
@@ -290,6 +311,7 @@ export class BrowserChassis {
     this.setupTabManager();
     this.registerIpcHandlers();
     this.setupSidebarView();
+    void this.configureResearchSession();
   }
 
   private setupTabManager() {
@@ -425,6 +447,132 @@ export class BrowserChassis {
       width: Math.min(width, winWidth),
       height: Math.max(0, winHeight - 100),
     });
+  }
+
+  public async setResearchSettings(settings: ResearchSettings): Promise<void> {
+    this.researchSettings = {
+      ...settings,
+      engineChain: [...settings.engineChain],
+    };
+    await this.configureResearchSession();
+  }
+
+  public getResearchSettings(): ResearchSettings {
+    return {
+      ...this.researchSettings,
+      engineChain: [...this.researchSettings.engineChain],
+    };
+  }
+
+  public async resetResearchSession(): Promise<void> {
+    const researchSession = this.getResearchSession();
+    await researchSession.clearStorageData().catch(() => undefined);
+    await researchSession.clearCache().catch(() => undefined);
+    this.researchCooldowns.clear();
+    this.addLog('info', 'Research session cookies/cache cleared.');
+  }
+
+  private getResearchSession(): Session {
+    return session.fromPartition('persist:kuang-research');
+  }
+
+  private async configureResearchSession(): Promise<void> {
+    const researchSession = this.getResearchSession();
+    try {
+      researchSession.setUserAgent(this.hostProfile.userAgent);
+    } catch {
+      /* profile optional */
+    }
+
+    try {
+      await researchSession.setProxy(
+        this.researchSettings.proxyUrl ? { proxyRules: this.researchSettings.proxyUrl } : { mode: 'direct' },
+      );
+    } catch (err: any) {
+      this.addLog('warn', `Research proxy could not be applied: ${err?.message || err}`);
+    }
+
+    if (!this.researchSessionConfigured) {
+      this.researchSessionConfigured = true;
+      researchSession.webRequest.onBeforeSendHeaders((details, callback) => {
+        details.requestHeaders['User-Agent'] = this.hostProfile.userAgent;
+        details.requestHeaders['sec-ch-ua'] = this.hostProfile.secChUa;
+        details.requestHeaders['sec-ch-ua-platform'] = this.hostProfile.secChUaPlatform;
+        callback({ requestHeaders: details.requestHeaders });
+      });
+    }
+  }
+
+  private async activateResearchView(wc: WebContents): Promise<void> {
+    if (!this.researchSettings.enabled || !this.researchSettings.activateView) return;
+    try {
+      if (!wc.debugger.isAttached()) wc.debugger.attach('1.3');
+      await wc.debugger.sendCommand('Page.enable').catch(() => undefined);
+      await wc.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' }).catch(() => undefined);
+      await wc.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => undefined);
+      await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+        width: 1280,
+        height: 900,
+        deviceScaleFactor: 1,
+        mobile: false,
+      }).catch(() => undefined);
+    } catch {
+      // The page can still be read without the CDP activation.
+    }
+  }
+
+  private engineHost(engine: string): string {
+    if (engine === 'custom' && this.researchSettings.urlTemplate) {
+      try {
+        return new URL(this.researchSettings.urlTemplate.replace('{query}', 'test')).hostname;
+      } catch {
+        return '';
+      }
+    }
+    return (
+      {
+        google: 'www.google.com',
+        duckduckgo: 'html.duckduckgo.com',
+        bing: 'www.bing.com',
+        brave: 'search.brave.com',
+        startpage: 'www.startpage.com',
+      } as Record<string, string>
+    )[engine] || '';
+  }
+
+  private isResearchCooling(host: string): boolean {
+    if (!host) return false;
+    return (this.researchCooldowns.get(host) || 0) > Date.now();
+  }
+
+  private markResearchCooldown(host: string, reason: string): void {
+    if (!host || !this.researchSettings.enabled) return;
+    const until = Date.now() + this.researchSettings.domainCooldownSec * 1000;
+    this.researchCooldowns.set(host, until);
+    this.addLog(
+      'warn',
+      `Research cooldown: ${host} paused for ${this.researchSettings.domainCooldownSec}s after ${reason}.`,
+    );
+  }
+
+  private assertResearchCooldown(url: string): void {
+    if (!this.researchSettings.enabled) return;
+    try {
+      const host = new URL(url).hostname;
+      const until = this.researchCooldowns.get(host) || 0;
+      if (until > Date.now()) {
+        const seconds = Math.ceil((until - Date.now()) / 1000);
+        throw this.researchError('RESEARCH_COOLDOWN', `${host} is cooling down after a WAF/challenge; try again in ${seconds}s.`);
+      }
+    } catch (err: any) {
+      if (err?.code === 'RESEARCH_COOLDOWN') throw err;
+    }
+  }
+
+  private researchError(code: string, message: string): Error {
+    const error = new Error(message) as Error & { code: string };
+    error.code = code;
+    return error;
   }
 
   private setSidebarOverlayVisible(visible: boolean): void {
@@ -1511,6 +1659,7 @@ export class BrowserChassis {
           // `loadURL` resolves when the navigation *it* started finishes — unlike a bare
           // `did-finish-load` listener, which the initial about:blank document also triggers.
           try {
+            await this.activateResearchView(wc);
             await wc.loadURL(url);
           } catch {
             /* load error: read whatever committed */
@@ -1550,7 +1699,13 @@ export class BrowserChassis {
   private getUtilView(): WebContentsView {
     if (!this.utilView) {
       const view = new WebContentsView({
-        webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false },
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          sandbox: true,
+          backgroundThrottling: false,
+          partition: 'persist:kuang-research',
+        },
       });
       try {
         view.webContents.setUserAgent(this.hostProfile.userAgent);
@@ -1586,8 +1741,42 @@ export class BrowserChassis {
     query: string,
     opts: { engine?: string; engines?: string[]; urlTemplate?: string; max?: number } = {},
   ): Promise<SearchOutcome> {
-    this.addLog('action', `MCP Directive: search_web("${query}", engine=${opts.engine || (opts.engines ? opts.engines.join('>') : 'auto')})`);
-    return await this.searchHub.search(query, opts);
+    const effective = { ...opts };
+    if (this.researchSettings.enabled) {
+      if (!effective.engine && (!effective.engines || effective.engines.length === 0)) {
+        effective.engines = this.researchSettings.urlTemplate
+          ? ['custom', ...this.researchSettings.engineChain]
+          : [...this.researchSettings.engineChain];
+      }
+      if (this.researchSettings.urlTemplate && !effective.urlTemplate) {
+        effective.urlTemplate = this.researchSettings.urlTemplate;
+      }
+
+      const chain = effective.engines || (effective.engine ? [effective.engine] : []);
+      if (chain.length > 0) {
+        const allowed = chain.filter((engine) => !this.isResearchCooling(this.engineHost(engine)));
+        if (allowed.length === 0) {
+          throw this.researchError(
+            'RESEARCH_COOLDOWN',
+            'All selected search engines are cooling down after WAF/challenge responses.',
+          );
+        }
+        effective.engines = allowed;
+        effective.engine = undefined;
+      }
+    }
+
+    this.addLog(
+      'action',
+      `MCP Directive: search_web("${query}", engine=${effective.engine || (effective.engines ? effective.engines.join('>') : 'auto')}${this.researchSettings.enabled ? ', stealth' : ''})`,
+    );
+    const outcome = await this.searchHub.search(query, effective);
+    if (this.researchSettings.enabled && outcome.blocked) {
+      for (const attempt of outcome.attempts) {
+        if (attempt.blocked) this.markResearchCooldown(this.engineHost(attempt.engine), 'bot-check/consent');
+      }
+    }
+    return outcome;
   }
 
   /** Renders a page in a detached view and returns its Markdown + outgoing links (for deep_crawl). */
@@ -1595,6 +1784,7 @@ export class BrowserChassis {
     url: string,
     opts: { selector?: string; waitUntilIdleMs?: number } = {},
   ): Promise<{ title: string; markdown: string; links: string[]; status: number }> {
+    this.assertResearchCooldown(url);
     const sel = opts.selector ? JSON.stringify(opts.selector) : "'a[href]'";
     const script = `(() => {
       const out = new Set();
@@ -1610,19 +1800,43 @@ export class BrowserChassis {
       after: async (wc) =>
         (await RenderedSnapshotEngine.capture(wc, { format: 'markdown', waitUntilIdleMs: opts.waitUntilIdleMs ?? 400 })).content,
     });
+
+    if (this.researchSettings.enabled && looksLikeChallenge(r.status, r.after || '')) {
+      let host = '';
+      try {
+        host = new URL(url).hostname;
+      } catch {
+        /* ignore */
+      }
+      this.markResearchCooldown(host, 'WAF/challenge page');
+      throw this.researchError('WAF_CHALLENGE', `${host || url} returned a WAF/challenge page.`);
+    }
+
     return { title: r.result?.title || url, links: r.result?.links || [], markdown: r.after || '', status: r.status };
   }
 
   /** Depth/page-budgeted BFS crawl that indexes each page into Cortex (Feature 1). */
   public async deepCrawl(opts: CrawlOptions): Promise<CrawlOutcome> {
-    this.addLog('action', `MCP Directive: deep_crawl(${opts.startUrl}, depth=${opts.maxDepth ?? 2}, pages=${opts.maxPages ?? 5})`);
-    return await this.crawler.crawl(opts);
+    const effective = this.researchSettings.enabled
+      ? { ...opts, delayMs: Math.max(Number(opts.delayMs ?? 0), this.researchSettings.delayMs) }
+      : opts;
+    this.addLog(
+      'action',
+      `MCP Directive: deep_crawl(${effective.startUrl}, depth=${effective.maxDepth ?? 2}, pages=${effective.maxPages ?? 5}${this.researchSettings.enabled ? ', stealth' : ''})`,
+    );
+    return await this.crawler.crawl(effective);
   }
 
   /** search → gather top sources → distill → index; returns cited extractive evidence (Feature 3). */
   public async researchTopic(opts: ResearchOptions): Promise<ResearchOutcome> {
-    this.addLog('action', `MCP Directive: research_topic("${opts.query}", maxSources=${opts.maxSources ?? 5})`);
-    return await this.researcher.research(opts);
+    const effective = this.researchSettings.enabled
+      ? { ...opts, delayMs: Math.max(Number(opts.delayMs ?? 0), this.researchSettings.delayMs) }
+      : opts;
+    this.addLog(
+      'action',
+      `MCP Directive: research_topic("${effective.query}", maxSources=${effective.maxSources ?? 5}${this.researchSettings.enabled ? ', stealth' : ''})`,
+    );
+    return await this.researcher.research(effective);
   }
 
   public async takeAnnotatedScreenshot(opts: { economy?: boolean; textOnly?: boolean; includeOffscreen?: boolean } = {}): Promise<{

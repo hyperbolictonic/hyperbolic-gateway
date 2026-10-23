@@ -75,7 +75,7 @@ const EXTRACT_SCRIPT = `(() => {
   };
   const bodyText = (document.body ? document.body.innerText : '').toLowerCase();
   const hasResults = !!document.querySelector('.result, .b_algo, #search a h3, .g, .snippet, .w-gl__result');
-  const blocked = !hasResults && /unusual traffic|captcha|are you a robot|verify you are human|automated queries|before you continue/.test(bodyText);
+  const blocked = !hasResults && /unusual traffic|captcha|are you a robot|verify you are human|automated queries|before you continue|aws waf|cloudflare|datadome|access denied/.test(bodyText);
   const containers = Array.from(document.querySelectorAll('.result, .b_algo, #search .g, .g, .snippet, .w-gl__result, article'));
   const pool = containers.length ? containers : Array.from(document.querySelectorAll('li, section, div'));
   const rows = [];

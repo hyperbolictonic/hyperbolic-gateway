@@ -94,6 +94,9 @@ export interface ElectronAPI {
   listWrapWrappers: () => Promise<any[]>;
   saveWrapWrapper: (wrapper: any) => Promise<{ ok: boolean; wrapper?: any; errors: string[] }>;
   deleteWrapWrapper: (id: string) => Promise<{ ok: boolean; errors: string[] }>;
+  getResearchSettings: () => Promise<any>;
+  saveResearchSettings: (settings: any) => Promise<{ ok: boolean; settings: any; errors: string[] }>;
+  resetResearchSession: () => Promise<{ ok: boolean; error?: string }>;
 }
 
 const api: ElectronAPI = {
@@ -229,6 +232,9 @@ const api: ElectronAPI = {
   listWrapWrappers: () => ipcRenderer.invoke('wrap:wrappers:list'),
   saveWrapWrapper: (wrapper: any) => ipcRenderer.invoke('wrap:wrappers:save', wrapper),
   deleteWrapWrapper: (id: string) => ipcRenderer.invoke('wrap:wrappers:delete', id),
+  getResearchSettings: () => ipcRenderer.invoke('research:settings:get'),
+  saveResearchSettings: (settings: any) => ipcRenderer.invoke('research:settings:save', settings),
+  resetResearchSession: () => ipcRenderer.invoke('research:session:reset'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

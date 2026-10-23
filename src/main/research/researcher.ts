@@ -25,6 +25,8 @@ export interface ResearchOptions {
   harvestToCortex?: boolean;
   /** Try content-negotiated Markdown/Text before rendering (default true). */
   preferLlm?: boolean;
+  /** Politeness delay between gathered sources (default 0; stealth mode raises it). */
+  delayMs?: number;
 }
 
 export interface ResearchSource {
@@ -135,7 +137,7 @@ export class Researcher {
           startUrl: r.url,
           maxDepth: 0,
           maxPages: 1,
-          delayMs: 0,
+          delayMs: opts.delayMs ?? 0,
           preferLlm: opts.preferLlm !== false,
           harvestToCortex: opts.harvestToCortex !== false,
           includeContent: excerptChars,
