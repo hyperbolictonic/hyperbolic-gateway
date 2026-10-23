@@ -92,7 +92,6 @@ html.sidebar-mode #sidebar-panel {
 }
 html.sidebar-mode.sidebar-floating #sidebar-panel {
   background: color-mix(in oklab, var(--color-base-200) 82%, transparent) !important;
-  backdrop-filter: blur(18px) saturate(1.15);
 }
 html.sidebar-mode.sidebar-floating #sidebar-panel .bg-base-100 {
   background-color: color-mix(in oklab, var(--color-base-100) 78%, transparent);
@@ -123,7 +122,6 @@ html.sidebar-mode #sidebar-rail-toggle {
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
-  backdrop-filter: blur(10px);
   box-shadow: 0 4px 18px rgb(0 0 0 / 0.35);
   z-index: 2147483647;
 }
