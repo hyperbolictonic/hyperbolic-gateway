@@ -7,11 +7,11 @@ comments, examples, tests, JSON configs and commit messages. The repository is p
 
 **Forbidden examples:**
 
-- `C:\Users\<name>\...` or `C:/Users/<name>/...`
+- `[drive]:\Users\<name>\...` or `[drive]:/Users/<name>/...`
 - `/Users/<name>/...` or `/home/<name>/...`
-- `file:///C:/Users/...`
-- `...\Documents\<workspace>\...` (any personal workspace folder)
-- A hard-coded checkout path in a script or an MCP config
+- `file:///<drive>/Users/<name>/...`
+- any path that contains a personal workspace folder (for example, `Documents/<workspace>/...`)
+- a hard-coded checkout path in a script or an MCP config
 
 **Use instead:**
 
@@ -26,8 +26,11 @@ Absolute paths are resolved at runtime. They are never stored in the repository.
 **Why:** a path reveals a username, a folder layout, and sometimes a real email address. It cannot be
 removed from a public Git history by editing the current file.
 
-**Check:** `npm run check:no-local-paths` scans every tracked text file. CI runs the same check. Do not
-weaken the patterns to make a file pass; replace the path.
+**Check:** `npm run check:no-local-paths` scans every tracked text file. CI runs the same check on every
+push and pull request. Do not weaken the patterns to make a file pass; replace the path.
+
+**Fix:** `npm run fix:local-paths` rewrites obvious leaks in Markdown (home prefixes, the workspace folder,
+`file:///` URLs). Review the diff; it does not rewrite Git history.
 
 ## Other house rules
 

@@ -20,6 +20,7 @@
     "build:mac": "npm run build && electron-builder --mac",
     "build:dist:all": "npm run build && electron-builder -mwl",
     "check:no-local-paths": "node scripts/check-no-local-paths.mjs",
+    "fix:local-paths": "node scripts/check-no-local-paths.mjs --fix",
     "test:mcp": "node scripts/test-client.js",
     "test:mcp:all": "node scripts/test-all-mcp-tools.js",
     "test:harvest": "node scripts/test-harvest-regression.mjs",
