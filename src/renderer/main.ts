@@ -803,6 +803,9 @@ if (settingsBtn && settingsModal) {
   const wrapListEl = document.getElementById('settings-wrap-secret-list') as HTMLElement;
   const wrapCancelEditEl = document.getElementById('settings-wrap-cancel-edit') as HTMLButtonElement;
 
+  const wrapSubTabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-wrap-tab]'));
+  const wrapSubPanels = Array.from(document.querySelectorAll<HTMLElement>('[data-wrap-panel]'));
+
   const wrapWrapperModalEl = document.getElementById('wrap-wrapper-modal') as HTMLDialogElement;
   const wrapWrapperCloseEl = document.getElementById('settings-wrap-wrapper-close') as HTMLButtonElement;
   const wrapWrapperCancelEl = document.getElementById('settings-wrap-wrapper-cancel') as HTMLButtonElement;
@@ -1157,6 +1160,21 @@ if (settingsBtn && settingsModal) {
     if (wrapSaveEl) wrapSaveEl.textContent = 'SAVE SECRET';
   }
 
+  function showWrapSubTab(tab: string): void {
+    for (const button of wrapSubTabs) {
+      button.classList.toggle('tab-active', button.dataset.wrapTab === tab);
+    }
+    for (const panel of wrapSubPanels) {
+      panel.classList.toggle('hidden', panel.dataset.wrapPanel !== tab);
+    }
+    if (tab === 'credentials') void loadWrapSettings();
+    if (tab === 'wrappers') void loadWrapWrappers(undefined, false);
+  }
+
+  for (const button of wrapSubTabs) {
+    button.addEventListener('click', () => showWrapSubTab(button.dataset.wrapTab || 'wrappers'));
+  }
+
   async function loadWrapSettings(): Promise<void> {
     try {
       const data = await window.electronAPI?.listWrapSecrets();
@@ -1437,7 +1455,8 @@ if (settingsBtn && settingsModal) {
     }
     if (tab === 'wrappers') {
       void loadWrapSettings();
-      void loadWrapWrappers(undefined, false);
+      const activeWrapTab = wrapSubTabs.find((button) => button.classList.contains('tab-active'))?.dataset.wrapTab;
+      if (activeWrapTab !== 'credentials') void loadWrapWrappers(undefined, false);
     }
   };
   for (const button of settingsTabs) {
