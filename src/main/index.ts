@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,6 +8,9 @@ import { startHttpBridge } from './http-bridge.js';
 import { WrapExecutor } from './wrap/executor.js';
 import { WrapStore } from './wrap/store.js';
 import { createWrapToken, tokenFile } from './wrap/token.js';
+import { SecretStore } from './wrap/secrets.js';
+import type { SecretCipher } from './wrap/secrets.js';
+import { WrapAuditLog } from './wrap/audit.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { APP_VERSION } from '../shared/version.js';
@@ -90,6 +93,36 @@ function wrapDir(): string {
   return path.join(app.getPath('userData'), 'wrap');
 }
 
+let activeWrapStore: WrapStore | null = null;
+let activeWrapSecrets: SecretStore | null = null;
+let activeWrapAudit: WrapAuditLog | null = null;
+
+function createSecretCipher(): SecretCipher {
+  let available = false;
+  let warning = '';
+  try {
+    available = safeStorage.isEncryptionAvailable();
+    const backend =
+      process.platform === 'linux' ? String((safeStorage as any).getSelectedStorageBackend?.() || '') : '';
+    if (backend === 'basic_text') {
+      available = false;
+      warning =
+        'The Linux keyring is reporting basic_text, which is not encryption. Install a keyring (GNOME Keyring or KWallet) and restart to enable secrets.';
+    } else if (!available) {
+      warning = 'OS-backed encryption is unavailable in this session, so secrets are disabled.';
+    }
+  } catch (err: any) {
+    warning = `OS-backed encryption is unavailable: ${err?.message || err}`;
+  }
+
+  return {
+    available: () => available,
+    warning,
+    encrypt: (value: string) => safeStorage.encryptString(value).toString('base64'),
+    decrypt: (payload: string) => safeStorage.decryptString(Buffer.from(payload, 'base64')),
+  };
+}
+
 // The Cyberdeck is driven while the human's editor/terminal owns the foreground, so the
 // window is routinely *occluded*. Chromium then stops producing frames for it, which
 // silently breaks anything driven by rendering: scroll events never fire (so lazy-loading
@@ -123,6 +156,54 @@ ipcMain.handle('recording:list', () => listRecordings());
 ipcMain.handle('recording:save', (_event, buffer: ArrayBuffer, frames: number) => saveRecording(buffer, Number(frames) || 0));
 ipcMain.on('recording:ready', () => readyRecording());
 ipcMain.on('recording:failed', (_event, message: string) => failRecording(String(message || 'Recording failed.')));
+
+// Kuang Wrap secrets are written only here, from the Settings renderer. No
+// bridge route or MCP tool can create, read, or bind a credential value.
+ipcMain.handle('wrap:secrets:list', () => {
+  if (!activeWrapSecrets) {
+    return { available: false, warning: 'Kuang Wrap is not ready yet.', secrets: [] };
+  }
+  return {
+    available: activeWrapSecrets.available(),
+    warning: activeWrapSecrets.warning(),
+    secrets: activeWrapSecrets.list(),
+  };
+});
+
+ipcMain.handle('wrap:secrets:set', (_event, input: any) => {
+  if (!activeWrapSecrets) return { ok: false, errors: ['Kuang Wrap is not ready yet.'] };
+  return activeWrapSecrets.set(input || {});
+});
+
+ipcMain.handle('wrap:secrets:delete', (_event, name: string) => {
+  if (!activeWrapSecrets) return { ok: false, errors: ['Kuang Wrap is not ready yet.'] };
+  const deleted = activeWrapSecrets.delete(String(name || ''));
+  return deleted ? { ok: true, errors: [] } : { ok: false, errors: [`No secret named "${name || ''}".`] };
+});
+
+ipcMain.handle('wrap:audit:list', (_event, limit?: number) => {
+  return activeWrapAudit ? activeWrapAudit.list(Number(limit) || 50) : [];
+});
+
+// Wrapper editing from Settings. The store validates and normalises every
+// save; the bridge and MCP use the same files.
+ipcMain.handle('wrap:wrappers:list', () => {
+  return activeWrapStore ? activeWrapStore.list() : [];
+});
+
+ipcMain.handle('wrap:wrappers:save', (_event, wrapper: any) => {
+  if (!activeWrapStore) return { ok: false, errors: ['Kuang Wrap is not ready yet.'] };
+  const id = typeof wrapper?.id === 'string' ? wrapper.id : '';
+  const exists = Boolean(id && activeWrapStore.get(id));
+  return exists ? activeWrapStore.update(wrapper) : activeWrapStore.create(wrapper);
+});
+
+ipcMain.handle('wrap:wrappers:delete', (_event, id: string) => {
+  if (!activeWrapStore) return { ok: false, errors: ['Kuang Wrap is not ready yet.'] };
+  const wrapperId = String(id || '');
+  const deleted = activeWrapStore.delete(wrapperId);
+  return deleted ? { ok: true, errors: [] } : { ok: false, errors: [`No wrapper named "${wrapperId}".`] };
+});
 
 ipcMain.handle('app:connect-info', () => {
   const serverPath = ensureMcpServerPath();
@@ -205,9 +286,20 @@ async function createWindow() {
   // Start Autonomous HTTP Bridge
   try {
     const wrapStore = new WrapStore(wrapDir());
-    const wrapExecutor = new WrapExecutor(wrapStore);
+    activeWrapStore = wrapStore;
+    const wrapSecrets = new SecretStore(wrapDir(), createSecretCipher());
+    const wrapAudit = new WrapAuditLog(path.join(wrapDir(), 'audit.jsonl'));
+    activeWrapSecrets = wrapSecrets;
+    activeWrapAudit = wrapAudit;
+    const wrapExecutor = new WrapExecutor(wrapStore, { secrets: wrapSecrets, audit: wrapAudit });
     const wrapToken = createWrapToken(wrapDir());
-    startHttpBridge(chassis, bridgePort, { store: wrapStore, executor: wrapExecutor, token: wrapToken });
+    startHttpBridge(chassis, bridgePort, {
+      store: wrapStore,
+      executor: wrapExecutor,
+      secrets: wrapSecrets,
+      audit: wrapAudit,
+      token: wrapToken,
+    });
   } catch (err: any) {
     chassis.addLog('warn', `HTTP Bridge notice: ${err?.message || err}`);
   }

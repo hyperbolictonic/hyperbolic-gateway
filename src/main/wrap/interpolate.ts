@@ -97,18 +97,22 @@ export function buildRequest(wrapper: WrapWrapper, args: Record<string, unknown>
   };
 }
 
-export function redactHeaders(headers: Record<string, string>): Record<string, string> {
+export function redactHeaders(headers: Record<string, string>, extraSensitive: string[] = []): Record<string, string> {
+  const sensitive = new Set([
+    'authorization',
+    'proxy-authorization',
+    'cookie',
+    'set-cookie',
+    'x-api-key',
+    'api-key',
+    'apikey',
+    'x-auth-token',
+    'x-access-token',
+    ...extraSensitive.map((name) => name.toLowerCase()),
+  ]);
   const redacted: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
-    const lower = key.toLowerCase();
-    redacted[key] =
-      lower === 'authorization' ||
-      lower === 'cookie' ||
-      lower === 'set-cookie' ||
-      lower === 'x-api-key' ||
-      lower === 'proxy-authorization'
-        ? '<redacted>'
-        : value;
+    redacted[key] = sensitive.has(key.toLowerCase()) ? '<redacted>' : value;
   }
   return redacted;
 }

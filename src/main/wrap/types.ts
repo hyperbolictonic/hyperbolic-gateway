@@ -43,6 +43,8 @@ export interface WrapRequest {
   /** JSON-shaped template tree, or a string for `bodyFormat: "text"`. */
   body?: unknown;
   bodyFormat?: 'json' | 'form' | 'text';
+  /** Secret name; the value is resolved in main and bound to allowed hosts. */
+  auth?: string;
   /** Per-request timeout. Default 15000 ms, capped at 60000. */
   timeoutMs?: number;
 }
@@ -72,6 +74,8 @@ export interface WrapManifestEntry {
   mutating: boolean;
   required: string[];
   exposeAsTool: boolean;
+  /** Secret name, never its value. */
+  secret?: string;
 }
 
 export interface WrapPreview {

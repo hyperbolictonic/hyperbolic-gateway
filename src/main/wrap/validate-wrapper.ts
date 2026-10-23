@@ -10,6 +10,7 @@ import type { Recipe } from '../../../packages/recipe/src/index.ts';
 import type { WrapInputSchema, WrapMethod, WrapRequest, WrapWrapper } from './types.ts';
 
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
+const SECRET_NAME_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
 const BODY_FORMATS = new Set(['json', 'form', 'text']);
 const CREDENTIAL_QUERY_KEYS = new Set([
@@ -122,8 +123,13 @@ function normalizeRequest(input: unknown, errors: string[]): WrapRequest | undef
 
   const source = input as Record<string, unknown>;
 
-  if (source.auth !== undefined && source.auth !== '' && source.auth !== null) {
-    errors.push('auth is reserved for the secret store, which is not enabled in this build');
+  let auth: string | undefined;
+  if (source.auth !== undefined && source.auth !== null && source.auth !== '') {
+    if (typeof source.auth !== 'string' || !SECRET_NAME_PATTERN.test(source.auth) || source.auth.length > 64) {
+      errors.push('request.auth must be a secret name (lowercase letters, numbers, dot, dash, or underscore)');
+    } else {
+      auth = source.auth;
+    }
   }
 
   const method = String(source.method || 'GET').toUpperCase() as WrapMethod;
@@ -210,6 +216,7 @@ function normalizeRequest(input: unknown, errors: string[]): WrapRequest | undef
   if (headers) request.headers = headers;
   if (source.body !== undefined) request.body = body;
   if (bodyFormat) request.bodyFormat = bodyFormat;
+  if (auth) request.auth = auth;
   if (timeoutMs) request.timeoutMs = timeoutMs;
   return request;
 }

@@ -15,11 +15,15 @@ import {
 } from './recording/recording-service.js';
 import type { WrapExecutor } from './wrap/executor.js';
 import type { WrapStore } from './wrap/store.js';
+import type { SecretStore } from './wrap/secrets.js';
+import type { WrapAuditLog } from './wrap/audit.js';
 import { isWrapAuthorized, tokenFromHeaders } from './wrap/auth.js';
 
 export interface WrapBridge {
   store: WrapStore;
   executor: WrapExecutor;
+  secrets: SecretStore;
+  audit: WrapAuditLog;
   /** Rotated on each app start; the MCP side reads it from `KUANG_WRAP_TOKEN_FILE`. */
   token: string;
 }
@@ -1205,6 +1209,23 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
             return;
           }
           sendJson({ success: true, wrapper });
+          return;
+        }
+
+        if (req.method === 'GET' && pathname === '/wrap/secrets') {
+          // Names, hosts, and header names only. Values are never serialised here.
+          sendJson({
+            success: true,
+            available: wrap.secrets.available(),
+            warning: wrap.secrets.warning(),
+            secrets: wrap.secrets.list(),
+          });
+          return;
+        }
+
+        if (req.method === 'GET' && pathname === '/wrap/audit') {
+          const limit = Number(url.searchParams.get('limit')) || 50;
+          sendJson({ success: true, entries: wrap.audit.list(limit) });
           return;
         }
 
