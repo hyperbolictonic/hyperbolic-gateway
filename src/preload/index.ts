@@ -33,6 +33,7 @@ export interface ElectronAPI {
   installUpdate: () => Promise<boolean>;
   onUpdateStatus: (callback: (state: any) => void) => () => void;
   onDecision: (callback: (event: any) => void) => () => void;
+  onDecisionStatus: (callback: (status: any) => void) => () => void;
   onTabsUpdated: (callback: (tabs: TabSummary[]) => void) => () => void;
   onStateUpdated: (callback: (state: ChassisState) => void) => () => void;
   onTelemetry: (callback: (event: TelemetryEvent) => void) => () => void;
@@ -147,6 +148,12 @@ const api: ElectronAPI = {
     const handler = (_: any, event: any) => callback(event);
     ipcRenderer.on('chassis:decision', handler);
     return () => ipcRenderer.removeListener('chassis:decision', handler);
+  },
+
+  onDecisionStatus: (callback) => {
+    const handler = (_: any, status: any) => callback(status);
+    ipcRenderer.on('chassis:decision-status', handler);
+    return () => ipcRenderer.removeListener('chassis:decision-status', handler);
   },
 
   onTabsUpdated: (callback) => {
