@@ -537,32 +537,152 @@
 
 <!-- Wrapper editor, opened from Settings → Wrappers -->
 <dialog id="wrap-wrapper-modal" class="modal">
-  <div class="modal-box w-11/12 max-w-3xl bg-base-300 border border-base-100 p-5">
+  <div class="modal-box w-11/12 max-w-4xl max-h-[90vh] bg-base-300 border border-base-100 p-5 overflow-y-auto">
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0">
-        <h3 class="font-mono text-sm font-bold text-primary">WRAPPER EDITOR</h3>
+        <h3 id="settings-wrap-wrapper-heading" class="font-mono text-sm font-bold text-primary">NEW WRAPPER</h3>
         <div class="flex items-center gap-2 mt-1 min-w-0">
-          <div id="settings-wrap-wrapper-title" class="font-mono text-xs font-bold text-base-content/80 truncate">New wrapper</div>
+          <div id="settings-wrap-wrapper-title" class="font-mono text-xs font-bold text-base-content/80 truncate">Not saved</div>
           <span id="settings-wrap-wrapper-badge" class="badge badge-ghost badge-xs font-mono hidden"></span>
         </div>
       </div>
       <button type="button" id="settings-wrap-wrapper-close" class="btn btn-sm btn-ghost font-mono text-xs shrink-0">CLOSE</button>
     </div>
 
-    <textarea
-      id="settings-wrap-wrapper-json"
-      class="textarea textarea-bordered w-full h-[55vh] mt-4 font-mono text-[11px] leading-relaxed"
-      spellcheck="false"
-      placeholder="Wrapper JSON"
-    ></textarea>
+    <form id="settings-wrap-wrapper-form" class="mt-4 space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend font-mono text-xs">Name</legend>
+          <input id="settings-wrap-field-name" type="text" class="input input-sm w-full font-mono text-xs" placeholder="Read repository" autocomplete="off" />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend font-mono text-xs">ID</legend>
+          <input id="settings-wrap-field-id" type="text" class="input input-sm w-full font-mono text-xs" placeholder="github.read" autocomplete="off" />
+          <p class="label font-mono text-[10px]">Stable tool id: lowercase letters, numbers, dot, dash, underscore.</p>
+        </fieldset>
+      </div>
 
-    <div id="settings-wrap-wrapper-result" class="alert alert-ghost alert-sm font-mono text-xs mt-3 hidden"></div>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend font-mono text-xs">Description (optional)</legend>
+        <input id="settings-wrap-field-description" type="text" class="input input-sm w-full font-mono text-xs" placeholder="What this wrapper does" autocomplete="off" />
+      </fieldset>
 
-    <div class="modal-action mt-4">
-      <button type="button" id="settings-wrap-wrapper-delete" class="btn btn-sm btn-ghost font-mono text-xs" disabled>DELETE</button>
-      <button type="button" id="settings-wrap-wrapper-cancel" class="btn btn-sm btn-ghost font-mono text-xs">CANCEL</button>
-      <button type="button" id="settings-wrap-wrapper-save" class="btn btn-sm btn-primary font-mono text-xs" disabled>SAVE WRAPPER</button>
-    </div>
+      <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-3">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend font-mono text-xs">Method</legend>
+          <select id="settings-wrap-field-method" class="select select-sm w-full font-mono text-xs">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="PATCH">PATCH</option>
+            <option value="DELETE">DELETE</option>
+            <option value="HEAD">HEAD</option>
+          </select>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend font-mono text-xs">URL</legend>
+          <input id="settings-wrap-field-url" type="url" class="input input-sm w-full font-mono text-xs" placeholder="https://api.example.com/v1/items" autocomplete="off" />
+          <p class="label font-mono text-[10px]">Placeholders use <code class="font-mono">{{name}}</code> in the path or query.</p>
+        </fieldset>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend font-mono text-xs">Credential</legend>
+          <select id="settings-wrap-field-auth" class="select select-sm w-full font-mono text-xs">
+            <option value="">No credential</option>
+          </select>
+          <p class="label font-mono text-[10px]">A human must bind the secret to this host. Select <b>New credential</b> to add one now.</p>
+        </fieldset>
+        <fieldset class="fieldset justify-end">
+          <label class="label cursor-pointer justify-start gap-3 py-2">
+            <input id="settings-wrap-field-mutating" type="checkbox" class="toggle toggle-sm toggle-warning" />
+            <span class="label-text font-mono text-xs">Mutating call (POST/PUT/PATCH/DELETE)</span>
+          </label>
+        </fieldset>
+      </div>
+
+      <div id="settings-wrap-credential-panel" class="hidden rounded-box border border-warning/40 bg-warning/5 p-3 space-y-3">
+        <div class="font-mono text-[11px] font-bold text-warning">NEW CREDENTIAL</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Secret name</legend>
+            <input id="settings-wrap-credential-name" type="text" class="input input-sm w-full font-mono text-xs" placeholder="github-key" autocomplete="off" />
+          </fieldset>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Value (write-only)</legend>
+            <input id="settings-wrap-credential-value" type="password" class="input input-sm w-full font-mono text-xs" placeholder="paste the credential" autocomplete="off" />
+          </fieldset>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Allowed hosts</legend>
+            <input id="settings-wrap-credential-hosts" type="text" class="input input-sm w-full font-mono text-xs" placeholder="api.example.com" autocomplete="off" />
+          </fieldset>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Header / prefix</legend>
+            <div class="join w-full">
+              <input id="settings-wrap-credential-header" type="text" class="input input-sm join-item w-1/2 font-mono text-xs" value="Authorization" autocomplete="off" />
+              <input id="settings-wrap-credential-prefix" type="text" class="input input-sm join-item w-1/2 font-mono text-xs" value="Bearer " autocomplete="off" />
+            </div>
+          </fieldset>
+        </div>
+        <p class="font-mono text-[10px] text-base-content/50">The secret is saved first on submit, then the wrapper references it by name.</p>
+      </div>
+
+      <details class="rounded-box border border-base-100 bg-base-200/40 p-3">
+        <summary class="cursor-pointer font-mono text-[11px] font-bold text-base-content/70">ADVANCED: INPUT SCHEMA, REQUEST TEMPLATE, RECIPE</summary>
+        <div class="mt-3 space-y-3">
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Input schema (JSON)</legend>
+            <textarea id="settings-wrap-field-input-schema" class="textarea textarea-bordered w-full h-36 font-mono text-[11px]" spellcheck="false"></textarea>
+          </fieldset>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Query template (JSON)</legend>
+              <textarea id="settings-wrap-field-query" class="textarea textarea-bordered w-full h-24 font-mono text-[11px]" spellcheck="false" placeholder="{ &quot;q&quot;: &quot;{{query}}&quot; }"></textarea>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Headers (JSON)</legend>
+              <textarea id="settings-wrap-field-headers" class="textarea textarea-bordered w-full h-24 font-mono text-[11px]" spellcheck="false" placeholder="{ &quot;Accept&quot;: &quot;application/json&quot; }"></textarea>
+            </fieldset>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-[1fr_160px] gap-3">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Body template (JSON or text)</legend>
+              <textarea id="settings-wrap-field-body" class="textarea textarea-bordered w-full h-24 font-mono text-[11px]" spellcheck="false" placeholder="{ &quot;customer&quot;: &quot;{{customer_id}}&quot; }"></textarea>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Body format</legend>
+              <select id="settings-wrap-field-body-format" class="select select-sm w-full font-mono text-xs">
+                <option value="">auto</option>
+                <option value="json">json</option>
+                <option value="form">form</option>
+                <option value="text">text</option>
+              </select>
+            </fieldset>
+          </div>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Response recipe (JSON)</legend>
+            <textarea id="settings-wrap-field-response" class="textarea textarea-bordered w-full h-36 font-mono text-[11px]" spellcheck="false" placeholder="{ &quot;schemaVersion&quot;: 1, &quot;select&quot;: &quot;$.items[*]&quot; }"></textarea>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Notes (optional)</legend>
+            <input id="settings-wrap-field-notes" type="text" class="input input-sm w-full font-mono text-xs" autocomplete="off" />
+          </fieldset>
+        </div>
+      </details>
+
+      <div id="settings-wrap-wrapper-result" class="alert alert-ghost alert-sm font-mono text-xs mt-3 hidden"></div>
+
+      <div class="modal-action mt-4">
+        <button type="button" id="settings-wrap-wrapper-delete" class="btn btn-sm btn-ghost font-mono text-xs" disabled>DELETE</button>
+        <button type="button" id="settings-wrap-wrapper-cancel" class="btn btn-sm btn-ghost font-mono text-xs">CANCEL</button>
+        <button type="submit" id="settings-wrap-wrapper-save" class="btn btn-sm btn-primary font-mono text-xs" disabled>SAVE WRAPPER</button>
+      </div>
+    </form>
   </div>
   <form method="dialog" class="modal-backdrop">
     <button>close</button>
