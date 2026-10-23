@@ -8,6 +8,7 @@ export interface ElectronAPI {
   navigate: (url: string) => Promise<{ success: boolean }>;
   harvest: () => Promise<HarvestedConstruct>;
   setViewportVisibility: (visible: boolean) => void;
+  setSidebarVisibility: (visible: boolean) => void;
   getTabs: () => Promise<TabSummary[]>;
   createTab: (url?: string) => Promise<TabSummary>;
   switchTab: (tabId: string) => Promise<void>;
@@ -99,6 +100,7 @@ const api: ElectronAPI = {
   navigate: (url: string) => ipcRenderer.invoke('chassis:navigate', url),
   harvest: () => ipcRenderer.invoke('chassis:harvest'),
   setViewportVisibility: (visible: boolean) => ipcRenderer.send('chassis:set-viewport-visibility', visible),
+  setSidebarVisibility: (visible: boolean) => ipcRenderer.send('chassis:set-sidebar-visibility', visible),
 
   getTabs: () => ipcRenderer.invoke('chassis:get-tabs'),
   createTab: (url?: string) => ipcRenderer.invoke('chassis:create-tab', url),

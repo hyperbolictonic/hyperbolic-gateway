@@ -73,9 +73,14 @@
       <div id="tab-list" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 flex-1">
         <!-- Tab pills dynamically populated by renderer -->
       </div>
-      <button id="new-tab-btn" class="btn btn-ghost btn-xs btn-square text-base-content/70 hover:text-accent hover:bg-base-100 font-mono text-base font-bold ml-2" title="Open new browsing tab (+)">
-        +
-      </button>
+      <div class="flex items-center gap-1 ml-2 shrink-0">
+        <button id="sidebar-toggle-btn" class="btn btn-ghost btn-xs btn-square text-base-content/70 hover:text-accent hover:bg-base-100 font-mono text-base" title="Show or hide the Cyberdeck panel (Ctrl+Shift+B)">
+          ◧
+        </button>
+        <button id="new-tab-btn" class="btn btn-ghost btn-xs btn-square text-base-content/70 hover:text-accent hover:bg-base-100 font-mono text-base font-bold" title="Open new browsing tab (+)">
+          +
+        </button>
+      </div>
     </div>
 
     <!-- Main Workspace Split -->
@@ -99,8 +104,15 @@
         </div>
       </div>
 
-      <!-- Right Cyberdeck Telemetry & Tactical Panel (420px fixed) -->
-      <aside class="w-[420px] bg-base-200 border-l border-base-300 flex flex-col z-30 shadow-xl overflow-hidden">
+      <!-- Right Cyberdeck Telemetry & Tactical Panel (420px fixed, minimizable) -->
+      <aside id="sidebar-panel" class="w-[420px] bg-base-200 border-l border-base-300 flex flex-col z-30 shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-3 py-1.5 border-b border-base-300 bg-base-300/40">
+          <span class="font-mono text-[10px] uppercase tracking-wider text-base-content/50">Cyberdeck Panel</span>
+          <button id="sidebar-collapse-btn" class="btn btn-xs btn-ghost font-mono text-[10px]" title="Minimize the panel and give the browser the full width (Ctrl+Shift+B)">
+            MINIMIZE ⟩
+          </button>
+        </div>
+
         <!-- Telemetry Stats Strip -->
         <div class="p-3 border-b border-base-300 bg-base-300/50">
           <div class="grid grid-cols-2 gap-2">

@@ -62,6 +62,59 @@ function resizeCanvas() {
   canvas.height = canvas.parentElement.clientHeight;
 }
 window.addEventListener('resize', resizeCanvas);
+
+// ---- Dockable Cyberdeck panel -------------------------------------------------------------
+const sidebarPanel = document.getElementById('sidebar-panel') as HTMLElement | null;
+const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn') as HTMLButtonElement | null;
+const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn') as HTMLButtonElement | null;
+const SIDEBAR_MINIMIZED_KEY = 'kuang.sidebar.minimized';
+let sidebarMinimized = false;
+
+function applySidebarMinimized(minimized: boolean, persist = true): void {
+  sidebarMinimized = minimized;
+  sidebarPanel?.classList.toggle('hidden', minimized);
+
+  if (sidebarToggleBtn) {
+    sidebarToggleBtn.textContent = minimized ? '◨' : '◧';
+    sidebarToggleBtn.title = minimized
+      ? 'Show the Cyberdeck panel (Ctrl+Shift+B)'
+      : 'Hide the Cyberdeck panel for full-width browsing (Ctrl+Shift+B)';
+  }
+
+  // Main owns the native browser view bounds; hiding the DOM panel alone would
+  // leave the page 420px narrow.
+  window.electronAPI?.setSidebarVisibility(!minimized);
+
+  if (persist) {
+    try {
+      localStorage.setItem(SIDEBAR_MINIMIZED_KEY, minimized ? '1' : '0');
+    } catch {
+      // Ignore storage failures.
+    }
+  }
+
+  window.requestAnimationFrame(resizeCanvas);
+}
+
+function toggleSidebar(): void {
+  applySidebarMinimized(!sidebarMinimized);
+}
+
+sidebarToggleBtn?.addEventListener('click', toggleSidebar);
+sidebarCollapseBtn?.addEventListener('click', () => applySidebarMinimized(true));
+window.addEventListener('keydown', (event) => {
+  if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'b') {
+    event.preventDefault();
+    toggleSidebar();
+  }
+});
+
+try {
+  sidebarMinimized = localStorage.getItem(SIDEBAR_MINIMIZED_KEY) === '1';
+} catch {
+  sidebarMinimized = false;
+}
+applySidebarMinimized(sidebarMinimized, false);
 resizeCanvas();
 
 // Render loop for organic Ghost Cursor trail

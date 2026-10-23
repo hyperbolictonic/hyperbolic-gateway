@@ -67,6 +67,8 @@ export class BrowserChassis {
   private actionLedger: ActionLedger;
   /** Reused off-screen view for detached reads (SERPs, Markdown alternates, crawls). */
   private utilView: WebContentsView | null = null;
+  /** When false, the telemetry sidebar is minimized and the browser gets the full window width. */
+  private sidebarVisible = true;
   private utilQueue: Promise<void> = Promise.resolve();
   /** Monotonic page revision: bumped on navigation and every mutating action. */
   private revision = 0;
@@ -338,7 +340,7 @@ export class BrowserChassis {
   public getViewportBounds(): { x: number; y: number; width: number; height: number } {
     if (!this.mainWindow) return { x: 0, y: 0, width: 0, height: 0 };
     const [winWidth, winHeight] = this.mainWindow.getSize();
-    const rightPanelWidth = 420;
+    const rightPanelWidth = this.sidebarVisible ? 420 : 0;
     // With tab bar, top bar height is 100px (64px navbar + 36px tab bar)
     const topBarHeight = 100;
 
@@ -351,6 +353,15 @@ export class BrowserChassis {
       width: viewportWidth,
       height: viewportHeight,
     };
+  }
+
+  public setSidebarVisible(visible: boolean): void {
+    this.sidebarVisible = Boolean(visible);
+    this.tabManager?.updateActiveTabBounds();
+  }
+
+  public isSidebarVisible(): boolean {
+    return this.sidebarVisible;
   }
 
   public getActiveWebContents(): Electron.WebContents {
@@ -420,6 +431,10 @@ export class BrowserChassis {
 
     ipcMain.handle('chassis:set-viewport-visibility', setVisibility);
     ipcMain.on('chassis:set-viewport-visibility', setVisibility);
+
+    const setSidebarVisibility = (_: any, visible: boolean) => this.setSidebarVisible(visible);
+    ipcMain.handle('chassis:set-sidebar-visibility', setSidebarVisibility);
+    ipcMain.on('chassis:set-sidebar-visibility', setSidebarVisibility);
 
     // Cortex & Bookmarks IPC Handlers
     ipcMain.handle('cortex:recall', async (_, query: string, options?: any) => {
