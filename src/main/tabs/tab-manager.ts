@@ -24,6 +24,8 @@ export interface TabManagerOptions {
   onTabUpdated?: (tab: TabInstance) => void;
   onTabsChanged?: (tabs: TabSummary[]) => void;
   onTabCreated?: (tab: TabInstance) => void;
+  /** Called after a tab's native view is attached, so an overlay can stay on top. */
+  onViewAdded?: () => void;
   onLog?: (level: 'info' | 'warn' | 'action', message: string) => void;
   onConsoleLog?: (log: { level: string; message: string; line: number; sourceId: string; timestamp: number }) => void;
 }
@@ -82,6 +84,7 @@ export class TabManager {
     // Soft matte light zinc gray (#f4f4f5): prevents harsh white glare while making black typography 100% legible
     view.setBackgroundColor('#f4f4f5');
     this.options.mainWindow.contentView.addChildView(view);
+    this.options.onViewAdded?.();
 
     const wc = view.webContents;
 

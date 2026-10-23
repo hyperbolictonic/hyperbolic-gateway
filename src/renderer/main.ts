@@ -63,45 +63,49 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 
-// ---- Dockable Cyberdeck panel -------------------------------------------------------------
-const sidebarPanel = document.getElementById('sidebar-panel') as HTMLElement | null;
+// ---- Native floating Cyberdeck panel ------------------------------------------------------
+// The panel is rendered in its own WebContentsView (`?sidebar=1`) so it can sit
+// above the native browser view. The main window keeps this DOM copy hidden.
+const SIDEBAR_MODE = new URLSearchParams(window.location.search).has('sidebar');
+document.documentElement.classList.toggle('sidebar-mode', SIDEBAR_MODE);
+
 const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn') as HTMLButtonElement | null;
 const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn') as HTMLButtonElement | null;
-const SIDEBAR_MINIMIZED_KEY = 'kuang.sidebar.minimized';
-let sidebarMinimized = false;
+const sidebarDockBtn = document.getElementById('sidebar-dock-btn') as HTMLButtonElement | null;
+const sidebarRailToggle = document.getElementById('sidebar-rail-toggle') as HTMLButtonElement | null;
+type SidebarMode = 'docked' | 'floating' | 'collapsed';
+let currentSidebarMode: SidebarMode = 'floating';
 
-function applySidebarMinimized(minimized: boolean, persist = true): void {
-  sidebarMinimized = minimized;
-  sidebarPanel?.classList.toggle('hidden', minimized);
+function applySidebarMode(mode: SidebarMode): void {
+  currentSidebarMode = mode;
+  document.documentElement.classList.toggle('sidebar-collapsed', mode === 'collapsed');
+  document.documentElement.classList.toggle('sidebar-docked', mode === 'docked');
+  document.documentElement.classList.toggle('sidebar-floating', mode === 'floating');
 
   if (sidebarToggleBtn) {
-    sidebarToggleBtn.textContent = minimized ? '◨' : '◧';
-    sidebarToggleBtn.title = minimized
-      ? 'Show the Cyberdeck panel (Ctrl+Shift+B)'
-      : 'Hide the Cyberdeck panel for full-width browsing (Ctrl+Shift+B)';
+    sidebarToggleBtn.textContent = mode === 'collapsed' ? '◨' : '◧';
+    sidebarToggleBtn.title =
+      mode === 'collapsed'
+        ? 'Show the floating Cyberdeck panel (Ctrl+Shift+B)'
+        : 'Collapse the Cyberdeck panel (Ctrl+Shift+B)';
   }
 
-  // Main owns the native browser view bounds; hiding the DOM panel alone would
-  // leave the page 420px narrow.
-  window.electronAPI?.setSidebarVisibility(!minimized);
-
-  if (persist) {
-    try {
-      localStorage.setItem(SIDEBAR_MINIMIZED_KEY, minimized ? '1' : '0');
-    } catch {
-      // Ignore storage failures.
-    }
+  if (sidebarDockBtn) {
+    sidebarDockBtn.textContent = mode === 'docked' ? 'FLOAT' : 'DOCK';
+    sidebarDockBtn.disabled = mode === 'collapsed';
   }
-
-  window.requestAnimationFrame(resizeCanvas);
 }
 
 function toggleSidebar(): void {
-  applySidebarMinimized(!sidebarMinimized);
+  window.electronAPI?.toggleSidebarMode();
 }
 
 sidebarToggleBtn?.addEventListener('click', toggleSidebar);
-sidebarCollapseBtn?.addEventListener('click', () => applySidebarMinimized(true));
+sidebarCollapseBtn?.addEventListener('click', () => window.electronAPI?.setSidebarMode('collapsed'));
+sidebarDockBtn?.addEventListener('click', () => {
+  window.electronAPI?.setSidebarMode(currentSidebarMode === 'docked' ? 'floating' : 'docked');
+});
+sidebarRailToggle?.addEventListener('click', () => window.electronAPI?.setSidebarMode('floating'));
 window.addEventListener('keydown', (event) => {
   if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'b') {
     event.preventDefault();
@@ -109,17 +113,13 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-try {
-  sidebarMinimized = localStorage.getItem(SIDEBAR_MINIMIZED_KEY) === '1';
-} catch {
-  sidebarMinimized = false;
-}
-applySidebarMinimized(sidebarMinimized, false);
+window.electronAPI?.getSidebarMode().then(applySidebarMode).catch(() => undefined);
+window.electronAPI?.onSidebarMode((mode) => applySidebarMode(mode as SidebarMode));
 resizeCanvas();
 
 // Render loop for organic Ghost Cursor trail
 function renderTrail() {
-  if (!ctx || !canvas) return;
+  if (SIDEBAR_MODE || !ctx || !canvas) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (let i = cursorTrail.length - 1; i >= 0; i--) {
@@ -581,8 +581,11 @@ function removeHilBanner() {
   if (b) b.remove();
 }
 
-// Keyboard shortcuts (Ctrl+H to harvest)
+// Keyboard shortcuts (Ctrl+H to harvest). The sidebar overlay renderer is a
+// passive surface; it must not trigger browser actions while a human clicks a
+// tab there.
 window.addEventListener('keydown', (e) => {
+  if (SIDEBAR_MODE) return;
   if (e.ctrlKey && e.key.toLowerCase() === 'h') {
     e.preventDefault();
     harvestBtn.click();

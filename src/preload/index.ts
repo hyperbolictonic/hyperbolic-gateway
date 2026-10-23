@@ -8,7 +8,10 @@ export interface ElectronAPI {
   navigate: (url: string) => Promise<{ success: boolean }>;
   harvest: () => Promise<HarvestedConstruct>;
   setViewportVisibility: (visible: boolean) => void;
-  setSidebarVisibility: (visible: boolean) => void;
+  getSidebarMode: () => Promise<'docked' | 'floating' | 'collapsed'>;
+  setSidebarMode: (mode: 'docked' | 'floating' | 'collapsed') => void;
+  toggleSidebarMode: () => void;
+  onSidebarMode: (callback: (mode: 'docked' | 'floating' | 'collapsed') => void) => () => void;
   getTabs: () => Promise<TabSummary[]>;
   createTab: (url?: string) => Promise<TabSummary>;
   switchTab: (tabId: string) => Promise<void>;
@@ -100,7 +103,14 @@ const api: ElectronAPI = {
   navigate: (url: string) => ipcRenderer.invoke('chassis:navigate', url),
   harvest: () => ipcRenderer.invoke('chassis:harvest'),
   setViewportVisibility: (visible: boolean) => ipcRenderer.send('chassis:set-viewport-visibility', visible),
-  setSidebarVisibility: (visible: boolean) => ipcRenderer.send('chassis:set-sidebar-visibility', visible),
+  getSidebarMode: () => ipcRenderer.invoke('chassis:get-sidebar-mode'),
+  setSidebarMode: (mode) => ipcRenderer.send('chassis:set-sidebar-mode', mode),
+  toggleSidebarMode: () => ipcRenderer.send('chassis:toggle-sidebar-mode'),
+  onSidebarMode: (callback) => {
+    const handler = (_: any, mode: 'docked' | 'floating' | 'collapsed') => callback(mode);
+    ipcRenderer.on('chassis:sidebar-mode', handler);
+    return () => ipcRenderer.removeListener('chassis:sidebar-mode', handler);
+  },
 
   getTabs: () => ipcRenderer.invoke('chassis:get-tabs'),
   createTab: (url?: string) => ipcRenderer.invoke('chassis:create-tab', url),
