@@ -32,6 +32,11 @@ test('saves and reloads stealth settings', () => {
     proxyUrl: 'socks5://proxy.example:1080',
     domainCooldownSec: 600,
     delayMs: 1500,
+    crawlConcurrency: 2,
+    preferLlm: false,
+    defaultMaxPages: 7,
+    defaultMaxSources: 4,
+    searchMaxResults: 12,
     activateView: true,
   });
   assert.equal(result.ok, true, result.errors.join('; '));
@@ -42,6 +47,11 @@ test('saves and reloads stealth settings', () => {
   assert.equal(loaded.proxyUrl, 'socks5://proxy.example:1080');
   assert.equal(loaded.domainCooldownSec, 600);
   assert.equal(loaded.delayMs, 1500);
+  assert.equal(loaded.crawlConcurrency, 2);
+  assert.equal(loaded.preferLlm, false);
+  assert.equal(loaded.defaultMaxPages, 7);
+  assert.equal(loaded.defaultMaxSources, 4);
+  assert.equal(loaded.searchMaxResults, 12);
 });
 
 test('rejects invalid research settings', () => {
@@ -62,6 +72,9 @@ test('rejects invalid research settings', () => {
 
   const badProxy = normalizeResearchSettings({ proxyUrl: 'proxy without a scheme' });
   assert.equal(badProxy.ok, false);
+
+  const badConcurrency = normalizeResearchSettings({ crawlConcurrency: 9 });
+  assert.equal(badConcurrency.ok, false);
 });
 
 test('detects WAF and challenge pages', () => {

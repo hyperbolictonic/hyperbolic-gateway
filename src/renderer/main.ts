@@ -314,11 +314,20 @@ copyDecisionsBtn?.addEventListener('click', async () => {
   setTimeout(() => (copyDecisionsBtn.textContent = 'COPY'), 1200);
 });
 
+// The sidebar overlay is a hidden WebContentsView, so gating this on
+// document.visibilityState would stop it from ever re-checking the decision
+// backend. Keep the poll unconditional; it is one small IPC round-trip.
 setInterval(() => {
-  if (document.visibilityState === 'visible') void syncDecisions();
+  void syncDecisions();
 }, 8000);
 
 void syncDecisions();
+// The sidebar view can load before the decision config probe settles; retry
+// once shortly after startup so its DECISIONS tab appears without waiting for
+// the next poll interval.
+window.setTimeout(() => {
+  void refreshDecisionTab();
+}, 1500);
 
 // Form Submit (Manual Navigation)
 urlForm.addEventListener('submit', async (e) => {
@@ -875,6 +884,11 @@ if (settingsBtn && settingsModal) {
   const researchProxyEl = document.getElementById('settings-research-proxy') as HTMLInputElement;
   const researchCooldownEl = document.getElementById('settings-research-cooldown') as HTMLInputElement;
   const researchDelayEl = document.getElementById('settings-research-delay') as HTMLInputElement;
+  const researchConcurrencyEl = document.getElementById('settings-research-concurrency') as HTMLInputElement;
+  const researchPreferLlmEl = document.getElementById('settings-research-prefer-llm') as HTMLInputElement;
+  const researchMaxPagesEl = document.getElementById('settings-research-max-pages') as HTMLInputElement;
+  const researchMaxSourcesEl = document.getElementById('settings-research-max-sources') as HTMLInputElement;
+  const researchMaxResultsEl = document.getElementById('settings-research-max-results') as HTMLInputElement;
   const researchActivateEl = document.getElementById('settings-research-activate-view') as HTMLInputElement;
   const researchResultEl = document.getElementById('settings-research-result') as HTMLElement;
   const researchResetEl = document.getElementById('settings-research-reset') as HTMLButtonElement;
@@ -895,6 +909,11 @@ if (settingsBtn && settingsModal) {
       researchProxyEl.value = settings.proxyUrl || '';
       researchCooldownEl.value = String(settings.domainCooldownSec ?? 300);
       researchDelayEl.value = String(settings.delayMs ?? 1000);
+      researchConcurrencyEl.value = String(settings.crawlConcurrency ?? 1);
+      researchPreferLlmEl.checked = settings.preferLlm !== false;
+      researchMaxPagesEl.value = String(settings.defaultMaxPages ?? 5);
+      researchMaxSourcesEl.value = String(settings.defaultMaxSources ?? 5);
+      researchMaxResultsEl.value = String(settings.searchMaxResults ?? 8);
       researchActivateEl.checked = settings.activateView !== false;
     } catch (err: any) {
       showResearchResult('error', `Could not load research settings: ${err?.message || err}`);
@@ -916,6 +935,11 @@ if (settingsBtn && settingsModal) {
         proxyUrl: researchProxyEl.value.trim(),
         domainCooldownSec: Number(researchCooldownEl.value) || 300,
         delayMs: Number(researchDelayEl.value) || 0,
+        crawlConcurrency: Number(researchConcurrencyEl.value) || 1,
+        preferLlm: researchPreferLlmEl.checked,
+        defaultMaxPages: Number(researchMaxPagesEl.value) || 5,
+        defaultMaxSources: Number(researchMaxSourcesEl.value) || 5,
+        searchMaxResults: Number(researchMaxResultsEl.value) || 8,
         activateView: researchActivateEl.checked,
       });
       if (result?.ok) {

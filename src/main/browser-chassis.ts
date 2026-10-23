@@ -1742,6 +1742,7 @@ export class BrowserChassis {
     opts: { engine?: string; engines?: string[]; urlTemplate?: string; max?: number } = {},
   ): Promise<SearchOutcome> {
     const effective = { ...opts };
+    if (effective.max === undefined) effective.max = this.researchSettings.searchMaxResults;
     if (this.researchSettings.enabled) {
       if (!effective.engine && (!effective.engines || effective.engines.length === 0)) {
         effective.engines = this.researchSettings.urlTemplate
@@ -1817,21 +1818,32 @@ export class BrowserChassis {
 
   /** Depth/page-budgeted BFS crawl that indexes each page into Cortex (Feature 1). */
   public async deepCrawl(opts: CrawlOptions): Promise<CrawlOutcome> {
-    const effective = this.researchSettings.enabled
-      ? { ...opts, delayMs: Math.max(Number(opts.delayMs ?? 0), this.researchSettings.delayMs) }
-      : opts;
+    const effective: CrawlOptions = {
+      ...opts,
+      maxPages: opts.maxPages ?? this.researchSettings.defaultMaxPages,
+      preferLlm: opts.preferLlm ?? this.researchSettings.preferLlm,
+      concurrency: opts.concurrency ?? this.researchSettings.crawlConcurrency,
+    };
+    if (this.researchSettings.enabled) {
+      effective.delayMs = Math.max(Number(opts.delayMs ?? 0), this.researchSettings.delayMs);
+    }
     this.addLog(
       'action',
-      `MCP Directive: deep_crawl(${effective.startUrl}, depth=${effective.maxDepth ?? 2}, pages=${effective.maxPages ?? 5}${this.researchSettings.enabled ? ', stealth' : ''})`,
+      `MCP Directive: deep_crawl(${effective.startUrl}, depth=${effective.maxDepth ?? 2}, pages=${effective.maxPages ?? 5}, concurrency=${effective.concurrency ?? 1}${this.researchSettings.enabled ? ', stealth' : ''})`,
     );
     return await this.crawler.crawl(effective);
   }
 
   /** search → gather top sources → distill → index; returns cited extractive evidence (Feature 3). */
   public async researchTopic(opts: ResearchOptions): Promise<ResearchOutcome> {
-    const effective = this.researchSettings.enabled
-      ? { ...opts, delayMs: Math.max(Number(opts.delayMs ?? 0), this.researchSettings.delayMs) }
-      : opts;
+    const effective: ResearchOptions = {
+      ...opts,
+      maxSources: opts.maxSources ?? this.researchSettings.defaultMaxSources,
+      preferLlm: opts.preferLlm ?? this.researchSettings.preferLlm,
+    };
+    if (this.researchSettings.enabled) {
+      effective.delayMs = Math.max(Number(opts.delayMs ?? 0), this.researchSettings.delayMs);
+    }
     this.addLog(
       'action',
       `MCP Directive: research_topic("${effective.query}", maxSources=${effective.maxSources ?? 5}${this.researchSettings.enabled ? ', stealth' : ''})`,

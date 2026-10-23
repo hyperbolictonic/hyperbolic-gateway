@@ -462,6 +462,33 @@
             </fieldset>
           </div>
 
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Crawl concurrency</legend>
+              <input id="settings-research-concurrency" type="number" min="1" max="4" step="1" class="input input-sm w-full font-mono text-xs" />
+              <p class="label font-mono text-[10px]">1 is sequential and safest. Higher values fetch pages in parallel and raise WAF risk.</p>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Default crawl pages</legend>
+              <input id="settings-research-max-pages" type="number" min="1" max="25" step="1" class="input input-sm w-full font-mono text-xs" />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Default research sources</legend>
+              <input id="settings-research-max-sources" type="number" min="1" max="8" step="1" class="input input-sm w-full font-mono text-xs" />
+            </fieldset>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Default search results</legend>
+              <input id="settings-research-max-results" type="number" min="1" max="25" step="1" class="input input-sm w-full font-mono text-xs" />
+            </fieldset>
+            <label class="label cursor-pointer justify-start gap-3 py-2">
+              <input id="settings-research-prefer-llm" type="checkbox" class="toggle toggle-sm toggle-info" />
+              <span class="label-text font-mono text-xs">Prefer Markdown/LLM-friendly representations before rendering</span>
+            </label>
+          </div>
+
           <label class="label cursor-pointer justify-start gap-3 py-0">
             <input id="settings-research-activate-view" type="checkbox" class="toggle toggle-sm toggle-accent" />
             <span class="label-text font-mono text-xs">Activate the hidden view (focus/lifecycle emulation)</span>

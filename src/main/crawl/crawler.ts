@@ -27,6 +27,8 @@ export interface CrawlOptions {
   selector?: string;
   /** Politeness delay between pages in ms (default 300). */
   delayMs?: number;
+  /** Parallel page fetches (default 1; max 4). Higher values increase WAF risk. */
+  concurrency?: number;
   /** Include a leading excerpt (this many chars) of each page's Markdown in the result. */
   includeContent?: number;
 }
@@ -131,7 +133,11 @@ export function linksFromMarkdown(markdown: string, baseUrl: string): string[] {
 }
 
 export class Crawler {
-  constructor(private deps: CrawlerDeps) {}
+  private deps: CrawlerDeps;
+
+  constructor(deps: CrawlerDeps) {
+    this.deps = deps;
+  }
 
   public async crawl(opts: CrawlOptions): Promise<CrawlOutcome> {
     const start = normalizeUrl(opts.startUrl || '');
@@ -145,6 +151,7 @@ export class Crawler {
     const maxPages = clamp(opts.maxPages ?? 5, 1, 25);
     const sameOrigin = opts.sameOrigin !== false;
     const delayMs = clamp(opts.delayMs ?? 300, 0, 5000);
+    const concurrency = clamp(opts.concurrency ?? 1, 1, 4);
     const startOrigin = new URL(start).origin;
 
     const visited = new Set<string>([start]);
@@ -155,84 +162,25 @@ export class Crawler {
     let depthReached = 0;
     let truncated = false;
 
-    while (queue.length > 0) {
-      if (pages.length >= maxPages) {
-        truncated = true;
-        break;
+    while (queue.length > 0 && pages.length < maxPages) {
+      const batch: Array<{ url: string; depth: number }> = [];
+      while (batch.length < concurrency && queue.length > 0 && pages.length + batch.length < maxPages) {
+        batch.push(queue.shift()!);
       }
-      const { url, depth } = queue.shift()!;
-      depthReached = Math.max(depthReached, depth);
+      if (batch.length === 0) break;
 
-      let title = '';
-      let content = '';
-      let via: 'llm' | 'render' = 'render';
-      let links: string[] = [];
-      let error: string | undefined;
+      const results = await Promise.all(
+        batch.map(({ url, depth }) => this.processPage(url, depth, opts)),
+      );
 
-      try {
-        await this.deps.beforePage?.(url);
-      } catch (err: any) {
-        error = err?.message || String(err);
-        notes.push(`skipped ${url}: ${error}`);
-        pages.push({
-          url,
-          title: url,
-          depth,
-          via: 'render',
-          bytes: 0,
-          links: 0,
-          indexed: false,
-          error,
-        });
-        continue;
-      }
+      for (const result of results) {
+        pages.push(result.page);
+        depthReached = Math.max(depthReached, result.page.depth);
+        if (result.indexed) cortexIndexed++;
+        notes.push(...result.notes);
 
-      // 1. Cheap path — content-negotiated Markdown/Text.
-      let usedLlm = false;
-      if (opts.preferLlm !== false && this.deps.tryLlm) {
-        try {
-          const r = await this.deps.tryLlm(url);
-          if (r && r.content && r.content.trim().length > 0) {
-            content = r.content;
-            via = 'llm';
-            usedLlm = true;
-          }
-        } catch (err: any) {
-          notes.push(`llm path failed for ${url}: ${err?.message || err}`);
-        }
-      }
-
-      // 2. Render path (also the link source when the llm path returns text).
-      if (!usedLlm) {
-        try {
-          const r = await this.deps.renderPage(url, { selector: opts.selector });
-          title = r.title;
-          content = r.markdown;
-          links = r.links || [];
-        } catch (err: any) {
-          error = err?.message || String(err);
-          notes.push(`render failed for ${url}: ${error}`);
-        }
-      } else {
-        links = linksFromMarkdown(content, url);
-      }
-
-      let indexed = false;
-      if (!error && content && content.trim().length > 50 && this.deps.indexPage) {
-        try {
-          await this.deps.indexPage(url, title || url, content);
-          indexed = true;
-          cortexIndexed++;
-        } catch (err: any) {
-          notes.push(`cortex index failed for ${url}: ${err?.message || err}`);
-        }
-      }
-
-      pages.push({ url, title: title || url, depth, via, bytes: Buffer.byteLength(content, 'utf8'), links: links.length, indexed, error, excerpt: opts.includeContent ? content.slice(0, opts.includeContent) : undefined });
-
-      // 3. Enqueue children.
-      if (depth < maxDepth) {
-        for (const link of links) {
+        if (result.page.depth >= maxDepth) continue;
+        for (const link of result.links) {
           const norm = normalizeUrl(link);
           if (visited.has(norm)) continue;
           let origin = '';
@@ -244,7 +192,7 @@ export class Crawler {
           if (sameOrigin && origin !== startOrigin) continue;
           if (!matchesAnyPattern(norm, opts.matchPatterns)) continue;
           visited.add(norm);
-          queue.push({ url: norm, depth: depth + 1 });
+          queue.push({ url: norm, depth: result.page.depth + 1 });
         }
       }
 
@@ -253,6 +201,7 @@ export class Crawler {
       }
     }
 
+    if (queue.length > 0 && pages.length >= maxPages) truncated = true;
     if (truncated) notes.push(`Stopped at the ${maxPages}-page budget (${queue.length} URL(s) still queued).`);
 
     const outcome: CrawlOutcome = {
@@ -267,5 +216,86 @@ export class Crawler {
     };
     this.deps.log?.('action', `deep_crawl ${start} → ${pages.length} page(s), depth ${depthReached}, ${cortexIndexed} indexed`);
     return outcome;
+  }
+
+  private async processPage(
+    url: string,
+    depth: number,
+    opts: CrawlOptions,
+  ): Promise<{ page: CrawlPage; links: string[]; indexed: boolean; notes: string[] }> {
+    const notes: string[] = [];
+    let title = '';
+    let content = '';
+    let via: 'llm' | 'render' = 'render';
+    let links: string[] = [];
+    let error: string | undefined;
+
+    try {
+      await this.deps.beforePage?.(url);
+    } catch (err: any) {
+      error = err?.message || String(err);
+      notes.push(`skipped ${url}: ${error}`);
+      return {
+        page: { url, title: url, depth, via: 'render', bytes: 0, links: 0, indexed: false, error },
+        links: [],
+        indexed: false,
+        notes,
+      };
+    }
+
+    let usedLlm = false;
+    if (opts.preferLlm !== false && this.deps.tryLlm) {
+      try {
+        const r = await this.deps.tryLlm(url);
+        if (r && r.content && r.content.trim().length > 0) {
+          content = r.content;
+          via = 'llm';
+          usedLlm = true;
+        }
+      } catch (err: any) {
+        notes.push(`llm path failed for ${url}: ${err?.message || err}`);
+      }
+    }
+
+    if (!usedLlm) {
+      try {
+        const r = await this.deps.renderPage(url, { selector: opts.selector });
+        title = r.title;
+        content = r.markdown;
+        links = r.links || [];
+      } catch (err: any) {
+        error = err?.message || String(err);
+        notes.push(`render failed for ${url}: ${error}`);
+      }
+    } else {
+      links = linksFromMarkdown(content, url);
+    }
+
+    let indexed = false;
+    if (!error && content && content.trim().length > 50 && this.deps.indexPage) {
+      try {
+        await this.deps.indexPage(url, title || url, content);
+        indexed = true;
+      } catch (err: any) {
+        notes.push(`cortex index failed for ${url}: ${err?.message || err}`);
+      }
+    }
+
+    return {
+      page: {
+        url,
+        title: title || url,
+        depth,
+        via,
+        bytes: Buffer.byteLength(content, 'utf8'),
+        links: links.length,
+        indexed,
+        error,
+        excerpt: opts.includeContent ? content.slice(0, opts.includeContent) : undefined,
+      },
+      links,
+      indexed,
+      notes,
+    };
   }
 }

@@ -14,6 +14,9 @@ bypass.
 | **Research proxy** | Applied only to the isolated `persist:kuang-research` session; normal browsing tabs keep the default session and direct route. |
 | **Domain cooldown** | After a WAF/challenge page or HTTP 403/429, the host is skipped for this many seconds. |
 | **Politeness delay** | Minimum gap between crawled pages and research sources. |
+| **Crawl concurrency** | Parallel page fetches inside `deep_crawl` (1–4). `1` is sequential and safest; higher values raise WAF risk. |
+| **Prefer Markdown/LLM** | Try content-negotiated Markdown/Text and advertised alternates before rendering. |
+| **Default crawl pages / research sources / search results** | Applied when the tool call omits its own limit. |
 | **Activate hidden view** | Uses CDP to keep the off-screen view in an `active` lifecycle, emulates focus, and gives it a 1280×900 layout viewport. |
 
 ## Isolation
@@ -49,6 +52,14 @@ isolation.
   residential/mobile exit or a separate network for agent traffic.
 - For sites that aggressively challenge, use the visible tab and
   `request_human_intervention` instead.
+
+## Tests
+
+```bash
+npm run test:research:settings   # schema, persistence, challenge detection
+npm run test:crawl:pool          # crawl concurrency / budget / prefer-llm
+npm run test:research            # bridge-level research_topic regression
+```
 
 ## Files
 
