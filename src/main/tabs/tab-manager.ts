@@ -32,6 +32,8 @@ export class TabManager {
   private tabs: Map<string, TabInstance> = new Map();
   private activeTabId: string = '';
   private counter: number = 0;
+  /** Set while a full-window settings/dialog surface owns the UI. */
+  private viewportHidden: boolean = false;
 
   constructor(private options: TabManagerOptions) {}
 
@@ -224,9 +226,11 @@ export class TabManager {
     this.activeTabId = tabId;
     const current = this.tabs.get(tabId)!;
 
-    // Expand current active tab to viewport container
-    const bounds = this.options.getViewportBounds();
-    current.view.setBounds(bounds);
+    // Expand current active tab to viewport container, unless a settings
+    // surface is currently covering the window.
+    current.view.setBounds(
+      this.viewportHidden ? { x: 0, y: 0, width: 0, height: 0 } : this.options.getViewportBounds(),
+    );
 
     this.options.onLog?.('info', `Switched active browsing node to [${current.id}] "${current.title}"`);
     this.options.onTabUpdated?.(current);
@@ -269,10 +273,13 @@ export class TabManager {
   public updateActiveTabBounds(): void {
     if (!this.activeTabId || !this.tabs.has(this.activeTabId)) return;
     const active = this.tabs.get(this.activeTabId)!;
-    active.view.setBounds(this.options.getViewportBounds());
+    active.view.setBounds(
+      this.viewportHidden ? { x: 0, y: 0, width: 0, height: 0 } : this.options.getViewportBounds(),
+    );
   }
 
   public setViewportVisibility(visible: boolean): void {
+    this.viewportHidden = !visible;
     if (!this.activeTabId || !this.tabs.has(this.activeTabId)) return;
     const active = this.tabs.get(this.activeTabId)!;
     if (visible) {

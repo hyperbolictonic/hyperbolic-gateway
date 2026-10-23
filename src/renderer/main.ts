@@ -803,6 +803,9 @@ if (settingsBtn && settingsModal) {
   const wrapListEl = document.getElementById('settings-wrap-secret-list') as HTMLElement;
   const wrapCancelEditEl = document.getElementById('settings-wrap-cancel-edit') as HTMLButtonElement;
 
+  const wrapWrapperModalEl = document.getElementById('wrap-wrapper-modal') as HTMLDialogElement;
+  const wrapWrapperCloseEl = document.getElementById('settings-wrap-wrapper-close') as HTMLButtonElement;
+  const wrapWrapperCancelEl = document.getElementById('settings-wrap-wrapper-cancel') as HTMLButtonElement;
   const wrapWrapperListEl = document.getElementById('settings-wrap-wrapper-list') as HTMLElement;
   const wrapWrapperFilterEl = document.getElementById('settings-wrap-wrapper-filter') as HTMLInputElement;
   const wrapWrapperTitleEl = document.getElementById('settings-wrap-wrapper-title') as HTMLElement;
@@ -898,6 +901,10 @@ if (settingsBtn && settingsModal) {
     }
   }
 
+  function openWrapWrapperModal(): void {
+    if (!wrapWrapperModalEl.open) wrapWrapperModalEl.showModal();
+  }
+
   function selectWrapWrapper(id: string): void {
     const wrapper = wrapWrappers.find((entry) => entry.id === id);
     if (!wrapper) return;
@@ -913,6 +920,7 @@ if (settingsBtn && settingsModal) {
     wrapWrapperDeleteEl.disabled = false;
     wrapWrapperSaveEl.disabled = false;
     renderWrapWrappers();
+    openWrapWrapperModal();
   }
 
   function newWrapWrapper(): void {
@@ -924,6 +932,8 @@ if (settingsBtn && settingsModal) {
     wrapWrapperDeleteEl.disabled = true;
     wrapWrapperSaveEl.disabled = false;
     renderWrapWrappers();
+    openWrapWrapperModal();
+    wrapWrapperJsonEl.focus();
   }
 
   async function loadWrapWrappers(selectId?: string): Promise<void> {
@@ -942,6 +952,7 @@ if (settingsBtn && settingsModal) {
         wrapWrapperJsonEl.value = '';
         wrapWrapperDeleteEl.disabled = true;
         wrapWrapperSaveEl.disabled = true;
+        if (wrapWrapperModalEl.open) wrapWrapperModalEl.close();
         renderWrapWrappers();
       }
     } catch (err: any) {
@@ -1107,6 +1118,12 @@ if (settingsBtn && settingsModal) {
 
   wrapWrapperFilterEl.addEventListener('input', renderWrapWrappers);
 
+  wrapWrapperCloseEl.addEventListener('click', () => wrapWrapperModalEl.close());
+  wrapWrapperCancelEl.addEventListener('click', () => wrapWrapperModalEl.close());
+  wrapWrapperModalEl.addEventListener('close', () => {
+    wrapWrapperResultEl.classList.add('hidden');
+  });
+
   wrapWrapperRefreshEl.addEventListener('click', () => {
     void loadWrapWrappers();
   });
@@ -1220,6 +1237,7 @@ if (settingsBtn && settingsModal) {
   });
 
   settingsModal.addEventListener('close', () => {
+    if (wrapWrapperModalEl.open) wrapWrapperModalEl.close();
     window.electronAPI?.setViewportVisibility(true);
   });
 

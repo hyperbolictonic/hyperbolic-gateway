@@ -415,35 +415,18 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 mt-4">
-            <div class="space-y-2 min-w-0">
-              <input
-                id="settings-wrap-wrapper-filter"
-                type="search"
-                class="input input-xs w-full font-mono text-[11px]"
-                placeholder="Filter wrappers…"
-                autocomplete="off"
-              />
-              <ul id="settings-wrap-wrapper-list" class="space-y-1 max-h-72 overflow-y-auto pr-1"></ul>
-            </div>
-
-            <div class="min-w-0">
-              <div class="flex items-center justify-between gap-2">
-                <div id="settings-wrap-wrapper-title" class="font-mono text-xs font-bold text-primary truncate">Select a wrapper</div>
-                <span id="settings-wrap-wrapper-badge" class="badge badge-ghost badge-xs font-mono hidden"></span>
-              </div>
-              <textarea
-                id="settings-wrap-wrapper-json"
-                class="textarea textarea-bordered w-full h-80 mt-2 font-mono text-[11px] leading-relaxed"
-                spellcheck="false"
-                placeholder="Select a wrapper on the left, or press NEW."
-              ></textarea>
-              <div id="settings-wrap-wrapper-result" class="alert alert-ghost alert-sm font-mono text-xs mt-2 hidden"></div>
-              <div class="flex justify-between items-center mt-3">
-                <button type="button" id="settings-wrap-wrapper-delete" class="btn btn-xs btn-ghost font-mono text-[10px]" disabled>DELETE</button>
-                <button type="button" id="settings-wrap-wrapper-save" class="btn btn-xs btn-primary font-mono text-[10px]" disabled>SAVE WRAPPER</button>
-              </div>
-            </div>
+          <div class="space-y-2 mt-4">
+            <input
+              id="settings-wrap-wrapper-filter"
+              type="search"
+              class="input input-xs w-full font-mono text-[11px]"
+              placeholder="Filter wrappers…"
+              autocomplete="off"
+            />
+            <ul id="settings-wrap-wrapper-list" class="space-y-1 max-h-80 overflow-y-auto pr-1"></ul>
+            <p class="font-mono text-[10px] text-base-content/40">
+              Select a wrapper to edit it in the editor modal, or press NEW to start one.
+            </p>
           </div>
         </div>
 
@@ -545,6 +528,40 @@
 
         <p id="connect-note" class="mt-3 text-xs text-base-content/60"></p>
       </section>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<!-- Wrapper editor, opened from Settings → Wrappers -->
+<dialog id="wrap-wrapper-modal" class="modal">
+  <div class="modal-box w-11/12 max-w-3xl bg-base-300 border border-base-100 p-5">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h3 class="font-mono text-sm font-bold text-primary">WRAPPER EDITOR</h3>
+        <div class="flex items-center gap-2 mt-1 min-w-0">
+          <div id="settings-wrap-wrapper-title" class="font-mono text-xs font-bold text-base-content/80 truncate">New wrapper</div>
+          <span id="settings-wrap-wrapper-badge" class="badge badge-ghost badge-xs font-mono hidden"></span>
+        </div>
+      </div>
+      <button type="button" id="settings-wrap-wrapper-close" class="btn btn-sm btn-ghost font-mono text-xs shrink-0">CLOSE</button>
+    </div>
+
+    <textarea
+      id="settings-wrap-wrapper-json"
+      class="textarea textarea-bordered w-full h-[55vh] mt-4 font-mono text-[11px] leading-relaxed"
+      spellcheck="false"
+      placeholder="Wrapper JSON"
+    ></textarea>
+
+    <div id="settings-wrap-wrapper-result" class="alert alert-ghost alert-sm font-mono text-xs mt-3 hidden"></div>
+
+    <div class="modal-action mt-4">
+      <button type="button" id="settings-wrap-wrapper-delete" class="btn btn-sm btn-ghost font-mono text-xs" disabled>DELETE</button>
+      <button type="button" id="settings-wrap-wrapper-cancel" class="btn btn-sm btn-ghost font-mono text-xs">CANCEL</button>
+      <button type="button" id="settings-wrap-wrapper-save" class="btn btn-sm btn-primary font-mono text-xs" disabled>SAVE WRAPPER</button>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">
