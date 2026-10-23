@@ -8,7 +8,7 @@
  *   - no `eval`, no network, no file system, no clock.
  */
 
-import type { FieldSpec, Recipe, RenderMeta, RenderOptions, RenderResult } from './types.ts';
+import type { FieldSpec, Recipe, RenderMeta, RenderOptions, RenderResult, RenderedDocument } from './types.ts';
 import { humanizeKey, pathLabel, resolvePath, resolveValue } from './path.ts';
 import { renderTemplate, stringifyValue } from './template.ts';
 import { isPlainObject, normalizeRecipe, RecipeError } from './validate.ts';
@@ -38,7 +38,8 @@ export function renderRecipe(input: unknown, recipeInput: Recipe, options: Rende
   };
 
   let markdown = '';
-  let documents: string[] = [];
+  let documents: RenderedDocument[] = [];
+  let records: Record<string, unknown>[] = [];
   let rendered = 0;
   let truncated = false;
   let total = 0;
@@ -46,21 +47,30 @@ export function renderRecipe(input: unknown, recipeInput: Recipe, options: Rende
   if (mode === 'table') {
     const result = renderTable(selected, input, recipe, limits, options);
     markdown = result.markdown;
-    documents = [markdown];
+    records = result.records;
+    documents = [
+      {
+        title: recipe.name || '',
+        markdown,
+        record: records.length === 1 ? records[0] : undefined,
+      },
+    ];
     rendered = result.rendered;
     truncated = result.truncated;
     total = result.total;
   } else if (mode === 'documents') {
     const result = renderDocuments(selected, input, recipe, limits);
-    markdown = result.documents.join('\n\n---\n\n') || '_No items matched._';
     documents = result.documents;
+    records = result.records;
+    markdown = documents.map((document) => document.markdown).join('\n\n---\n\n') || '_No items matched._';
     rendered = result.rendered;
     truncated = result.truncated;
     total = result.total;
   } else {
     const result = renderDocument(selected, input, recipe, limits, options);
-    markdown = result.markdown;
-    documents = [markdown];
+    markdown = result.document.markdown;
+    records = result.records;
+    documents = [result.document];
     rendered = result.rendered;
     truncated = result.truncated;
     total = result.total;
@@ -69,7 +79,9 @@ export function renderRecipe(input: unknown, recipeInput: Recipe, options: Rende
   const capped = capMarkdown(markdown, limits.maxChars);
   if (capped.truncated) {
     truncated = true;
-    if (documents.length === 1) documents = [capped.markdown];
+    if (documents.length === 1) {
+      documents = [{ ...documents[0], markdown: capped.markdown }];
+    }
   }
 
   const meta: RenderMeta = {
@@ -81,7 +93,7 @@ export function renderRecipe(input: unknown, recipeInput: Recipe, options: Rende
     chars: capped.markdown.length,
   };
 
-  return { markdown: capped.markdown, documents, meta };
+  return { markdown: capped.markdown, documents, records, meta };
 }
 
 function renderTable(
@@ -90,22 +102,33 @@ function renderTable(
   recipe: Recipe,
   limits: { maxItems: number; maxChars: number; maxFieldChars: number },
   options: RenderOptions,
-): { markdown: string; rendered: number; truncated: boolean; total: number } {
+): {
+  markdown: string;
+  records: Record<string, unknown>[];
+  rendered: number;
+  truncated: boolean;
+  total: number;
+} {
   const isArray = Array.isArray(selected);
   const items = isArray ? selected : selected === undefined || selected === null ? [] : [selected];
   const total = items.length;
   const shown = items.slice(0, limits.maxItems);
   const configured = columnsFromRecipe(recipe.fields);
+  const vertical = !isArray && isPlainObject(selected) && configured.length === 0;
 
+  let columns: Column[] = [];
   let body: string;
-  if (!isArray && isPlainObject(selected) && configured.length === 0) {
-    body = renderKeyValueTable(selected, limits.maxFieldChars);
+  if (vertical) {
+    body = renderKeyValueTable(selected as Record<string, unknown>, limits.maxFieldChars);
   } else {
-    const columns = configured.length > 0 ? configured : inferColumns(shown);
+    columns = configured.length > 0 ? configured : inferColumns(shown);
     body = renderGrid(shown, root, columns, limits.maxFieldChars);
   }
 
   if (total === 0) body = '_No items matched._';
+
+  const mappings = recordMappings(recipe.record, columns);
+  const records = shown.map((item) => buildRecord(root, item, mappings));
 
   const title = options.includeTitle !== false && recipe.name ? `## ${recipe.name}\n\n` : '';
   const dropped = total > shown.length;
@@ -113,10 +136,41 @@ function renderTable(
 
   return {
     markdown: `${title}${body}${note}`.trim(),
+    records,
     rendered: shown.length,
     truncated: dropped,
     total,
   };
+}
+
+interface RecordMapping {
+  key: string;
+  path: string;
+}
+
+function recordMappings(record: Recipe['record'], columns: Column[]): RecordMapping[] {
+  if (record) {
+    return Object.entries(record).map(([key, path]) => ({ key, path }));
+  }
+  return columns.map((column) => ({ key: column.label, path: column.spec.path }));
+}
+
+function buildRecord(
+  root: unknown,
+  item: unknown,
+  mappings: RecordMapping[],
+): Record<string, unknown> {
+  if (mappings.length > 0) {
+    const record: Record<string, unknown> = {};
+    for (const mapping of mappings) {
+      const value = resolveValue(root, item, mapping.path);
+      if (value !== undefined) record[mapping.key] = value;
+    }
+    return record;
+  }
+
+  if (isPlainObject(item)) return { ...item };
+  return { Value: item };
 }
 
 function renderDocuments(
@@ -124,25 +178,37 @@ function renderDocuments(
   root: unknown,
   recipe: Recipe,
   limits: { maxItems: number; maxChars: number; maxFieldChars: number },
-): { documents: string[]; rendered: number; truncated: boolean; total: number } {
+): {
+  documents: RenderedDocument[];
+  records: Record<string, unknown>[];
+  rendered: number;
+  truncated: boolean;
+  total: number;
+} {
   const items = Array.isArray(selected) ? selected : selected === undefined || selected === null ? [] : [selected];
   const total = items.length;
   const shown = items.slice(0, limits.maxItems);
   const count = shown.length;
+  const mappings = recordMappings(recipe.record, columnsFromRecipe(recipe.fields));
 
-  const prepared = shown.map((item, index) => {
+  const prepared: RenderedDocument[] = shown.map((item, index) => {
     const context = { root, value: item, index, count };
     const title = documentTitle(item, recipe, context, index);
     const body = recipe.template
       ? renderTemplate(recipe.template, context).trim()
       : renderFieldList(item, root, recipe, limits.maxFieldChars);
-    return composeDocument(title, body);
+    return {
+      title,
+      markdown: composeDocument(title, body),
+      record: buildRecord(root, item, mappings),
+    };
   });
 
   const capped = capDocuments(prepared, limits.maxChars, total > count);
 
   return {
     documents: capped.documents,
+    records: capped.documents.map((document) => document.record || {}),
     rendered: capped.documents.length,
     truncated: capped.truncated,
     total,
@@ -155,10 +221,22 @@ function renderDocument(
   recipe: Recipe,
   limits: { maxItems: number; maxChars: number; maxFieldChars: number },
   options: RenderOptions,
-): { markdown: string; rendered: number; truncated: boolean; total: number } {
+): {
+  document: RenderedDocument;
+  records: Record<string, unknown>[];
+  rendered: number;
+  truncated: boolean;
+  total: number;
+} {
   const empty = selected === undefined || selected === null;
   if (empty) {
-    return { markdown: '_No items matched._', rendered: 0, truncated: false, total: 0 };
+    return {
+      document: { title: '', markdown: '_No items matched._' },
+      records: [],
+      rendered: 0,
+      truncated: false,
+      total: 0,
+    };
   }
 
   const context = { root, value: selected };
@@ -171,8 +249,15 @@ function renderDocument(
 
   const heading = options.includeTitle === false ? '' : composeDocument(title, '').trim();
   const markdown = [heading, body].filter(Boolean).join('\n\n').trim() || '_No items matched._';
+  const record = buildRecord(root, selected, recordMappings(recipe.record, columnsFromRecipe(recipe.fields)));
 
-  return { markdown, rendered: 1, truncated: false, total: 1 };
+  return {
+    document: { title, markdown, record },
+    records: [record],
+    rendered: 1,
+    truncated: false,
+    total: 1,
+  };
 }
 
 function composeDocument(title: string, body: string): string {
@@ -407,11 +492,11 @@ function escapeTable(value: string): string {
 }
 
 function capDocuments(
-  documents: string[],
+  documents: RenderedDocument[],
   maxChars: number,
   alreadyTruncated: boolean,
-): { documents: string[]; truncated: boolean } {
-  const kept: string[] = [];
+): { documents: RenderedDocument[]; truncated: boolean } {
+  const kept: RenderedDocument[] = [];
   let budget = maxChars;
   let truncated = alreadyTruncated;
 
@@ -422,11 +507,11 @@ function capDocuments(
       truncated = true;
       break;
     }
-    if (document.length <= allowance) {
+    if (document.markdown.length <= allowance) {
       kept.push(document);
-      budget = allowance - document.length;
+      budget = allowance - document.markdown.length;
     } else {
-      kept.push(capDocument(document, allowance));
+      kept.push({ ...document, markdown: capDocument(document.markdown, allowance) });
       truncated = true;
       break;
     }

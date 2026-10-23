@@ -64,6 +64,9 @@ export function normalizeRecipe(input: unknown): { recipe: Recipe; errors: strin
   const fields = normalizeFields(source.fields, errors);
   if (fields) recipe.fields = fields;
 
+  const record = normalizeRecord(source.record, errors);
+  if (record) recipe.record = record;
+
   const limits = normalizeLimits(source.limits, errors);
   if (limits) recipe.limits = limits;
 
@@ -104,6 +107,25 @@ function normalizeFields(input: unknown, errors: string[]): Recipe['fields'] | u
 
   errors.push('fields must be an object or an array');
   return undefined;
+}
+
+function normalizeRecord(input: unknown, errors: string[]): Record<string, string> | undefined {
+  if (input === undefined) return undefined;
+  if (!isPlainObject(input)) {
+    errors.push('record must be an object');
+    return undefined;
+  }
+
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value !== 'string' || value.length === 0) {
+      errors.push(`record.${key} must be a non-empty path string`);
+      continue;
+    }
+    out[key] = value;
+  }
+
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function normalizeField(input: unknown, where: string, errors: string[]): FieldSpec | undefined {

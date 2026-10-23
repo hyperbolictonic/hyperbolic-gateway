@@ -28,7 +28,7 @@ const body = {
 // Start from the response: picks `results`, a table, and the primitive fields.
 const recipe = deriveRecipe(body, undefined, { name: 'Search results' });
 
-const { markdown, documents, meta } = renderRecipe(body, recipe);
+const { markdown, documents, records, meta } = renderRecipe(body, recipe);
 ```
 
 ```md
@@ -53,6 +53,12 @@ const { markdown, documents, meta } = renderRecipe(body, recipe);
     "Score": { "path": "score", "format": "number" },
     "Link": { "path": "url", "format": "url" }
   },
+  "record": {
+    "id": "id",
+    "name": "name",
+    "score": "score",
+    "url": "url"
+  },
   "limits": { "maxItems": 25, "maxChars": 20000 },
   "pagination": {
     "type": "cursor",
@@ -68,6 +74,7 @@ const { markdown, documents, meta } = renderRecipe(body, recipe);
 | `select` | Path to the array or object to render. Default `$`. |
 | `mode` | `table`, `document`, or `documents` (one document per item). Inferred when omitted. |
 | `fields` | Ordered labels to paths. An object preserves insertion order; an array allows per-field formats. |
+| `record` | Structured projection for querying: stable keys to paths, original JSON types. |
 | `template` | Markdown template for `document`/`documents`. |
 | `title` | Per-item heading template for `documents`. |
 | `limits` | `maxItems` (50), `maxChars` (100000), `maxFieldChars` (500). |
@@ -76,6 +83,26 @@ const { markdown, documents, meta } = renderRecipe(body, recipe);
 Field formats: `text`, `number`, `integer`, `boolean`, `date`, `url`, `image`,
 `json`, `code`. A field can also set `fallback`, `prefix`, `suffix`, and
 `maxChars`.
+
+## Records, not round-trips
+
+Markdown is a view, not a data format. Every render also returns `records`:
+one object per rendered item, with the original JSON types. `record` names the
+keys; when it is omitted, the keys follow `fields`, or are inferred from the
+item.
+
+```ts
+const { markdown, records } = renderRecipe(response, recipe);
+// records[0] -> { id: 1, name: "A", score: 12, url: "https://…" }
+```
+
+For `mode: "documents"`, each entry in `documents` is
+`{ title, markdown, record }`, so the text and its record stay together.
+`records` at the top level is the same data in document order.
+
+Do not parse the Markdown to get JSON back: numbers, nulls, types, and
+truncated values cannot survive that trip. Ask the executor for
+`format: "json"` instead.
 
 ## Paths
 

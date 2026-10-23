@@ -39,6 +39,24 @@ test('renders a mapped table and escapes pipes', () => {
   assert.equal(result.meta.selected, 2);
   assert.equal(result.meta.rendered, 2);
   assert.equal(result.meta.truncated, false);
+  assert.deepEqual(result.records, [
+    { Name: 'A', Score: 10, Link: 'https://a.test' },
+    { Name: 'B|C', Score: 2, Link: 'https://b.test' },
+  ]);
+});
+
+test('uses an explicit record projection with original types', () => {
+  const result = renderRecipe(
+    { results: [{ id: 1, name: 'A', price: { amount: 12, currency: 'GBP' } }] },
+    {
+      schemaVersion: 1,
+      select: '$.results[*]',
+      fields: { Name: 'name', Price: { path: 'price.amount', format: 'number' } },
+      record: { id: 'id', name: 'name', amount: 'price.amount', currency: 'price.currency', missing: 'nope' },
+    },
+  );
+
+  assert.deepEqual(result.records, [{ id: 1, name: 'A', amount: 12, currency: 'GBP' }]);
 });
 
 test('infers columns for an array of objects', () => {
@@ -77,14 +95,20 @@ test('renders documents with title, if, and each', () => {
   const result = renderRecipe(input, recipe);
 
   assert.equal(result.documents.length, 2);
-  assert.match(result.documents[0], /^## Alpha/);
-  assert.match(result.documents[0], /\*\*Live\*\*/);
-  assert.match(result.documents[0], /- a\n- b/);
-  assert.match(result.documents[0], /Item 1 of 2/);
-  assert.doesNotMatch(result.documents[1], /\*\*Live\*\*/);
-  assert.match(result.documents[1], /Item 2 of 2/);
+  assert.match(result.documents[0].markdown, /^## Alpha/);
+  assert.match(result.documents[0].markdown, /\*\*Live\*\*/);
+  assert.match(result.documents[0].markdown, /- a\n- b/);
+  assert.match(result.documents[0].markdown, /Item 1 of 2/);
+  assert.doesNotMatch(result.documents[1].markdown, /\*\*Live\*\*/);
+  assert.match(result.documents[1].markdown, /Item 2 of 2/);
   assert.match(result.markdown, /\n\n---\n\n/);
   assert.equal(result.meta.mode, 'documents');
+  assert.deepEqual(result.records[0], {
+    name: 'Alpha',
+    tags: ['a', 'b'],
+    meta: { live: true },
+    body: 'first',
+  });
 });
 
 test('renders a single document with inferred fields', () => {
@@ -131,7 +155,7 @@ test('caps a collection of documents as a whole', () => {
   assert.equal(result.meta.truncated, true);
   assert.ok(result.markdown.length <= 1200);
   assert.ok(result.documents.length >= 1);
-  assert.ok(result.documents.every((document) => document.length <= 1200));
+  assert.ok(result.documents.every((document) => document.markdown.length <= 1200));
 });
 
 test('caps total characters and says so', () => {

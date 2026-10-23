@@ -83,6 +83,15 @@ export interface Recipe {
    */
   fields?: Record<string, string | FieldSpec> | FieldSpec[];
   /**
+   * The structured projection returned alongside the Markdown. Keys are stable
+   * record names; values are paths. Use this for querying, storing, or
+   * returning `format: "json"` without parsing the rendered text.
+   *
+   * When omitted, the record keys follow `fields` (labels), or are inferred
+   * from the selected item.
+   */
+  record?: Record<string, string>;
+  /**
    * Markdown template for `document` and `documents` modes.
    *
    * Supports `{{path}}`, `{{#if path}}...{{else}}...{{/if}}`,
@@ -119,11 +128,22 @@ export interface RenderMeta {
   chars: number;
 }
 
+export interface RenderedDocument {
+  /** Heading used for this document, if any. */
+  title: string;
+  /** The rendered Markdown for this document. */
+  markdown: string;
+  /** The structured record behind this document, when it has one. */
+  record?: Record<string, unknown>;
+}
+
 export interface RenderResult {
   /** The complete Markdown output, documents joined by horizontal rules. */
   markdown: string;
   /** One entry per document. A table render produces a single entry. */
-  documents: string[];
+  documents: RenderedDocument[];
+  /** One structured record per rendered item, with original JSON types. */
+  records: Record<string, unknown>[];
   meta: RenderMeta;
 }
 
