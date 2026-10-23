@@ -49,6 +49,14 @@
         }
       ]
     },
+    "record": {
+      "type": "object",
+      "description": "Structured projection returned alongside the Markdown. Keys are stable record names; values are paths.",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "template": {
       "type": "string",
       "description": "Markdown template. Supports {{path}}, {{#if}}, {{#unless}}, {{#each}}, {{.}}, and {{@index}} style tags."
@@ -119,6 +127,12 @@
         "Name": "name",
         "Score": { "path": "score", "format": "number" },
         "Link": { "path": "url", "format": "url" }
+      },
+      "record": {
+        "id": "id",
+        "name": "name",
+        "score": "score",
+        "url": "url"
       },
       "limits": { "maxItems": 25, "maxChars": 20000 },
       "pagination": {

@@ -38,6 +38,137 @@ model in one sentence.
 - Arbitrary JavaScript in recipes or request templates.
 - Cloud sync of wrappers or secrets.
 
+## Agent-facing surface
+
+The wrapper is a **projection** of the API, not a mirror of it. The agent
+should never assemble a URL, a header set, or a body JSON unless the wrapper
+author explicitly exposes a raw body. The wrapper author — human or agent —
+does that work once; every call is a short, typed argument list.
+
+1. **Semantic inputs, flat arguments.** `customer_id`, `items`, `note`; not
+   `{ data: { attributes: { … } } }`. The MCP `inputSchema` carries the types,
+   descriptions, enums, defaults, and examples.
+2. **One action, one tool.** `wrap_orders_create` beats a generic
+   `wrap_request(url, method, body)` for discoverability and token cost.
+3. **Deterministic mapping.** `request.body` is a template. The same arguments
+   always produce the same request. There is no model-authored JSON.
+4. **Preview before mutation.** A dry run returns the exact URL, headers
+   (redacted), and body without sending it.
+5. **Dual output.** Markdown for reading, `records` for querying. The agent
+   asks for `format: "json"` instead of parsing the Markdown.
+6. **Token budget is part of the contract.** Only declared fields, caps on
+   items and characters, and a compact `wrap_list`.
+7. **Errors are actionable.** Status, code, field, retryable, and a short hint;
+   never a full HTML error page.
+
+### POST, the simple path
+
+A create wrapper:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "orders.create",
+  "name": "Create order",
+  "request": {
+    "method": "POST",
+    "url": "https://api.example.com/v1/orders",
+    "body": {
+      "customer": "{{customer_id}}",
+      "line_items": "{{items}}",
+      "note": "{{note}}"
+    }
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "customer_id": { "type": "string", "description": "Customer ID" },
+      "items": {
+        "type": "array",
+        "description": "Line items",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sku": { "type": "string" },
+            "qty": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["sku", "qty"]
+        }
+      },
+      "note": { "type": "string", "description": "Optional note" }
+    },
+    "required": ["customer_id", "items"],
+    "additionalProperties": false
+  },
+  "mutating": true,
+  "response": {
+    "schemaVersion": 1,
+    "select": "$",
+    "mode": "document",
+    "record": { "id": "id", "status": "status", "total": "total" },
+    "fields": {
+      "Order": "id",
+      "Status": "status",
+      "Total": { "path": "total", "format": "number" }
+    }
+  }
+}
+```
+
+The agent sees a tool with three arguments and calls it:
+
+```json
+wrap_orders_create({
+  "customer_id": "cus_123",
+  "items": [{ "sku": "A-1", "qty": 2 }],
+  "note": "gift"
+})
+```
+
+The app sends exactly:
+
+```http
+POST /v1/orders
+Content-Type: application/json
+Authorization: Bearer <from secret store>
+
+{"customer":"cus_123","line_items":[{"sku":"A-1","qty":2}],"note":"gift"}
+```
+
+The agent never saw the URL, the header, the token, or the body envelope. It
+saw a create-order tool with a customer, line items, and an optional note.
+
+### Interpolation rules
+
+| Template | Input | Result |
+| --- | --- | --- |
+| `"{{items}}"` (whole string) | array/object/number/boolean | inserted with its JSON type |
+| `"Order for {{customer_id}}"` (embedded) | string | text interpolation |
+| `"{{note}}"` | omitted/`undefined` | key omitted from the body |
+| `"{{note}}"` | explicit `null` | `null`, if the schema allows it |
+| `"{{q}}"` in `query` | string | URL-encoded |
+| `"{{tag}}"` in `query` | array | repeated `tag=a&tag=b` (or `style: "csv"`) |
+| `"{{value}}"` in `headers` | string | value only; header names are fixed |
+
+No expressions, no `eval`, no model-generated JSON. If an API truly needs a
+free-form body (for example an Elasticsearch query DSL), the wrapper opts in
+with `body: "{{body}}"` and an input of `type: "object"`; that is explicit,
+visible in the schema, and still previewable.
+
+### The agent loop
+
+```
+wrap_list                     # what can I do? one line per wrapper
+wrap_<action> { … }           # or wrap_run { id, args }
+  └─ mutating? wrap_test { …, dryRun: true } first
+result.markdown               # what to read
+result.records                # what to filter, store, or return as JSON
+```
+
+`wrap_list` returns only `id`, a one-line description, method + host, and the
+required argument names. `wrap_get` returns the full schema when the agent
+needs it. That keeps discovery cheap.
+
 ## Wrapper spec
 
 A wrapper is a small JSON document. `request` is executed; `response` is a
@@ -66,6 +197,11 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
     "schemaVersion": 1,
     "select": "$.current",
     "mode": "document",
+    "record": {
+      "city": "location.name",
+      "temp_c": "temp_c",
+      "updated": "last_updated"
+    },
     "fields": {
       "City": "location.name",
       "Temperature": { "path": "temp_c", "format": "number", "suffix": " °C" },
@@ -94,6 +230,13 @@ dependencies. It exports `deriveRecipe`, `renderRecipe`, `resolvePath`,
 It deliberately has no `eval`, no network and no clock. That makes it safe to
 run on untrusted API responses, easy to test with Node's built-in runner, and
 publishable on its own later.
+
+`renderRecipe` returns `markdown`, `records`, `documents`, and `meta`.
+`records` is the queryable projection (`recipe.record` names the keys) with
+original JSON types. In `documents` mode each entry is
+`{ title, markdown, record }`. There is no Markdown → JSON parser: the
+executor can return the records directly with `format: "json"`, which is
+lossless and cheaper.
 
 **Packaging decision:** monorepo now, standalone repository/package when the
 format has survived a few real APIs unchanged or a second consumer appears.
@@ -209,7 +352,7 @@ appear in `wrappers/` or `recipes/`.
 
 | Slice | Scope | Gate |
 | --- | --- | --- |
-| **S0** ✅ | Pure recipe package, schema, tests, design | 24 tests pass, typecheck clean |
+| **S0** ✅ | Pure recipe package, schema, tests, design | 25 tests pass, typecheck clean |
 | **S1** | Wrapper store, executor, `/wrap/run`, `wrap_run`/`wrap_test`, public read-only APIs | Live call to a public API returns Markdown; no secrets exist yet |
 | **S2** | `safeStorage`, host binding, Settings → Wrappers, wrap bridge token, audit | Exfiltration test: agent-created wrapper cannot attach a secret to a foreign host; unauthenticated `/wrap/run` is 401 |
 | **S3** | Derived recipes, save/reuse, documents mode, pagination, Cortex indexing | A paginated API returns all pages up to the cap; documents are searchable |
