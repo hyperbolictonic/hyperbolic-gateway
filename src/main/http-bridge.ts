@@ -15,10 +15,13 @@ import {
 } from './recording/recording-service.js';
 import type { WrapExecutor } from './wrap/executor.js';
 import type { WrapStore } from './wrap/store.js';
+import { isWrapAuthorized, tokenFromHeaders } from './wrap/auth.js';
 
 export interface WrapBridge {
   store: WrapStore;
   executor: WrapExecutor;
+  /** Rotated on each app start; the MCP side reads it from `KUANG_WRAP_TOKEN_FILE`. */
+  token: string;
 }
 
 function logBridge(message: string, isError = false) {
@@ -78,7 +81,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Kuang-Wrap-Token');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -1169,6 +1172,18 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
       if (pathname.startsWith('/wrap/')) {
         if (!wrap) {
           sendJson({ success: false, error: 'Kuang Wrap is not initialised.', code: 'WRAP_UNAVAILABLE' }, 503);
+          return;
+        }
+
+        if (!isWrapAuthorized(tokenFromHeaders(req.headers), wrap.token)) {
+          sendJson(
+            {
+              success: false,
+              error: 'Unauthorized. Set KUANG_WRAP_TOKEN_FILE to the app-generated token file.',
+              code: 'UNAUTHORIZED',
+            },
+            401
+          );
           return;
         }
 
