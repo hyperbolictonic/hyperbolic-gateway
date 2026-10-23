@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kuang.dev/schemas/recipe.schema.json",
+  "title": "Kuang response recipe",
+  "description": "A data-only description of how to turn a JSON response into Markdown. Version 1.",
+  "type": "object",
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "description": "Stable identifier, for example weather.current."
+    },
+    "name": {
+      "type": "string",
+      "description": "Heading shown above tables and documents."
+    },
+    "description": {
+      "type": "string"
+    },
+    "select": {
+      "type": "string",
+      "description": "Path to the array or object to render. Defaults to $ (the whole response)."
+    },
+    "mode": {
+      "enum": ["table", "document", "documents"]
+    },
+    "fields": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              { "$ref": "#/$defs/fieldSpec" }
+            ]
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "$ref": "#/$defs/fieldSpec" }
+            ]
+          }
+        }
+      ]
+    },
+    "template": {
+      "type": "string",
+      "description": "Markdown template. Supports {{path}}, {{#if}}, {{#unless}}, {{#each}}, {{.}}, and {{@index}} style tags."
+    },
+    "title": {
+      "type": "string",
+      "description": "Per-item heading template for documents mode."
+    },
+    "limits": {
+      "$ref": "#/$defs/limits"
+    },
+    "pagination": {
+      "$ref": "#/$defs/pagination"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "fieldSpec": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "format": {
+          "enum": ["text", "number", "integer", "boolean", "date", "url", "image", "json", "code"]
+        },
+        "fallback": { "type": "string" },
+        "prefix": { "type": "string" },
+        "suffix": { "type": "string" },
+        "maxChars": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "maxItems": { "type": "integer", "minimum": 1, "default": 50 },
+        "maxChars": { "type": "integer", "minimum": 1, "default": 100000 },
+        "maxFieldChars": { "type": "integer", "minimum": 1, "default": 500 }
+      },
+      "additionalProperties": true
+    },
+    "pagination": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["none", "cursor", "offset", "link"] },
+        "next": { "type": "string" },
+        "hasMore": { "type": "string" },
+        "cursorParam": { "type": "string" },
+        "offsetParam": { "type": "string" },
+        "limitParam": { "type": "string" },
+        "nextUrl": { "type": "string" },
+        "pageSize": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "examples": [
+    {
+      "schemaVersion": 1,
+      "name": "Search results",
+      "select": "$.results[*]",
+      "mode": "table",
+      "fields": {
+        "Name": "name",
+        "Score": { "path": "score", "format": "number" },
+        "Link": { "path": "url", "format": "url" }
+      },
+      "limits": { "maxItems": 25, "maxChars": 20000 },
+      "pagination": {
+        "type": "cursor",
+        "next": "$.next",
+        "cursorParam": "cursor",
+        "hasMore": "$.has_more"
+      }
+    }
+  ]
+}

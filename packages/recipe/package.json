@@ -1,0 +1,30 @@
+{
+  "name": "@kuang/recipe",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Pure JSON-to-Markdown recipes: select, shape, and render API responses without a runtime, network, or secrets.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "schema",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/render.test.ts test/derive.test.ts test/validate.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "keywords": [
+    "json",
+    "markdown",
+    "recipe",
+    "jsonpath",
+    "mcp"
+  ]
+}
