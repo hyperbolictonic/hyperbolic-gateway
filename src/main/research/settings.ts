@@ -22,6 +22,13 @@ export interface ResearchSettings {
   domainCooldownSec: number;
   delayMs: number;
   activateView: boolean;
+  /** Parallel page fetches inside one deep_crawl (1 = sequential). */
+  crawlConcurrency: number;
+  /** Try content-negotiated Markdown/Text before rendering. */
+  preferLlm: boolean;
+  defaultMaxPages: number;
+  defaultMaxSources: number;
+  searchMaxResults: number;
 }
 
 export const DEFAULT_RESEARCH_SETTINGS: ResearchSettings = {
@@ -33,6 +40,11 @@ export const DEFAULT_RESEARCH_SETTINGS: ResearchSettings = {
   domainCooldownSec: 300,
   delayMs: 1000,
   activateView: true,
+  crawlConcurrency: 1,
+  preferLlm: true,
+  defaultMaxPages: 5,
+  defaultMaxSources: 5,
+  searchMaxResults: 8,
 };
 
 export interface ResearchSettingsResult {
@@ -127,6 +139,39 @@ export function normalizeResearchSettings(input: unknown): ResearchSettingsResul
     errors,
   );
   const delayMs = integerInRange(source.delayMs, DEFAULT_RESEARCH_SETTINGS.delayMs, 0, 10_000, 'delayMs', errors);
+  const crawlConcurrency = integerInRange(
+    source.crawlConcurrency,
+    DEFAULT_RESEARCH_SETTINGS.crawlConcurrency,
+    1,
+    4,
+    'crawlConcurrency',
+    errors,
+  );
+  const defaultMaxPages = integerInRange(
+    source.defaultMaxPages,
+    DEFAULT_RESEARCH_SETTINGS.defaultMaxPages,
+    1,
+    25,
+    'defaultMaxPages',
+    errors,
+  );
+  const defaultMaxSources = integerInRange(
+    source.defaultMaxSources,
+    DEFAULT_RESEARCH_SETTINGS.defaultMaxSources,
+    1,
+    8,
+    'defaultMaxSources',
+    errors,
+  );
+  const searchMaxResults = integerInRange(
+    source.searchMaxResults,
+    DEFAULT_RESEARCH_SETTINGS.searchMaxResults,
+    1,
+    25,
+    'searchMaxResults',
+    errors,
+  );
+  const preferLlm = typeof source.preferLlm === 'boolean' ? source.preferLlm : DEFAULT_RESEARCH_SETTINGS.preferLlm;
 
   if (errors.length > 0) {
     return { ok: false, settings: cloneDefaults(), errors };
@@ -143,6 +188,11 @@ export function normalizeResearchSettings(input: unknown): ResearchSettingsResul
       domainCooldownSec,
       delayMs,
       activateView,
+      crawlConcurrency,
+      preferLlm,
+      defaultMaxPages,
+      defaultMaxSources,
+      searchMaxResults,
     },
     errors: [],
   };

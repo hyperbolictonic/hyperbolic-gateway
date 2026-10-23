@@ -23,6 +23,7 @@
     "test:recipe": "node --test packages/recipe/test/render.test.ts packages/recipe/test/derive.test.ts packages/recipe/test/validate.test.ts",
     "test:wrap": "node --test scripts/test-wrap-core.mjs",
     "test:research:settings": "node --test scripts/test-research-settings.mjs",
+    "test:crawl:pool": "node --test scripts/test-crawl-pool.mjs",
     "typecheck:recipe": "tsc -p packages/recipe/tsconfig.json",
     "fix:local-paths": "node scripts/check-no-local-paths.mjs --fix",
     "test:mcp": "node scripts/test-client.js",

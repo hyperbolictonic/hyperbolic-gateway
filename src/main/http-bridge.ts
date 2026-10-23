@@ -1046,6 +1046,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           harvestToCortex: body?.harvest_to_cortex ?? body?.harvestToCortex,
           selector: body?.selector,
           delayMs: body?.delay_ms ?? body?.delayMs,
+          concurrency: body?.concurrency,
         });
         sendJson({ success: true, ...outcome });
         return;

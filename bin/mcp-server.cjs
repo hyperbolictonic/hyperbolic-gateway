@@ -37842,7 +37842,7 @@ ${data.content || ""}`
       engine: external_exports.enum(["google", "duckduckgo", "bing", "brave", "startpage", "custom"]).optional().describe("Pin a single engine (default: auto chain google \u2192 duckduckgo \u2192 brave)"),
       engines: external_exports.array(external_exports.string()).optional().describe("Explicit ordered fallback chain (overrides engine)"),
       url_template: external_exports.string().optional().describe("URL template containing {query} for a custom/SearXNG engine"),
-      max_results: external_exports.coerce.number().optional().default(8).describe("Max results to return")
+      max_results: external_exports.coerce.number().optional().describe("Max results to return (default: Research settings)")
     },
     endpoint: "/search/web",
     payload: (args) => ({
@@ -37872,13 +37872,14 @@ ${lines.join("\n")}`;
     parameters: {
       url: external_exports.string().describe("Seed URL (http/https)"),
       max_depth: external_exports.coerce.number().optional().default(2).describe("Link depth from the seed (0 = seed only; max 5)"),
-      max_pages: external_exports.coerce.number().optional().default(5).describe("Hard page budget (max 25)"),
+      max_pages: external_exports.coerce.number().optional().describe("Hard page budget (max 25; default: Research settings)"),
       match_patterns: external_exports.array(external_exports.string()).optional().describe('Glob or /regex/ allow-list applied to child URLs (e.g. ["/docs/*", "/builds/*"])'),
       same_origin: external_exports.coerce.boolean().optional().describe("Stay on the seed origin (default true)"),
       prefer_llm: external_exports.coerce.boolean().optional().describe("Try content-negotiated Markdown/Text before rendering (default true)"),
       harvest_to_cortex: external_exports.coerce.boolean().optional().describe("Index each page into LanceDB Cortex (default true)"),
       selector: external_exports.string().optional().describe("Scope link extraction to a CSS selector"),
-      delay_ms: external_exports.coerce.number().optional().default(300).describe("Politeness delay between pages in ms")
+      delay_ms: external_exports.coerce.number().optional().describe("Politeness delay between pages in ms (default: 300, or Research settings when stealth is on)"),
+      concurrency: external_exports.coerce.number().optional().describe("Parallel page fetches (1-4). Keep at 1 for politeness/stealth; higher values raise WAF risk.")
     },
     endpoint: "/crawl/deep",
     payload: (args) => ({
@@ -37891,7 +37892,8 @@ ${lines.join("\n")}`;
       prefer_llm: args?.prefer_llm,
       harvest_to_cortex: args?.harvest_to_cortex,
       selector: args?.selector,
-      delay_ms: args?.delay_ms
+      delay_ms: args?.delay_ms,
+      concurrency: args?.concurrency
     }),
     format: (data) => {
       const pages = Array.isArray(data.pages) ? data.pages : [];
