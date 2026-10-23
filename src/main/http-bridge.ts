@@ -13,6 +13,13 @@ import {
   startRecording,
   stopRecording,
 } from './recording/recording-service.js';
+import type { WrapExecutor } from './wrap/executor.js';
+import type { WrapStore } from './wrap/store.js';
+
+export interface WrapBridge {
+  store: WrapStore;
+  executor: WrapExecutor;
+}
 
 function logBridge(message: string, isError = false) {
   const timestamp = new Date().toISOString();
@@ -33,7 +40,32 @@ function logBridge(message: string, isError = false) {
   }
 }
 
-export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
+const SECRET_LOG_KEYS = new Set([
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'password',
+  'secret',
+  'token',
+  'access_token',
+  'refresh_token',
+  'api_key',
+  'apikey',
+  'x-api-key',
+]);
+
+/** Keep bridge logs useful without copying credentials or wrapper payload secrets into them. */
+function redactLogValue(value: any, depth = 0): any {
+  if (depth > 6 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((entry) => redactLogValue(entry, depth + 1));
+  const out: Record<string, any> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    out[key] = SECRET_LOG_KEYS.has(key.toLowerCase()) ? '<redacted>' : redactLogValue(entry, depth + 1);
+  }
+  return out;
+}
+
+export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wrap?: WrapBridge) {
   /** Timestamp of the last mutating action, for `since: "last_action"` network correlation. */
   let lastActionAt = Date.now();
   const MUTATING_PATHS = new Set([
@@ -74,7 +106,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         req.on('end', () => {
           try {
             const parsed = body ? JSON.parse(body) : {};
-            const preview = JSON.stringify(parsed);
+            const preview = JSON.stringify(redactLogValue(parsed));
             logBridge(`--> \x1b[35m${req.method}\x1b[0m ${pathname} body: ${preview.length > 300 ? preview.slice(0, 300) + '...' : preview}`);
             chassis.addLog('info', `${req.method} ${pathname}`);
             resolve(parsed);
@@ -1130,6 +1162,103 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111) {
         const body = await readBody();
         const deleted = chassis.deleteSession(body?.name);
         sendJson({ success: true, deleted });
+        return;
+      }
+
+      // ---- Kuang Wrap -------------------------------------------------------------------------
+      if (pathname.startsWith('/wrap/')) {
+        if (!wrap) {
+          sendJson({ success: false, error: 'Kuang Wrap is not initialised.', code: 'WRAP_UNAVAILABLE' }, 503);
+          return;
+        }
+
+        if (req.method === 'GET' && pathname === '/wrap/status') {
+          sendJson({ success: true, ...wrap.executor.status() });
+          return;
+        }
+
+        if (req.method === 'GET' && pathname === '/wrap/manifest') {
+          sendJson({ success: true, wrappers: wrap.store.manifest() });
+          return;
+        }
+
+        if (req.method === 'GET' && pathname === '/wrap/wrapper') {
+          const id = url.searchParams.get('id') || '';
+          const wrapper = wrap.store.get(id);
+          if (!wrapper) {
+            sendJson({ success: false, error: `No wrapper named "${id}".`, code: 'WRAPPER_NOT_FOUND' }, 404);
+            return;
+          }
+          sendJson({ success: true, wrapper });
+          return;
+        }
+
+        if (req.method === 'POST' && pathname === '/wrap/run') {
+          const body = await readBody();
+          if (typeof body?.id !== 'string' || !body.id) {
+            sendJson({ success: false, error: 'id is required', code: 'BAD_REQUEST' }, 400);
+            return;
+          }
+          const result = await wrap.executor.run(body.id, body.args ?? {}, {
+            format: body.format,
+            includeRaw: Boolean(body.includeRaw),
+          });
+          // A wrapper error is still a successful bridge round-trip; the MCP
+          // layer turns result.ok into the isError flag.
+          sendJson(result);
+          return;
+        }
+
+        if (req.method === 'POST' && pathname === '/wrap/test') {
+          const body = await readBody();
+          const result = await wrap.executor.test({
+            id: typeof body?.id === 'string' ? body.id : undefined,
+            wrapper: body?.wrapper,
+            args: body?.args,
+            sample: body?.sample,
+            dryRun: body?.dryRun,
+            format: body?.format,
+          });
+          sendJson(result);
+          return;
+        }
+
+        if (req.method === 'POST' && pathname === '/wrap/wrappers') {
+          const body = await readBody();
+          const action = String(body?.action || '').toLowerCase();
+
+          if (action === 'create' || action === 'update') {
+            const result = action === 'create' ? wrap.store.create(body?.wrapper) : wrap.store.update(body?.wrapper);
+            sendJson({ success: result.ok, wrapper: result.wrapper, errors: result.errors }, result.ok ? 200 : 400);
+            return;
+          }
+
+          if (action === 'delete') {
+            const deleted = wrap.store.delete(String(body?.id || ''));
+            sendJson(
+              deleted
+                ? { success: true, deleted }
+                : { success: false, deleted, error: `No wrapper named "${body?.id || ''}".`, code: 'WRAPPER_NOT_FOUND' },
+              deleted ? 200 : 404
+            );
+            return;
+          }
+
+          if (action === 'get') {
+            const wrapper = wrap.store.get(String(body?.id || ''));
+            if (!wrapper) {
+              sendJson({ success: false, error: `No wrapper named "${body?.id || ''}".`, code: 'WRAPPER_NOT_FOUND' }, 404);
+              return;
+            }
+            sendJson({ success: true, wrapper });
+            return;
+          }
+
+          sendJson({ success: false, error: 'action must be create, update, delete, or get', code: 'BAD_REQUEST' }, 400);
+          return;
+        }
+
+        sendJson({ success: false, error: 'Wrap endpoint not found', code: 'NOT_FOUND' }, 404);
         return;
       }
 

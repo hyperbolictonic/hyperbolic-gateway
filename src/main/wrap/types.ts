@@ -1,0 +1,115 @@
+/**
+ * Kuang Wrap — the saved REST wrapper format.
+ *
+ * A wrapper is the deterministic half of an API call: a fixed endpoint, a
+ * typed input schema, and a request template. The agent supplies only the
+ * semantic arguments; this module never lets it assemble a URL, headers, or a
+ * body envelope.
+ */
+
+import type { Recipe, RenderedDocument, RenderMeta } from '../../../packages/recipe/src/index.ts';
+
+export type WrapMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
+
+export type WrapFormat = 'markdown' | 'json' | 'both';
+
+/** The subset of JSON Schema used by wrapper inputs. */
+export interface WrapInputSchema {
+  type?: string | string[];
+  title?: string;
+  description?: string;
+  format?: string;
+  properties?: Record<string, WrapInputSchema>;
+  required?: string[];
+  items?: WrapInputSchema;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  pattern?: string;
+  additionalProperties?: boolean;
+  default?: unknown;
+}
+
+export interface WrapRequest {
+  method: WrapMethod;
+  /** Absolute URL; path/query placeholders use `{{name}}`. */
+  url: string;
+  query?: Record<string, unknown>;
+  headers?: Record<string, string>;
+  /** JSON-shaped template tree, or a string for `bodyFormat: "text"`. */
+  body?: unknown;
+  bodyFormat?: 'json' | 'form' | 'text';
+  /** Per-request timeout. Default 15000 ms, capped at 60000. */
+  timeoutMs?: number;
+}
+
+export interface WrapWrapper {
+  schemaVersion: 1;
+  id: string;
+  name: string;
+  description?: string;
+  request: WrapRequest;
+  inputSchema?: WrapInputSchema;
+  response?: Recipe;
+  /** Opt-in generated MCP tool. Dynamic tools arrive in a later slice. */
+  exposeAsTool?: boolean;
+  /** Defaults to true for POST/PUT/PATCH/DELETE, false for GET/HEAD. */
+  mutating?: boolean;
+  lastVerified?: string;
+  notes?: string;
+}
+
+export interface WrapManifestEntry {
+  id: string;
+  name: string;
+  description?: string;
+  method: WrapMethod;
+  host: string;
+  mutating: boolean;
+  required: string[];
+  exposeAsTool: boolean;
+}
+
+export interface WrapPreview {
+  method: WrapMethod;
+  url: string;
+  headers: Record<string, string>;
+  body?: string;
+}
+
+export interface WrapErrorInfo {
+  code: string;
+  message: string;
+  status?: number;
+  field?: string;
+  retryable?: boolean;
+}
+
+export interface WrapResponseInfo {
+  contentType?: string;
+  bytes: number;
+  /** Present only when `includeRaw` is requested. */
+  json?: unknown;
+  /** Short text excerpt for errors and non-JSON responses. */
+  text?: string;
+  truncated?: boolean;
+}
+
+export interface WrapRunResult {
+  ok: boolean;
+  dryRun?: boolean;
+  status?: number;
+  durationMs?: number;
+  wrapper: { id: string; name: string };
+  request?: WrapPreview;
+  response?: WrapResponseInfo;
+  markdown: string;
+  records: Record<string, unknown>[];
+  documents?: RenderedDocument[];
+  meta?: RenderMeta;
+  error?: WrapErrorInfo;
+}

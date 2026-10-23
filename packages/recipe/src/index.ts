@@ -18,6 +18,7 @@ export type {
   Recipe,
   RecipeLimits,
   RecipeMode,
+  RenderedDocument,
   RenderMeta,
   RenderOptions,
   RenderResult,

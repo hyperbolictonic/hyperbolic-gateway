@@ -47,6 +47,8 @@ export interface ElectronAPI {
     bridgePort: number;
     serverPath: string;
     serverExists: boolean;
+    wrapServerPath: string;
+    wrapServerExists: boolean;
     runtimePath: string;
     packaged: boolean;
     homedir: string;

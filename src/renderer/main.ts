@@ -907,6 +907,7 @@ if (settingsBtn && settingsModal) {
 
 // ---- MCP client snippets (Settings → MCP Clients) ------------------------------------------
 type ConnectRuntime = 'bundled' | 'node';
+type ConnectServer = 'kuang' | 'wrap';
 
 interface ConnectInfo {
   platform: string;
@@ -915,6 +916,8 @@ interface ConnectInfo {
   bridgePort: number;
   serverPath: string;
   serverExists: boolean;
+  wrapServerPath: string;
+  wrapServerExists: boolean;
   runtimePath: string;
   packaged: boolean;
   homedir: string;
@@ -924,11 +927,12 @@ interface ConnectClient {
   id: string;
   label: string;
   file: (info: ConnectInfo) => string;
-  snippet: (info: ConnectInfo, runtime: ConnectRuntime) => string;
+  snippet: (info: ConnectInfo, runtime: ConnectRuntime, server: ConnectServer) => string;
   note?: string;
 }
 
 const connectClientEl = document.getElementById('connect-client') as HTMLSelectElement | null;
+const connectServerEl = document.getElementById('connect-server') as HTMLSelectElement | null;
 const connectRuntimeEl = document.getElementById('connect-runtime') as HTMLSelectElement | null;
 const connectClientNameEl = document.getElementById('connect-client-name') as HTMLElement | null;
 const connectFileEl = document.getElementById('connect-file') as HTMLElement | null;
@@ -938,21 +942,24 @@ const connectCopyEl = document.getElementById('connect-copy') as HTMLButtonEleme
 
 let connectInfo: ConnectInfo | null = null;
 
-function runtimeParts(info: ConnectInfo, runtime: ConnectRuntime) {
+const serverName = (server: ConnectServer) => (server === 'wrap' ? 'kuang-wrap' : 'kuang');
+
+function runtimeParts(info: ConnectInfo, runtime: ConnectRuntime, server: ConnectServer) {
   const env: Record<string, string> = {};
   if (runtime === 'bundled') env.ELECTRON_RUN_AS_NODE = '1';
   if (info.bridgePort !== 4111) env.KUANG_BRIDGE_URL = info.bridgeUrl;
+  const serverPath = server === 'wrap' ? info.wrapServerPath : info.serverPath;
   return runtime === 'bundled'
-    ? { command: info.runtimePath, args: [info.serverPath], env }
-    : { command: 'node', args: [info.serverPath], env };
+    ? { command: info.runtimePath, args: [serverPath], env }
+    : { command: 'node', args: [serverPath], env };
 }
 
 const withEnv = (entry: Record<string, any>, env: Record<string, string>) =>
   Object.keys(env).length ? { ...entry, env } : entry;
 
-const claudeStyle = (info: ConnectInfo, runtime: ConnectRuntime) => {
-  const { command, args, env } = runtimeParts(info, runtime);
-  return JSON.stringify({ mcpServers: { kuang: withEnv({ command, args }, env) } }, null, 2);
+const claudeStyle = (info: ConnectInfo, runtime: ConnectRuntime, server: ConnectServer) => {
+  const { command, args, env } = runtimeParts(info, runtime, server);
+  return JSON.stringify({ mcpServers: { [serverName(server)]: withEnv({ command, args }, env) } }, null, 2);
 };
 
 const quote = (value: string) => `"${value}"`;
@@ -966,13 +973,17 @@ const CONNECT_CLIENTS: ConnectClient[] = [
     id: 'opencode',
     label: 'OpenCode',
     file: (info) => `${hpath(info, '.config', 'opencode', 'opencode.json')} (global) · opencode.json (project)`,
-    snippet: (info, runtime) => {
-      const { command, args, env } = runtimeParts(info, runtime);
+    snippet: (info, runtime, server) => {
+      const { command, args, env } = runtimeParts(info, runtime, server);
       const entry: Record<string, any> = { type: 'local', command: [command, ...args], enabled: true };
       if (Object.keys(env).length) entry.environment = env;
-      return JSON.stringify({ $schema: 'https://opencode.ai/config.json', mcp: { kuang: entry } }, null, 2);
+      return JSON.stringify(
+        { $schema: 'https://opencode.ai/config.json', mcp: { [serverName(server)]: entry } },
+        null,
+        2
+      );
     },
-    note: 'Restart OpenCode after saving. Tools appear under the `kuang` server name.',
+    note: 'Restart OpenCode after saving. Tools appear under the server name shown in the snippet.',
   },
   {
     id: 'claude-desktop',
@@ -990,9 +1001,9 @@ const CONNECT_CLIENTS: ConnectClient[] = [
     id: 'claude-code',
     label: 'Claude Code',
     file: () => 'Run once in a terminal · or commit .mcp.json to the project',
-    snippet: (info, runtime) => {
-      const { command, args, env } = runtimeParts(info, runtime);
-      const parts = ['claude', 'mcp', 'add', 'kuang'];
+    snippet: (info, runtime, server) => {
+      const { command, args, env } = runtimeParts(info, runtime, server);
+      const parts = ['claude', 'mcp', 'add', serverName(server)];
       for (const [key, value] of Object.entries(env)) parts.push('--env', `${key}=${value}`);
       parts.push('--', quote(command), ...args.map(quote));
       return parts.join(' ');
@@ -1010,9 +1021,13 @@ const CONNECT_CLIENTS: ConnectClient[] = [
     id: 'vscode',
     label: 'VS Code (Copilot)',
     file: () => '.vscode/mcp.json in the workspace',
-    snippet: (info, runtime) => {
-      const { command, args, env } = runtimeParts(info, runtime);
-      return JSON.stringify({ servers: { kuang: withEnv({ type: 'stdio', command, args }, env) } }, null, 2);
+    snippet: (info, runtime, server) => {
+      const { command, args, env } = runtimeParts(info, runtime, server);
+      return JSON.stringify(
+        { servers: { [serverName(server)]: withEnv({ type: 'stdio', command, args }, env) } },
+        null,
+        2
+      );
     },
     note: 'Needs an agent-mode request; run “MCP: List Servers” to start the server.',
   },
@@ -1049,10 +1064,14 @@ const CONNECT_CLIENTS: ConnectClient[] = [
     id: 'zed',
     label: 'Zed',
     file: (info) => hpath(info, '.config', 'zed', 'settings.json'),
-    snippet: (info, runtime) => {
-      const { command, args, env } = runtimeParts(info, runtime);
+    snippet: (info, runtime, server) => {
+      const { command, args, env } = runtimeParts(info, runtime, server);
       return JSON.stringify(
-        { context_servers: { kuang: { source: 'custom', command: { path: command, args, env } } } },
+        {
+          context_servers: {
+            [serverName(server)]: { source: 'custom', command: { path: command, args, env } },
+          },
+        },
         null,
         2
       );
@@ -1083,13 +1102,17 @@ function renderConnect() {
   if (!connectInfo || !connectClientEl || !connectSnippetEl) return;
   const client = CONNECT_CLIENTS.find((item) => item.id === connectClientEl.value) || CONNECT_CLIENTS[0];
   const runtime = (connectRuntimeEl?.value === 'node' ? 'node' : 'bundled') as ConnectRuntime;
+  const server = (connectServerEl?.value === 'wrap' ? 'wrap' : 'kuang') as ConnectServer;
 
   if (connectClientNameEl) connectClientNameEl.textContent = client.label;
   if (connectFileEl) connectFileEl.textContent = client.file(connectInfo);
-  connectSnippetEl.textContent = client.snippet(connectInfo, runtime);
+  connectSnippetEl.textContent = client.snippet(connectInfo, runtime, server);
 
   const notes: string[] = [];
   if (client.note) notes.push(client.note);
+  if (server === 'wrap') {
+    notes.push('Kuang Wrap exposes only `wrap_*` tools; the Cyberdeck must be running so the bridge can reach the wrapper store.');
+  }
   notes.push(
     runtime === 'bundled'
       ? 'Runs on this app’s bundled runtime (ELECTRON_RUN_AS_NODE=1), so Node does not need to be installed.'
@@ -1100,7 +1123,9 @@ function renderConnect() {
       ? 'The Cyberdeck must already be running; the bridge listens on the default port 4111.'
       : `KUANG_BRIDGE_URL=${connectInfo.bridgeUrl} is included because this instance uses port ${connectInfo.bridgePort}.`
   );
-  if (!connectInfo.serverExists) notes.push(`⚠ MCP server not found at ${connectInfo.serverPath} — run npm run build:mcp.`);
+  const serverPath = server === 'wrap' ? connectInfo.wrapServerPath : connectInfo.serverPath;
+  const serverExists = server === 'wrap' ? connectInfo.wrapServerExists : connectInfo.serverExists;
+  if (!serverExists) notes.push(`⚠ MCP server not found at ${serverPath} — run npm run build:mcp.`);
   if (connectNoteEl) connectNoteEl.textContent = notes.join(' ');
 }
 
@@ -1116,6 +1141,7 @@ async function loadConnectPanel() {
 }
 
 connectClientEl?.addEventListener('change', renderConnect);
+connectServerEl?.addEventListener('change', renderConnect);
 connectRuntimeEl?.addEventListener('change', renderConnect);
 connectCopyEl?.addEventListener('click', async () => {
   const text = connectSnippetEl?.textContent || '';
