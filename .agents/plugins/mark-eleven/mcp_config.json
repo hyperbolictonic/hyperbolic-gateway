@@ -4,7 +4,7 @@
       "command": "node",
       "args": [
         "-e",
-        "const fs=require('fs'), path=require('path'); const candidates=[path.join(process.env.USERPROFILE||'','Documents/<workspace>/kuang_grade_mark_eleven/bin/mcp-server.cjs'), path.resolve('./bin/mcp-server.cjs')]; const p=candidates.find(c => fs.existsSync(c)); if(!p){console.error('bin/mcp-server.cjs not found');process.exit(1);} require(p);"
+        "const fs=require('fs'), path=require('path'); const candidates=[process.env.KUANG_MCP_SERVER, path.resolve('./bin/mcp-server.cjs')].filter(Boolean); const p=candidates.find(c => fs.existsSync(c)); if(!p){console.error('Set KUANG_MCP_SERVER or run this config from the checkout root');process.exit(1);} require(p);"
       ]
     }
   }

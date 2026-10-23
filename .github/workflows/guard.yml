@@ -1,0 +1,22 @@
+name: guard
+
+# Cheap repository hygiene checks. These need no install and no running app, so they run on every
+# push and pull request instead of only on release tags.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  repo-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: No local disk paths
+        run: node scripts/check-no-local-paths.mjs
+      - name: MCP catalog ↔ bridge contract
+        run: node scripts/test-mcp-contract.mjs

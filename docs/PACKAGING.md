@@ -35,7 +35,7 @@ Kuang Grade Mark Eleven uses `electron-builder` to produce production-grade desk
 
 ## 🛠️ Configuration Details (`electron-builder.json`)
 
-The packaging configuration is stored in [electron-builder.json](file:///<user>/Documents/<workspace>/kuang_grade_mark_eleven/electron-builder.json):
+The packaging configuration is stored in [electron-builder.json](../electron-builder.json):
 
 1. **ASAR & Native Addon Unpacking:**
    Native vector database binaries (`@lancedb` and `.node` addons) are automatically extracted to `app.asar.unpacked/` so they link cleanly without runtime crashes.

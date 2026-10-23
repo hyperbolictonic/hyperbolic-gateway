@@ -1,6 +1,6 @@
 # Handoff — Kuang ↔ Orcha MCP stdio reliability ("kuang goes away")
 
-**Audience:** the agent working in `<user>\Documents\<workspace>\agent_\agent-orcha`
+**Audience:** the agent working in the Agent Orcha repository
 **Author:** Kuang-side session (read-only inspection of the Orcha tree; no files there were modified)
 **Date:** 2026-10-19
 
@@ -150,7 +150,8 @@ With the Cyberdeck running on `:4111`, A should stall near call ~150; B should c
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 
-const REPO   = 'C:\\Users\\mike\\Documents\\<workspace>\\kuang_grade_mark_eleven';
+// Set KUANG_REPO to your checkout, or run this script from the checkout root.
+const REPO   = process.env.KUANG_REPO || process.cwd();
 const SERVER = path.join(REPO, 'bin', 'mcp-server.cjs');
 const VARIANT = process.argv[2] || 'A';   // 'A' = stderr unread, 'B' = drained
 const N = Number(process.argv[3] || 400);

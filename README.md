@@ -603,8 +603,8 @@ A minimal Claude-style entry looks like this (the tab generates the real paths):
 {
   "mcpServers": {
     "kuang": {
-      "command": "C:\\Path\\To\\Kuang Grade Mark Eleven.exe",
-      "args": ["C:\\Users\\You\\AppData\\Roaming\\kuang-grade-mark-eleven\\bin\\mcp-server.cjs"],
+      "command": "<path-to-app>/Kuang Grade Mark Eleven.exe",
+      "args": ["<userData>\\bin\\mcp-server.cjs"],
       "env": { "ELECTRON_RUN_AS_NODE": "1" }
     }
   }
