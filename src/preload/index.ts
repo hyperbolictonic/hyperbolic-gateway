@@ -49,6 +49,7 @@ export interface ElectronAPI {
     serverExists: boolean;
     wrapServerPath: string;
     wrapServerExists: boolean;
+    wrapTokenFile: string;
     runtimePath: string;
     packaged: boolean;
     homedir: string;

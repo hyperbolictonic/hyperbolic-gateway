@@ -29,6 +29,18 @@ const BRIDGE_TIMEOUT_MS = (() => {
   const raw = Number(process.env.KUANG_WRAP_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 90_000;
 })();
+const TOKEN_FILE = process.env.KUANG_WRAP_TOKEN_FILE || '';
+const STATIC_TOKEN = process.env.KUANG_WRAP_TOKEN || process.env.KUANG_BRIDGE_TOKEN || '';
+
+function currentWrapToken(): string {
+  if (STATIC_TOKEN) return STATIC_TOKEN.trim();
+  if (!TOKEN_FILE) return '';
+  try {
+    return fs.readFileSync(TOKEN_FILE, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
 
 // --- Diagnostics policy -----------------------------------------------------
 // stdout is the JSON-RPC lifeline. Diagnostics go to a file; stderr gets a
@@ -115,9 +127,13 @@ interface BridgeResponse {
 }
 
 async function callBridge(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<BridgeResponse> {
+  const token = currentWrapToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const init: RequestInit = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS),
   };
   if (body !== undefined && method === 'POST') init.body = JSON.stringify(body);
@@ -140,6 +156,14 @@ async function callBridge(endpoint: string, method: 'GET' | 'POST' = 'GET', body
     } catch {
       data = { error: text.slice(0, 1_000), code: 'BAD_RESPONSE' };
     }
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      token
+        ? 'The Cyberdeck rejected the Kuang Wrap bridge token. An app restart rotates it; restart the MCP client or update KUANG_WRAP_TOKEN_FILE.'
+        : 'Kuang Wrap needs a bridge token. Add KUANG_WRAP_TOKEN_FILE to this server’s config (Settings → MCP Clients → REST wrappers).',
+    );
   }
 
   return { ok: response.ok, status: response.status, data };

@@ -9,6 +9,8 @@ import { validateWrapper } from '../src/main/wrap/validate-wrapper.ts';
 import { buildRequest } from '../src/main/wrap/interpolate.ts';
 import { validateArgs } from '../src/main/wrap/input-schema.ts';
 import { assertSafeUrl, isPrivateAddress } from '../src/main/wrap/security.ts';
+import { createWrapToken, readWrapToken } from '../src/main/wrap/token.ts';
+import { isWrapAuthorized, tokenFromHeaders } from '../src/main/wrap/auth.ts';
 
 function tempStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kuang-wrap-test-'));
@@ -79,6 +81,29 @@ function postWrapper() {
     },
   };
 }
+
+test('rotates and reads the local wrap bridge token', () => {
+  const { dir } = tempStore();
+  const first = createWrapToken(dir);
+  assert.match(first, /^[a-f0-9]{64}$/);
+  assert.equal(readWrapToken(dir), first);
+  assert.equal(isWrapAuthorized(first, first), true);
+  assert.equal(isWrapAuthorized('wrong', first), false);
+  assert.equal(isWrapAuthorized('', first), false);
+
+  const second = createWrapToken(dir);
+  assert.notEqual(second, first);
+  assert.equal(readWrapToken(dir), second);
+  assert.equal(isWrapAuthorized(first, second), false);
+});
+
+test('reads bearer and alternate token headers', () => {
+  assert.equal(tokenFromHeaders({ authorization: 'Bearer abc123' }), 'abc123');
+  assert.equal(tokenFromHeaders({ authorization: 'bearer abc123' }), 'abc123');
+  assert.equal(tokenFromHeaders({ 'x-kuang-wrap-token': 'def456' }), 'def456');
+  assert.equal(tokenFromHeaders({ authorization: 'Basic abc123' }), '');
+  assert.equal(tokenFromHeaders({}), '');
+});
 
 test('validates and persists wrappers in a temp store', () => {
   const { store } = tempStore();

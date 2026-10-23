@@ -918,6 +918,7 @@ interface ConnectInfo {
   serverExists: boolean;
   wrapServerPath: string;
   wrapServerExists: boolean;
+  wrapTokenFile: string;
   runtimePath: string;
   packaged: boolean;
   homedir: string;
@@ -948,6 +949,7 @@ function runtimeParts(info: ConnectInfo, runtime: ConnectRuntime, server: Connec
   const env: Record<string, string> = {};
   if (runtime === 'bundled') env.ELECTRON_RUN_AS_NODE = '1';
   if (info.bridgePort !== 4111) env.KUANG_BRIDGE_URL = info.bridgeUrl;
+  if (server === 'wrap') env.KUANG_WRAP_TOKEN_FILE = info.wrapTokenFile;
   const serverPath = server === 'wrap' ? info.wrapServerPath : info.serverPath;
   return runtime === 'bundled'
     ? { command: info.runtimePath, args: [serverPath], env }

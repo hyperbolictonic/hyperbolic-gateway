@@ -36608,6 +36608,17 @@ var BRIDGE_TIMEOUT_MS = (() => {
   const raw = Number(process.env.KUANG_WRAP_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 9e4;
 })();
+var TOKEN_FILE = process.env.KUANG_WRAP_TOKEN_FILE || "";
+var STATIC_TOKEN = process.env.KUANG_WRAP_TOKEN || process.env.KUANG_BRIDGE_TOKEN || "";
+function currentWrapToken() {
+  if (STATIC_TOKEN) return STATIC_TOKEN.trim();
+  if (!TOKEN_FILE) return "";
+  try {
+    return import_node_fs.default.readFileSync(TOKEN_FILE, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
 var LOG_TO_FILE = process.env.KUANG_MCP_LOG !== "0";
 var STDERR_MODE = process.env.KUANG_MCP_STDERR === "0" || process.env.KUANG_WRAP_STDERR === "0" ? "off" : "boot";
 var LOG_DIR = import_node_path.default.resolve(process.cwd(), "data", "logs");
@@ -36675,9 +36686,12 @@ function clampText(text) {
 ... [Kuang Wrap: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
 }
 async function callBridge(endpoint, method = "GET", body) {
+  const token = currentWrapToken();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
   const init = {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers,
     signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS)
   };
   if (body !== void 0 && method === "POST") init.body = JSON.stringify(body);
@@ -36698,6 +36712,11 @@ async function callBridge(endpoint, method = "GET", body) {
     } catch {
       data = { error: text.slice(0, 1e3), code: "BAD_RESPONSE" };
     }
+  }
+  if (response.status === 401) {
+    throw new Error(
+      token ? "The Cyberdeck rejected the Kuang Wrap bridge token. An app restart rotates it; restart the MCP client or update KUANG_WRAP_TOKEN_FILE." : "Kuang Wrap needs a bridge token. Add KUANG_WRAP_TOKEN_FILE to this server\u2019s config (Settings \u2192 MCP Clients \u2192 REST wrappers)."
+    );
   }
   return { ok: response.ok, status: response.status, data };
 }

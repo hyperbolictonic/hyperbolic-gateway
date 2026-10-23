@@ -7,6 +7,7 @@ import { BrowserChassis } from './browser-chassis.js';
 import { startHttpBridge } from './http-bridge.js';
 import { WrapExecutor } from './wrap/executor.js';
 import { WrapStore } from './wrap/store.js';
+import { createWrapToken, tokenFile } from './wrap/token.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { APP_VERSION } from '../shared/version.js';
@@ -85,6 +86,10 @@ function ensureWrapServerPath(): string {
   return ensureBundledServerPath('wrap-server.cjs');
 }
 
+function wrapDir(): string {
+  return path.join(app.getPath('userData'), 'wrap');
+}
+
 // The Cyberdeck is driven while the human's editor/terminal owns the foreground, so the
 // window is routinely *occluded*. Chromium then stops producing frames for it, which
 // silently breaks anything driven by rendering: scroll events never fire (so lazy-loading
@@ -131,6 +136,7 @@ ipcMain.handle('app:connect-info', () => {
     serverExists: fs.existsSync(serverPath),
     wrapServerPath,
     wrapServerExists: fs.existsSync(wrapServerPath),
+    wrapTokenFile: tokenFile(wrapDir()),
     runtimePath: process.execPath,
     packaged: app.isPackaged,
     homedir: os.homedir(),
@@ -198,9 +204,10 @@ async function createWindow() {
 
   // Start Autonomous HTTP Bridge
   try {
-    const wrapStore = new WrapStore(path.join(app.getPath('userData'), 'wrap'));
+    const wrapStore = new WrapStore(wrapDir());
     const wrapExecutor = new WrapExecutor(wrapStore);
-    startHttpBridge(chassis, bridgePort, { store: wrapStore, executor: wrapExecutor });
+    const wrapToken = createWrapToken(wrapDir());
+    startHttpBridge(chassis, bridgePort, { store: wrapStore, executor: wrapExecutor, token: wrapToken });
   } catch (err: any) {
     chassis.addLog('warn', `HTTP Bridge notice: ${err?.message || err}`);
   }

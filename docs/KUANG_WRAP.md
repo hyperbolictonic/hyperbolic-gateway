@@ -1,9 +1,9 @@
 # Kuang Wrap — design notes
 
 **Status:** active development, branch `feat/kuang-wrap`. Slice 0 (the pure
-recipe library) and slice 1 (wrapper store, executor, bridge routes, and the
-`kuang-wrap` MCP server) are implemented. Secrets are **not** enabled yet;
-anything marked *planned* is not shipped.
+recipe library), slice 1 (wrapper store, executor, bridge routes, and the
+`kuang-wrap` MCP server), and the rotating bridge-token gate are implemented.
+Secrets are **not** enabled yet; anything marked *planned* is not shipped.
 
 Kuang Wrap is a second MCP server that lets an agent turn a REST endpoint into
 a saved, typed tool: a wrapper for the request, a recipe for the response, and
@@ -186,8 +186,9 @@ npm run test:wrap        # 12 offline store/executor tests
 ```
 
 Open Settings → MCP Clients, choose **REST wrappers (kuang-wrap)** as the
-server, then copy the snippet into the agent client. The Cyberdeck must be
-running; the wrap server only forwards to the existing local bridge.
+server, then copy the snippet into the agent client. The snippet includes
+`KUANG_WRAP_TOKEN_FILE`, which the server reads on each call. The Cyberdeck must
+be running; the wrap server only forwards to the existing local bridge.
 
 A first loop with a public API:
 
@@ -290,10 +291,12 @@ No secret route ships in S1. Everything in this section is the target design.
 | No credentials in query strings | Query strings end up in logs and proxies |
 | Audit log records method, host, status, bytes | Debugging without storing headers or bodies |
 
-**Prerequisite:** the bridge is currently unauthenticated. Before any secret
-route ships, add a per-run bearer token for `/wrap/*`, generated in main and
-passed to the MCP server through the environment. Without it, any local
-process could spend the user's tokens.
+**Prerequisite (done):** every `/wrap/*` route now requires a rotating bearer
+token. The token is generated on each app start, written to
+`<userData>/wrap/token` with owner-only permissions, and the MCP config carries
+`KUANG_WRAP_TOKEN_FILE` (the path), not the value. The wrap server reads the
+file per call, so a long-lived MCP process survives an app restart. Without a
+valid token the bridge returns 401 and never touches a wrapper.
 
 On Linux, `safeStorage.getSelectedStorageBackend()` can return `basic_text`
 when no keyring is available. Detect it and warn; do not pretend the secret is
@@ -341,9 +344,9 @@ S1 returns Markdown text; `format: "json"` returns the record array. Structured
 
 ## Bridge routes
 
-All under `/wrap` on the existing 127.0.0.1 bridge. They are **not
-authenticated yet**; the per-run wrap token is an S2 gate. Secret management
-will stay IPC-only and will never be exposed here.
+All under `/wrap` on the existing 127.0.0.1 bridge. Every route requires the
+rotating bridge token described below. Secret management will stay IPC-only
+and will never be exposed here.
 
 | Route | Body | Result |
 | --- | --- | --- |
@@ -354,6 +357,18 @@ will stay IPC-only and will never be exposed here.
 | `POST /wrap/test` | `{ wrapper?, id?, args?, sample?, dryRun? }` | preview or sample render; nothing saved |
 | `POST /wrap/wrappers` | `{ action: "create"\|"update"\|"delete"\|"get", wrapper? , id? }` | saved wrapper or error list |
 | `GET /wrap/audit?limit=50` | — | planned (S2) |
+
+### Bridge token
+
+- Generated in main on every app start (`crypto.randomBytes(32)`, 64 hex
+  characters) and written to `<userData>/wrap/token`.
+- The MCP client config gets `KUANG_WRAP_TOKEN_FILE`; the server reads the file
+  on each call and sends `Authorization: Bearer <token>`.
+- `X-Kuang-Wrap-Token` is accepted as an alternative header.
+- Missing or stale tokens get `401 { code: "UNAUTHORIZED" }`; the MCP error
+  tells the user to refresh the client config or restart the app.
+- The token is a local capability, not an upstream credential. It is safe for
+  the MCP process to hold; API secrets will not be.
 
 ## Storage
 
@@ -376,7 +391,7 @@ on it. No credentials ever appear in `wrappers/`.
   binaries and refreshes them on update.
 - Settings → MCP Clients has a Server selector: Browser (`kuang`) or REST
   wrappers (`kuang-wrap`), with the same bundled-runtime / system-Node switch
-  and bridge URL. `KUANG_BRIDGE_TOKEN` joins it in S2.
+  and bridge URL. The wrap snippet sets `KUANG_WRAP_TOKEN_FILE`.
 - `KUANG_WRAP_ALLOW_PRIVATE=1` permits localhost/private destinations;
   `KUANG_WRAP_ALLOW_HTTP=1` permits plain http; `KUANG_MCP_LOG=0` silences the
   wrap server file log; `KUANG_WRAP_TIMEOUT_MS` overrides its bridge timeout.
@@ -390,8 +405,9 @@ on it. No credentials ever appear in `wrappers/`.
 | Slice | Scope | Gate |
 | --- | --- | --- |
 | **S0** ✅ | Pure recipe package, schema, tests, design | 25 tests pass, typecheck clean |
-| **S1** ✅ | Wrapper store, executor, `/wrap/*`, `kuang-wrap` MCP server, create/update/delete, dry-run and sample tests | 12 core tests pass; a live GitHub API call returned Markdown and records; no secrets exist yet |
-| **S2** | `safeStorage`, host binding, Settings → Wrappers, wrap bridge token, audit | Exfiltration test: agent-created wrapper cannot attach a secret to a foreign host; unauthenticated `/wrap/run` is 401 |
+| **S1** ✅ | Wrapper store, executor, `/wrap/*`, `kuang-wrap` MCP server, create/update/delete, dry-run and sample tests | 14 core tests pass; a live GitHub API call returned Markdown and records; no secrets exist yet |
+| **S2a** ✅ | Rotating wrap bridge token, token-file handoff, 401 gate | Missing/stale token gets 401 before any wrapper or outbound request |
+| **S2** | `safeStorage`, host binding, Settings → Wrappers, audit | Exfiltration test: agent-created wrapper cannot attach a secret to a foreign host |
 | **S3** | Derived recipes, save/reuse, documents mode, pagination, Cortex indexing | A paginated API returns all pages up to the cap; documents are searchable |
 | **S4** | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | 40-tool cap holds; client sees a new tool without restart |
 | **S5** | OAuth2 client credentials, expiry HIL, `lastVerified` | Expired token produces a human-action request, not a silent 401 loop |
@@ -401,7 +417,7 @@ on it. No credentials ever appear in `wrappers/`.
 | Threat | Control |
 | --- | --- |
 | Agent creates a wrapper pointing at an attacker host and attaches a secret | Host-bound secrets; human-only binding; no cross-origin auth redirect |
-| Local process calls the bridge and spends tokens | **Open until S2:** wrap bridge token, generated per run. S1 is unauthenticated but bound to 127.0.0.1. |
+| Local process calls the bridge and spends tokens | Rotating token, read from a user-private file; every `/wrap/*` route returns 401 without it. |
 | SSRF into localhost or cloud metadata | Scheme + DNS/IP checks; private hosts require `KUANG_WRAP_ALLOW_PRIVATE=1`. DNS rebinding stays open until S2 pins the checked address. |
 | Credential leaks into logs | S1 redacts credential-shaped keys in bridge logs and request previews; a no-leak test lands with S2. |
 | Prompt injection inside an API response | Response is data; it is rendered, never executed |
@@ -439,3 +455,6 @@ on it. No credentials ever appear in `wrappers/`.
 - **2026-10-23** — Plain `http` and private addresses are opt-in, not defaults.
   The bridge body log and request previews redact credential-shaped keys even
   though S1 has no credentials yet.
+- **2026-10-23** — The bridge token rotates on app start. MCP configs carry the
+  token *file path*, not the token, so the wrap server can survive a restart and
+  no copied secret goes stale.
