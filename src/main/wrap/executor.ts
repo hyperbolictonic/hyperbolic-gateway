@@ -15,6 +15,8 @@ import { assertSafeUrl, WrapSecurityError } from './security.ts';
 import { validateWrapper } from './validate-wrapper.ts';
 import type { WrapFormat, WrapPreview, WrapRunResult, WrapWrapper } from './types.ts';
 import type { WrapStore } from './store.ts';
+import type { SecretStore } from './secrets.ts';
+import type { WrapAuditLog } from './audit.ts';
 
 export interface ExecutorOptions {
   fetchImpl?: typeof fetch;
@@ -25,6 +27,8 @@ export interface ExecutorOptions {
   maxResponseBytes?: number;
   maxResultChars?: number;
   defaultTimeoutMs?: number;
+  secrets?: Pick<SecretStore, 'resolve'>;
+  audit?: Pick<WrapAuditLog, 'append'>;
 }
 
 interface ExecuteOptions {
@@ -70,6 +74,8 @@ export class WrapExecutor {
   private readonly maxResponseBytes: number;
   private readonly maxResultChars: number;
   private readonly defaultTimeoutMs: number;
+  private readonly secrets?: Pick<SecretStore, 'resolve'>;
+  private readonly audit?: Pick<WrapAuditLog, 'append'>;
 
   constructor(store: WrapStore, options: ExecutorOptions = {}) {
     this.store = store;
@@ -81,6 +87,8 @@ export class WrapExecutor {
     this.maxResponseBytes = clampInt(options.maxResponseBytes ?? 5_000_000, 1_000, 10_000_000);
     this.maxResultChars = clampInt(options.maxResultChars ?? 50_000, 1_000, 200_000);
     this.defaultTimeoutMs = clampInt(options.defaultTimeoutMs ?? 15_000, 1_000, 60_000);
+    this.secrets = options.secrets;
+    this.audit = options.audit;
   }
 
   status(): { wrappers: number; allowPrivateHosts: boolean } {
@@ -150,10 +158,34 @@ export class WrapExecutor {
       return failure({ id: wrapper.id, name: wrapper.name }, code, err?.message || String(err));
     }
 
+    let secretHeader: string | undefined;
+    if (wrapper.request.auth) {
+      if (!this.secrets) {
+        return failure(
+          { id: wrapper.id, name: wrapper.name },
+          'SECRETS_UNAVAILABLE',
+          'This build has no secret store; remove request.auth or use a credential-free endpoint.',
+        );
+      }
+
+      const host = new URL(built.url).hostname;
+      const resolved = this.secrets.resolve(wrapper.request.auth, host);
+      if (!resolved.ok || !resolved.header || resolved.value === undefined) {
+        return failure(
+          { id: wrapper.id, name: wrapper.name },
+          resolved.code || 'SECRET_ERROR',
+          resolved.message || `Could not resolve secret "${wrapper.request.auth}".`,
+        );
+      }
+
+      built.headers[resolved.header] = resolved.value;
+      secretHeader = resolved.header;
+    }
+
     const request: WrapPreview = {
       method: built.method,
       url: built.url,
-      headers: redactHeaders(built.headers),
+      headers: redactHeaders(built.headers, secretHeader ? [secretHeader] : []),
       body: built.body,
     };
 
@@ -170,17 +202,34 @@ export class WrapExecutor {
 
     let fetched: FetchedResponse;
     try {
-      fetched = await this.fetchWithPolicy(wrapper, built);
+      fetched = await this.fetchWithPolicy(wrapper, built, secretHeader);
     } catch (err: any) {
       const code =
         err instanceof WrapSecurityError || err instanceof WrapTransportError ? err.code : 'NETWORK_ERROR';
       const retryable = code === 'TIMEOUT' || code === 'NETWORK_ERROR';
+      this.audit?.append({
+        wrapper: wrapper.id,
+        host: safeHost(built.url),
+        method: built.method,
+        ok: false,
+        code,
+      });
       return failure({ id: wrapper.id, name: wrapper.name }, code, err?.message || String(err), request, undefined, retryable);
     }
 
     const json = parseJson(fetched.text, fetched.contentType);
     const rendered = this.render(wrapper, json, fetched.text, fetched.contentType);
     const ok = fetched.response.ok;
+    this.audit?.append({
+      wrapper: wrapper.id,
+      host: safeHost(fetched.url),
+      method: built.method,
+      status: fetched.response.status,
+      ok,
+      bytes: fetched.bytes,
+      durationMs: fetched.durationMs,
+      code: ok ? undefined : 'HTTP_ERROR',
+    });
 
     const result: WrapRunResult = {
       ok,
@@ -267,7 +316,11 @@ export class WrapExecutor {
     };
   }
 
-  private async fetchWithPolicy(wrapper: WrapWrapper, built: ReturnType<typeof buildRequest>): Promise<FetchedResponse> {
+  private async fetchWithPolicy(
+    wrapper: WrapWrapper,
+    built: ReturnType<typeof buildRequest>,
+    secretHeader?: string,
+  ): Promise<FetchedResponse> {
     const timeoutMs = clampInt(wrapper.request.timeoutMs ?? this.defaultTimeoutMs, 1_000, 60_000);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -275,6 +328,7 @@ export class WrapExecutor {
     let url = built.url;
     let method = built.method;
     let body = built.body;
+    let authHeader = secretHeader;
     const headers = { ...built.headers };
     const started = Date.now();
 
@@ -305,6 +359,12 @@ export class WrapExecutor {
 
           const next = new URL(location, safe).toString();
           await response.body?.cancel();
+
+          // Never carry an injected credential across an origin boundary.
+          if (authHeader && new URL(next).origin !== safe.origin) {
+            deleteHeader(headers, authHeader);
+            authHeader = undefined;
+          }
 
           if (response.status === 303 || ((response.status === 301 || response.status === 302) && method !== 'GET' && method !== 'HEAD')) {
             method = 'GET';
@@ -395,6 +455,20 @@ export class WrapExecutor {
 
 function isRedirect(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+function deleteHeader(headers: Record<string, string>, name: string): void {
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === name.toLowerCase()) delete headers[key];
+  }
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
 }
 
 function parseJson(text: string, contentType: string): unknown {

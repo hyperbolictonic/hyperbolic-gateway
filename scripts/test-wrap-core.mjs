@@ -11,6 +11,8 @@ import { validateArgs } from '../src/main/wrap/input-schema.ts';
 import { assertSafeUrl, isPrivateAddress } from '../src/main/wrap/security.ts';
 import { createWrapToken, readWrapToken } from '../src/main/wrap/token.ts';
 import { isWrapAuthorized, tokenFromHeaders } from '../src/main/wrap/auth.ts';
+import { SecretStore } from '../src/main/wrap/secrets.ts';
+import { WrapAuditLog } from '../src/main/wrap/audit.ts';
 
 function tempStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kuang-wrap-test-'));
@@ -103,6 +105,60 @@ test('reads bearer and alternate token headers', () => {
   assert.equal(tokenFromHeaders({ 'x-kuang-wrap-token': 'def456' }), 'def456');
   assert.equal(tokenFromHeaders({ authorization: 'Basic abc123' }), '');
   assert.equal(tokenFromHeaders({}), '');
+});
+
+function fakeCipher(available = true) {
+  return {
+    available: () => available,
+    warning: available ? '' : 'encryption unavailable in this test',
+    encrypt: (value) => Buffer.from(`enc:${value}`).toString('base64'),
+    decrypt: (payload) => Buffer.from(payload, 'base64').toString().replace(/^enc:/, ''),
+  };
+}
+
+test('stores encrypted, host-bound secrets and never lists values', () => {
+  const { dir } = tempStore();
+  const store = new SecretStore(dir, fakeCipher());
+
+  assert.equal(store.set({ name: 'weather-key', value: 'top-secret', allowedHosts: 'api.example.com, *.example.org' }).ok, true);
+  const listed = store.list();
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].name, 'weather-key');
+  assert.deepEqual(listed[0].allowedHosts, ['api.example.com', '*.example.org']);
+  assert.doesNotMatch(JSON.stringify(listed), /top-secret/);
+
+  const raw = fs.readFileSync(path.join(dir, 'secrets.json'), 'utf8');
+  assert.doesNotMatch(raw, /top-secret/);
+  assert.match(raw, /ciphertext/);
+
+  const exact = store.resolve('weather-key', 'api.example.com');
+  assert.equal(exact.ok, true);
+  assert.equal(exact.header, 'Authorization');
+  assert.equal(exact.value, 'Bearer top-secret');
+
+  const wildcard = store.resolve('weather-key', 'v1.example.org');
+  assert.equal(wildcard.ok, true);
+
+  const foreign = store.resolve('weather-key', 'evil.example.com');
+  assert.equal(foreign.ok, false);
+  assert.equal(foreign.code, 'SECRET_HOST_MISMATCH');
+
+  const reloaded = new SecretStore(dir, fakeCipher());
+  assert.equal(reloaded.resolve('weather-key', 'api.example.com').ok, true);
+  assert.equal(reloaded.set({ name: 'weather-key', value: 'rotated', allowedHosts: 'api.example.com' }).ok, true);
+  assert.equal(reloaded.resolve('weather-key', 'api.example.com').value, 'Bearer rotated');
+  assert.equal(reloaded.set({ name: 'weather-key', value: '', allowedHosts: 'api.example.com, new.example.com' }).ok, true);
+  assert.equal(reloaded.resolve('weather-key', 'new.example.com').value, 'Bearer rotated');
+  assert.equal(reloaded.delete('weather-key'), true);
+  assert.equal(reloaded.resolve('weather-key', 'api.example.com').code, 'SECRET_NOT_FOUND');
+});
+
+test('refuses secrets when OS encryption is unavailable', () => {
+  const { dir } = tempStore();
+  const store = new SecretStore(dir, fakeCipher(false));
+  const result = store.set({ name: 'key', value: 'value', allowedHosts: 'api.example.com' });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(' '), /encryption unavailable/);
 });
 
 test('validates and persists wrappers in a temp store', () => {
@@ -259,6 +315,107 @@ test('runs a GET wrapper and renders records through the recipe', async () => {
   assert.deepEqual(result.records[0], { id: 1, name: 'Alpha' });
   assert.match(result.markdown, /## Items/);
   assert.match(result.markdown, /\| 1 \| Alpha \|/);
+});
+
+test('injects a bound secret without exposing it in previews or audits', async () => {
+  const { store } = tempStore();
+  const wrapper = listWrapper({ request: { ...listWrapper().request, auth: 'demo-key' } });
+  const validation = validateWrapper(wrapper);
+  assert.equal(validation.ok, true, validation.errors.join('; '));
+  store.create(wrapper);
+
+  const audit = [];
+  let seenAuthorization = '';
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    secrets: {
+      resolve: (name, host) => {
+        assert.equal(name, 'demo-key');
+        assert.equal(host, 'api.example.com');
+        return { ok: true, header: 'Authorization', value: 'Bearer super-secret' };
+      },
+    },
+    audit: { append: (entry) => audit.push(entry) },
+    fetchImpl: async (_url, init) => {
+      seenAuthorization = init.headers.Authorization;
+      return new Response(JSON.stringify({ items: [{ id: 1, name: 'A' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  const preview = await executor.test({ id: 'demo.list', args: { city: 'Paris' } });
+  assert.equal(preview.dryRun, true);
+  assert.equal(preview.request.headers.Authorization, '<redacted>');
+  assert.doesNotMatch(JSON.stringify(preview), /super-secret/);
+
+  const result = await executor.run('demo.list', { city: 'Paris' });
+  assert.equal(result.ok, true);
+  assert.equal(seenAuthorization, 'Bearer super-secret');
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0].host, 'api.example.com');
+  assert.doesNotMatch(JSON.stringify(audit), /super-secret/);
+});
+
+test('refuses a secret that is not bound to the request host', async () => {
+  const { store } = tempStore();
+  store.create(listWrapper({ request: { ...listWrapper().request, auth: 'demo-key' } }));
+
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    secrets: {
+      resolve: () => ({
+        ok: false,
+        code: 'SECRET_HOST_MISMATCH',
+        message: 'Secret "demo-key" is not bound to this host.',
+      }),
+    },
+    fetchImpl: async () => {
+      throw new Error('must not connect');
+    },
+  });
+
+  const result = await executor.run('demo.list', { city: 'Paris' });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'SECRET_HOST_MISMATCH');
+});
+
+test('drops an injected secret on a cross-origin redirect', async () => {
+  const { store } = tempStore();
+  store.create(listWrapper({ request: { ...listWrapper().request, auth: 'demo-key' } }));
+
+  const calls = [];
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    secrets: { resolve: () => ({ ok: true, header: 'Authorization', value: 'Bearer super-secret' }) },
+    fetchImpl: async (url, init) => {
+      calls.push({ url, authorization: init.headers.Authorization });
+      if (calls.length === 1) {
+        return new Response(null, { status: 302, headers: { location: 'https://other.example.com/v2/items' } });
+      }
+      return new Response(JSON.stringify({ items: [{ id: 1, name: 'Moved' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await executor.run('demo.list', { city: 'Paris' });
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].authorization, 'Bearer super-secret');
+  assert.equal(calls[1].authorization, undefined);
+});
+
+test('writes redacted audit rows', () => {
+  const { dir } = tempStore();
+  const audit = new WrapAuditLog(path.join(dir, 'audit.jsonl'));
+  audit.append({ wrapper: 'demo.list', host: 'api.example.com', method: 'GET', status: 200, ok: true, bytes: 12 });
+  const rows = audit.list(10);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].wrapper, 'demo.list');
+  assert.doesNotMatch(JSON.stringify(rows), /authorization|body|token/i);
 });
 
 test('does not fetch during a dry run', async () => {

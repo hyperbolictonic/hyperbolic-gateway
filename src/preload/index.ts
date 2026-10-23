@@ -66,6 +66,30 @@ export interface ElectronAPI {
   onRecordingBegin: (callback: (payload: any) => void) => () => void;
   onRecordingStop: (callback: () => void) => () => void;
   onRecordingStatus: (callback: (state: any) => void) => () => void;
+  listWrapSecrets: () => Promise<{
+    available: boolean;
+    warning: string;
+    secrets: Array<{
+      name: string;
+      allowedHosts: string[];
+      header: string;
+      prefix: string;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  }>;
+  setWrapSecret: (input: {
+    name: string;
+    value: string;
+    allowedHosts: string;
+    header?: string;
+    prefix?: string;
+  }) => Promise<{ ok: boolean; secret?: any; errors: string[] }>;
+  deleteWrapSecret: (name: string) => Promise<{ ok: boolean; errors: string[] }>;
+  listWrapAudit: (limit?: number) => Promise<any[]>;
+  listWrapWrappers: () => Promise<any[]>;
+  saveWrapWrapper: (wrapper: any) => Promise<{ ok: boolean; wrapper?: any; errors: string[] }>;
+  deleteWrapWrapper: (id: string) => Promise<{ ok: boolean; errors: string[] }>;
 }
 
 const api: ElectronAPI = {
@@ -185,6 +209,14 @@ const api: ElectronAPI = {
     ipcRenderer.on('recording:status', handler);
     return () => ipcRenderer.removeListener('recording:status', handler);
   },
+
+  listWrapSecrets: () => ipcRenderer.invoke('wrap:secrets:list'),
+  setWrapSecret: (input: any) => ipcRenderer.invoke('wrap:secrets:set', input),
+  deleteWrapSecret: (name: string) => ipcRenderer.invoke('wrap:secrets:delete', name),
+  listWrapAudit: (limit?: number) => ipcRenderer.invoke('wrap:audit:list', limit),
+  listWrapWrappers: () => ipcRenderer.invoke('wrap:wrappers:list'),
+  saveWrapWrapper: (wrapper: any) => ipcRenderer.invoke('wrap:wrappers:save', wrapper),
+  deleteWrapWrapper: (id: string) => ipcRenderer.invoke('wrap:wrappers:delete', id),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

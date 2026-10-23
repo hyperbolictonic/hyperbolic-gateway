@@ -240,6 +240,7 @@
         <div class="tabs tabs-boxed tabs-sm bg-base-100 font-mono text-[11px]">
           <button type="button" id="settings-tab-decision" class="tab tab-active" data-settings-tab="decision">DECISION MODEL</button>
           <button type="button" id="settings-tab-recording" class="tab" data-settings-tab="recording">RECORDING</button>
+          <button type="button" id="settings-tab-wrappers" class="tab" data-settings-tab="wrappers">WRAPPERS</button>
           <button type="button" id="settings-tab-clients" class="tab" data-settings-tab="clients">MCP CLIENTS</button>
         </div>
       </div>
@@ -386,6 +387,119 @@
         <div class="mt-6">
           <h4 class="font-mono text-xs font-bold text-base-content/70">RECENT TIMELAPSES</h4>
           <ul id="settings-rec-list" class="mt-2 space-y-1"></ul>
+        </div>
+      </section>
+
+      <!-- Kuang Wrap: wrappers + credentials -->
+      <section data-settings-panel="wrappers" class="hidden max-w-6xl mx-auto w-full">
+        <h3 class="font-mono text-sm font-bold text-primary">KUANG WRAP</h3>
+        <p class="text-xs text-base-content/60 mt-1">
+          Browse and edit saved REST wrappers, and manage the host-bound credentials they reference. Wrapper
+          files never contain credential values. Values are encrypted by the OS keychain, stay in the main
+          process, and are never returned to an agent.
+        </p>
+
+        <div id="settings-wrap-warning" class="alert alert-warning alert-sm font-mono text-[11px] mt-4 hidden"></div>
+
+        <div class="mt-5 rounded-box border border-base-100 bg-base-200/40 p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h4 class="font-mono text-xs font-bold text-base-content/80">SAVED WRAPPERS</h4>
+              <p class="font-mono text-[10px] text-base-content/50 mt-1">
+                Select one to edit its JSON. This is the same store agents use through <code class="font-mono">kuang-wrap</code>.
+              </p>
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button type="button" id="settings-wrap-wrapper-refresh" class="btn btn-xs btn-ghost font-mono text-[10px]">REFRESH</button>
+              <button type="button" id="settings-wrap-wrapper-new" class="btn btn-xs btn-outline btn-primary font-mono text-[10px]">NEW</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 mt-4">
+            <div class="space-y-2 min-w-0">
+              <input
+                id="settings-wrap-wrapper-filter"
+                type="search"
+                class="input input-xs w-full font-mono text-[11px]"
+                placeholder="Filter wrappers…"
+                autocomplete="off"
+              />
+              <ul id="settings-wrap-wrapper-list" class="space-y-1 max-h-72 overflow-y-auto pr-1"></ul>
+            </div>
+
+            <div class="min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <div id="settings-wrap-wrapper-title" class="font-mono text-xs font-bold text-primary truncate">Select a wrapper</div>
+                <span id="settings-wrap-wrapper-badge" class="badge badge-ghost badge-xs font-mono hidden"></span>
+              </div>
+              <textarea
+                id="settings-wrap-wrapper-json"
+                class="textarea textarea-bordered w-full h-80 mt-2 font-mono text-[11px] leading-relaxed"
+                spellcheck="false"
+                placeholder="Select a wrapper on the left, or press NEW."
+              ></textarea>
+              <div id="settings-wrap-wrapper-result" class="alert alert-ghost alert-sm font-mono text-xs mt-2 hidden"></div>
+              <div class="flex justify-between items-center mt-3">
+                <button type="button" id="settings-wrap-wrapper-delete" class="btn btn-xs btn-ghost font-mono text-[10px]" disabled>DELETE</button>
+                <button type="button" id="settings-wrap-wrapper-save" class="btn btn-xs btn-primary font-mono text-[10px]" disabled>SAVE WRAPPER</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h4 class="font-mono text-xs font-bold text-base-content/80">CREDENTIALS</h4>
+              <p class="font-mono text-[10px] text-base-content/50 mt-1">
+                A wrapper references one by name in <code class="font-mono">request.auth</code>. The value is write-only; leave it blank while editing to keep the current one.
+              </p>
+            </div>
+            <button type="button" id="settings-wrap-refresh" class="btn btn-xs btn-ghost font-mono text-[10px] shrink-0">REFRESH</button>
+          </div>
+
+          <form id="settings-wrap-secret-form" class="mt-4 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Secret name</legend>
+                <input id="settings-wrap-name" type="text" class="input input-sm w-full font-mono text-xs" placeholder="weather-key" autocomplete="off" />
+              </fieldset>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Header</legend>
+                <input id="settings-wrap-header" type="text" class="input input-sm w-full font-mono text-xs" value="Authorization" autocomplete="off" />
+              </fieldset>
+            </div>
+
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Value (write-only)</legend>
+              <input id="settings-wrap-value" type="password" class="input input-sm w-full font-mono text-xs" placeholder="paste the credential; it is never shown again" autocomplete="off" />
+            </fieldset>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Allowed hosts</legend>
+                <input id="settings-wrap-hosts" type="text" class="input input-sm w-full font-mono text-xs" placeholder="api.example.com, *.example.com" autocomplete="off" />
+                <p class="label font-mono text-[10px]">Exact hosts, or <code class="font-mono">*.example.com</code> for subdomains. A wrapper on any other host is refused.</p>
+              </fieldset>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Prefix</legend>
+                <input id="settings-wrap-prefix" type="text" class="input input-sm w-full font-mono text-xs" value="Bearer " autocomplete="off" />
+                <p class="label font-mono text-[10px]">For <code class="font-mono">Authorization</code>, the scheme and space. Leave empty for an API-key header.</p>
+              </fieldset>
+            </div>
+
+            <div id="settings-wrap-result" class="alert alert-ghost alert-sm font-mono text-xs hidden"></div>
+
+            <div class="flex justify-between items-center border-t border-base-100 pt-3 mt-2">
+              <button type="button" id="settings-wrap-cancel-edit" class="btn btn-sm btn-ghost font-mono text-xs hidden">CANCEL EDIT</button>
+              <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE SECRET</button>
+            </div>
+          </form>
+
+          <div class="mt-6">
+            <h4 class="font-mono text-xs font-bold text-base-content/70">SAVED SECRETS</h4>
+            <ul id="settings-wrap-secret-list" class="mt-2 space-y-1"></ul>
+          </div>
         </div>
       </section>
 

@@ -1,9 +1,10 @@
 # Kuang Wrap — design notes
 
-**Status:** active development, branch `feat/kuang-wrap`. Slice 0 (the pure
-recipe library), slice 1 (wrapper store, executor, bridge routes, and the
-`kuang-wrap` MCP server), and the rotating bridge-token gate are implemented.
-Secrets are **not** enabled yet; anything marked *planned* is not shipped.
+**Status:** active development, branch `feat/kuang-wrap`. Slices 0–2 are
+implemented: the pure recipe library, wrapper store/executor, the `kuang-wrap`
+MCP server, the rotating bridge-token gate, and encrypted host-bound credentials
+with a human-only Settings → Wrappers editor. OAuth, human approval for
+mutating calls, and generated tools are still planned.
 
 Kuang Wrap is a second MCP server that lets an agent turn a REST endpoint into
 a saved, typed tool: a wrapper for the request, a recipe for the response, and
@@ -134,13 +135,14 @@ The app sends exactly:
 ```http
 POST /v1/orders
 Content-Type: application/json
+Authorization: Bearer <from the host-bound secret store>
 
 {"customer":"cus_123","line_items":[{"sku":"A-1","qty":2}],"note":"gift"}
 ```
 
-In S1 the agent never sees the URL, headers, or body envelope, but there is no
-credential yet. S2 adds the secret reference and the authorization header in
-the main process.
+The agent never saw the URL, the authorization value, or the body envelope.
+The wrapper references `"auth": "orders-key"` by name; main resolved it only
+because the request host matched that secret's allowed hosts.
 
 The agent saw a create-order action with a customer, line items, and an
 optional note.
@@ -167,6 +169,7 @@ visible in the schema, and still previewable.
 ```
 wrap_list                     # what can I do? one line per wrapper
 wrap_get { id }               # full input schema, request template, recipe
+wrap_secret_list              # credential names + allowed hosts; never values
 wrap_test { id, args }        # dry-run the exact request (default)
 wrap_run { id, args }         # execute; add format: "json" for records
   └─ mutating? wrap_test first
@@ -178,17 +181,21 @@ result.records                # what to filter, store, or return as JSON
 required argument names. `wrap_get` returns the full schema when the agent
 needs it. That keeps discovery cheap.
 
-## Trying S1
+## Trying it
 
 ```bash
 npm run build:mcp        # writes bin/mcp-server.cjs and bin/wrap-server.cjs
-npm run test:wrap        # 12 offline store/executor tests
+npm run test:wrap        # 20 offline store/executor/secret tests
 ```
 
 Open Settings → MCP Clients, choose **REST wrappers (kuang-wrap)** as the
 server, then copy the snippet into the agent client. The snippet includes
 `KUANG_WRAP_TOKEN_FILE`, which the server reads on each call. The Cyberdeck must
 be running; the wrap server only forwards to the existing local bridge.
+
+Open Settings → Wrappers to browse and edit saved wrappers and to add
+credentials. A credential is write-only; editing it with a blank value keeps
+the current ciphertext and only changes hosts/header metadata.
 
 A first loop with a public API:
 
@@ -197,6 +204,10 @@ wrap_create { wrapper: { id, name, request, inputSchema, response } }
 wrap_test   { id, args }        # dry run: exact method, URL, headers, body
 wrap_run    { id, args }        # live; add format: "json" for records
 ```
+
+For an authenticated API, a human adds a secret in Settings → Wrappers and
+binds it to the API host. The wrapper uses `"auth": "<name>"`; agents can call
+`wrap_secret_list` to discover names, but never see values.
 
 ## Wrapper spec
 
@@ -214,6 +225,7 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
     "url": "https://api.example.com/v1/weather",
     "query": { "q": "{{city}}" },
     "headers": { "Accept": "application/json" },
+    "auth": "weather-key",
     "timeoutMs": 15000
   },
   "inputSchema": {
@@ -243,11 +255,12 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
 
 - `{{name}}` interpolation in `url`, `query`, and `headers` is limited to
   validated input properties. There is no expression language.
-- `auth` is reserved for S2 and is a **secret name**, never a value. This build
-  rejects any non-empty `auth` field, credential-shaped headers
-  (`Authorization`, `X-Api-Key`, cookies, and similar), and credential-shaped
-  query keys (`api_key`, `token`, `password`, and similar), so a wrapper cannot
-  smuggle a literal credential into a saved file.
+- `auth` is a **secret name**, never a value. Main resolves it at request time
+  and refuses unless the URL host is one of the secret's human-authored
+  `allowedHosts`. Wrappers may not set credential-shaped headers
+  (`Authorization`, `X-Api-Key`, cookies, and similar) or credential-shaped
+  query keys (`api_key`, `token`, `password`, and similar), so a literal
+  credential cannot be smuggled into a saved file.
 - `mutating` defaults to `true` for `POST`/`PUT`/`PATCH`/`DELETE`. Read-only
   wrappers are the default; mutating calls can require human approval.
 - `exposeAsTool` is stored but not acted on until S4. Generated tools will be
@@ -276,31 +289,37 @@ format has survived a few real APIs unchanged or a second consumer appears.
 The package boundary is enforced by imports: nothing in `packages/recipe` may
 import Electron or MCP.
 
-## Secrets (planned, S2)
+## Secrets
 
-No secret route ships in S1. Everything in this section is the target design.
+Secrets are implemented in main. The Settings → Wrappers panel is the only
+writer; the MCP process and the bridge see names and metadata only.
 
 | Rule | Why |
 | --- | --- |
-| Secrets are written only from Settings over IPC | An agent must not be able to create or read a credential |
+| Secrets are written only from Settings over IPC | An agent must not be able to create, read, or bind a credential |
 | `safeStorage` encrypts at rest in main | DPAPI / Keychain / libsecret, no custom crypto |
-| Agents see names and allowed hosts, never values | A future `wrap_secret_list` returns metadata only |
+| Agents see names and allowed hosts, never values | `wrap_secret_list` returns metadata only |
 | A secret is bound to `allowedHosts` | A wrapper cannot attach it to an attacker's host |
 | Binding a secret to a host is human-only | Prevents agent-authored exfiltration |
-| No auth on cross-origin redirects | Prevents a 302 from leaking a token |
+| No auth on cross-origin redirects | The injected header is dropped when the origin changes |
 | No credentials in query strings | Query strings end up in logs and proxies |
-| Audit log records method, host, status, bytes | Debugging without storing headers or bodies |
+| Audit log records method, host, status, bytes | Debugging without storing headers, bodies, or query strings |
 
-**Prerequisite (done):** every `/wrap/*` route now requires a rotating bearer
+A secret is write-only in the UI. Editing it with a blank value preserves the
+ciphertext and lets a human change only the allowed hosts, header, or prefix.
+The bridge's `/wrap/secrets` route is read-only metadata; there is no HTTP or
+MCP route that sets a value.
+
+**Prerequisite (done):** every `/wrap/*` route requires a rotating bearer
 token. The token is generated on each app start, written to
 `<userData>/wrap/token` with owner-only permissions, and the MCP config carries
 `KUANG_WRAP_TOKEN_FILE` (the path), not the value. The wrap server reads the
 file per call, so a long-lived MCP process survives an app restart. Without a
 valid token the bridge returns 401 and never touches a wrapper.
 
-On Linux, `safeStorage.getSelectedStorageBackend()` can return `basic_text`
-when no keyring is available. Detect it and warn; do not pretend the secret is
-protected.
+On Linux, if `safeStorage.getSelectedStorageBackend()` returns `basic_text`,
+secrets are disabled and the panel explains how to fix the keyring. The app does
+not pretend that `basic_text` is encryption.
 
 ## Execution policy
 
@@ -310,15 +329,17 @@ protected.
 - Resolve the host and refuse loopback, private, link-local, unique-local, and
   cloud metadata addresses (`169.254.169.254`, `fd00::/8`, …). Local
   development APIs are legitimate but opt-in with `KUANG_WRAP_ALLOW_PRIVATE=1`.
-- Redirects: maximum 5; re-check the scheme and address on every hop. S2 will
-  drop `Authorization` when the origin changes.
+- Redirects: maximum 5; re-check the scheme and address on every hop. An
+  injected credential header is dropped when the origin changes.
 - Response cap: 5 MB; timeout 15 s (per wrapper, capped at 60 s).
-- Retries and a per-host concurrency queue are planned; S1 sends one request.
+- Retries and a per-host concurrency queue are planned; the executor sends one
+  request.
 - Redact `Authorization`, `Cookie`, `Set-Cookie`, and other credential-shaped
-  keys from bridge logs, previews, and errors.
-- Residual risk: DNS is checked before `fetch`, which resolves again. A
-  hostile DNS server could rebind between the two. Pinning the checked address
-  in the socket is required before credentials ship in S2.
+  keys from bridge logs, previews, errors, and audit rows. Secret values are
+  decrypted only in main and never written to a wrapper file.
+- Residual risk: DNS is checked before `fetch`, which resolves again. A hostile
+  DNS server could rebind between the two. Pinning the checked address in the
+  socket is the next hardening step; it is not yet implemented.
 
 ## MCP surface
 
@@ -326,8 +347,9 @@ Meta-tools (always present):
 
 | Tool | Purpose |
 | --- | --- |
-| `wrap_list` | List wrappers: id, name, method, host, required arguments |
+| `wrap_list` | List wrappers: id, name, method, host, required arguments, secret name |
 | `wrap_get` | Read one wrapper definition (no secret values) |
+| `wrap_secret_list` | Credential names, headers, and allowed hosts only |
 | `wrap_create` | Validate and save a wrapper |
 | `wrap_update` | Replace a saved wrapper |
 | `wrap_delete` | Remove a wrapper |
@@ -337,26 +359,27 @@ Meta-tools (always present):
 
 Generated tools are planned for S4: one `wrap_<id>` per wrapper **only** when
 `exposeAsTool` is true, capped at 40, with `sendToolListChanged()` after a
-mutation. S1 keeps the surface at eight meta-tools.
+mutation. The surface is currently nine meta-tools.
 
-S1 returns Markdown text; `format: "json"` returns the record array. Structured
+Results are Markdown text; `format: "json"` returns the record array.
 `structuredContent` and document passthrough are planned.
 
 ## Bridge routes
 
 All under `/wrap` on the existing 127.0.0.1 bridge. Every route requires the
-rotating bridge token described below. Secret management will stay IPC-only
-and will never be exposed here.
+rotating bridge token described below. Secret **writes** are IPC-only; the
+bridge exposes read-only metadata.
 
 | Route | Body | Result |
 | --- | --- | --- |
-| `GET /wrap/manifest` | — | `{ wrappers: [{ id, name, method, host, required, … }] }` |
+| `GET /wrap/manifest` | — | `{ wrappers: [{ id, name, method, host, required, secret, … }] }` |
 | `GET /wrap/status` | — | wrapper count and whether private hosts are allowed |
 | `GET /wrap/wrapper?id=…` | — | one full wrapper |
+| `GET /wrap/secrets` | — | names, headers, allowed hosts, availability; never values |
 | `POST /wrap/run` | `{ id, args, format? }` | `{ ok, status, markdown, records, request, … }` |
 | `POST /wrap/test` | `{ wrapper?, id?, args?, sample?, dryRun? }` | preview or sample render; nothing saved |
 | `POST /wrap/wrappers` | `{ action: "create"\|"update"\|"delete"\|"get", wrapper? , id? }` | saved wrapper or error list |
-| `GET /wrap/audit?limit=50` | — | planned (S2) |
+| `GET /wrap/audit?limit=50` | — | redacted audit rows |
 
 ### Bridge token
 
@@ -375,14 +398,16 @@ and will never be exposed here.
 ```
 <userData>/wrap/
   wrappers/<id>.json      one file per wrapper, atomic write (tmp + rename)
-  recipes/<id>.json       planned: reusable response recipes
-  secrets.enc             planned: safeStorage ciphertext, main process only
-  audit.jsonl             planned: append-only, redacted
+  secrets.json            metadata + safeStorage ciphertext, main process only
+  audit.jsonl             append-only, redacted, one row per outbound call
+  token                   rotating bridge token, owner-only permissions
 ```
 
-Every wrapper carries `schemaVersion`. S1 normalises to the known fields;
-unknown top-level fields are dropped, so add a field to the spec before relying
-on it. No credentials ever appear in `wrappers/`.
+Every wrapper carries `schemaVersion`. The validator normalises to the known
+fields; unknown top-level fields are dropped, so add a field to the spec before
+relying on it. No credential values ever appear in `wrappers/`; `secrets.json`
+contains ciphertext only. Recipes are embedded in the wrapper for now; a
+separate reusable recipe store is planned.
 
 ## Packaging
 
@@ -392,6 +417,8 @@ on it. No credentials ever appear in `wrappers/`.
 - Settings → MCP Clients has a Server selector: Browser (`kuang`) or REST
   wrappers (`kuang-wrap`), with the same bundled-runtime / system-Node switch
   and bridge URL. The wrap snippet sets `KUANG_WRAP_TOKEN_FILE`.
+- Settings → Wrappers has a filterable wrapper list, a JSON editor, and a
+  credential manager. Both use IPC; no bridge route can write a secret.
 - `KUANG_WRAP_ALLOW_PRIVATE=1` permits localhost/private destinations;
   `KUANG_WRAP_ALLOW_HTTP=1` permits plain http; `KUANG_MCP_LOG=0` silences the
   wrap server file log; `KUANG_WRAP_TIMEOUT_MS` overrides its bridge timeout.
@@ -405,9 +432,9 @@ on it. No credentials ever appear in `wrappers/`.
 | Slice | Scope | Gate |
 | --- | --- | --- |
 | **S0** ✅ | Pure recipe package, schema, tests, design | 25 tests pass, typecheck clean |
-| **S1** ✅ | Wrapper store, executor, `/wrap/*`, `kuang-wrap` MCP server, create/update/delete, dry-run and sample tests | 14 core tests pass; a live GitHub API call returned Markdown and records; no secrets exist yet |
+| **S1** ✅ | Wrapper store, executor, `/wrap/*`, `kuang-wrap` MCP server, create/update/delete, dry-run and sample tests | 20 core tests now pass; a live GitHub API call returned Markdown and records |
 | **S2a** ✅ | Rotating wrap bridge token, token-file handoff, 401 gate | Missing/stale token gets 401 before any wrapper or outbound request |
-| **S2** | `safeStorage`, host binding, Settings → Wrappers, audit | Exfiltration test: agent-created wrapper cannot attach a secret to a foreign host |
+| **S2** ✅ | `safeStorage`, host binding, Settings → Wrappers editor, audit | Unit tests prove a foreign-host secret is refused and a cross-origin redirect drops the injected header |
 | **S3** | Derived recipes, save/reuse, documents mode, pagination, Cortex indexing | A paginated API returns all pages up to the cap; documents are searchable |
 | **S4** | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | 40-tool cap holds; client sees a new tool without restart |
 | **S5** | OAuth2 client credentials, expiry HIL, `lastVerified` | Expired token produces a human-action request, not a silent 401 loop |
@@ -418,10 +445,10 @@ on it. No credentials ever appear in `wrappers/`.
 | --- | --- |
 | Agent creates a wrapper pointing at an attacker host and attaches a secret | Host-bound secrets; human-only binding; no cross-origin auth redirect |
 | Local process calls the bridge and spends tokens | Rotating token, read from a user-private file; every `/wrap/*` route returns 401 without it. |
-| SSRF into localhost or cloud metadata | Scheme + DNS/IP checks; private hosts require `KUANG_WRAP_ALLOW_PRIVATE=1`. DNS rebinding stays open until S2 pins the checked address. |
-| Credential leaks into logs | S1 redacts credential-shaped keys in bridge logs and request previews; a no-leak test lands with S2. |
+| SSRF into localhost or cloud metadata | Scheme + DNS/IP checks; private hosts require `KUANG_WRAP_ALLOW_PRIVATE=1`. DNS rebinding remains a residual risk until the checked address is pinned in the socket. |
+| Credential leaks into logs | Bridge logs and previews redact credential-shaped keys; audit rows store host/status/bytes only; tests assert secret values are absent. |
 | Prompt injection inside an API response | Response is data; it is rendered, never executed |
-| Tool-list exhaustion | Eight meta-tools in S1; opt-in generated tools + cap in S4 |
+| Tool-list exhaustion | Nine meta-tools; opt-in generated tools + cap in S4 |
 | Schema drift breaks a wrapper | `wrap_test` and clear upstream errors; `lastVerified` is stored but not refreshed yet |
 | Linux has no keyring | Detect `basic_text`; warn and refuse secrets if requested |
 
@@ -429,8 +456,8 @@ on it. No credentials ever appear in `wrappers/`.
 
 1. Should a wrapper be runnable headless (without the Electron app)? Not in v1.
    The separate MCP binary keeps that door open.
-2. Secret scope: host-only, or host + wrapper? Start host-only; add an optional
-   wrapper scope if a shared host needs separate credentials.
+2. Secret scope: host-only is shipped. Add an optional wrapper scope if a
+   shared host needs separate credentials.
 3. Should `POST` require human approval by default? Leaning yes for the first
    call per wrapper per session; read-only remains frictionless.
 4. Where do parsed documents go? Return them first; Cortex indexing is opt-in
@@ -449,12 +476,19 @@ on it. No credentials ever appear in `wrappers/`.
 - **2026-10-23** — Secrets live in main behind `safeStorage`; the MCP process
   never sees a value.
 - **2026-10-23** — Ship the bridge token before the first secret, not after.
-- **2026-10-23** — S1 keeps the MCP surface at eight meta-tools and forwards
-  every call over the existing 127.0.0.1 bridge. The wrapper server has no
-  file-system or secret access; the store and executor live in main.
+- **2026-10-23** — The MCP surface stays at nine meta-tools and forwards every
+  call over the existing 127.0.0.1 bridge. The wrapper server has no
+  file-system or credential-value access; the store, secret store, and executor
+  live in main.
 - **2026-10-23** — Plain `http` and private addresses are opt-in, not defaults.
-  The bridge body log and request previews redact credential-shaped keys even
-  though S1 has no credentials yet.
+  The bridge body log, request previews, and audit rows redact credential-shaped
+  keys and values.
 - **2026-10-23** — The bridge token rotates on app start. MCP configs carry the
   token *file path*, not the token, so the wrap server can survive a restart and
   no copied secret goes stale.
+- **2026-10-23** — Secrets are host-bound and write-only. Settings → Wrappers
+  edits wrapper JSON and credential metadata; a blank value keeps the existing
+  ciphertext. The bridge exposes read-only secret metadata, never a value.
+- **2026-10-23** — Audit rows contain method, host, status, bytes, duration,
+  and error code only. Headers, bodies, query strings, and secret names do not
+  enter the audit log.

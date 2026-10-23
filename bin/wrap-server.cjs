@@ -36803,9 +36803,25 @@ function formatManifest(data) {
   return lines(
     wrappers.map((wrapper) => {
       const required2 = Array.isArray(wrapper.required) && wrapper.required.length > 0 ? ` \xB7 required: ${wrapper.required.join(", ")}` : "";
-      return `${wrapper.id} \u2014 ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ", mutating" : ""})${required2}`;
+      const secret = wrapper.secret ? ` \xB7 secret: ${wrapper.secret}` : "";
+      return `${wrapper.id} \u2014 ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ", mutating" : ""})${required2}${secret}`;
     })
   );
+}
+function formatSecrets(data) {
+  const secrets = Array.isArray(data?.secrets) ? data.secrets : [];
+  const warning = typeof data?.warning === "string" && data.warning ? `
+
+_${data.warning}_` : "";
+  if (secrets.length === 0) {
+    return `No secrets saved. A human can add one in Settings \u2192 Wrappers.${warning}`;
+  }
+  return lines(
+    secrets.map((secret) => {
+      const hosts = Array.isArray(secret.allowedHosts) ? secret.allowedHosts.join(", ") : "";
+      return `${secret.name} \xB7 ${secret.header} \xB7 ${hosts}`;
+    })
+  ) + warning;
 }
 function toolSuccess(text) {
   return { content: [{ type: "text", text: clampText(text) }] };
@@ -36853,8 +36869,22 @@ async function createWrapMcpServer() {
     }
   );
   server.tool(
+    "wrap_secret_list",
+    "List credential names a human has bound to hosts. Values are never available to this server. Use a name in request.auth; the main process attaches it only when the request host is allowed.",
+    {},
+    async () => {
+      try {
+        const response = await callBridge("/wrap/secrets");
+        if (!response.ok) return toolError(errorText(response.data?.code, response.data?.error || `HTTP ${response.status}`));
+        return toolSuccess(formatSecrets(response.data));
+      } catch (err) {
+        return bridgeFailure(err);
+      }
+    }
+  );
+  server.tool(
     "wrap_create",
-    "Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates), inputSchema (game-facing arguments), and response (recipe). Never include credentials; auth is not enabled in this build.",
+    "Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it.",
     {
       wrapper: external_exports.record(external_exports.string(), external_exports.unknown()).describe("Complete wrapper object. Use flat input arguments, not URL or header JSON.")
     },

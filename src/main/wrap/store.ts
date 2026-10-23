@@ -104,6 +104,7 @@ export class WrapStore {
         mutating: wrapper.mutating ?? !['GET', 'HEAD'].includes(wrapper.request.method),
         required: wrapper.inputSchema?.required || [],
         exposeAsTool: Boolean(wrapper.exposeAsTool),
+        secret: wrapper.request.auth,
       };
     });
   }
