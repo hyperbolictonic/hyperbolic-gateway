@@ -113,6 +113,10 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+// Paint the overlay in its intended translucent state before the async mode
+// round-trip. If the main process reports docked/collapsed, the response
+// replaces this immediately.
+if (SIDEBAR_MODE) applySidebarMode('floating');
 window.electronAPI?.getSidebarMode().then(applySidebarMode).catch(() => undefined);
 window.electronAPI?.onSidebarMode((mode) => applySidebarMode(mode as SidebarMode));
 resizeCanvas();
