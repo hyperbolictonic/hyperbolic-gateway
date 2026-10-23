@@ -599,7 +599,10 @@ export class BrowserChassis {
         preload: path.join(__dirname, '../preload/index.js'),
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: true,
+        // The preload is an ESM bundle; sandboxed preloads must be CJS. The
+        // overlay only loads our local index.html, so context isolation is the
+        // relevant boundary here.
+        sandbox: false,
         backgroundThrottling: false,
       },
     });
