@@ -1,10 +1,13 @@
 # Kuang Wrap — design notes
 
 **Status:** active development, branch `feat/kuang-wrap`. Slices 0–2 are
-implemented: the pure recipe library, wrapper store/executor, the `kuang-wrap`
+implemented (the pure recipe library, wrapper store/executor, the `kuang-wrap`
 MCP server, the rotating bridge-token gate, and encrypted host-bound credentials
-with a human-only Settings → Wrappers editor. OAuth, human approval for
-mutating calls, and generated tools are still planned.
+with a human-only Settings → Wrappers editor), plus the S3 half that matters most
+in practice: **recipe pagination** (offset/cursor/link, page- and item-capped)
+and **documents mode**. Still planned: exposing `deriveRecipe`, Cortex indexing
+of documents, OAuth/token refresh, human approval for mutating calls, and
+generated tools.
 
 Kuang Wrap is a second MCP server that lets an agent turn a REST endpoint into
 a saved, typed tool: a wrapper for the request, a recipe for the response, and
@@ -185,7 +188,8 @@ needs it. That keeps discovery cheap.
 
 ```bash
 npm run build:mcp        # writes bin/mcp-server.cjs and bin/wrap-server.cjs
-npm run test:wrap        # 21 offline store/executor/secret tests
+npm run test:wrap        # 29 offline store/executor/secret/pagination tests
+npm run test:wrap:live   # 43 live checks against DummyJSON (needs the app; inline wrappers, nothing saved)
 ```
 
 Open Settings → MCP Clients, choose **REST wrappers (kuang-wrap)** as the
@@ -265,6 +269,44 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
   wrappers are the default; mutating calls can require human approval.
 - `exposeAsTool` is stored but not acted on until S4. Generated tools will be
   opt-in, capped, and namespaced.
+
+## Pagination
+
+A recipe may declare `pagination`; the executor then follows pages and merges them into
+**one** render, so an agent gets one table instead of N tables with repeated headings.
+
+```json
+"pagination": {
+  "type": "offset",
+  "limitParam": "limit",
+  "offsetParam": "skip",
+  "pageSize": 10,
+  "hasMore": "total"
+}
+```
+
+| `type` | Next page comes from | Stops when |
+| :--- | :--- | :--- |
+| `offset` | `offsetParam` + `limitParam`, advanced by `pageSize` | a page is shorter than `pageSize`, `hasMore` is false/0, or a cap is hit |
+| `cursor` | `next` (path to the next token), sent as `cursorParam` | `next` is missing/null/empty |
+| `link` | `nextUrl` (path to the next absolute URL) | `nextUrl` is missing, or points off-origin |
+| `none` | — | single request (default) |
+
+Rules:
+
+- **Page cap.** `maxPages` defaults to 10 (hard max 25). `wrap_run { max_pages }` overrides
+  it per call; the footer reports `pages n/cap (+more)`.
+- **Item cap.** `recipe.limits.maxItems` (default 50) bounds the merged result, and paging
+  stops once it is reached.
+- **List selections only.** Auto-paging applies when `select` resolves to an array; a
+  document selection stays a single request.
+- **One audit row per page**, with the same redaction rules as any other call.
+- **Merging.** Page lists are concatenated and rendered once (the recipe's `select` is
+  re-pointed at the merged list). If the selection is not a list, the per-page renders are
+  joined with `---` instead.
+- **No new SSRF surface.** Every page URL still goes through `assertSafeUrl`, and a `link`
+  page must share the first request's origin — a hostile `next` cannot move the injected
+  credential to another host.
 
 ## Recipes
 
@@ -441,7 +483,7 @@ separate reusable recipe store is planned.
 | **S1** ✅ | Wrapper store, executor, `/wrap/*`, `kuang-wrap` MCP server, create/update/delete, dry-run and sample tests | 21 core tests now pass; a live GitHub API call returned Markdown and records |
 | **S2a** ✅ | Rotating wrap bridge token, token-file handoff, 401 gate | Missing/stale token gets 401 before any wrapper or outbound request |
 | **S2** ✅ | `safeStorage`, host binding, Settings → Wrappers editor, audit | Unit tests prove a foreign-host secret is refused and a cross-origin redirect drops the injected header |
-| **S3** | Derived recipes, save/reuse, documents mode, pagination, Cortex indexing | A paginated API returns all pages up to the cap; documents are searchable |
+| **S3** 🟡 | **Pagination ✅** (offset/cursor/link, page- and item-capped), **documents mode ✅**; derived-recipe exposure + save/reuse and Cortex indexing still outstanding | A paginated API returns all pages up to the cap ✅; documents are searchable ⬜ |
 | **S4** | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | 40-tool cap holds; client sees a new tool without restart |
 | **S5** | OAuth2 client credentials, expiry HIL, `lastVerified` | Expired token produces a human-action request, not a silent 401 loop |
 
@@ -452,6 +494,7 @@ separate reusable recipe store is planned.
 | Agent creates a wrapper pointing at an attacker host and attaches a secret | Host-bound secrets; human-only binding; no cross-origin auth redirect |
 | Local process calls the bridge and spends tokens | Rotating token, read from a user-private file; every `/wrap/*` route returns 401 without it. |
 | SSRF into localhost or cloud metadata | Scheme + DNS/IP checks; private hosts require `KUANG_WRAP_ALLOW_PRIVATE=1`. DNS rebinding remains a residual risk until the checked address is pinned in the socket. |
+| A paginated `next` link points at an attacker host | `link` pagination is same-origin only; every page URL is re-checked by `assertSafeUrl` before it is fetched |
 | Credential leaks into logs or responses | Bridge logs and previews redact credential-shaped keys; an upstream response that echoes a secret is redacted before rendering; audit rows store host/status/bytes only; tests assert values are absent. |
 | Prompt injection inside an API response | Response is data; it is rendered, never executed |
 | Tool-list exhaustion | Nine meta-tools; opt-in generated tools + cap in S4 |

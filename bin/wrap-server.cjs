@@ -36600,7 +36600,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.6";
+var APP_VERSION = "1.4.71";
 
 // src/mcp/wrap-server.ts
 var BRIDGE_URL = (process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111").replace(/\/$/, "");
@@ -36767,7 +36767,12 @@ ${json2}
 \`\`\``;
   const footer = data.status ? `
 
-_HTTP ${data.status} \xB7 ${formatBytes(data.response?.bytes)} \xB7 ${data.durationMs ?? 0} ms_` : "";
+_${[
+    `HTTP ${data.status}`,
+    formatBytes(data.response?.bytes),
+    `${data.durationMs ?? 0} ms`,
+    ...data.paging ? [`pages ${data.paging.pages}/${data.paging.cap}${data.paging.more ? " (+more)" : ""}`] : []
+  ].join(" \xB7 ")}_` : "";
   return `${markdown}${footer}`.trim();
 }
 function previewText(data) {
@@ -36941,18 +36946,20 @@ async function createWrapMcpServer() {
   );
   server.tool(
     "wrap_run",
-    "Execute a saved wrapper with flat semantic arguments. The saved request supplies the URL, headers, auth, and body shape; pass only the arguments declared by wrap_get. Returns readable Markdown and structured records.",
+    "Execute a saved wrapper with flat semantic arguments. The saved request supplies the URL, headers, auth, and body shape; pass only the arguments declared by wrap_get. Returns readable Markdown and structured records. When the recipe declares pagination, the executor follows pages up to a cap and merges them into one result (the footer reports pages used); pass max_pages to widen or narrow it.",
     {
       id: external_exports.string().describe("Wrapper id from wrap_list"),
       args: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe("Flat arguments matching the wrapper inputSchema"),
-      format: external_exports.enum(["markdown", "json", "both"]).optional().describe("markdown (default), json records, or both")
+      format: external_exports.enum(["markdown", "json", "both"]).optional().describe("markdown (default), json records, or both"),
+      max_pages: external_exports.coerce.number().optional().describe("Page cap for a paginated recipe (default 10, max 25)")
     },
-    async ({ id, args, format }) => {
+    async ({ id, args, format, max_pages }) => {
       try {
         const response = await callBridge("/wrap/run", "POST", {
           id,
           args: asObject(args || {}) || {},
-          format: format || "markdown"
+          format: format || "markdown",
+          maxPages: max_pages
         });
         const data = response.data;
         if (!data) return toolError(`No response from the wrapper bridge (HTTP ${response.status}).`);

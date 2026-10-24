@@ -115,5 +115,7 @@ export interface WrapRunResult {
   records: Record<string, unknown>[];
   documents?: RenderedDocument[];
   meta?: RenderMeta;
+  /** Present only when the recipe declares pagination (or a call overrides the page cap). */
+  paging?: { pages: number; cap: number; more: boolean };
   error?: WrapErrorInfo;
 }

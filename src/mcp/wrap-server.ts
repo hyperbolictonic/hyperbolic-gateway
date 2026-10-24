@@ -215,7 +215,14 @@ function resultText(data: any, format: 'markdown' | 'json' | 'both'): string {
   if (format === 'both') return `${markdown}\n\n### Records\n\n\`\`\`json\n${json}\n\`\`\``;
 
   const footer = data.status
-    ? `\n\n_HTTP ${data.status} · ${formatBytes(data.response?.bytes)} · ${data.durationMs ?? 0} ms_`
+    ? `\n\n_${[
+        `HTTP ${data.status}`,
+        formatBytes(data.response?.bytes),
+        `${data.durationMs ?? 0} ms`,
+        ...(data.paging
+          ? [`pages ${data.paging.pages}/${data.paging.cap}${data.paging.more ? ' (+more)' : ''}`]
+          : []),
+      ].join(' · ')}_`
     : '';
   return `${markdown}${footer}`.trim();
 }
@@ -408,18 +415,20 @@ export async function createWrapMcpServer() {
 
   server.tool(
     'wrap_run',
-    'Execute a saved wrapper with flat semantic arguments. The saved request supplies the URL, headers, auth, and body shape; pass only the arguments declared by wrap_get. Returns readable Markdown and structured records.',
+    'Execute a saved wrapper with flat semantic arguments. The saved request supplies the URL, headers, auth, and body shape; pass only the arguments declared by wrap_get. Returns readable Markdown and structured records. When the recipe declares pagination, the executor follows pages up to a cap and merges them into one result (the footer reports pages used); pass max_pages to widen or narrow it.',
     {
       id: z.string().describe('Wrapper id from wrap_list'),
       args: z.record(z.string(), z.unknown()).optional().describe('Flat arguments matching the wrapper inputSchema'),
       format: z.enum(['markdown', 'json', 'both']).optional().describe('markdown (default), json records, or both'),
+      max_pages: z.coerce.number().optional().describe('Page cap for a paginated recipe (default 10, max 25)'),
     },
-    async ({ id, args, format }) => {
+    async ({ id, args, format, max_pages }) => {
       try {
         const response = await callBridge('/wrap/run', 'POST', {
           id,
           args: asObject(args || {}) || {},
           format: format || 'markdown',
+          maxPages: max_pages,
         });
         const data = response.data;
         if (!data) return toolError(`No response from the wrapper bridge (HTTP ${response.status}).`);
