@@ -16,7 +16,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.80] - 2026-10-24
+## [1.4.81] - 2026-10-24
+
+### Changed
+
+- **Consent walls are answered like a person would, not stripped.** The automatic path now clicks
+  the least-invasive real control the banner offers — "Reject all" / "Only necessary" before
+  "Accept all" — with the visible cursor, once. Policy is `KUANG_CONSENT_POLICY=essential|accept|reject`
+  (default `essential`). Auto-removal (`force_remove`) is reachable only through an explicit
+  `dismiss_consent` call, never from the background sweep.
+- **One answer per origin per session.** After a wall is answered — or deliberately left — the
+  origin is remembered, so later navigations do not re-click it.
+- **`dismiss_consent` reports what happened**: which intent won (`reject`/`accept`), the control
+  text, coordinates, and whether the wall was left for a human.
+
+### Fixed
+
+- **The consent form flickering on/off.** The old sweep ran three timed attempts and passed any
+  "Accept"-looking button to a click, so a CMP that re-rendered got clicked again (and the second
+  click could land on whatever replaced it). Now there is one attempt, it is verified by the origin
+  guard, and a wall that comes back is left alone.
+
+### Known limitation
+
+- CMPs rendered inside a **cross-origin iframe** (Sourcepoint on the Guardian, some Quantcast
+  setups) cannot be reached by the main-frame DOM scan. Those are now reported as
+  `blocked: "consent wall detected, no usable control — left for a human"` instead of being
+  force-removed or clicked blind. Answering them needs frame-scoped CDP evaluation, which is not
+  wired up yet.
+
+
 
 ### Added
 

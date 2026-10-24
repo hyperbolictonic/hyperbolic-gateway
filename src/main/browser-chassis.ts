@@ -13,7 +13,7 @@ import { targetBoxScript, focusControlScript, DEEP_DOM_HELPERS, type TargetBox }
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
-import { ShieldBreaker, type ShieldDismissResult } from './shield/shield-breaker.js';
+import { ShieldBreaker, type ShieldDismissResult, type ConsentPolicy } from './shield/shield-breaker.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
 import {
@@ -92,6 +92,13 @@ export class BrowserChassis {
 
   private sidebarView: WebContentsView | null = null;
   private sidebarMode: 'docked' | 'floating' | 'collapsed' = 'floating';
+  /** Origins whose consent wall has already been answered (or deliberately left) this session. */
+  private consentAnsweredOrigins = new Set<string>();
+  /** How to answer a consent wall. KUANG_CONSENT_POLICY=essential|accept|reject. */
+  private consentPolicy: ConsentPolicy = (() => {
+    const raw = String(process.env.KUANG_CONSENT_POLICY || '').toLowerCase();
+    return raw === 'accept' || raw === 'reject' ? (raw as ConsentPolicy) : 'essential';
+  })();
   private lastOpenSidebarMode: 'docked' | 'floating' = 'floating';
   /** False while a full-window settings/dialog surface is open. */
   private sidebarOverlayVisible = true;
@@ -1006,9 +1013,14 @@ export class BrowserChassis {
   }
 
   /**
-   * Dismiss a consent overlay only if a consent-like element is actually present. Deliberately
-   * narrower than `dismissConsent`'s full scan (which also handles modal barriers): an automatic
-   * sweep must never close a login dialog or a genuine prompt the user needs to see.
+   * Answer a consent wall the way a person would, once per origin, and stop.
+   *
+   * Deliberately narrower than the old three-pass sweep: a repeated click on a CMP that re-renders
+   * is what made the banner flicker on/off, and auto-removing it is not a human behaviour. So:
+   *  - one attempt after the page settles,
+   *  - the least invasive real option (reject/only-necessary before accept),
+   *  - if it reappears, remember the origin and leave it alone,
+   *  - never strip the DOM from here (`forceRemove` is only for an explicit dismiss_consent call).
    */
   private async sweepConsent(): Promise<void> {
     let wc: WebContents;
@@ -1019,43 +1031,38 @@ export class BrowserChassis {
     }
     if (!wc || wc.isDestroyed()) return;
 
-    const consentPresent = await wc
-      .executeJavaScript(
-        `(() => {
-          const sel = [
-            '#onetrust-accept-btn-handler',
-            '[id*="onetrust" i] button',
-            '[id*="cookiebot" i] button',
-            '[id*="didomi" i] button',
-            '[class*="cookie-consent" i] button',
-            '[class*="cookie-banner" i] button',
-            'button[id*="cookie-accept" i]',
-            'button[class*="cookie-accept" i]',
-            'button[id*="accept-all" i]',
-            'button[class*="accept-all" i]',
-            '[aria-label*="accept all" i]',
-            '[aria-label*="accept cookies" i]',
-          ].join(',');
-          const el = document.querySelector(sel);
-          if (!el) return false;
-          const r = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return r.width > 0 && r.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-        })()`
-      )
-      .catch(() => false);
+    let origin = '';
+    try {
+      origin = new URL(wc.getURL()).origin;
+    } catch {
+      return;
+    }
+    if (origin && this.consentAnsweredOrigins.has(origin)) return;
 
-    if (!consentPresent) return;
-    const result = await this.dismissConsent().catch(() => null);
-    if (result?.dismissed) {
-      this.addLog('info', `Late consent overlay dismissed (${result.framework || 'generic'}) ${result.message ? '— ' + result.message : ''}`);
+    const result = await this.dismissConsent({ policy: this.consentPolicy, forceRemove: false }).catch(() => null);
+    if (!result) return;
+
+    if (result.dismissed) {
+      if (origin) this.consentAnsweredOrigins.add(origin);
+      this.addLog('info', `Consent handled once (${result.intent || 'accept'} via ${result.framework || 'generic'}): ${result.message}`);
+      return;
+    }
+    if (result.blocked) {
+      // A wall we cannot answer is a human's call, not ours. Remember it so we stop re-scanning,
+      // and leave the overlay exactly where it is.
+      if (origin) this.consentAnsweredOrigins.add(origin);
+      this.addLog('warn', 'Consent wall present but no reject/accept control matched — left for the human (no auto-removal).');
     }
   }
 
-  public async dismissConsent(): Promise<ShieldDismissResult> {
+  public async dismissConsent(options: { policy?: ConsentPolicy; forceRemove?: boolean } = {}): Promise<ShieldDismissResult> {
     const wc = this.getActiveWebContents();
     this.addLog('action', 'Shield Directive: dismiss_consent()');
-    const result = await this.shieldBreaker.dismissConsent(wc);
+    // An explicit call is allowed the last-resort removal; the background sweep is not.
+    const result = await this.shieldBreaker.dismissConsent(wc, {
+      policy: options.policy || this.consentPolicy,
+      forceRemove: options.forceRemove === true,
+    });
     if (result.dismissed) {
       this.addLog('info', `Shield Breaker: ${result.message}`);
       this.emitTelemetry({
@@ -1063,7 +1070,7 @@ export class BrowserChassis {
         x: result.coordinates?.x,
         y: result.coordinates?.y,
         timestamp: Date.now(),
-        details: `Shield Breaker: Dismissed ${result.framework} consent banner`,
+        details: `Shield Breaker: answered ${result.framework} consent wall (${result.intent || 'accept'})`,
       });
     }
     return result;

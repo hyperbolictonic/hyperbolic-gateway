@@ -163,7 +163,11 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
       }
 
       if (req.method === 'POST' && pathname === '/shield/dismiss') {
-        const result = await chassis.dismissConsent();
+        const body = await readBody();
+        const result = await chassis.dismissConsent({
+          policy: body?.policy,
+          forceRemove: body?.force_remove === true || body?.forceRemove === true,
+        });
         sendJson({ success: true, result });
         return;
       }

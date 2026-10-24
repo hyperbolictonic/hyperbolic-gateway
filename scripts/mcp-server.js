@@ -37023,10 +37023,22 @@ ${lines.join("\n")}`;
   // 6. Shield & Forms
   {
     name: "dismiss_consent",
-    description: "Autonomously scans active web page for cookie consent banners, GDPR dialogs, or blocking overlays and clicks Accept/Dismiss.",
-    parameters: {},
+    description: "Answer a cookie/GDPR consent wall by choosing the least invasive real control (reject/only-necessary before accept, per KUANG_CONSENT_POLICY=essential|accept|reject). Set force_remove=true only as a last resort when no control exists \u2014 that hides the overlay without answering it.",
+    parameters: {
+      policy: external_exports.enum(["essential", "accept", "reject"]).optional().describe('How to answer the wall: essential/reject prefer the least-invasive control, accept prefers "Accept all" (default: KUANG_CONSENT_POLICY or essential)'),
+      force_remove: external_exports.coerce.boolean().optional().describe("Last resort only: hide the overlay without answering it (no control matched)")
+    },
     endpoint: "/shield/dismiss",
-    format: (data) => JSON.stringify(data.result, null, 2)
+    payload: (args) => ({ policy: args?.policy, force_remove: args?.force_remove === true }),
+    format: (data) => {
+      const r = data?.result ?? data ?? {};
+      const head = r.dismissed ? `consent answered (${r.intent || "accept"} via ${r.framework || "generic"})` : r.blocked ? "consent wall detected, no usable control \u2014 left for a human" : "no consent wall detected";
+      const bits = [head];
+      if (r.targetText) bits.push(`control: "${r.targetText}"`);
+      if (r.coordinates) bits.push(`at (${r.coordinates.x}, ${r.coordinates.y})`);
+      if (r.message) bits.push(r.message);
+      return bits.join(" \xB7 ");
+    }
   },
   {
     name: "fill_form",
@@ -38227,7 +38239,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.80";
+var APP_VERSION = "1.4.81";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
