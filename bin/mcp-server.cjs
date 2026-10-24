@@ -37845,7 +37845,7 @@ ${data.content || ""}`;
   },
   {
     name: "read_url",
-    description: 'Reads a URL as Markdown in ONE call \u2014 the composite front door. Reads the site\'s own LLM-friendly representation when one covers the URL you asked for (a page-level Markdown/Text alternate for a page); otherwise it renders the URL in a DETACHED view (your active tab is never hijacked) and distils it to Markdown. Always returns Markdown text, so you never have to branch on `llm_surface.recommended`. A site-wide `/llms.txt` index is never returned in place of a page \u2014 the page is rendered instead, and `reason` says why. Reports `via` ("llm_fetch"|"render"), `scope` ("origin"|"page"), `scope_mismatch` and `reason`. PAGED: pass `max_chars` and follow `next_cursor`, because a long ToS/legal page exceeds a single call.',
+    description: 'Reads a URL as Markdown in ONE call \u2014 the composite front door. Reads the site\'s own LLM-friendly representation when one covers the URL you asked for (a page-level Markdown/Text alternate for a page); otherwise it renders the URL in a DETACHED view (your active tab is never hijacked) and distils it to Markdown. Always returns Markdown text, so you never have to branch on `llm_surface.recommended`. A site-wide `/llms.txt` index is never returned in place of a page \u2014 the page is rendered instead, and `reason` says why. Reports `via` ("llm_fetch"|"render"), `scope` ("origin"|"page"), `scope_mismatch` and `reason`. PAGED: pass `max_chars` and follow the machine-readable `next_cursor=<offset>` fact when the result is truncated.',
     parameters: {
       url: external_exports.string().optional().describe("URL to read as Markdown (default: the active tab)"),
       max_chars: external_exports.coerce.number().optional().describe("Maximum characters to return per call (default 20000, cap 50000)"),
@@ -37856,13 +37856,20 @@ ${data.content || ""}`;
     payload: (args) => ({ url: args?.url, max_chars: args?.max_chars, cursor: args?.cursor, as: args?.as }),
     format: (data) => {
       const how = data.via === "llm_fetch" ? `site-provided ${data.as}` : "rendered";
-      const head = [
-        `### read_url \xB7 ${how} \xB7 ${data.url}`,
-        `- scope: ${data.scope}${data.scope_mismatch ? " (asked for a page, got the site-wide index)" : ""}`,
-        `- ${data.total} chars total \xB7 showing ${data.offset}\u2013${data.offset + (data.content?.length || 0)}${data.truncated ? ` \xB7 continue with ${data.next_cursor}` : ""}`
+      const returned = data.content?.length || 0;
+      const facts = [
+        `chars=${returned} of ${data.total}`,
+        `offset=${data.offset}`,
+        `scope=${data.scope}`,
+        ...data.scope_mismatch ? ["scope_mismatch=true"] : [],
+        ...data.truncated ? [`next_cursor=${data.next_cursor}`] : []
       ];
+      const head = [`### read_url \xB7 ${how} \xB7 ${data.url}`, `- ${facts.join(" \xB7 ")}`];
       if (data.title) head.push(`- title: ${data.title}`);
       if (data.reason) head.push(`- rendered because: ${data.reason}`);
+      if (data.truncated) {
+        head.push(`- continue: read_url({ url: "${data.url}", cursor: ${data.next_cursor} })`);
+      }
       return `${head.join("\n")}
 
 ${data.content || ""}`;
@@ -38220,7 +38227,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.75";
+var APP_VERSION = "1.4.76";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
@@ -38529,7 +38536,7 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
   - extract(kind:"list"|"table"|"tables"|"app_data"|"schema_org", ref?, selector?, type?): structured read (repeating rows, one table, every table, embedded __NEXT_DATA__/JSON-LD, or typed schema.org items \u2014 pass type to keep just e.g. "Recipe").
   - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): scroll a lazy/infinite list to the end and dedupe rows in ONE call, with scroll diagnostics.
   - observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): one observation model; page huge pages with budget + next_cursor.
-  - read_url(url?, max_chars?, cursor?): read ANY URL as Markdown in ONE call \u2014 site-provided Markdown/Text when the site advertises it, else a detached render distilled to Markdown (your active tab is untouched); paged via max_chars + next_cursor. Prefer this to read a specific URL.
+  - read_url(url?, max_chars?, cursor?): read ANY URL as Markdown in ONE call \u2014 site-provided Markdown/Text when the site advertises it, else a detached render distilled to Markdown (your active tab is untouched); paged via max_chars + next_cursor (the result reports a machine-readable 'next_cursor=<offset>' fact when truncated). Prefer this to read a specific URL.
   - llm_surface(url?) / llm_fetch(url?, as?): the site's OWN Markdown/Text (llms.txt, <link rel=alternate> or a real <a href="\u2026.md"> page link, or negotiated) instead of a render \u2014 GATED on an advertised surface. 'recommended' is NULL when there is none (that is NOT a fetch target): follow 'next' (llm_fetch(as) or observe(as:"markdown")). Both report 'scope' (origin|page).
   - search_web(query, engine?, engines?, url_template?, max_results?): multi-engine search in a detached view with automatic fallback \u2192 ranked {title,url,snippet}; feed the URLs to navigate_to / collect_all.
   - deep_crawl(url, max_depth?, max_pages?, match_patterns?, same_origin?, prefer_llm?, harvest_to_cortex?): autonomous BFS crawl that distills + indexes each page into Cortex (cheap llm path first); scope with match_patterns.

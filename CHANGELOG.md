@@ -16,6 +16,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.76] - 2026-10-24
+
+### Release scope since v1.4.5
+
+This is the first release since **v1.4.5**. It carries the LLM-surface fix and the entire
+Kuang Wrap server.
+
+- **`llm_surface` / `llm_fetch` + `read_url`** — `"rendered"` is no longer a representation
+  (`recommended` is `null` with a machine-readable `next`), results carry `scope` /
+  `scope_mismatch`, and `read_url` reads any URL as Markdown (site-provided or a detached
+  render, paged). Page-level Markdown alternates are also discovered from real
+  `<a href="….md">` links. Fixes #1.
+- **`kuang-wrap`** — a second, separate MCP server (slices S0–S5): wrapper store/executor/
+  recipes, host-bound `safeStorage` credentials (static **and OAuth2 client credentials**),
+  pagination (offset/cursor/link), `wrap_derive`, opt-in Cortex indexing, generated `wrap_<id>`
+  tools with `tools/list_changed`, `AUTH_REQUIRED` handling, and `lastVerified`.
+- **Settings** — lowercase hints on credential names, and an OAuth2 credential type.
+- Docs — `docs/KUANG_WRAP.md`, including its blunt honest-limits section, plus a README section
+  for the wrapper server.
+
+### Fixed
+
+- **`read_url` exposes its paging cursor machine-readably.** The formatted result only
+  mentioned the next offset in prose ("continue with 36000"), so a caller had to regex the
+  presentation text. It now reports a `next_cursor=<offset>` fact when truncated (matching
+  `observe`), plus a copy-ready `continue:` line. Follow-up papercut from #1.
+
+### Tests
+
+- `npm run test:mcp:surface` gained two checks: `read_url` reports `next_cursor=N`, and
+  passing that cursor advances the offset by the requested budget.
+
 ## [1.4.75] - 2026-10-24
 
 ### Added

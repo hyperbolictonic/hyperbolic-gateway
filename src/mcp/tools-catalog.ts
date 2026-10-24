@@ -1257,7 +1257,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'read_url',
     description:
       'Reads a URL as Markdown in ONE call — the composite front door. Reads the site\'s own LLM-friendly representation when one covers the URL you asked for (a page-level Markdown/Text alternate for a page); otherwise it renders the URL in a DETACHED view (your active tab is never hijacked) and distils it to Markdown. ' +
-      'Always returns Markdown text, so you never have to branch on `llm_surface.recommended`. A site-wide `/llms.txt` index is never returned in place of a page — the page is rendered instead, and `reason` says why. Reports `via` ("llm_fetch"|"render"), `scope` ("origin"|"page"), `scope_mismatch` and `reason`. PAGED: pass `max_chars` and follow `next_cursor`, because a long ToS/legal page exceeds a single call.',
+      'Always returns Markdown text, so you never have to branch on `llm_surface.recommended`. A site-wide `/llms.txt` index is never returned in place of a page — the page is rendered instead, and `reason` says why. Reports `via` ("llm_fetch"|"render"), `scope` ("origin"|"page"), `scope_mismatch` and `reason`. PAGED: pass `max_chars` and follow the machine-readable `next_cursor=<offset>` fact when the result is truncated.',
     parameters: {
       url: z.string().optional().describe('URL to read as Markdown (default: the active tab)'),
       max_chars: z.coerce.number().optional().describe('Maximum characters to return per call (default 20000, cap 50000)'),
@@ -1268,13 +1268,20 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     payload: (args) => ({ url: args?.url, max_chars: args?.max_chars, cursor: args?.cursor, as: args?.as }),
     format: (data) => {
       const how = data.via === 'llm_fetch' ? `site-provided ${data.as}` : 'rendered';
-      const head = [
-        `### read_url · ${how} · ${data.url}`,
-        `- scope: ${data.scope}${data.scope_mismatch ? ' (asked for a page, got the site-wide index)' : ''}`,
-        `- ${data.total} chars total · showing ${data.offset}–${data.offset + (data.content?.length || 0)}${data.truncated ? ` · continue with ${data.next_cursor}` : ''}`,
+      const returned = data.content?.length || 0;
+      const facts = [
+        `chars=${returned} of ${data.total}`,
+        `offset=${data.offset}`,
+        `scope=${data.scope}`,
+        ...(data.scope_mismatch ? ['scope_mismatch=true'] : []),
+        ...(data.truncated ? [`next_cursor=${data.next_cursor}`] : []),
       ];
+      const head = [`### read_url · ${how} · ${data.url}`, `- ${facts.join(' · ')}`];
       if (data.title) head.push(`- title: ${data.title}`);
       if (data.reason) head.push(`- rendered because: ${data.reason}`);
+      if (data.truncated) {
+        head.push(`- continue: read_url({ url: "${data.url}", cursor: ${data.next_cursor} })`);
+      }
       return `${head.join('\n')}\n\n${data.content || ''}`;
     },
   },

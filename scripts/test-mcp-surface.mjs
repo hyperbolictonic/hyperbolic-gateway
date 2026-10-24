@@ -179,6 +179,26 @@ try {
   const legacyClear = await client.callTool({ name: 'clear_network_traffic', arguments: {} });
   check('legacy clear_network_traffic still executes', !legacyClear.isError, '');
   check('legacy clear_network_traffic points at clear_capture', (legacyClear.content?.[0]?.text || '').includes('clear_capture'));
+
+  console.log('\n▶ read_url paging (machine-readable cursor)');
+  const LONG_JSON = 'https://dummyjson.com/users?limit=0';
+  const firstRead = await client.callTool({ name: 'read_url', arguments: { url: LONG_JSON, max_chars: 500 } });
+  const firstText = firstRead.content?.[0]?.text || '';
+  const cursor = Number((firstText.match(/next_cursor=(\d+)/) || [])[1]);
+  check(
+    'read_url reports next_cursor=N (not prose) when truncated',
+    !firstRead.isError && Number.isFinite(cursor) && cursor > 0,
+    `next_cursor=${cursor}`,
+  );
+
+  const secondRead = await client.callTool({ name: 'read_url', arguments: { url: LONG_JSON, cursor, max_chars: 500 } });
+  const secondText = secondRead.content?.[0]?.text || '';
+  const nextCursor = Number((secondText.match(/next_cursor=(\d+)/) || [])[1]);
+  check(
+    'passing that cursor advances the offset by the requested budget',
+    !secondRead.isError && nextCursor === cursor + 500,
+    `next_cursor=${nextCursor} (from ${cursor})`,
+  );
 } finally {
   await client.close();
 }
