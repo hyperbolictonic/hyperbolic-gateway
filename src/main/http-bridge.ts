@@ -1251,6 +1251,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           const result = await wrap.executor.run(body.id, body.args ?? {}, {
             format: body.format,
             includeRaw: Boolean(body.includeRaw),
+            maxPages: body.maxPages !== undefined ? Number(body.maxPages) : undefined,
           });
           // A wrapper error is still a successful bridge round-trip; the MCP
           // layer turns result.ok into the isError flag.
@@ -1267,6 +1268,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
             sample: body?.sample,
             dryRun: body?.dryRun,
             format: body?.format,
+            maxPages: body?.maxPages !== undefined ? Number(body.maxPages) : undefined,
           });
           sendJson(result);
           return;

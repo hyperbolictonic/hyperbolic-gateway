@@ -593,3 +593,279 @@ test('reports wrapper-not-found and invalid arguments without throwing', async (
   assert.equal(invalid.error.code, 'INVALID_ARGS');
   assert.match(invalid.error.message, /city is required/);
 });
+
+// ── pagination (S3) ───────────────────────────────────────────────────────────
+
+function pagedWrapper(overrides = {}) {
+  return {
+    schemaVersion: 1,
+    id: 'demo.paged',
+    name: 'Paged list',
+    request: {
+      method: 'GET',
+      url: 'https://api.example.com/v1/items',
+      query: { limit: '{{limit}}', skip: '{{skip}}' },
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', default: 10 },
+        skip: { type: 'integer', default: 0 },
+      },
+    },
+    response: {
+      schemaVersion: 1,
+      select: '$.items',
+      fields: { ID: 'id', Name: 'name' },
+      record: { id: 'id', name: 'name' },
+      limits: { maxItems: 50 },
+      pagination: { type: 'offset', limitParam: 'limit', offsetParam: 'skip', pageSize: 10 },
+    },
+    ...overrides,
+  };
+}
+
+function jsonResponse(payload, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function makeItems(from, count) {
+  return Array.from({ length: count }, (_, i) => ({ id: from + i, name: `Item ${from + i}` }));
+}
+
+test('offset paging follows every page and merges them into one render', async () => {
+  const { store } = tempStore();
+  store.create(pagedWrapper());
+
+  const skips = [];
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async (url) => {
+      const u = new URL(url);
+      const skip = Number(u.searchParams.get('skip'));
+      const limit = Number(u.searchParams.get('limit'));
+      skips.push({ skip, limit });
+      // 25 items total, so the third page is short and paging stops naturally.
+      const count = Math.max(0, Math.min(limit, 25 - skip));
+      return jsonResponse({ items: makeItems(skip + 1, count), total: 25 });
+    },
+  });
+
+  const result = await executor.run('demo.paged', {});
+  assert.equal(result.ok, true);
+  assert.deepEqual(skips, [
+    { skip: 0, limit: 10 },
+    { skip: 10, limit: 10 },
+    { skip: 20, limit: 10 },
+  ]);
+  assert.equal(result.records.length, 25);
+  assert.deepEqual(result.paging, { pages: 3, cap: 10, more: false });
+  assert.equal(result.meta.selected, 25);
+  // One merged table, not three: every row appears exactly once, with no page separators.
+  assert.equal((result.markdown.match(/\| \d+ \| Item \d+ \|/g) || []).length, 25);
+  assert.doesNotMatch(result.markdown, /^---$/m);
+});
+
+test('offset paging stops at the item cap and reports that more remains', async () => {
+  const { store } = tempStore();
+  store.create(pagedWrapper({ response: { ...pagedWrapper().response, limits: { maxItems: 25 } } }));
+
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async (url) => {
+      const u = new URL(url);
+      const skip = Number(u.searchParams.get('skip'));
+      return jsonResponse({ items: makeItems(skip + 1, 10), total: 1000 });
+    },
+  });
+
+  const result = await executor.run('demo.paged', {});
+  assert.equal(result.ok, true);
+  assert.equal(result.records.length, 25);
+  assert.equal(result.paging.pages, 3);
+  assert.equal(result.paging.more, true);
+  assert.equal(result.meta.truncated, true);
+});
+
+test('cursor paging follows the next token and stops at null', async () => {
+  const { store } = tempStore();
+  store.create(
+    pagedWrapper({
+      request: { method: 'GET', url: 'https://api.example.com/v1/items', query: { cursor: '{{cursor}}' } },
+      inputSchema: { type: 'object', properties: { cursor: { type: 'string', default: '' } } },
+      response: {
+        schemaVersion: 1,
+        select: '$.items',
+        record: { id: 'id' },
+        pagination: { type: 'cursor', next: 'next', cursorParam: 'cursor', pageSize: 2 },
+      },
+    }),
+  );
+
+  const cursors = [];
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async (url) => {
+      const cursor = new URL(url).searchParams.get('cursor') || '';
+      cursors.push(cursor);
+      const page = cursor === '' ? 1 : cursor === 'c2' ? 2 : 3;
+      return jsonResponse({ items: makeItems(page * 10 + 1, 2), next: page < 3 ? `c${page + 1}` : null });
+    },
+  });
+
+  const result = await executor.run('demo.paged', {});
+  assert.equal(result.ok, true);
+  assert.deepEqual(cursors, ['', 'c2', 'c3']);
+  assert.equal(result.records.length, 6);
+  assert.deepEqual(result.paging, { pages: 3, cap: 10, more: false });
+});
+
+test('link paging follows a same-origin next URL', async () => {
+  const { store } = tempStore();
+  store.create(
+    pagedWrapper({
+      request: { method: 'GET', url: 'https://api.example.com/v1/items' },
+      inputSchema: { type: 'object', properties: {} },
+      response: {
+        schemaVersion: 1,
+        select: '$.items',
+        record: { id: 'id' },
+        pagination: { type: 'link', nextUrl: 'links.next' },
+      },
+    }),
+  );
+
+  const urls = [];
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async (url) => {
+      urls.push(url);
+      const page = urls.length;
+      return jsonResponse({
+        items: makeItems(page * 10 + 1, 1),
+        links: page === 1 ? { next: 'https://api.example.com/v1/items?page=2' } : {},
+      });
+    },
+  });
+
+  const result = await executor.run('demo.paged', {});
+  assert.equal(result.ok, true);
+  assert.deepEqual(urls, [
+    'https://api.example.com/v1/items',
+    'https://api.example.com/v1/items?page=2',
+  ]);
+  assert.equal(result.records.length, 2);
+  assert.equal(result.paging.more, false);
+});
+
+test('a cross-origin page link is not followed', async () => {
+  const { store } = tempStore();
+  store.create(
+    pagedWrapper({
+      request: { method: 'GET', url: 'https://api.example.com/v1/items' },
+      inputSchema: { type: 'object', properties: {} },
+      response: {
+        schemaVersion: 1,
+        select: '$.items',
+        record: { id: 'id' },
+        pagination: { type: 'link', nextUrl: 'links.next' },
+      },
+    }),
+  );
+
+  const urls = [];
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async (url) => {
+      urls.push(url);
+      return jsonResponse({
+        items: makeItems(1, 1),
+        links: { next: 'https://evil.example.com/v1/items?page=2' },
+      });
+    },
+  });
+
+  const result = await executor.run('demo.paged', {});
+  assert.equal(result.ok, true);
+  assert.equal(urls.length, 1);
+  assert.equal(result.records.length, 1);
+  assert.equal(result.paging.more, true);
+});
+
+test('hasMore=false stops offset paging after one page', async () => {
+  const { store } = tempStore();
+  store.create(
+    pagedWrapper({
+      response: {
+        ...pagedWrapper().response,
+        pagination: { type: 'offset', limitParam: 'limit', offsetParam: 'skip', pageSize: 10, hasMore: 'hasMore' },
+      },
+    }),
+  );
+
+  let calls = 0;
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async () => {
+      calls++;
+      return jsonResponse({ items: makeItems(1, 10), hasMore: false });
+    },
+  });
+
+  const result = await executor.run('demo.paged', {});
+  assert.equal(calls, 1);
+  assert.equal(result.paging.more, false);
+  assert.equal(result.records.length, 10);
+});
+
+test('a non-list selection is not paged', async () => {
+  const { store } = tempStore();
+  store.create(
+    pagedWrapper({
+      response: {
+        schemaVersion: 1,
+        select: '$',
+        fields: { Total: 'total' },
+        pagination: { type: 'offset', limitParam: 'limit', offsetParam: 'skip', pageSize: 10 },
+      },
+    }),
+  );
+
+  let calls = 0;
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async () => {
+      calls++;
+      return jsonResponse({ items: makeItems(1, 10), total: 10 });
+    },
+  });
+
+  const result = await executor.run('demo.paged', {});
+  assert.equal(calls, 1);
+  assert.equal(result.ok, true);
+});
+
+test('a failing second page surfaces HTTP_ERROR and keeps the page count', async () => {
+  const { store } = tempStore();
+  store.create(pagedWrapper());
+
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async (url) => {
+      const skip = Number(new URL(url).searchParams.get('skip'));
+      if (skip >= 10) return jsonResponse({ message: 'boom' }, 500);
+      return jsonResponse({ items: makeItems(skip + 1, 10), total: 100 });
+    },
+  });
+
+  const result = await executor.run('demo.paged', {});
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'HTTP_ERROR');
+  assert.equal(result.error.status, 500);
+  assert.equal(result.paging.pages, 2);
+  assert.equal(result.records.length, 0);
+});
+

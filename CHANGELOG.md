@@ -8,10 +8,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Versioning during the 1.4 line:** changes ship as **`1.4.x` patches — including new features** — and the
 > minor number is reserved for milestones worth naming. For small increments (documentation, a one-line fix)
 > the **git tag and release title take a fourth number** — `v1.4.2.1`, `v1.4.2.2`, … — so a docs-only release
-> does not consume a patch number. `package.json` and `APP_VERSION` stay **three-part**, because npm and
-> electron-builder require valid semver; a release tagged `v1.4.2.1` therefore reports `1.4.2` in `/health`.
-> This is a deliberate, temporary deviation from strict semver; each increment still gets its own
-> Added/Fixed/Changed section here.
+> does not consume a patch number. For an ordinary follow-up that should not consume the next patch either,
+> **append a sub-counter to the patch** instead of moving to `1.4.7`: `1.4.6` → `1.4.71`, `1.4.72`, … (still
+> three-part and valid semver, and still ordered after `1.4.6`). Once a sub-counter is in use, the next
+> *numbered* patch is `1.5.0`, never `1.4.7` — `1.4.7` sorts before `1.4.71`. `package.json` and `APP_VERSION`
+> stay **three-part**, because npm and electron-builder require valid semver; a release tagged `v1.4.2.1`
+> therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
+> increment still gets its own Added/Fixed/Changed section here.
+
+## [1.4.71] - 2026-10-24
+
+### Added
+
+- **Recipe pagination (S3).** A wrapper whose recipe declares `pagination` now follows pages
+  and merges them into one render. `offset` (limit/skip), `cursor` (a `next` token) and `link`
+  (a next URL) are supported; `none` stays a single request. `maxPages` defaults to 10 (hard
+  max 25) and `wrap_run { max_pages }` overrides it per call; `limits.maxItems` (default 50)
+  bounds the merged result and stops paging once reached. Pages are concatenated and rendered
+  once, so a 25-row result is one table, not three. One audit row per page, and `link` pages
+  must stay on the wrapper's origin — every page URL still passes `assertSafeUrl`, so a
+  hostile `next` cannot move the credential to another host.
+- **`npm run test:wrap:live`** — a live integration suite (43 checks) against DummyJSON,
+  covering request building, the outbound policy, argument validation, reads, documents mode,
+  pagination, upstream errors, timeouts and writes. It runs inline wrappers through
+  `POST /wrap/test`, so it never writes to the saved store; credential-dependent checks skip
+  when no secret is bound to `dummyjson.com`.
+
+### Changed
+
+- `wrap_run` accepts `max_pages`; its footer now reports `pages n/cap (+more)`.
+
+### Fixed
+
+- The "credential-shaped query key" validation error claimed *"secrets are not enabled in
+  this build"*, which stopped being true in S2. It now says query strings end up in logs and
+  proxies and points at `request.auth`.
+
+### Tests
+
+- `npm run test:wrap` 29/29 (8 new pagination cases: offset/cursor/link, item cap, page cap,
+  `hasMore:false`, non-list selections, and a failing second page).
+- `npm run test:wrap:live` 43/43.
 
 ## [1.4.6] - 2026-10-24
 

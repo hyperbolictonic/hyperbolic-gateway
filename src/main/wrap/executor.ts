@@ -7,8 +7,8 @@
  * and will keep values in the main process, not here.
  */
 
-import { renderRecipe } from '../../../packages/recipe/src/index.ts';
-import type { RenderMeta, RenderedDocument } from '../../../packages/recipe/src/index.ts';
+import { renderRecipe, resolvePath } from '../../../packages/recipe/src/index.ts';
+import type { Recipe, RenderMeta, RenderedDocument } from '../../../packages/recipe/src/index.ts';
 import { validateArgs } from './input-schema.ts';
 import { buildRequest, redactHeaders, BuildRequestError } from './interpolate.ts';
 import { assertSafeUrl, WrapSecurityError } from './security.ts';
@@ -27,6 +27,10 @@ export interface ExecutorOptions {
   maxResponseBytes?: number;
   maxResultChars?: number;
   defaultTimeoutMs?: number;
+  /** Maximum pages followed when a recipe declares pagination. Default 10, capped at 25. */
+  maxPages?: number;
+  /** Overall item cap for a paginated run when the recipe has no `limits.maxItems`. Default 50. */
+  maxItems?: number;
   secrets?: Pick<SecretStore, 'resolve'>;
   audit?: Pick<WrapAuditLog, 'append'>;
 }
@@ -35,7 +39,14 @@ interface ExecuteOptions {
   dryRun: boolean;
   includeRaw: boolean;
   format: WrapFormat;
+  /** Per-call override of the executor's page cap. */
+  maxPages?: number;
 }
+
+/** Overall item cap when a recipe does not declare `limits.maxItems` (mirrors the renderer). */
+const DEFAULT_MAX_ITEMS = 50;
+/** Page size when a paginated recipe does not declare `pagination.pageSize`. */
+const DEFAULT_PAGE_SIZE = 50;
 
 interface FetchedResponse {
   response: Response;
@@ -52,6 +63,19 @@ interface Rendered {
   records: Record<string, unknown>[];
   documents?: RenderedDocument[];
   meta?: RenderMeta;
+}
+
+/** The paging contract derived from `recipe.pagination` for one run. */
+interface PagePlan {
+  active: boolean;
+  type: 'none' | 'cursor' | 'offset' | 'link';
+  pageSize: number;
+  limitParam?: string;
+  offsetParam?: string;
+  cursorParam?: string;
+  nextPath?: string;
+  hasMorePath?: string;
+  nextUrlPath?: string;
 }
 
 export class WrapTransportError extends Error {
@@ -74,6 +98,8 @@ export class WrapExecutor {
   private readonly maxResponseBytes: number;
   private readonly maxResultChars: number;
   private readonly defaultTimeoutMs: number;
+  private readonly maxPages: number;
+  private readonly defaultMaxItems: number;
   private readonly secrets?: Pick<SecretStore, 'resolve'>;
   private readonly audit?: Pick<WrapAuditLog, 'append'>;
 
@@ -87,6 +113,8 @@ export class WrapExecutor {
     this.maxResponseBytes = clampInt(options.maxResponseBytes ?? 5_000_000, 1_000, 10_000_000);
     this.maxResultChars = clampInt(options.maxResultChars ?? 50_000, 1_000, 200_000);
     this.defaultTimeoutMs = clampInt(options.defaultTimeoutMs ?? 15_000, 1_000, 60_000);
+    this.maxPages = clampInt(options.maxPages ?? 10, 1, 25);
+    this.defaultMaxItems = clampInt(options.maxItems ?? DEFAULT_MAX_ITEMS, 1, 5_000);
     this.secrets = options.secrets;
     this.audit = options.audit;
   }
@@ -98,7 +126,7 @@ export class WrapExecutor {
   async run(
     id: string,
     args: unknown,
-    options: { format?: WrapFormat; includeRaw?: boolean } = {},
+    options: { format?: WrapFormat; includeRaw?: boolean; maxPages?: number } = {},
   ): Promise<WrapRunResult> {
     const wrapper = this.store.get(id);
     if (!wrapper) return failure({ id, name: id }, 'WRAPPER_NOT_FOUND', `No wrapper named "${id}".`);
@@ -107,6 +135,7 @@ export class WrapExecutor {
       dryRun: false,
       includeRaw: Boolean(options.includeRaw),
       format: options.format || 'markdown',
+      maxPages: options.maxPages,
     });
   }
 
@@ -123,6 +152,7 @@ export class WrapExecutor {
     sample?: unknown;
     dryRun?: boolean;
     format?: WrapFormat;
+    maxPages?: number;
   }): Promise<WrapRunResult> {
     const resolved = this.resolve(input.id, input.wrapper);
     if (!resolved.wrapper) return failure({ id: input.id || '(unsaved)', name: input.id || '(unsaved)' }, resolved.code, resolved.message);
@@ -135,6 +165,7 @@ export class WrapExecutor {
       dryRun: input.dryRun !== false,
       includeRaw: false,
       format: input.format || 'markdown',
+      maxPages: input.maxPages,
     });
   }
 
@@ -184,9 +215,22 @@ export class WrapExecutor {
       secretValues = secretVariants(resolved.value);
     }
 
+    const plan = this.pagePlan(wrapper, built);
+    const maxPages = plan.active ? clampInt(options.maxPages ?? this.maxPages, 1, this.maxPages) : 1;
+    const itemCap = wrapper.response?.limits?.maxItems ?? this.defaultMaxItems;
+
+    let url = built.url;
+    let offset = 0;
+    if (plan.active && plan.type === 'offset') {
+      const firstUrl = new URL(url);
+      if (plan.limitParam) firstUrl.searchParams.set(plan.limitParam, String(plan.pageSize));
+      firstUrl.searchParams.set(plan.offsetParam ?? 'offset', '0');
+      url = firstUrl.toString();
+    }
+
     const request: WrapPreview = {
       method: built.method,
-      url: built.url,
+      url,
       headers: redactHeaders(built.headers, secretHeader ? [secretHeader] : []),
       body: built.body,
     };
@@ -202,16 +246,86 @@ export class WrapExecutor {
       };
     }
 
-    let fetched: FetchedResponse;
+    const pages: FetchedResponse[] = [];
+    const rawPages: unknown[] = [];
+    let accumulated = 0;
+    let more = false;
+    let failed: FetchedResponse | undefined;
+
     try {
-      fetched = await this.fetchWithPolicy(wrapper, built, secretHeader);
+      for (let index = 0; index < maxPages; index++) {
+        const fetched = await this.fetchWithPolicy(wrapper, { ...built, url }, secretHeader);
+        pages.push(fetched);
+
+        const pageOk = fetched.response.ok;
+        this.audit?.append({
+          wrapper: wrapper.id,
+          host: safeHost(fetched.url),
+          method: built.method,
+          status: fetched.response.status,
+          ok: pageOk,
+          bytes: fetched.bytes,
+          durationMs: fetched.durationMs,
+          code: pageOk ? undefined : 'HTTP_ERROR',
+        });
+
+        if (!pageOk) {
+          failed = fetched;
+          break;
+        }
+
+        const json = parseJson(fetched.text, fetched.contentType);
+        const safeJson = json === undefined ? undefined : redactDeep(json, secretValues);
+        rawPages.push(safeJson);
+
+        if (!plan.active) break;
+
+        // Auto-paging only makes sense for a list selection.
+        const items = this.itemsOf(wrapper.response, safeJson);
+        if (!items || items.length === 0) {
+          more = false;
+          break;
+        }
+        accumulated += items.length;
+
+        const next = this.nextPageToken(plan, safeJson, items.length);
+        if (next === null) {
+          more = false;
+          break;
+        }
+        if (accumulated >= itemCap || index + 1 >= maxPages) {
+          more = true;
+          break;
+        }
+
+        if (plan.type === 'link') {
+          const candidate = String(next);
+          // A page link must stay on the origin the wrapper was written for.
+          if (!sameOrigin(candidate, built.url)) {
+            more = true;
+            break;
+          }
+          url = candidate;
+        } else {
+          const pageUrl = new URL(url);
+          if (plan.type === 'offset') {
+            offset += plan.pageSize;
+            pageUrl.searchParams.set(plan.offsetParam ?? 'offset', String(offset));
+            if (plan.limitParam) pageUrl.searchParams.set(plan.limitParam, String(plan.pageSize));
+          } else if (plan.type === 'cursor') {
+            pageUrl.searchParams.set(plan.cursorParam ?? 'cursor', String(next));
+          }
+          url = pageUrl.toString();
+        }
+        more = true;
+      }
     } catch (err: any) {
       const code =
         err instanceof WrapSecurityError || err instanceof WrapTransportError ? err.code : 'NETWORK_ERROR';
       const retryable = code === 'TIMEOUT' || code === 'NETWORK_ERROR';
       this.audit?.append({
         wrapper: wrapper.id,
-        host: safeHost(built.url),
+        host: safeHost(url),
         method: built.method,
         ok: false,
         code,
@@ -219,45 +333,40 @@ export class WrapExecutor {
       return failure({ id: wrapper.id, name: wrapper.name }, code, err?.message || String(err), request, undefined, retryable);
     }
 
-    const json = parseJson(fetched.text, fetched.contentType);
-    const safeJson = json === undefined ? undefined : redactDeep(json, secretValues);
-    const safeText = redactText(fetched.text, secretValues);
-    const rendered = this.render(wrapper, safeJson, safeText, fetched.contentType);
-    const ok = fetched.response.ok;
-    this.audit?.append({
-      wrapper: wrapper.id,
-      host: safeHost(fetched.url),
-      method: built.method,
-      status: fetched.response.status,
-      ok,
-      bytes: fetched.bytes,
-      durationMs: fetched.durationMs,
-      code: ok ? undefined : 'HTTP_ERROR',
-    });
+    const first = pages[0];
+    const failedPage = failed ?? first;
+    const safeFirstText = redactText(first.text, secretValues);
+    const firstJson = rawPages[0];
+    const rendered =
+      rawPages.length > 1
+        ? this.mergePages(wrapper, rawPages, itemCap)
+        : this.render(wrapper, firstJson, safeFirstText, first.contentType);
 
+    const ok = !failed && pages.every((page) => page.response.ok);
     const result: WrapRunResult = {
       ok,
-      status: fetched.response.status,
-      durationMs: fetched.durationMs,
+      status: failedPage.response.status,
+      durationMs: pages.reduce((total, page) => total + page.durationMs, 0),
       wrapper: { id: wrapper.id, name: wrapper.name },
       request,
       response: {
-        contentType: fetched.contentType || undefined,
-        bytes: fetched.bytes,
-        truncated: fetched.truncated || undefined,
-        text: ok && json !== undefined ? undefined : clip(safeText, 1_000),
-        json: options.includeRaw ? safeJson : undefined,
+        contentType: first.contentType || undefined,
+        bytes: pages.reduce((total, page) => total + page.bytes, 0),
+        truncated: pages.some((page) => page.truncated) || undefined,
+        text: ok && firstJson !== undefined ? undefined : clip(safeFirstText, 1_000),
+        json: options.includeRaw ? firstJson : undefined,
       },
       markdown: rendered.markdown,
       records: rendered.records,
       documents: rendered.documents,
       meta: rendered.meta,
+      paging: plan.active ? { pages: pages.length, cap: maxPages, more } : undefined,
     };
 
     if (!ok) {
-      const status = fetched.response.status;
-      const message = `HTTP ${status}${fetched.response.statusText ? ` ${fetched.response.statusText}` : ''}`;
-      const excerpt = clip(safeText, 600);
+      const status = failedPage.response.status;
+      const message = `HTTP ${status}${failedPage.response.statusText ? ` ${failedPage.response.statusText}` : ''}`;
+      const excerpt = clip(redactText(failedPage.text, secretValues), 600);
       result.markdown = excerpt
         ? `**${message}**\n\n\`\`\`\n${excerpt}\n\`\`\``
         : `**${message}**`;
@@ -273,6 +382,123 @@ export class WrapExecutor {
     return result;
   }
 
+  /** The paging contract derived from the recipe, or `active: false` for a single request. */
+  private pagePlan(wrapper: WrapWrapper, built: ReturnType<typeof buildRequest>): PagePlan {
+    const spec = wrapper.response?.pagination;
+    const type = (spec?.type ?? 'none') as PagePlan['type'];
+    const active = type !== 'none' && !!wrapper.response;
+
+    let pageSize = spec?.pageSize ?? 0;
+    if (active && spec?.limitParam && !pageSize) {
+      try {
+        const current = Number(new URL(built.url).searchParams.get(spec.limitParam));
+        if (Number.isFinite(current) && current > 0) pageSize = Math.floor(current);
+      } catch {
+        /* keep the default */
+      }
+    }
+
+    return {
+      active,
+      type,
+      pageSize: pageSize || DEFAULT_PAGE_SIZE,
+      limitParam: spec?.limitParam,
+      offsetParam: spec?.offsetParam,
+      cursorParam: spec?.cursorParam,
+      nextPath: spec?.next,
+      hasMorePath: spec?.hasMore,
+      nextUrlPath: spec?.nextUrl,
+    };
+  }
+
+  /** The list a recipe selects from one page, or null when the selection is not a list. */
+  private itemsOf(recipe: Recipe | undefined, page: unknown): unknown[] | null {
+    if (!recipe?.select) return null;
+    const value = resolvePath(page, recipe.select);
+    return Array.isArray(value) ? value : null;
+  }
+
+  /**
+   * Whether another page exists, and what to send next.
+   * `true` for offset paging, the cursor/next-URL string for cursor/link paging.
+   */
+  private nextPageToken(plan: PagePlan, page: unknown, pageCount: number): string | true | null {
+    if (plan.type === 'offset') {
+      if (plan.hasMorePath) {
+        const more = resolvePath(page, plan.hasMorePath);
+        if (more === undefined || more === null || more === false || more === 0) return null;
+      }
+      return pageCount >= plan.pageSize ? true : null;
+    }
+    if (plan.type === 'cursor') {
+      const next = plan.nextPath ? resolvePath(page, plan.nextPath) : undefined;
+      return next === undefined || next === null || next === '' ? null : String(next);
+    }
+    if (plan.type === 'link') {
+      const next = plan.nextUrlPath ? resolvePath(page, plan.nextUrlPath) : undefined;
+      return next === undefined || next === null || next === '' ? null : String(next);
+    }
+    return null;
+  }
+
+  /**
+   * Merge several pages into one render. The common case (a `select` that resolves to a
+   * list) concatenates the lists and renders once, so the agent gets one table rather
+   * than N tables with repeated headings.
+   */
+  private mergePages(wrapper: WrapWrapper, rawPages: unknown[], itemCap: number): Rendered {
+    const recipe = wrapper.response;
+    const merged = this.mergeSelection(recipe, rawPages);
+
+    if (merged && merged.length > 0) {
+      try {
+        const result = renderRecipe(
+          { __kuang_pages: merged },
+          { ...(recipe as Recipe), select: '$.__kuang_pages' },
+          { maxChars: this.maxResultChars, maxItems: itemCap },
+        );
+        return {
+          markdown: result.markdown,
+          records: result.records,
+          documents: result.documents,
+          meta: result.meta,
+        };
+      } catch {
+        /* fall through to the per-page join */
+      }
+    }
+
+    const parts = rawPages.map((page) => this.render(wrapper, page, '', '', itemCap));
+    const markdown = parts.map((part) => part.markdown).filter(Boolean).join('\n\n---\n\n');
+    const records = parts.flatMap((part) => part.records).slice(0, itemCap);
+    const documents = parts.flatMap((part) => part.documents ?? []);
+    const selected = parts.reduce((total, part) => total + (part.meta?.selected ?? 0), 0);
+    return {
+      markdown,
+      records,
+      documents,
+      meta: {
+        mode: parts[0]?.meta?.mode ?? 'table',
+        select: parts[0]?.meta?.select ?? '$',
+        selected,
+        rendered: records.length,
+        truncated: selected > records.length,
+        chars: markdown.length,
+      },
+    };
+  }
+
+  private mergeSelection(recipe: Recipe | undefined, rawPages: unknown[]): unknown[] | null {
+    if (!recipe?.select) return null;
+    const out: unknown[] = [];
+    for (const page of rawPages) {
+      const value = resolvePath(page, recipe.select);
+      if (!Array.isArray(value)) return null;
+      out.push(...value);
+    }
+    return out;
+  }
+
   private async renderSample(wrapper: WrapWrapper, sample: unknown): Promise<WrapRunResult> {
     const rendered = this.render(wrapper, sample, typeof sample === 'string' ? sample : '', 'application/json');
     return {
@@ -285,10 +511,16 @@ export class WrapExecutor {
     };
   }
 
-  private render(wrapper: WrapWrapper, json: unknown, text: string, contentType: string): Rendered {
+  private render(
+    wrapper: WrapWrapper,
+    json: unknown,
+    text: string,
+    contentType: string,
+    maxItems?: number,
+  ): Rendered {
     if (json !== undefined && wrapper.response) {
       try {
-        const rendered = renderRecipe(json, wrapper.response, { maxChars: this.maxResultChars });
+        const rendered = renderRecipe(json, wrapper.response, { maxChars: this.maxResultChars, maxItems });
         return {
           markdown: rendered.markdown,
           records: rendered.records,
@@ -464,6 +696,14 @@ function isRedirect(status: number): boolean {
 function deleteHeader(headers: Record<string, string>, name: string): void {
   for (const key of Object.keys(headers)) {
     if (key.toLowerCase() === name.toLowerCase()) delete headers[key];
+  }
+}
+
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
   }
 }
 
