@@ -103,6 +103,15 @@ export interface WrapResponseInfo {
   truncated?: boolean;
 }
 
+export interface WrapIndexed {
+  /** How many rendered documents were handed to Cortex. */
+  documents: number;
+  /** Chunks actually written (0 when skipped or failed). */
+  chunks: number;
+  /** Present when indexing was attempted but failed; the call itself still succeeds. */
+  error?: string;
+}
+
 export interface WrapRunResult {
   ok: boolean;
   dryRun?: boolean;
@@ -117,5 +126,7 @@ export interface WrapRunResult {
   meta?: RenderMeta;
   /** Present only when the recipe declares pagination (or a call overrides the page cap). */
   paging?: { pages: number; cap: number; more: boolean };
+  /** Present when the recipe opted into Cortex indexing (`response.index: "cortex"`). */
+  indexed?: WrapIndexed;
   error?: WrapErrorInfo;
 }

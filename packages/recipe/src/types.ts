@@ -104,6 +104,12 @@ export interface Recipe {
   title?: string;
   limits?: RecipeLimits;
   pagination?: PaginationSpec;
+  /**
+   * Opt-in post-render indexing. `'cortex'` asks the executor to store the rendered
+   * document(s) in the local Cortex so `recall_memory` can find them later. The pure
+   * renderer ignores this field; only the wrapper executor acts on it.
+   */
+  index?: 'none' | 'cortex';
   /** Human/agent notes. Never rendered. */
   notes?: string;
 }

@@ -222,6 +222,13 @@ function resultText(data: any, format: 'markdown' | 'json' | 'both'): string {
         ...(data.paging
           ? [`pages ${data.paging.pages}/${data.paging.cap}${data.paging.more ? ' (+more)' : ''}`]
           : []),
+        ...(data.indexed
+          ? [
+              data.indexed.error
+                ? `index failed: ${data.indexed.error}`
+                : `indexed ${data.indexed.documents} doc${data.indexed.documents === 1 ? '' : 's'}`,
+            ]
+          : []),
       ].join(' · ')}_`
     : '';
   return `${markdown}${footer}`.trim();

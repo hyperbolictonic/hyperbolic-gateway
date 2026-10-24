@@ -11,6 +11,7 @@ import type { FieldFormat, FieldSpec, PaginationSpec, Recipe, RecipeLimits } fro
 const MODES = new Set(['table', 'document', 'documents']);
 const FORMATS = new Set(['text', 'number', 'integer', 'boolean', 'date', 'url', 'image', 'json', 'code']);
 const PAGINATION_TYPES = new Set(['none', 'cursor', 'offset', 'link']);
+const INDEX_TARGETS = new Set(['none', 'cortex']);
 
 export class RecipeError extends Error {
   readonly errors: string[];
@@ -72,6 +73,14 @@ export function normalizeRecipe(input: unknown): { recipe: Recipe; errors: strin
 
   const pagination = normalizePagination(source.pagination, errors);
   if (pagination) recipe.pagination = pagination;
+
+  if (source.index !== undefined) {
+    if (typeof source.index !== 'string' || !INDEX_TARGETS.has(source.index)) {
+      errors.push('index must be none or cortex');
+    } else {
+      recipe.index = source.index as Recipe['index'];
+    }
+  }
 
   return { recipe, errors };
 }

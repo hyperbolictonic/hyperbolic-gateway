@@ -16,6 +16,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.73] - 2026-10-24
+
+### Added
+
+- **Opt-in Cortex indexing for wrap recipes (S3 complete).** A recipe with `index: "cortex"`
+  stores its rendered output in the local Cortex after a successful, non-dry run, so
+  `recall_memory` can find it later. Documents mode indexes one page per rendered document;
+  any other mode indexes one page for the whole result, so a 50-row table does not become 50
+  embeddings. Capped at 50 documents per run.
+- Indexing is **best-effort**: if Cortex is unavailable the call still succeeds and
+  `indexed.error` is reported (the footer says `index failed: …` instead of `indexed N docs`).
+  A dry run, an HTTP error, or a recipe without `index` writes nothing.
+- `WrapRunResult.indexed { documents, chunks, error? }`; the executor's `indexDocuments`
+  dependency is wired in main to `CortexDB.indexPage`, so chunks share the chunker/embedder
+  used for browsed pages.
+
+### Docs and tests
+
+- KUANG_WRAP.md: S3 marked complete, a "Cortex indexing (opt-in)" section, open question 4
+  resolved, and the test counts updated.
+- `npm run test:wrap` gained 5 cases (per-document indexing, single-page table indexing, no
+  opt-in, no indexing on dry run or an upstream error, and a non-fatal indexer failure) →
+  34/34.
+
+S3 is complete: derived recipes, documents mode, pagination, and Cortex indexing.
+
 ## [1.4.72] - 2026-10-24
 
 ### Added

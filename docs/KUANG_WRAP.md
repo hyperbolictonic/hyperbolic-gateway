@@ -1,13 +1,12 @@
 # Kuang Wrap — design notes
 
-**Status:** active development, branch `feat/kuang-wrap`. Slices 0–2 are
-implemented (the pure recipe library, wrapper store/executor, the `kuang-wrap`
-MCP server, the rotating bridge-token gate, and encrypted host-bound credentials
-with a human-only Settings → Wrappers editor), plus the S3 pieces: **recipe
-pagination** (offset/cursor/link, page- and item-capped), **documents mode**, and
-**recipe derivation** (`wrap_derive`). Still planned: Cortex indexing of
-documents, OAuth/token refresh, human approval for mutating calls, and generated
-tools.
+**Status:** active development, branch `feat/kuang-wrap`. Slices 0–3 are
+implemented: the pure recipe library, wrapper store/executor, the `kuang-wrap`
+MCP server, the rotating bridge-token gate, encrypted host-bound credentials with
+a human-only Settings → Wrappers editor, recipe pagination (offset/cursor/link,
+page- and item-capped), documents mode, recipe derivation (`wrap_derive`), and
+opt-in **Cortex indexing** of rendered documents. Still planned: OAuth/token
+refresh, human approval for mutating calls, and generated tools.
 
 Kuang Wrap is a second MCP server that lets an agent turn a REST endpoint into
 a saved, typed tool: a wrapper for the request, a recipe for the response, and
@@ -188,7 +187,7 @@ needs it. That keeps discovery cheap.
 
 ```bash
 npm run build:mcp        # writes bin/mcp-server.cjs and bin/wrap-server.cjs
-npm run test:wrap        # 29 offline store/executor/secret/pagination tests
+npm run test:wrap        # 34 offline store/executor/secret/pagination/indexing tests
 npm run test:wrap:live   # 46 live checks against DummyJSON (needs the app; inline wrappers, nothing saved)
 ```
 
@@ -352,6 +351,32 @@ The result is a **recipe, not a wrapper**: pass it as `response` to `wrap_create
 (or `wrap_update`, then `wrap_reload`). Edit it afterwards — derivation is
 deliberately shallow.
 
+## Cortex indexing (opt-in)
+
+A recipe can ask the executor to store its rendered output in the local **Cortex**, so
+`recall_memory` finds it later:
+
+```json
+"response": {
+  "schemaVersion": 1,
+  "mode": "documents",
+  "select": "$.items",
+  "title": "{{title}}",
+  "template": "{{body}}",
+  "index": "cortex"
+}
+```
+
+- **One page per rendered document** in documents mode; otherwise **one page for the whole
+  rendered result**, so a 50-row table does not become 50 embeddings. Capped at 50
+  documents per run.
+- Indexing runs **after** a successful, non-dry call and only when `index: "cortex"`. A dry
+  run, an HTTP error, or a recipe without `index` writes nothing.
+- **Best-effort:** if Cortex is unavailable the call still succeeds; the result carries
+  `indexed.error` and the footer says `index failed: …` instead of `indexed N docs`.
+- Chunks use the same chunker/embedder as browsed pages, landing in `page_history` with the
+  wrapper's request URL as `url` and the document title as `title`.
+
 ## Secrets
 
 Secrets are implemented in main. The Settings → Wrappers panel is the only
@@ -506,7 +531,7 @@ separate reusable recipe store is planned.
 | **S1** ✅ | Wrapper store, executor, `/wrap/*`, `kuang-wrap` MCP server, create/update/delete, dry-run and sample tests | 21 core tests now pass; a live GitHub API call returned Markdown and records |
 | **S2a** ✅ | Rotating wrap bridge token, token-file handoff, 401 gate | Missing/stale token gets 401 before any wrapper or outbound request |
 | **S2** ✅ | `safeStorage`, host binding, Settings → Wrappers editor, audit | Unit tests prove a foreign-host secret is refused and a cross-origin redirect drops the injected header |
-| **S3** 🟡 | **Pagination ✅**, **documents mode ✅**, **derived recipes ✅** (`wrap_derive`, saved through `wrap_create`); Cortex indexing outstanding | A paginated API returns all pages up to the cap ✅; documents are searchable ⬜ |
+| **S3** ✅ | Derived recipes (`wrap_derive`), documents mode, pagination (offset/cursor/link, page- and item-capped), and opt-in Cortex indexing | A paginated API returns all pages up to the cap ✅; documents are searchable ✅ |
 | **S4** | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | 40-tool cap holds; client sees a new tool without restart |
 | **S5** | OAuth2 client credentials, expiry HIL, `lastVerified` | Expired token produces a human-action request, not a silent 401 loop |
 
@@ -532,8 +557,8 @@ separate reusable recipe store is planned.
    shared host needs separate credentials.
 3. Should `POST` require human approval by default? Leaning yes for the first
    call per wrapper per session; read-only remains frictionless.
-4. Where do parsed documents go? Return them first; Cortex indexing is opt-in
-   per recipe because it costs embeddings and disk.
+4. ~~Where do parsed documents go?~~ **Shipped:** returned inline and, when a recipe sets
+   `index: "cortex"`, also written to Cortex — opt-in because it costs embeddings and disk.
 5. Do we expose generated tools by default? No. Meta-tools are enough until a
    wrapper is stable.
 

@@ -320,7 +320,20 @@ async function createWindow() {
     const wrapAudit = new WrapAuditLog(path.join(wrapDir(), 'audit.jsonl'));
     activeWrapSecrets = wrapSecrets;
     activeWrapAudit = wrapAudit;
-    const wrapExecutor = new WrapExecutor(wrapStore, { secrets: wrapSecrets, audit: wrapAudit });
+    const wrapExecutor = new WrapExecutor(wrapStore, {
+      secrets: wrapSecrets,
+      audit: wrapAudit,
+      // Opt-in per recipe (`response.index: "cortex"`). Chunks land in the same
+      // page_history table as browsed pages, so `recall_memory` finds them.
+      indexDocuments: async (documents, context) => {
+        const cortex = chassis.getCortex();
+        let chunks = 0;
+        for (const document of documents) {
+          chunks += await cortex.indexPage(context.url, document.title, document.markdown);
+        }
+        return chunks;
+      },
+    });
     const wrapToken = createWrapToken(wrapDir());
     startHttpBridge(chassis, bridgePort, {
       store: wrapStore,

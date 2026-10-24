@@ -18,6 +18,19 @@ import type { WrapStore } from './store.ts';
 import type { SecretStore } from './secrets.ts';
 import type { WrapAuditLog } from './audit.ts';
 
+/** One rendered document handed to an opt-in indexer (Cortex). */
+export interface WrapIndexDocument {
+  title: string;
+  markdown: string;
+}
+
+export interface WrapIndexContext {
+  wrapperId: string;
+  wrapperName: string;
+  /** The URL the content came from (the first page of a paginated run). */
+  url: string;
+}
+
 export interface ExecutorOptions {
   fetchImpl?: typeof fetch;
   resolveHost?: (hostname: string) => Promise<string[]>;
@@ -31,6 +44,11 @@ export interface ExecutorOptions {
   maxPages?: number;
   /** Overall item cap for a paginated run when the recipe has no `limits.maxItems`. Default 50. */
   maxItems?: number;
+  /**
+   * Opt-in sink for recipes with `response.index: "cortex"`. Best-effort: a throw is
+   * reported in `result.indexed.error` and never fails the call.
+   */
+  indexDocuments?: (documents: WrapIndexDocument[], context: WrapIndexContext) => Promise<number>;
   secrets?: Pick<SecretStore, 'resolve'>;
   audit?: Pick<WrapAuditLog, 'append'>;
 }
@@ -47,6 +65,8 @@ interface ExecuteOptions {
 const DEFAULT_MAX_ITEMS = 50;
 /** Page size when a paginated recipe does not declare `pagination.pageSize`. */
 const DEFAULT_PAGE_SIZE = 50;
+/** Safety cap on how many rendered documents one run may index. */
+const MAX_INDEX_DOCUMENTS = 50;
 
 interface FetchedResponse {
   response: Response;
@@ -100,6 +120,7 @@ export class WrapExecutor {
   private readonly defaultTimeoutMs: number;
   private readonly maxPages: number;
   private readonly defaultMaxItems: number;
+  private readonly indexDocuments?: (documents: WrapIndexDocument[], context: WrapIndexContext) => Promise<number>;
   private readonly secrets?: Pick<SecretStore, 'resolve'>;
   private readonly audit?: Pick<WrapAuditLog, 'append'>;
 
@@ -115,6 +136,7 @@ export class WrapExecutor {
     this.defaultTimeoutMs = clampInt(options.defaultTimeoutMs ?? 15_000, 1_000, 60_000);
     this.maxPages = clampInt(options.maxPages ?? 10, 1, 25);
     this.defaultMaxItems = clampInt(options.maxItems ?? DEFAULT_MAX_ITEMS, 1, 5_000);
+    this.indexDocuments = options.indexDocuments;
     this.secrets = options.secrets;
     this.audit = options.audit;
   }
@@ -344,6 +366,26 @@ export class WrapExecutor {
         : this.render(wrapper, firstJson, safeFirstText, first.contentType);
 
     const ok = !failed && pages.every((page) => page.response.ok);
+
+    // Opt-in Cortex indexing (`recipe.index === "cortex"`). Best-effort: a Cortex failure
+    // never turns a successful upstream call into a failure.
+    let indexed: WrapRunResult['indexed'];
+    if (ok && wrapper.response?.index === 'cortex' && this.indexDocuments) {
+      const documents = this.documentsToIndex(wrapper, rendered);
+      if (documents.length > 0) {
+        try {
+          const chunks = await this.indexDocuments(documents, {
+            wrapperId: wrapper.id,
+            wrapperName: wrapper.name,
+            url: first.url,
+          });
+          indexed = { documents: documents.length, chunks };
+        } catch (err: any) {
+          indexed = { documents: documents.length, chunks: 0, error: err?.message || String(err) };
+        }
+      }
+    }
+
     const result: WrapRunResult = {
       ok,
       status: failedPage.response.status,
@@ -362,6 +404,7 @@ export class WrapExecutor {
       documents: rendered.documents,
       meta: rendered.meta,
       paging: plan.active ? { pages: pages.length, cap: maxPages, more } : undefined,
+      indexed,
     };
 
     if (!ok) {
@@ -498,6 +541,23 @@ export class WrapExecutor {
       out.push(...value);
     }
     return out;
+  }
+
+  /**
+   * What an opt-in indexer receives: one entry per rendered document when the recipe used
+   * documents mode, otherwise one entry for the whole rendered result. Capped so a large
+   * table cannot turn into hundreds of embeddings.
+   */
+  private documentsToIndex(wrapper: WrapWrapper, rendered: Rendered): WrapIndexDocument[] {
+    const documents = (rendered.documents ?? [])
+      .filter((document) => document.markdown && document.markdown.trim())
+      .map((document) => ({ title: document.title || wrapper.name, markdown: document.markdown }));
+
+    if (documents.length > 0) return documents.slice(0, MAX_INDEX_DOCUMENTS);
+
+    const markdown = rendered.markdown?.trim();
+    if (!markdown) return [];
+    return [{ title: wrapper.response?.name || wrapper.name, markdown }].slice(0, MAX_INDEX_DOCUMENTS);
   }
 
   private async renderSample(wrapper: WrapWrapper, sample: unknown): Promise<WrapRunResult> {
