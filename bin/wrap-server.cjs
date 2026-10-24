@@ -36600,7 +36600,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.72";
+var APP_VERSION = "1.4.73";
 
 // src/mcp/wrap-server.ts
 var BRIDGE_URL = (process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111").replace(/\/$/, "");
@@ -36771,7 +36771,10 @@ _${[
     `HTTP ${data.status}`,
     formatBytes(data.response?.bytes),
     `${data.durationMs ?? 0} ms`,
-    ...data.paging ? [`pages ${data.paging.pages}/${data.paging.cap}${data.paging.more ? " (+more)" : ""}`] : []
+    ...data.paging ? [`pages ${data.paging.pages}/${data.paging.cap}${data.paging.more ? " (+more)" : ""}`] : [],
+    ...data.indexed ? [
+      data.indexed.error ? `index failed: ${data.indexed.error}` : `indexed ${data.indexed.documents} doc${data.indexed.documents === 1 ? "" : "s"}`
+    ] : []
   ].join(" \xB7 ")}_` : "";
   return `${markdown}${footer}`.trim();
 }

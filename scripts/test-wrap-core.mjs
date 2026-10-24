@@ -869,3 +869,154 @@ test('a failing second page surfaces HTTP_ERROR and keeps the page count', async
   assert.equal(result.records.length, 0);
 });
 
+// ── cortex indexing (S3) ─────────────────────────────────────────────────────
+
+function indexedDocsWrapper(overrides = {}) {
+  return {
+    schemaVersion: 1,
+    id: 'demo.docs',
+    name: 'Docs',
+    request: { method: 'GET', url: 'https://api.example.com/v1/docs' },
+    inputSchema: { type: 'object', properties: {} },
+    response: {
+      schemaVersion: 1,
+      select: '$.items',
+      mode: 'documents',
+      title: '{{title}}',
+      template: '{{body}}',
+      index: 'cortex',
+    },
+    ...overrides,
+  };
+}
+
+test('indexes each rendered document when the recipe opts in', async () => {
+  const { store } = tempStore();
+  store.create(indexedDocsWrapper());
+
+  const calls = [];
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    indexDocuments: async (documents, context) => {
+      calls.push({ documents, context });
+      return documents.length * 2;
+    },
+    fetchImpl: async () =>
+      jsonResponse({
+        items: [
+          { title: 'One', body: 'First body' },
+          { title: 'Two', body: 'Second body' },
+        ],
+      }),
+  });
+
+  const result = await executor.run('demo.docs', {});
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].documents.length, 2);
+  assert.equal(calls[0].documents[0].title, 'One');
+  assert.match(calls[0].documents[0].markdown, /First body/);
+  assert.equal(calls[0].context.wrapperId, 'demo.docs');
+  assert.equal(calls[0].context.url, 'https://api.example.com/v1/docs');
+  assert.deepEqual(result.indexed, { documents: 2, chunks: 4 });
+});
+
+test('indexes the whole render once for a table recipe', async () => {
+  const { store } = tempStore();
+  store.create(
+    pagedWrapper({
+      id: 'demo.table',
+      response: { ...indexedDocsWrapper().response, select: '$.items', mode: 'table', title: undefined, template: undefined, index: 'cortex' },
+    }),
+  );
+
+  const calls = [];
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    indexDocuments: async (documents) => {
+      calls.push(documents);
+      return 1;
+    },
+    fetchImpl: async () => jsonResponse({ items: makeItems(1, 3) }),
+  });
+
+  const result = await executor.run('demo.table', {});
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].length, 1);
+  assert.match(calls[0][0].markdown, /Item 1/);
+  assert.deepEqual(result.indexed, { documents: 1, chunks: 1 });
+});
+
+test('does not index when the recipe has not opted in', async () => {
+  const { store } = tempStore();
+  store.create(listWrapper());
+
+  let called = 0;
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    indexDocuments: async () => {
+      called++;
+      return 1;
+    },
+    fetchImpl: async () => jsonResponse({ items: [{ id: 1, name: 'A' }] }),
+  });
+
+  const result = await executor.run('demo.list', { city: 'Paris' });
+  assert.equal(result.ok, true);
+  assert.equal(called, 0);
+  assert.equal(result.indexed, undefined);
+});
+
+test('does not index on a dry run or a failed upstream call', async () => {
+  const { store } = tempStore();
+  store.create(indexedDocsWrapper());
+
+  let called = 0;
+  const okExecutor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    indexDocuments: async () => {
+      called++;
+      return 1;
+    },
+    fetchImpl: async () => jsonResponse({ items: [{ title: 'One', body: 'Body' }] }),
+  });
+
+  const preview = await okExecutor.test({ id: 'demo.docs', args: {} });
+  assert.equal(preview.dryRun, true);
+  assert.equal(called, 0);
+
+  const failing = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    indexDocuments: async () => {
+      called++;
+      return 1;
+    },
+    fetchImpl: async () => jsonResponse({ message: 'nope' }, 500),
+  });
+  const result = await failing.run('demo.docs', {});
+  assert.equal(result.ok, false);
+  assert.equal(called, 0);
+  assert.equal(result.indexed, undefined);
+});
+
+test('an indexer failure never fails a successful call', async () => {
+  const { store } = tempStore();
+  store.create(indexedDocsWrapper());
+
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    indexDocuments: async () => {
+      throw new Error('cortex offline');
+    },
+    fetchImpl: async () => jsonResponse({ items: [{ title: 'One', body: 'Body' }] }),
+  });
+
+  const result = await executor.run('demo.docs', {});
+  assert.equal(result.ok, true);
+  assert.equal(result.indexed.documents, 1);
+  assert.equal(result.indexed.chunks, 0);
+  assert.match(result.indexed.error, /cortex offline/);
+});
+
+
