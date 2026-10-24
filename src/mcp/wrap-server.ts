@@ -7,14 +7,16 @@
  *
  * Agent surface:
  *   wrap_list / wrap_get          what exists
+ *   wrap_derive                   infer a first-draft recipe from a sample or URL
  *   wrap_create / wrap_update     save a deterministic request + recipe
  *   wrap_run                      execute with flat semantic arguments
  *   wrap_test                     dry-run or render a sample, without sending
  *   wrap_delete                   remove a wrapper
  *   wrap_reload                   re-read the manifest (compatibility alias)
  *
- * Generated `wrap_<id>` tools are a later slice; the meta-tools keep this
- * namespace small enough to fit in a normal tool budget.
+ * A wrapper with `exposeAsTool: true` also gets a generated `wrap_<id>` tool with its
+ * declared arguments (S4), capped at 40 and refreshed with `tools/list_changed` whenever
+ * the wrapper set changes.
  */
 
 import fs from 'node:fs';
@@ -23,6 +25,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { APP_VERSION } from '../shared/version.js';
+import { generatedToolName, wrapInputToZodShape } from './wrap-tool-schema.js';
 
 const BRIDGE_URL = (process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111').replace(/\/$/, '');
 const BRIDGE_TIMEOUT_MS = (() => {
@@ -31,6 +34,23 @@ const BRIDGE_TIMEOUT_MS = (() => {
 })();
 const TOKEN_FILE = process.env.KUANG_WRAP_TOKEN_FILE || '';
 const STATIC_TOKEN = process.env.KUANG_WRAP_TOKEN || process.env.KUANG_BRIDGE_TOKEN || '';
+
+/** Maximum generated `wrap_<id>` tools registered at once (S4). */
+const MAX_GENERATED_TOOLS = 40;
+
+/** Names the static meta-tools own; a generated name must never collide with one. */
+const META_TOOL_NAMES: readonly string[] = [
+  'wrap_list',
+  'wrap_get',
+  'wrap_derive',
+  'wrap_secret_list',
+  'wrap_create',
+  'wrap_update',
+  'wrap_delete',
+  'wrap_run',
+  'wrap_test',
+  'wrap_reload',
+];
 
 function currentWrapToken(): string {
   if (STATIC_TOKEN) return STATIC_TOKEN.trim();
@@ -315,6 +335,86 @@ export async function createWrapMcpServer() {
     version: APP_VERSION,
   });
 
+  /** Generated `wrap_<id>` tools, keyed by the registered tool name. */
+  const generated = new Map<string, { remove(): void }>();
+
+  /**
+   * Reconcile the generated tool set with the manifest: register `wrap_<id>` for every
+   * wrapper with `exposeAsTool: true` (first 40 by id), remove the ones that no longer
+   * qualify. Returns how many were added/removed so callers can decide to notify.
+   */
+  async function refreshGeneratedTools(): Promise<{ added: number; removed: number }> {
+    let manifest: any;
+    try {
+      const response = await callBridge('/wrap/manifest');
+      if (!response.ok) return { added: 0, removed: 0 };
+      manifest = response.data;
+    } catch {
+      return { added: 0, removed: 0 };
+    }
+
+    const exposed = (Array.isArray(manifest?.wrappers) ? manifest.wrappers : [])
+      .filter((entry: any) => entry?.exposeAsTool === true)
+      .sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))
+      .slice(0, MAX_GENERATED_TOOLS);
+
+    const wanted = new Set<string>();
+    let added = 0;
+
+    for (const entry of exposed) {
+      const detail = await callBridge(`/wrap/wrapper?id=${encodeURIComponent(String(entry.id))}`).catch(() => null);
+      const wrapper = detail?.data?.wrapper;
+      if (!wrapper) continue;
+
+      const name = generatedToolName(String(entry.id), new Set([...META_TOOL_NAMES, ...wanted]));
+      wanted.add(name);
+      if (generated.has(name)) continue;
+
+      const description =
+        `[wrap] ${entry.name || entry.id} — ${entry.method} ${entry.host}. ` +
+        `${entry.description ? entry.description + ' ' : ''}` +
+        'Typed shortcut for wrap_run; the saved request supplies the URL, headers, auth and body.';
+      const tool = server.registerTool(
+        name,
+        { description, inputSchema: wrapInputToZodShape(wrapper.inputSchema) },
+        async (args: any) => {
+          try {
+            const response = await callBridge('/wrap/run', 'POST', {
+              id: entry.id,
+              args: args || {},
+              format: 'markdown',
+            });
+            const data = response.data;
+            if (!data) return toolError(`No response from the wrapper bridge (HTTP ${response.status}).`);
+            const text = resultText(data, 'markdown');
+            return data.ok === false ? toolError(text) : toolSuccess(text);
+          } catch (err: any) {
+            return bridgeFailure(err);
+          }
+        },
+      );
+      generated.set(name, tool);
+      added++;
+    }
+
+    let removed = 0;
+    for (const [name, tool] of generated) {
+      if (wanted.has(name)) continue;
+      try {
+        tool.remove();
+      } catch {
+        /* already gone */
+      }
+      generated.delete(name);
+      removed++;
+    }
+
+    return { added, removed };
+  }
+
+  // The SDK emits `tools/list_changed` itself on registerTool()/remove(), so no explicit
+  // notification is needed after a refresh.
+
   server.tool(
     'wrap_list',
     'List saved REST wrappers as one line each: id, purpose, method/host, required arguments. Call this before wrap_get or wrap_run.',
@@ -411,6 +511,7 @@ export async function createWrapMcpServer() {
           return toolError(`Wrapper rejected:\n- ${errors.join('\n- ')}`);
         }
         const saved = response.data.wrapper;
+        await refreshGeneratedTools();
         return toolSuccess(`Created ${saved?.id}. Call wrap_test with dryRun first, then wrap_run.`);
       } catch (err: any) {
         return bridgeFailure(err);
@@ -431,6 +532,7 @@ export async function createWrapMcpServer() {
           const errors = Array.isArray(response.data?.errors) ? response.data.errors : [response.data?.error || `HTTP ${response.status}`];
           return toolError(`Wrapper rejected:\n- ${errors.join('\n- ')}`);
         }
+        await refreshGeneratedTools();
         return toolSuccess(`Updated ${response.data.wrapper?.id}. Run wrap_test with dryRun to verify the change.`);
       } catch (err: any) {
         return bridgeFailure(err);
@@ -448,6 +550,7 @@ export async function createWrapMcpServer() {
         if (!response.data?.success) {
           return toolError(errorText(response.data?.code, response.data?.error || `No wrapper named "${id}".`));
         }
+        await refreshGeneratedTools();
         return toolSuccess(`Deleted ${id}.`);
       } catch (err: any) {
         return bridgeFailure(err);
@@ -523,12 +626,17 @@ export async function createWrapMcpServer() {
       try {
         const response = await callBridge('/wrap/manifest');
         if (!response.ok) return toolError(errorText(response.data?.code, response.data?.error || `HTTP ${response.status}`));
+        await refreshGeneratedTools();
         return toolSuccess(formatManifest(response.data));
       } catch (err: any) {
         return bridgeFailure(err);
       }
     },
   );
+
+  // Register the generated tools that already qualify (S4). Best-effort: a missing
+  // bridge just means no generated tools until the next wrapper mutation.
+  await refreshGeneratedTools();
 
   return server;
 }

@@ -13,6 +13,8 @@ import { createWrapToken, readWrapToken } from '../src/main/wrap/token.ts';
 import { isWrapAuthorized, tokenFromHeaders } from '../src/main/wrap/auth.ts';
 import { SecretStore } from '../src/main/wrap/secrets.ts';
 import { WrapAuditLog } from '../src/main/wrap/audit.ts';
+import { generatedToolName, isToolName, wrapInputToZodShape } from '../src/mcp/wrap-tool-schema.ts';
+import { z } from 'zod';
 
 function tempStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kuang-wrap-test-'));
@@ -1018,5 +1020,109 @@ test('an indexer failure never fails a successful call', async () => {
   assert.equal(result.indexed.chunks, 0);
   assert.match(result.indexed.error, /cortex offline/);
 });
+
+// ── generated tool schema (S4) ───────────────────────────────────────────────
+
+const parseWith = (schema, value) => z.object(wrapInputToZodShape(schema)).safeParse(value);
+
+test('maps required/optional inputs into a Zod shape', () => {
+  const schema = {
+    type: 'object',
+    properties: { city: { type: 'string' }, note: { type: 'string' } },
+    required: ['city'],
+  };
+
+  assert.equal(parseWith(schema, {}).success, false);
+  assert.equal(parseWith(schema, { city: 'Paris' }).success, true);
+  assert.equal(parseWith(schema, { city: 'Paris', note: 'hi' }).success, true);
+});
+
+test('maps numeric bounds, integer-ness and enums', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      count: { type: 'integer', minimum: 1, maximum: 5 },
+      kind: { type: 'string', enum: ['a', 'b'] },
+    },
+  };
+
+  assert.equal(parseWith(schema, { count: 0 }).success, false);
+  assert.equal(parseWith(schema, { count: 6 }).success, false);
+  assert.equal(parseWith(schema, { count: 2.5 }).success, false);
+  assert.equal(parseWith(schema, { count: 5 }).success, true);
+  assert.equal(parseWith(schema, { count: 3, kind: 'c' }).success, false);
+  assert.equal(parseWith(schema, { count: 3, kind: 'b' }).success, true);
+});
+
+test('maps arrays, item types, minItems and string patterns', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      tags: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      code: { type: 'string', pattern: '^[A-Z]{3}$' },
+    },
+  };
+
+  assert.equal(parseWith(schema, { tags: [] }).success, false);
+  assert.equal(parseWith(schema, { tags: [1] }).success, false);
+  assert.equal(parseWith(schema, { tags: ['x'] }).success, true);
+  assert.equal(parseWith(schema, { code: 'abc' }).success, false);
+  assert.equal(parseWith(schema, { code: 'ABC' }).success, true);
+});
+
+test('maps nested objects and strict additionalProperties', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      meta: {
+        type: 'object',
+        properties: { source: { type: 'string' } },
+        additionalProperties: false,
+      },
+    },
+  };
+
+  assert.equal(parseWith(schema, { meta: { source: 'web' } }).success, true);
+  assert.equal(parseWith(schema, { meta: { source: 'web', extra: 1 } }).success, false);
+});
+
+test('applies defaults and nullable types', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      limit: { type: 'integer', default: 10 },
+      note: { type: ['string', 'null'] },
+    },
+  };
+
+  const parsed = parseWith(schema, {});
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.data.limit, 10);
+  assert.equal(parseWith(schema, { note: null }).success, true);
+});
+
+test('degrades an empty/unknown schema instead of throwing', () => {
+  assert.deepEqual(wrapInputToZodShape(undefined), {});
+  assert.deepEqual(wrapInputToZodShape({ type: 'object' }), {});
+  // An unrecognised type is accepted rather than rejecting every call.
+  assert.equal(parseWith({ type: 'object', properties: { odd: { type: 'quantum' } } }, { odd: 1 }).success, true);
+});
+
+test('derives MCP-safe, collision-free tool names', () => {
+  assert.equal(generatedToolName('dummyjson.auth.me'), 'wrap_dummyjson_auth_me');
+  // Dash is legal in an MCP tool name, so it is preserved.
+  assert.equal(generatedToolName('a-b'), 'wrap_a-b');
+  assert.equal(isToolName(generatedToolName('dummyjson.auth.me')), true);
+
+  // `a.b` and `a_b` sanitise identically, so the second gets a stable suffix.
+  const taken = new Set(['wrap_a_b']);
+  assert.equal(generatedToolName('a.b', taken), 'wrap_a_b_2');
+
+  // The 128-char MCP limit holds.
+  const long = generatedToolName('x'.repeat(400));
+  assert.equal(long.length, 128);
+  assert.equal(isToolName(long), true);
+});
+
 
 

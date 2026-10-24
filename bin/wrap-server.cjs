@@ -22763,11 +22763,11 @@ function _stringbool(Classes, _params) {
   const _Codec = Classes.Codec ?? $ZodCodec;
   const _Boolean = Classes.Boolean ?? $ZodBoolean;
   const _String = Classes.String ?? $ZodString;
-  const stringSchema = new _String({ type: "string", error: params.error });
+  const stringSchema2 = new _String({ type: "string", error: params.error });
   const booleanSchema = new _Boolean({ type: "boolean", error: params.error });
   const codec2 = new _Codec({
     type: "pipe",
-    in: stringSchema,
+    in: stringSchema2,
     out: booleanSchema,
     transform: ((input2, payload) => {
       let data = input2;
@@ -26214,7 +26214,7 @@ function containsRef(value) {
 function plural(n) {
   return n === 1 ? "element" : "elements";
 }
-function checkArrayGuards(arraySchema, guards) {
+function checkArrayGuards(arraySchema2, guards) {
   const guard = z.transform((value) => value).check((payload) => {
     const items = payload.value;
     if (!Array.isArray(items))
@@ -26265,7 +26265,7 @@ function checkArrayGuards(arraySchema, guards) {
       }
     }
   });
-  return guard.pipe(arraySchema);
+  return guard.pipe(arraySchema2);
 }
 function getTupleRest(restSchema, ctx) {
   if (restSchema === false) {
@@ -26359,98 +26359,98 @@ function convertBaseSchema(schema, ctx) {
   let zodSchema;
   switch (type) {
     case "string": {
-      let stringSchema = z.string();
+      let stringSchema2 = z.string();
       if (schema.format) {
         const format = schema.format;
         if (format === "email") {
-          stringSchema = stringSchema.check(z.email());
+          stringSchema2 = stringSchema2.check(z.email());
         } else if (format === "uri" || format === "uri-reference") {
-          stringSchema = stringSchema.check(z.url());
+          stringSchema2 = stringSchema2.check(z.url());
         } else if (format === "uuid" || format === "guid") {
-          stringSchema = stringSchema.check(z.uuid());
+          stringSchema2 = stringSchema2.check(z.uuid());
         } else if (format === "date-time") {
-          stringSchema = stringSchema.check(z.iso.datetime({ offset: true }));
+          stringSchema2 = stringSchema2.check(z.iso.datetime({ offset: true }));
         } else if (format === "date") {
-          stringSchema = stringSchema.check(z.iso.date());
+          stringSchema2 = stringSchema2.check(z.iso.date());
         } else if (format === "time") {
-          stringSchema = stringSchema.check(z.regex(fullTime));
+          stringSchema2 = stringSchema2.check(z.regex(fullTime));
         } else if (format === "duration") {
-          stringSchema = stringSchema.check(z.iso.duration());
+          stringSchema2 = stringSchema2.check(z.iso.duration());
         } else if (format === "hostname") {
-          stringSchema = stringSchema.check(z.hostname());
+          stringSchema2 = stringSchema2.check(z.hostname());
         } else if (format === "ipv4") {
-          stringSchema = stringSchema.check(z.ipv4());
+          stringSchema2 = stringSchema2.check(z.ipv4());
         } else if (format === "ipv6") {
-          stringSchema = stringSchema.check(z.ipv6());
+          stringSchema2 = stringSchema2.check(z.ipv6());
         } else if (format === "mac") {
-          stringSchema = stringSchema.check(z.mac());
+          stringSchema2 = stringSchema2.check(z.mac());
         } else if (format === "cidr") {
-          stringSchema = stringSchema.check(z.cidrv4());
+          stringSchema2 = stringSchema2.check(z.cidrv4());
         } else if (format === "cidr-v6") {
-          stringSchema = stringSchema.check(z.cidrv6());
+          stringSchema2 = stringSchema2.check(z.cidrv6());
         } else if (format === "base64") {
-          stringSchema = stringSchema.check(z.base64());
+          stringSchema2 = stringSchema2.check(z.base64());
         } else if (format === "base64url") {
-          stringSchema = stringSchema.check(z.base64url());
+          stringSchema2 = stringSchema2.check(z.base64url());
         } else if (format === "e164") {
-          stringSchema = stringSchema.check(z.e164());
+          stringSchema2 = stringSchema2.check(z.e164());
         } else if (format === "credit_card") {
-          stringSchema = stringSchema.check(z.creditCard());
+          stringSchema2 = stringSchema2.check(z.creditCard());
         } else if (format === "iban") {
-          stringSchema = stringSchema.check(z.iban());
+          stringSchema2 = stringSchema2.check(z.iban());
         } else if (format === "jwt") {
-          stringSchema = stringSchema.check(z.jwt());
+          stringSchema2 = stringSchema2.check(z.jwt());
         } else if (format === "emoji") {
-          stringSchema = stringSchema.check(z.emoji());
+          stringSchema2 = stringSchema2.check(z.emoji());
         } else if (format === "nanoid") {
-          stringSchema = stringSchema.check(z.nanoid());
+          stringSchema2 = stringSchema2.check(z.nanoid());
         } else if (format === "cuid") {
-          stringSchema = stringSchema.check(z.cuid());
+          stringSchema2 = stringSchema2.check(z.cuid());
         } else if (format === "cuid2") {
-          stringSchema = stringSchema.check(z.cuid2());
+          stringSchema2 = stringSchema2.check(z.cuid2());
         } else if (format === "ulid") {
-          stringSchema = stringSchema.check(z.ulid());
+          stringSchema2 = stringSchema2.check(z.ulid());
         } else if (format === "xid") {
-          stringSchema = stringSchema.check(z.xid());
+          stringSchema2 = stringSchema2.check(z.xid());
         } else if (format === "ksuid") {
-          stringSchema = stringSchema.check(z.ksuid());
+          stringSchema2 = stringSchema2.check(z.ksuid());
         }
       }
       if (typeof schema.minLength === "number") {
-        stringSchema = stringSchema.min(schema.minLength);
+        stringSchema2 = stringSchema2.min(schema.minLength);
       }
       if (typeof schema.maxLength === "number") {
-        stringSchema = stringSchema.max(schema.maxLength);
+        stringSchema2 = stringSchema2.max(schema.maxLength);
       }
       if (schema.pattern) {
-        stringSchema = stringSchema.regex(new RegExp(schema.pattern));
+        stringSchema2 = stringSchema2.regex(new RegExp(schema.pattern));
       }
-      zodSchema = stringSchema;
+      zodSchema = stringSchema2;
       break;
     }
     case "number":
     case "integer": {
-      let numberSchema = type === "integer" ? z.number().int() : z.number();
+      let numberSchema2 = type === "integer" ? z.number().int() : z.number();
       if (typeof schema.minimum === "number" && schema.exclusiveMinimum !== true) {
-        numberSchema = numberSchema.min(schema.minimum);
+        numberSchema2 = numberSchema2.min(schema.minimum);
       }
       if (typeof schema.maximum === "number" && schema.exclusiveMaximum !== true) {
-        numberSchema = numberSchema.max(schema.maximum);
+        numberSchema2 = numberSchema2.max(schema.maximum);
       }
       if (typeof schema.exclusiveMinimum === "number") {
-        numberSchema = numberSchema.gt(schema.exclusiveMinimum);
+        numberSchema2 = numberSchema2.gt(schema.exclusiveMinimum);
       } else if (schema.exclusiveMinimum === true && typeof schema.minimum === "number") {
-        numberSchema = numberSchema.gt(schema.minimum);
+        numberSchema2 = numberSchema2.gt(schema.minimum);
       }
       if (typeof schema.exclusiveMaximum === "number") {
-        numberSchema = numberSchema.lt(schema.exclusiveMaximum);
+        numberSchema2 = numberSchema2.lt(schema.exclusiveMaximum);
       } else if (schema.exclusiveMaximum === true && typeof schema.maximum === "number") {
-        numberSchema = numberSchema.lt(schema.maximum);
+        numberSchema2 = numberSchema2.lt(schema.maximum);
       }
       if (typeof schema.multipleOf === "number") {
-        numberSchema = numberSchema.multipleOf(schema.multipleOf);
+        numberSchema2 = numberSchema2.multipleOf(schema.multipleOf);
       }
-      zodSchema = numberSchema;
+      zodSchema = numberSchema2;
       break;
     }
     case "boolean": {
@@ -26574,14 +26574,14 @@ function convertBaseSchema(schema, ctx) {
         }
       } else if (items !== void 0) {
         const element = convertSchema(items, ctx);
-        let arraySchema = z.array(element);
+        let arraySchema2 = z.array(element);
         if (typeof schema.minItems === "number") {
-          arraySchema = arraySchema.min(schema.minItems);
+          arraySchema2 = arraySchema2.min(schema.minItems);
         }
         if (typeof schema.maxItems === "number") {
-          arraySchema = arraySchema.max(schema.maxItems);
+          arraySchema2 = arraySchema2.max(schema.maxItems);
         }
-        zodSchema = arraySchema;
+        zodSchema = arraySchema2;
       } else {
         zodSchema = z.array(z.any());
       }
@@ -36600,7 +36600,111 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.73";
+var APP_VERSION = "1.4.74";
+
+// src/mcp/wrap-tool-schema.ts
+function wrapInputToZodShape(schema) {
+  const properties = schema?.properties ?? {};
+  const required2 = new Set(schema?.required ?? []);
+  const shape = {};
+  for (const [key, property] of Object.entries(properties)) {
+    let field = wrapPropertyToZod(property);
+    if (!required2.has(key)) field = field.optional();
+    if (property.description) field = field.describe(property.description);
+    shape[key] = field;
+  }
+  return shape;
+}
+function wrapPropertyToZod(property) {
+  if (Array.isArray(property.enum) && property.enum.length > 0) {
+    const literal2 = literalUnion(property.enum);
+    if (literal2) return maybeDefault(literal2, property);
+  }
+  const types = property.type === void 0 ? [] : Array.isArray(property.type) ? property.type : [property.type];
+  const type = types.find((entry) => entry !== "null") ?? "string";
+  let base;
+  switch (type) {
+    case "string":
+      base = stringSchema(property);
+      break;
+    case "number":
+      base = numberSchema(property, false);
+      break;
+    case "integer":
+      base = numberSchema(property, true);
+      break;
+    case "boolean":
+      base = external_exports.boolean();
+      break;
+    case "array":
+      base = arraySchema(property);
+      break;
+    case "object": {
+      const nested = external_exports.object(wrapInputToZodShape(property));
+      base = property.additionalProperties === false ? nested.strict() : nested;
+      break;
+    }
+    default:
+      base = external_exports.unknown();
+  }
+  if (types.includes("null")) base = base.nullable();
+  return maybeDefault(base, property);
+}
+function stringSchema(property) {
+  let schema = external_exports.string();
+  if (typeof property.minLength === "number") schema = schema.min(property.minLength);
+  if (typeof property.maxLength === "number") schema = schema.max(property.maxLength);
+  if (typeof property.pattern === "string" && property.pattern) {
+    try {
+      schema = schema.regex(new RegExp(property.pattern));
+    } catch {
+    }
+  }
+  return schema;
+}
+function numberSchema(property, integer2) {
+  let schema = external_exports.number();
+  if (integer2) schema = schema.int();
+  if (typeof property.minimum === "number") schema = schema.min(property.minimum);
+  if (typeof property.maximum === "number") schema = schema.max(property.maximum);
+  return schema;
+}
+function arraySchema(property) {
+  const item = property.items ? wrapPropertyToZod(property.items) : external_exports.unknown();
+  let schema = external_exports.array(item);
+  if (typeof property.minItems === "number") schema = schema.min(property.minItems);
+  if (typeof property.maxItems === "number") schema = schema.max(property.maxItems);
+  return schema;
+}
+function literalUnion(values) {
+  const literals = [];
+  for (const value of values) {
+    if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+      literals.push(external_exports.literal(value));
+    } else {
+      return null;
+    }
+  }
+  if (literals.length === 1) return literals[0];
+  return external_exports.union(literals);
+}
+function maybeDefault(schema, property) {
+  if (property.default === void 0) return schema;
+  try {
+    return schema.default(property.default);
+  } catch {
+    return schema;
+  }
+}
+function generatedToolName(id, taken = /* @__PURE__ */ new Set()) {
+  const base = `wrap_${id.replace(/[^A-Za-z0-9_-]/g, "_")}`.slice(0, 128);
+  if (!taken.has(base)) return base;
+  for (let suffix = 2; suffix < 1e3; suffix++) {
+    const candidate = `${base}_${suffix}`.slice(0, 128);
+    if (!taken.has(candidate)) return candidate;
+  }
+  throw new Error(`Could not derive a unique tool name for wrapper "${id}".`);
+}
 
 // src/mcp/wrap-server.ts
 var BRIDGE_URL = (process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111").replace(/\/$/, "");
@@ -36610,6 +36714,19 @@ var BRIDGE_TIMEOUT_MS = (() => {
 })();
 var TOKEN_FILE = process.env.KUANG_WRAP_TOKEN_FILE || "";
 var STATIC_TOKEN = process.env.KUANG_WRAP_TOKEN || process.env.KUANG_BRIDGE_TOKEN || "";
+var MAX_GENERATED_TOOLS = 40;
+var META_TOOL_NAMES = [
+  "wrap_list",
+  "wrap_get",
+  "wrap_derive",
+  "wrap_secret_list",
+  "wrap_create",
+  "wrap_update",
+  "wrap_delete",
+  "wrap_run",
+  "wrap_test",
+  "wrap_reload"
+];
 function currentWrapToken() {
   if (STATIC_TOKEN) return STATIC_TOKEN.trim();
   if (!TOKEN_FILE) return "";
@@ -36846,6 +36963,61 @@ async function createWrapMcpServer() {
     name: "kuang-wrap",
     version: APP_VERSION
   });
+  const generated = /* @__PURE__ */ new Map();
+  async function refreshGeneratedTools() {
+    let manifest;
+    try {
+      const response = await callBridge("/wrap/manifest");
+      if (!response.ok) return { added: 0, removed: 0 };
+      manifest = response.data;
+    } catch {
+      return { added: 0, removed: 0 };
+    }
+    const exposed = (Array.isArray(manifest?.wrappers) ? manifest.wrappers : []).filter((entry) => entry?.exposeAsTool === true).sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, MAX_GENERATED_TOOLS);
+    const wanted = /* @__PURE__ */ new Set();
+    let added = 0;
+    for (const entry of exposed) {
+      const detail = await callBridge(`/wrap/wrapper?id=${encodeURIComponent(String(entry.id))}`).catch(() => null);
+      const wrapper = detail?.data?.wrapper;
+      if (!wrapper) continue;
+      const name = generatedToolName(String(entry.id), /* @__PURE__ */ new Set([...META_TOOL_NAMES, ...wanted]));
+      wanted.add(name);
+      if (generated.has(name)) continue;
+      const description = `[wrap] ${entry.name || entry.id} \u2014 ${entry.method} ${entry.host}. ${entry.description ? entry.description + " " : ""}Typed shortcut for wrap_run; the saved request supplies the URL, headers, auth and body.`;
+      const tool = server.registerTool(
+        name,
+        { description, inputSchema: wrapInputToZodShape(wrapper.inputSchema) },
+        async (args) => {
+          try {
+            const response = await callBridge("/wrap/run", "POST", {
+              id: entry.id,
+              args: args || {},
+              format: "markdown"
+            });
+            const data = response.data;
+            if (!data) return toolError(`No response from the wrapper bridge (HTTP ${response.status}).`);
+            const text = resultText(data, "markdown");
+            return data.ok === false ? toolError(text) : toolSuccess(text);
+          } catch (err) {
+            return bridgeFailure(err);
+          }
+        }
+      );
+      generated.set(name, tool);
+      added++;
+    }
+    let removed = 0;
+    for (const [name, tool] of generated) {
+      if (wanted.has(name)) continue;
+      try {
+        tool.remove();
+      } catch {
+      }
+      generated.delete(name);
+      removed++;
+    }
+    return { added, removed };
+  }
   server.tool(
     "wrap_list",
     "List saved REST wrappers as one line each: id, purpose, method/host, required arguments. Call this before wrap_get or wrap_run.",
@@ -36944,6 +37116,7 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
 - ${errors.join("\n- ")}`);
         }
         const saved = response.data.wrapper;
+        await refreshGeneratedTools();
         return toolSuccess(`Created ${saved?.id}. Call wrap_test with dryRun first, then wrap_run.`);
       } catch (err) {
         return bridgeFailure(err);
@@ -36964,6 +37137,7 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
           return toolError(`Wrapper rejected:
 - ${errors.join("\n- ")}`);
         }
+        await refreshGeneratedTools();
         return toolSuccess(`Updated ${response.data.wrapper?.id}. Run wrap_test with dryRun to verify the change.`);
       } catch (err) {
         return bridgeFailure(err);
@@ -36980,6 +37154,7 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
         if (!response.data?.success) {
           return toolError(errorText(response.data?.code, response.data?.error || `No wrapper named "${id}".`));
         }
+        await refreshGeneratedTools();
         return toolSuccess(`Deleted ${id}.`);
       } catch (err) {
         return bridgeFailure(err);
@@ -37049,12 +37224,14 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
       try {
         const response = await callBridge("/wrap/manifest");
         if (!response.ok) return toolError(errorText(response.data?.code, response.data?.error || `HTTP ${response.status}`));
+        await refreshGeneratedTools();
         return toolSuccess(formatManifest(response.data));
       } catch (err) {
         return bridgeFailure(err);
       }
     }
   );
+  await refreshGeneratedTools();
   return server;
 }
 async function start() {
