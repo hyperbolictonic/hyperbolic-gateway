@@ -37635,7 +37635,9 @@ ${lines.join("\n")}`;
       values: external_exports.record(external_exports.string(), external_exports.string()).optional().describe("Text to type, keyed by field name or component id (case-insensitive, contains-matching)"),
       max_steps: external_exports.coerce.number().min(1).max(25).optional().default(10).describe("Stop after this many actions (default 10)"),
       threshold: external_exports.coerce.number().min(0).max(1).optional().describe("Minimum confidence to accept a decision (default 0.45)"),
-      dry_run: external_exports.coerce.boolean().optional().default(false).describe("Plan the first step and return without acting")
+      dry_run: external_exports.coerce.boolean().optional().default(false).describe("Plan the first step and return without acting"),
+      save_recipe: external_exports.coerce.boolean().optional().default(false).describe("On a successful run, compile the verified steps into a replayable recipe (see the `recipe` tool)"),
+      recipe_name: external_exports.string().optional().describe("Name for the saved recipe (defaults to the goal)")
     },
     endpoint: "/drive",
     payload: (args) => ({
@@ -37643,7 +37645,9 @@ ${lines.join("\n")}`;
       values: args?.values,
       max_steps: args?.max_steps,
       threshold: args?.threshold,
-      dry_run: args?.dry_run
+      dry_run: args?.dry_run,
+      save_recipe: args?.save_recipe === true,
+      recipe_name: args?.recipe_name
     }),
     format: (data) => {
       if (data.error) return `drive failed: ${data.error}`;
@@ -38284,7 +38288,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.86";
+var APP_VERSION = "1.4.87";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

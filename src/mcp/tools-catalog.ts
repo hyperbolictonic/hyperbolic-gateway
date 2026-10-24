@@ -1046,6 +1046,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       max_steps: z.coerce.number().min(1).max(25).optional().default(10).describe('Stop after this many actions (default 10)'),
       threshold: z.coerce.number().min(0).max(1).optional().describe('Minimum confidence to accept a decision (default 0.45)'),
       dry_run: z.coerce.boolean().optional().default(false).describe('Plan the first step and return without acting'),
+      save_recipe: z.coerce.boolean().optional().default(false).describe('On a successful run, compile the verified steps into a replayable recipe (see the `recipe` tool)'),
+      recipe_name: z.string().optional().describe('Name for the saved recipe (defaults to the goal)'),
     },
     endpoint: '/drive',
     payload: (args) => ({
@@ -1054,6 +1056,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       max_steps: args?.max_steps,
       threshold: args?.threshold,
       dry_run: args?.dry_run,
+      save_recipe: args?.save_recipe === true,
+      recipe_name: args?.recipe_name,
     }),
     format: (data) => {
       if (data.error) return `drive failed: ${data.error}`;

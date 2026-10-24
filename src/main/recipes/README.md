@@ -41,6 +41,23 @@ reports the index; a half-applied recipe is worse than a refusal.
 
 Measured on the fixture (click → type → click + expectation): **3 steps in ~2 s, 0 model calls.**
 
+## Learning a recipe
+
+`drive` can compile its own verified run: `save_recipe: true` (plus an optional `recipe_name`) stores
+the successful steps when the run ends `done`.
+
+Only **verified** steps are compiled:
+
+- steps with `ok: false` are dropped
+- dry-run plans are never compiled
+- `scroll` / `wait` / `done` are not replayable actions
+- a `type_text` step becomes a `type` step **only if its value can be recovered** from the `values`
+  you passed to `drive` (by field name or component id) — an untyped-into field cannot be replayed
+- a step with no target name is skipped rather than guessed
+
+The compiler is a pure function (`compile.ts`) with an offline test suite:
+`npm run test:recipe:compile` (9 checks).
+
 ## Lifecycle
 
 - storage: `data/recipes.json` (gitignored, local only)

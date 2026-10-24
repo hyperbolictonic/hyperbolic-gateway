@@ -8,6 +8,7 @@ import { decideGuarded } from './decide/decision-guard.js';
 import { driveTask } from './drive/driver.js';
 import { loadRecipes, recipesFor, saveRecipe, deleteRecipe, recordResult } from './recipes/recipe-store.js';
 import { replayRecipe, type RecipeRunner } from './recipes/replay.js';
+import { compileDriveSteps } from './recipes/compile.js';
 import {
   getRecordingConfig,
   getRecordingStatus,
@@ -935,8 +936,21 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         if (result.status === 'human_required') {
           void chassis.requestHumanForGate({ kind: result.gate, reason: result.message, evidence: result.reasons }, result.url);
         }
+        // Compile a verified run into a recipe on request: decide once, replay cheap next time.
+        let recipe: any = null;
+        if ((body?.save_recipe === true || body?.saveRecipe === true) && result.status === 'done') {
+          const steps = compileDriveSteps(result.steps as any[], { values: body?.values || {} });
+          if (steps.length) {
+            const saved = saveRecipe({
+              url: result.url || chassis.getPageInfo().url,
+              name: body?.recipe_name || body?.recipeName || String(body?.goal || '').slice(0, 80),
+              steps,
+            });
+            recipe = saved.ok ? saved.recipe : { error: saved.errors.join('; ') };
+          }
+        }
         // 200 with a status field: the transcript matters more than the HTTP code here.
-        sendJson({ success: true, ...result });
+        sendJson({ success: true, ...result, recipe });
         return;
       }
       if (req.method === 'GET' && pathname === '/decisions') {

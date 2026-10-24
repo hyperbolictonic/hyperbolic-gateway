@@ -16,7 +16,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.86] - 2026-10-24
+## [1.4.87] - 2026-10-24
+
+### Added
+
+- **Recipe learning from `drive`.** `drive {save_recipe: true}` compiles a successful run into a
+  replayable recipe (`recipe_name` optional). Only verified steps are compiled — failed steps,
+  dry-run plans and non-replayable operations (`scroll`/`wait`/`done`) are dropped, and a
+  `type_text` step is only kept when its value can be recovered from the `values` passed to `drive`.
+  A step with no target name is skipped rather than guessed.
+- `compileDriveSteps` is a pure function (`src/main/recipes/compile.ts`) with an offline suite:
+  **`npm run test:recipe:compile` → 9 checks**.
+- Recipes README documents the learning rules and their rationale.
+
+### Notes
+
+- End-to-end (`drive` → save → replay) is **not** verified live: on the test fixture `drive`
+  returned `needs_agent` (the guard rejected every option), so the run never reached `done`. The
+  compiler and the replay engine are each covered by their own suites; the wiring between them is
+  the untested seam.
+
+
 
 ### Added
 
