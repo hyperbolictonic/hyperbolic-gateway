@@ -35,6 +35,8 @@ export interface ControlFacts {
 export interface ControlFactsOptions {
   /** CSS selector; omitted = every interactive candidate on the page. */
   selector?: string;
+  /** Mark ids to describe (overrides selector). Resolved from `data-mark-id` attributes. */
+  ids?: number[];
   /** Cap the number of returned controls (default 200). */
   limit?: number;
   /** Include elements below/above the fold (default true). */
@@ -111,6 +113,7 @@ const HELPERS = `
 export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
   const options = {
     selector: opts.selector,
+    ids: Array.isArray(opts.ids) && opts.ids.length ? opts.ids.slice(0, 200) : undefined,
     limit: opts.limit && opts.limit > 0 ? Math.min(opts.limit, 500) : 200,
     includeOffscreen: opts.includeOffscreen !== false,
     skipHitTest: opts.skipHitTest === true,
@@ -119,23 +122,34 @@ export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
     const opts = ${JSON.stringify(options)};
     ${HELPERS}
     const SEL = 'a[href],button,input,select,textarea,summary,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="checkbox"],[role="combobox"],[contenteditable="true"],[onclick],[tabindex]:not([tabindex="-1"])';
-    const root = opts.selector ? document.querySelector(opts.selector) : document.body;
-    if (!root) return { error: 'root not found', controls: [] };
-    const nodes = opts.selector && root.matches && root.matches(SEL) ? [root] : Array.from(root.querySelectorAll(SEL));
+    let nodes;
+    if (opts.ids && opts.ids.length) {
+      nodes = opts.ids.map((id) => document.querySelector('[data-mark-id="' + id + '"]')).filter(Boolean);
+    } else {
+      const root = opts.selector ? document.querySelector(opts.selector) : document.body;
+      if (!root) return { error: 'root not found', controls: [] };
+      nodes = opts.selector && root.matches && root.matches(SEL) ? [root] : Array.from(root.querySelectorAll(SEL));
+    }
     const out = [];
     for (const el of nodes) {
       if (out.length >= opts.limit) break;
       const rect = el.getBoundingClientRect();
       if (!opts.includeOffscreen && (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth)) continue;
       const visible = isVisible(el, rect);
+      // A disabled control still matters (the guard must be able to say "this cannot be clicked"),
+      // so it is described with an empty action list rather than dropped.
       const actions = actionsFor(el);
-      if (!actions.length) continue;
       let occluded = false;
       if (visible && !opts.skipHitTest && rect.top < window.innerHeight && rect.bottom > 0) {
-        const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
-        const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
-        const hit = document.elementFromPoint(cx, cy);
-        occluded = !!(hit && hit !== el && !el.contains(hit) && !hit.contains(el));
+        // Centre of the visible portion (a tall element's geometric centre can be off-screen).
+        const left = Math.max(rect.left, 0);
+        const right = Math.min(rect.right, window.innerWidth);
+        const top = Math.max(rect.top, 0);
+        const bottom = Math.min(rect.bottom, window.innerHeight);
+        if (right > left && bottom > top) {
+          const hit = document.elementFromPoint(Math.round((left + right) / 2), Math.round((top + bottom) / 2));
+          occluded = !!(hit && hit !== el && !el.contains(hit) && !hit.contains(el));
+        }
       }
       const { region, regionName } = regionOf(el);
       const markAttr = el.getAttribute('data-mark-id');

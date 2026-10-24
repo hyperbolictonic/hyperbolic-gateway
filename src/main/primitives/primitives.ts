@@ -13,6 +13,8 @@ import {
   type TargetLocator,
 } from './dom-targeting.js';
 import { detectSensitiveGate } from '../decide/sensitive-gate.js';
+import { controlFactsExpression, parseControlFacts } from './control-facts.js';
+import { textTargetExpression, parseTextTargets } from './text-target.js';
 
 /**
  * Primitives — the orthogonal observe / act / wait layer.
@@ -66,7 +68,7 @@ export interface PrimitivesHost {
   recordTransition?(record: TransitionRecord): void;
 }
 
-export type PrimitiveErrorCode = 'STALE_REF' | 'TIMEOUT' | 'NO_TARGET' | 'BAD_REQUEST' | 'NOT_SUPPORTED';
+export type PrimitiveErrorCode = 'STALE_REF' | 'TIMEOUT' | 'NO_TARGET' | 'BAD_REQUEST' | 'NOT_SUPPORTED' | 'AMBIGUOUS';
 
 /**
  * Default view size for `observe(as:"markdown")` when the caller gives no budget.
@@ -195,6 +197,10 @@ export interface ActOptions {
   selector?: string;
   x?: number;
   y?: number;
+  /** Anchor by visible text — for controls with no semantics (React cards, divs with handlers). */
+  targetText?: string;
+  /** Require an exact (trimmed) text match instead of substring. */
+  targetExact?: boolean;
   action: 'click' | 'type' | 'hover' | 'press' | 'focus';
   text?: string;
   secret?: boolean;
@@ -931,11 +937,39 @@ export class Primitives {
     });
 
     const limited = filtered.slice(0, limit);
+
+    // Enrich with live control facts (one injected expression for the whole match set): the agent
+    // needs to know whether a match is actually hittable — an occluded card looks identical in the
+    // marks table to a clickable one, and clicking it silently does nothing.
+    let factsById = new Map<number, { visible: boolean; occluded: boolean; disabled: boolean; region: string }>();
+    if (limited.length) {
+      const raw = await this.host
+        .evaluate(controlFactsExpression({ ids: limited.map((m) => m.id), skipHitTest: false }))
+        .catch(() => null);
+      for (const fact of parseControlFacts(raw).controls) {
+        if (fact.id === undefined) continue;
+        factsById.set(fact.id, {
+          visible: fact.visible,
+          occluded: fact.occluded,
+          disabled: fact.disabled,
+          region: fact.region,
+        });
+      }
+    }
+
+    const lines = limited.map((m) => {
+      const facts = factsById.get(m.id);
+      // `disabled` is already printed from the mark's own state; only add what the marks table
+      // cannot know (live occlusion / hidden state).
+      const flags = facts ? [facts.occluded ? 'occluded' : '', facts.visible ? '' : 'hidden'].filter(Boolean) : [];
+      return this.markLine(m) + (flags.length ? ` {${flags.join(', ')}}` : '');
+    });
+
     return {
       count: limited.length,
       total: filtered.length,
-      marks: limited,
-      text: limited.map((m) => this.markLine(m)).join('\n'),
+      marks: limited.map((m) => ({ ...m, facts: factsById.get(m.id) })),
+      text: lines.join('\n'),
     };
   }
 
@@ -946,9 +980,14 @@ export class Primitives {
     const px = opts.x !== undefined && !isNaN(Number(opts.x)) ? Number(opts.x) : undefined;
     const py = opts.y !== undefined && !isNaN(Number(opts.y)) ? Number(opts.y) : undefined;
     const hasCoords = px !== undefined && py !== undefined;
+    const targetText = opts.targetText ? String(opts.targetText).replace(/\s+/g, ' ').trim() : undefined;
+    const hasText = !!targetText;
 
-    if (action !== 'press' && !hasMark && !selector && !hasCoords) {
-      throw new PrimitiveError('BAD_REQUEST', 'act needs a target: mark_id, selector, or x+y (only action="press" is targetless)');
+    if (action !== 'press' && !hasMark && !selector && !hasCoords && !hasText) {
+      throw new PrimitiveError(
+        'BAD_REQUEST',
+        'act needs a target: mark_id, selector, x+y, or target_text (only action="press" is targetless)'
+      );
     }
 
     const markId = hasMark ? Number(opts.markId) : undefined;
@@ -979,6 +1018,27 @@ export class Primitives {
         target = { id: hit.mark.id, tag: hit.mark.tag, text: secret ? '[REDACTED]' : hit.mark.text, center };
         const markFacts = await this.probeField({ markId: markId! });
         if (markFacts) target.field = markFacts;
+      } else if (hasText) {
+        const rawTargets = await this.host
+          .evaluate(textTargetExpression(targetText!, { exact: opts.targetExact === true, max: 8 }))
+          .catch(() => null);
+        const found = parseTextTargets(rawTargets);
+        if (!found.matches.length) {
+          throw new PrimitiveError('NO_TARGET', `No visible element contains "${targetText}"`, { targetText });
+        }
+        if (found.matches.length > 1) {
+          throw new PrimitiveError(
+            'AMBIGUOUS',
+            `"${targetText}" matches ${found.matches.length} elements — pass a longer string or a mark id`,
+            { targetText, candidates: found.matches.slice(0, 5) }
+          );
+        }
+        const match = found.matches[0];
+        center = { x: match.x, y: match.y };
+        address = `text "${match.text}"`;
+        target = { tag: match.tag, text: match.text, center };
+        const pointFacts = await this.probeField({ point: center });
+        if (pointFacts) target.field = pointFacts;
       } else if (selector) {
         const box = await this.resolveTargetBox({ selector });
         if (!box) throw new PrimitiveError('NO_TARGET', `Selector "${selector}" matched no visible element`, { selector });
@@ -1017,7 +1077,7 @@ export class Primitives {
       case 'click':
       case 'focus':
         if (hasMark) await this.host.clickMark(markId!);
-        else await this.host.clickElement(selector, hasCoords ? center! : undefined);
+        else await this.host.clickElement(selector, hasCoords || hasText ? center! : undefined);
         break;
       case 'hover':
         await this.host.moveMouseTo(center!);

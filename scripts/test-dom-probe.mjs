@@ -36,6 +36,7 @@ const MAIN = `<!doctype html>
     <h1>Probe fixture</h1>
     <div id="card" onclick="window.__card=1" style="width:300px;height:60px;background:#eee">Heartbreaker Build card</div>
     <button id="plain">Plain button</button>
+    <button id="disabled-btn" disabled>Disabled action</button>
     <div style="position:relative;display:inline-block">
       <button id="covered">Covered button</button>
       <div id="cover" style="position:absolute;inset:0;background:rgba(0,0,0,.01)"></div>
@@ -114,6 +115,24 @@ async function main() {
 
     const typed = controls.filter((c) => c.actions.includes('type')).map((c) => c.tag);
     check('text inputs accept type', typed.includes('input') || typed.includes('textarea'), `typed tags: ${[...new Set(typed)].join(',') || 'none'}`);
+
+    // --- act(target_text): semantics-free controls ---------------------------
+    const byText = await call('/act', 'POST', { target_text: 'Plain button', action: 'click' }).catch((e) => ({ error: String(e) }));
+    check('act target_text clicks a semantics-free element', !byText?.error, byText?.error ? String(byText.error).slice(0, 80) : `address=${byText.target?.text || ''}`);
+
+    const ambiguous = await call('/act', 'POST', { target_text: 'button', action: 'click' }).catch((e) => ({ error: String(e) }));
+    check('act target_text refuses an ambiguous match', Boolean(ambiguous?.error), String(ambiguous?.error || 'did not refuse').slice(0, 90));
+
+    // --- find(): disabled / region facts ------------------------------------
+    const found = await call('/find', 'POST', { contains: 'Disabled action', limit: 3 });
+    const foundText = String(found.text || '');
+    check('find annotates a disabled match', /disabled/.test(foundText), foundText.slice(0, 80));
+    const foundMark = Array.isArray(found.marks) ? found.marks[0] : null;
+    check(
+      'find returns structured facts alongside the mark',
+      !!foundMark?.facts && foundMark.facts.disabled === true && typeof foundMark.facts.occluded === 'boolean',
+      foundMark?.facts ? JSON.stringify(foundMark.facts) : 'no facts'
+    );
 
     // --- /evaluate frames ---------------------------------------------------
     const frameEval = await call('/evaluate', 'POST', {

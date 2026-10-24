@@ -38081,12 +38081,13 @@ ${lines.join("\n")}`;
   },
   {
     name: "act",
-    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit \u2014 so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths \u2014 never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP \u2192 request_human_intervention). NOT for navigation (use navigate_to) or scrolling (use scroll_page). Choosing the target is a separate job: when a decision model is configured AND two or more controls plausibly match, prefer observe(as:"components") -> decide -> act(mark_id); when exactly one control matches, find/act is faster and deterministic.',
+    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, x/y viewport coordinates, or target_text for controls with no semantics (React cards: a div with a handler three levels up, no role/href/onclick). Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit \u2014 so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths \u2014 never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP \u2192 request_human_intervention). NOT for navigation (use navigate_to) or scrolling (use scroll_page). Choosing the target is a separate job: when a decision model is configured AND two or more controls plausibly match, prefer observe(as:"components") -> decide -> act(mark_id); when exactly one control matches, find/act is faster and deterministic.',
     parameters: {
       mark_id: external_exports.coerce.number().optional().describe("Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)"),
       selector: external_exports.coerce.string().optional().describe('CSS selector of the target, when you have no mark id (e.g. "button.submit", "#search-input")'),
       x: external_exports.coerce.number().optional().describe("Viewport X for coordinate targeting (pair with y)"),
       y: external_exports.coerce.number().optional().describe("Viewport Y for coordinate targeting (pair with x)"),
+      target_text: external_exports.string().optional().describe("Anchor by visible text when the control has no semantics (React card divs, handler-only elements). Resolves the deepest visible element containing the text; refuses when more than one match is ambiguous"),
       action: external_exports.enum(["click", "focus", "hover", "type", "press"]).default("click").describe('Action to perform (default: "click")'),
       text: external_exports.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
       secret: external_exports.coerce.boolean().optional().default(false).describe("Redact typed text from logs"),
@@ -38099,6 +38100,7 @@ ${lines.join("\n")}`;
     payload: (args) => ({
       mark_id: args?.mark_id,
       selector: args?.selector,
+      target_text: args?.target_text,
       x: args?.x,
       y: args?.y,
       action: args?.action || "click",
@@ -38239,7 +38241,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.82";
+var APP_VERSION = "1.4.83";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

@@ -117,14 +117,24 @@ function kqContainsComposed(ancestor, node) {
  */
 function kqSafePoint(el) {
   const r = el.getBoundingClientRect();
+  // Work in the VISIBLE portion: a card taller than the viewport has its geometric centre
+  // off-screen, where elementFromPoint returns null and every offset "fails".
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const left = Math.max(r.left, 0);
+  const right = Math.min(r.right, vw);
+  const top = Math.max(r.top, 0);
+  const bottom = Math.min(r.bottom, vh);
+  const box = right > left && bottom > top ? { left: left, top: top, width: right - left, height: bottom - top } : { left: r.left, top: r.top, width: r.width, height: r.height };
   const offsets = [[0.5, 0.5], [0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7], [0.5, 0.18], [0.5, 0.82], [0.18, 0.5], [0.82, 0.5]];
   for (let i = 0; i < offsets.length; i++) {
-    const x = Math.round(r.left + r.width * offsets[i][0]);
-    const y = Math.round(r.top + r.height * offsets[i][1]);
+    const x = Math.round(box.left + box.width * offsets[i][0]);
+    const y = Math.round(box.top + box.height * offsets[i][1]);
+    if (x < 0 || y < 0 || x >= vw || y >= vh) continue;
     const hit = kqAtPoint(x, y);
     if (hit && (hit === el || kqContainsComposed(el, hit))) return { x: x, y: y, covered: false };
   }
-  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), covered: true };
+  return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2), covered: true };
 }
 function kqActive() {  let el = document.activeElement;
   let guard = 0;

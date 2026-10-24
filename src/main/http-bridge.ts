@@ -1182,11 +1182,15 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         const body = await readBody();
         const rawId = body?.mark_id ?? body?.markId ?? body?.mark ?? body?.id ?? body?.badge;
         const selector = body?.selector || body?.element || body?.target || body?.css;
+        const targetText =
+          body?.target_text !== undefined ? String(body.target_text) : body?.targetText !== undefined ? String(body.targetText) : undefined;
         const x = body?.x !== undefined ? Number(body.x) : undefined;
         const y = body?.y !== undefined ? Number(body.y) : undefined;
         const result = await chassis.getPrimitives().act({
           markId: rawId !== undefined && rawId !== null ? Number(rawId) : undefined,
           selector,
+          targetText,
+          targetExact: body?.target_exact === true || body?.targetExact === true,
           x,
           y,
           action: body?.action || 'click',

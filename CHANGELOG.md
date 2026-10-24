@@ -16,7 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.82] - 2026-10-24
+## [1.4.83] - 2026-10-24
+
+### Added
+
+- **`act(target_text: "…")` — anchor by visible text.** Some of the most-clickable things on the
+  web have no semantics: React cards are a `<div>` with a handler three levels up, no role, no
+  href, no `onclick` attribute. The resolver picks the **deepest** visible element whose own text
+  matches, clicks the centre of its visible box, and lets the event bubble to whatever handler the
+  framework attached. Ambiguous matches are refused with `AMBIGUOUS` plus the candidate list
+  instead of clicking something arbitrary. Verified live on Mobalytics: clicking
+  `"Harp Crossbow Ranged Build"` navigated to the build guide (`urlChanged: true`).
+- **`find` reports live control facts.** Each match gets `facts: {visible, occluded, disabled,
+  region}` from one injected expression for the whole match set, and the text projection appends
+  `{occluded}` / `{hidden}` when the marks table alone would look identical to a clickable match.
+
+### Fixed
+
+- **Tall elements were being discarded as "occluded".** The hit-test used the rect's geometric
+  centre clamped to the viewport edge; for a card taller than the viewport (872 px card in a 600 px
+  viewport) that point landed on a sticky element, so the element was dropped from Set-of-Marks.
+  Marks, control facts and `kqSafePoint` now hit-test the centre of the **visible portion**. This is
+  why the Mobalytics build cards never received a mark.
+- **Disabled controls vanished from `/dom/facts`.** They were filtered out because they accept no
+  action — exactly the ones the guard needs to see. They are now described with `actions: []` and
+  `disabled: true`.
+
+
 
 ### Added
 

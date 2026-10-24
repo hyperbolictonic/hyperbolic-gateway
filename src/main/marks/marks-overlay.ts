@@ -311,12 +311,23 @@ export class MarksOverlay {
           if (!isVisible(el, rect)) continue;
           const onScreen = rect.bottom > 0 && rect.top < boundH && rect.right > 0 && rect.left < boundW;
           if (onScreen && canHitTest) {
-            const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), vpW - 1);
-            const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), vpH - 1);
-            // Deepest hit-test: for shadow content, elementFromPoint returns the host, so a
-            // plain comparison would treat every shadow control as "occluded" and drop it.
-            const hit = kqAtPoint(cx, cy);
-            if (hit && hit !== el && !kqContainsComposed(el, hit) && !kqContainsComposed(hit, el)) continue; // covered by something else
+            // Hit-test the CENTRE OF THE VISIBLE PART, not the centre of the whole rect clamped to
+            // the viewport edge. A tall card (taller than the viewport) has its geometric centre
+            // off-screen; clamping that to y=viewport-height lands on a sticky footer and the
+            // element was discarded as "covered" — which is why full-width result cards on
+            // Mobalytics never received a mark.
+            const left = Math.max(rect.left, 0);
+            const right = Math.min(rect.right, vpW);
+            const top = Math.max(rect.top, 0);
+            const bottom = Math.min(rect.bottom, vpH);
+            if (right > left && bottom > top) {
+              const cx = Math.round((left + right) / 2);
+              const cy = Math.round((top + bottom) / 2);
+              // Deepest hit-test: for shadow content, elementFromPoint returns the host, so a
+              // plain comparison would treat every shadow control as "occluded" and drop it.
+              const hit = kqAtPoint(cx, cy);
+              if (hit && hit !== el && !kqContainsComposed(el, hit) && !kqContainsComposed(hit, el)) continue; // covered by something else
+            }
           }
           const popup = !!kqClosest(el, POPUP);
           const isStatic = isStaticAnchor(el);
