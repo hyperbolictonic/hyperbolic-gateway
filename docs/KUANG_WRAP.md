@@ -1,12 +1,13 @@
 # Kuang Wrap — design notes
 
-**Status:** active development, branch `feat/kuang-wrap`. Slices 0–3 are
+**Status:** active development, branch `feat/kuang-wrap`. Slices 0–4 are
 implemented: the pure recipe library, wrapper store/executor, the `kuang-wrap`
 MCP server, the rotating bridge-token gate, encrypted host-bound credentials with
 a human-only Settings → Wrappers editor, recipe pagination (offset/cursor/link,
-page- and item-capped), documents mode, recipe derivation (`wrap_derive`), and
-opt-in **Cortex indexing** of rendered documents. Still planned: OAuth/token
-refresh, human approval for mutating calls, and generated tools.
+page- and item-capped), documents mode, recipe derivation (`wrap_derive`), opt-in
+**Cortex indexing**, and opt-in **generated `wrap_<id>` tools** (capped at 40, with
+live `tools/list_changed`). Still planned: OAuth/token refresh and human approval
+for mutating calls.
 
 Kuang Wrap is a second MCP server that lets an agent turn a REST endpoint into
 a saved, typed tool: a wrapper for the request, a recipe for the response, and
@@ -54,9 +55,9 @@ does that work once; every call is a short, typed argument list.
    `{ data: { attributes: { … } } }`. The MCP `inputSchema` carries the types,
    descriptions, enums, defaults, and examples.
 2. **One action, one tool.** `wrap_orders_create` beats a generic
-   `wrap_request(url, method, body)` for discoverability and token cost. Until
-   generated tools land in S4, the stable `wrap_run { id, args }` meta-tool is
-   the call path; the id names the action, and `wrap_get` carries the schema.
+   `wrap_request(url, method, body)` for discoverability and token cost. A wrapper
+   with `exposeAsTool: true` becomes exactly that (`wrap_<id>`); otherwise the stable
+   `wrap_run { id, args }` meta-tool is the call path.
 3. **Deterministic mapping.** `request.body` is a template. The same arguments
    always produce the same request. There is no model-authored JSON.
 4. **Preview before mutation.** A dry run returns the exact URL, headers
@@ -187,7 +188,8 @@ needs it. That keeps discovery cheap.
 
 ```bash
 npm run build:mcp        # writes bin/mcp-server.cjs and bin/wrap-server.cjs
-npm run test:wrap        # 34 offline store/executor/secret/pagination/indexing tests
+npm run test:wrap        # 41 offline store/executor/secret/pagination/indexing/schema tests
+npm run test:wrap:mcp    # 11 generated-tool lifecycle checks over a real MCP client
 npm run test:wrap:live   # 46 live checks against DummyJSON (needs the app; inline wrappers, nothing saved)
 ```
 
@@ -266,8 +268,8 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
   credential cannot be smuggled into a saved file.
 - `mutating` defaults to `true` for `POST`/`PUT`/`PATCH`/`DELETE`. Read-only
   wrappers are the default; mutating calls can require human approval.
-- `exposeAsTool` is stored but not acted on until S4. Generated tools will be
-  opt-in, capped, and namespaced.
+- `exposeAsTool` opts the wrapper into a generated `wrap_<id>` MCP tool (S4): it is
+  registered at server start and after any create/update/delete, capped at 40.
 
 ## Pagination
 
@@ -447,9 +449,14 @@ Meta-tools (always present):
 | `wrap_test` | Dry-run, or render a sample response without sending |
 | `wrap_reload` | Re-read the manifest after an external edit |
 
-Generated tools are planned for S4: one `wrap_<id>` per wrapper **only** when
-`exposeAsTool` is true, capped at 40, with `sendToolListChanged()` after a
-mutation. The surface is currently ten meta-tools.
+A wrapper with `exposeAsTool: true` is also registered as its own tool, named
+`wrap_<id>` with every character outside `[A-Za-z0-9_-]` replaced by `_`
+(`dummyjson.auth.me` → `wrap_dummyjson_auth_me`), taking the wrapper's declared
+arguments as a typed Zod schema (converted from its JSON Schema). Generated tools are
+capped at 40 (first by id); the rest stay callable through `wrap_run`.
+Create/update/delete and `wrap_reload` reconcile the set, and the SDK emits
+`tools/list_changed`, so a connected client sees the change without a restart. They
+belong to `kuang-wrap` only — the browser server's tool list is untouched.
 
 Results are Markdown text; `format: "json"` returns the record array.
 `structuredContent` and document passthrough are planned.
@@ -532,7 +539,7 @@ separate reusable recipe store is planned.
 | **S2a** ✅ | Rotating wrap bridge token, token-file handoff, 401 gate | Missing/stale token gets 401 before any wrapper or outbound request |
 | **S2** ✅ | `safeStorage`, host binding, Settings → Wrappers editor, audit | Unit tests prove a foreign-host secret is refused and a cross-origin redirect drops the injected header |
 | **S3** ✅ | Derived recipes (`wrap_derive`), documents mode, pagination (offset/cursor/link, page- and item-capped), and opt-in Cortex indexing | A paginated API returns all pages up to the cap ✅; documents are searchable ✅ |
-| **S4** | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | 40-tool cap holds; client sees a new tool without restart |
+| **S4** ✅ | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | 40-tool cap holds ✅; client sees a new tool without restart ✅ |
 | **S5** | OAuth2 client credentials, expiry HIL, `lastVerified` | Expired token produces a human-action request, not a silent 401 loop |
 
 ## Threat model
@@ -545,7 +552,7 @@ separate reusable recipe store is planned.
 | A paginated `next` link points at an attacker host | `link` pagination is same-origin only; every page URL is re-checked by `assertSafeUrl` before it is fetched |
 | Credential leaks into logs or responses | Bridge logs and previews redact credential-shaped keys; an upstream response that echoes a secret is redacted before rendering; audit rows store host/status/bytes only; tests assert values are absent. |
 | Prompt injection inside an API response | Response is data; it is rendered, never executed |
-| Tool-list exhaustion | Ten meta-tools; opt-in generated tools + cap in S4 |
+| Tool-list exhaustion | Ten meta-tools plus opt-in generated tools, capped at 40 |
 | Schema drift breaks a wrapper | `wrap_test` and clear upstream errors; `lastVerified` is stored but not refreshed yet |
 | Linux has no keyring | Detect `basic_text`; warn and refuse secrets if requested |
 
@@ -559,8 +566,8 @@ separate reusable recipe store is planned.
    call per wrapper per session; read-only remains frictionless.
 4. ~~Where do parsed documents go?~~ **Shipped:** returned inline and, when a recipe sets
    `index: "cortex"`, also written to Cortex — opt-in because it costs embeddings and disk.
-5. Do we expose generated tools by default? No. Meta-tools are enough until a
-   wrapper is stable.
+5. ~~Do we expose generated tools by default?~~ **Shipped:** no — opt-in per wrapper
+   (`exposeAsTool`), capped at 40, with `tools/list_changed` on change.
 
 ## Decision log
 

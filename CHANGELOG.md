@@ -16,6 +16,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.74] - 2026-10-24
+
+### Added
+
+- **Generated tools (S4).** A wrapper with `exposeAsTool: true` now appears as its own
+  `wrap_<id>` tool in the `kuang-wrap` server, taking the wrapper's declared arguments as a
+  typed Zod schema converted from its JSON Schema (strings, numbers/integers, booleans,
+  arrays, nested objects, enums, bounds, patterns, defaults, nullable, required/optional).
+  Names are MCP-safe (`dummyjson.auth.me` → `wrap_dummyjson_auth_me`) and collision-free.
+  Capped at 40 (first by id); the rest stay callable through `wrap_run`.
+- Create/update/delete (and `wrap_reload`) reconcile the generated set; the MCP SDK emits
+  `tools/list_changed`, so a connected client sees the change without a restart.
+- Generated tools live only in `kuang-wrap`; the browser server's tool list is untouched.
+
+### Tests
+
+- New `npm run test:wrap:mcp` (11 checks): the generated tool appears after `wrap_create`,
+  advertises the typed schema, executes the wrapper, rejects an out-of-range argument,
+  disappears after `wrap_delete`, and emits `tools/list_changed` on both changes.
+- `npm run test:wrap` extended to 41 (7 schema-conversion and tool-naming cases).
+
 ## [1.4.73] - 2026-10-24
 
 ### Added
