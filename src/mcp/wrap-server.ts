@@ -297,7 +297,9 @@ function formatManifest(data: any): string {
         ? ` · required: ${wrapper.required.join(', ')}`
         : '';
       const secret = wrapper.secret ? ` · secret: ${wrapper.secret}` : '';
-      return `${wrapper.id} — ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ', mutating' : ''})${required}${secret}`;
+      const tool = wrapper.exposeAsTool ? ' · tool' : '';
+      const verified = wrapper.lastVerified ? ` · verified ${String(wrapper.lastVerified).slice(0, 10)}` : ' · never verified';
+      return `${wrapper.id} — ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ', mutating' : ''})${required}${secret}${tool}${verified}`;
     }),
   );
 }
@@ -311,7 +313,8 @@ function formatSecrets(data: any): string {
   return lines(
     secrets.map((secret: any) => {
       const hosts = Array.isArray(secret.allowedHosts) ? secret.allowedHosts.join(', ') : '';
-      return `${secret.name} · ${secret.header} · ${hosts}`;
+      const kind = secret.kind === 'oauth2' ? 'oauth2 · ' : '';
+      return `${secret.name} · ${kind}${secret.header} · ${hosts}`;
     }),
   ) + warning;
 }

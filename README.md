@@ -27,7 +27,7 @@
 - **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
 - **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
-- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (63 advertised)](#sec-standardized-semantic-mcp-tools-63-advertised)
+- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (63 advertised)](#sec-standardized-semantic-mcp-tools-63-advertised) · [REST wrappers](#sec-rest-wrappers-kuang-wrap)
 - **Building on it** — [Architecture lowdown](./docs/CODEBASE.md) · [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
 - **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 - **Release notes** — [What shipped](#sec-release-notes) · [All releases](./CHANGELOG.md)
@@ -525,6 +525,53 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 | | `send_notification` | `title: string`, `message: string`, `urgency?: string`, `sound?: boolean` | Emits non-blocking OS native desktop banner notification to user. |
 | | † `send_desktop_notification` | `message: string`, `title?: string`, `urgency?: string`, `sound?: boolean` | Dedicated HIL notification tool to summon the human operator with high-priority desktop sound and alert banner. |
 | **Assistance & Discovery** | `help` | `category?: 'all' \| 'recommended' \| 'navigation' \| 'interaction' \| 'primitives' \| 'inspection' \| 'tabs' \| 'memory' \| 'macros' \| 'network' \| 'system'` | Returns a categorized operational cheatsheet of all available browser automation capabilities (served directly in OKF). |
+
+---
+
+<a id="sec-rest-wrappers-kuang-wrap" name="sec-rest-wrappers-kuang-wrap"></a>
+
+## 🔌 REST wrappers (`kuang-wrap`)
+
+A **second, separate MCP server** for turning a REST endpoint into a saved, typed tool. It is
+deliberately not mixed into the browser server: `kuang-wrap` ships its own binary, its own stdio
+process, its own config entry and its own bridge token.
+
+| | Browser | REST wrappers |
+| :--- | :--- | :--- |
+| Binary | `bin/mcp-server.cjs` | `bin/wrap-server.cjs` |
+| Server name | `kuang` | `kuang-wrap` |
+| Surface | 63 browser tools | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` |
+| Env | — | `KUANG_WRAP_TOKEN_FILE` |
+
+**What it is for:** agent access to JSON APIs (dashboards, internal tools, SaaS). The wrapper
+author — human or agent — defines the request once: method, URL, typed arguments, a response
+recipe, and a credential *name*. The agent then calls flat arguments; it never assembles a URL,
+a header set, or a body envelope, and it never sees a credential value.
+
+**Credentials are human-only and host-bound:** a static value, or an **OAuth2
+client-credentials** client that mints and caches a token. Secrets are encrypted with the OS
+keychain (`safeStorage`), injected only on an approved host, and never enter the MCP process.
+
+```jsonc
+// Settings → MCP Clients → REST wrappers generates an entry like this
+{ "mcpServers": { "kuang-wrap": {
+  "command": "node", "args": ["<path-to-repo>/bin/wrap-server.cjs"],
+  "env": { "KUANG_WRAP_TOKEN_FILE": "<userData>/wrap/token" } } } }
+```
+
+Meta-tools: `wrap_list`, `wrap_get`, `wrap_secret_list`, `wrap_derive`, `wrap_create`,
+`wrap_update`, `wrap_delete`, `wrap_run`, `wrap_test`, `wrap_reload`.
+
+> [!WARNING]
+> **Read the limits before relying on it.** No human-approval gate for mutating calls · OAuth2 is
+> `client_credentials` only · the wrap server does not raise HIL itself (a rejected credential
+> returns `AUTH_REQUIRED`) · `exposeAsTool` has no Settings control · 40-tool cap · DNS-rebinding
+> residual risk · the token URL is outside `allowedHosts`. The full, blunt breakdown — what works,
+> what doesn't, what is untested, what is risky — is
+> [docs/KUANG_WRAP.md](./docs/KUANG_WRAP.md#honest-status-what-works-what-doesnt-what-is-untested-what-is-risky).
+
+Tests: `npm run test:wrap` (50 offline) · `npm run test:wrap:mcp` (11 lifecycle) ·
+`npm run test:wrap:live` (46 against DummyJSON).
 
 ---
 

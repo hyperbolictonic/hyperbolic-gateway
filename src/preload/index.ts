@@ -81,6 +81,8 @@ export interface ElectronAPI {
       prefix: string;
       createdAt: string;
       updatedAt: string;
+      kind: 'static' | 'oauth2';
+      oauth2?: { tokenUrl: string; clientId: string; scope?: string; audience?: string; tokenExpiresAt?: string };
     }>;
   }>;
   setWrapSecret: (input: {
@@ -89,6 +91,11 @@ export interface ElectronAPI {
     allowedHosts: string;
     header?: string;
     prefix?: string;
+    kind?: 'static' | 'oauth2';
+    tokenUrl?: string;
+    clientId?: string;
+    scope?: string;
+    audience?: string;
   }) => Promise<{ ok: boolean; secret?: any; errors: string[] }>;
   deleteWrapSecret: (name: string) => Promise<{ ok: boolean; errors: string[] }>;
   listWrapAudit: (limit?: number) => Promise<any[]>;

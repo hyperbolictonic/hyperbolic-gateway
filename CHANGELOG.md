@@ -16,6 +16,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.75] - 2026-10-24
+
+### Added
+
+- **OAuth2 client credentials (S5).** A credential can now be a static value or an OAuth2
+  `client_credentials` client (`tokenUrl`, `clientId`, write-only client secret, optional
+  scope/audience). Main mints a token with a policy-checked form-encoded POST, caches it
+  encrypted until 60 s before `expires_in`, and re-mints on demand.
+- **Expiry handling.** A call rejected with 401/403 triggers exactly one forced re-mint and a
+  single retry. If it still fails the result is `AUTH_REQUIRED` (non-retryable) with a hint to
+  update the credential or raise `request_human_intervention` — no silent 401 loop.
+- **`lastVerified`.** A successful live run writes an ISO timestamp into the wrapper;
+  `wrap_list` shows `verified YYYY-MM-DD` or `never verified`.
+- Settings → Credentials gains a credential-type selector with the OAuth2 fields.
+- `wrap_list` also marks generated tools (`· tool`), and `wrap_secret_list` marks OAuth2
+  credentials.
+- A blunt **"Honest status: what works, what doesn't, what is untested, what is risky"**
+  section in `docs/KUANG_WRAP.md`, plus a new README section for the wrapper server that
+  points at it.
+
+### Changed
+
+- `SecretStore.resolve()` is async and accepts `{ forceRefresh }`.
+
+### Not implemented (documented)
+
+- Human approval for mutating calls; OAuth2 grants beyond client credentials; wrap-side HIL
+  notification; per-wrapper secret scope; retries/backoff; a Settings control for
+  `exposeAsTool`.
+
+### Tests
+
+- `npm run test:wrap` → 50 (OAuth2 mint/cache/expiry/failure/validation, 401 refresh+retry,
+  `AUTH_REQUIRED`, static-no-retry, `lastVerified`).
+- The existing 11 MCP lifecycle and 46 live checks still pass.
+
+Slices S0–S5 are complete.
+
 ## [1.4.74] - 2026-10-24
 
 ### Added

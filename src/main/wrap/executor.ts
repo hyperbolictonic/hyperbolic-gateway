@@ -214,6 +214,7 @@ export class WrapExecutor {
 
     let secretHeader: string | undefined;
     let secretValues: string[] = [];
+    let secretRefreshable = false;
     if (wrapper.request.auth) {
       if (!this.secrets) {
         return failure(
@@ -224,7 +225,7 @@ export class WrapExecutor {
       }
 
       const host = new URL(built.url).hostname;
-      const resolved = this.secrets.resolve(wrapper.request.auth, host);
+      const resolved = await this.secrets.resolve(wrapper.request.auth, host);
       if (!resolved.ok || !resolved.header || resolved.value === undefined) {
         return failure(
           { id: wrapper.id, name: wrapper.name },
@@ -236,6 +237,7 @@ export class WrapExecutor {
       built.headers[resolved.header] = resolved.value;
       secretHeader = resolved.header;
       secretValues = secretVariants(resolved.value);
+      secretRefreshable = Boolean(resolved.refreshable);
     }
 
     const plan = this.pagePlan(wrapper, built);
@@ -274,13 +276,13 @@ export class WrapExecutor {
     let accumulated = 0;
     let more = false;
     let failed: FetchedResponse | undefined;
+    let authRetried = false;
 
     try {
       for (let index = 0; index < maxPages; index++) {
         const fetched = await this.fetchWithPolicy(wrapper, { ...built, url }, secretHeader);
-        pages.push(fetched);
-
         const pageOk = fetched.response.ok;
+
         this.audit?.append({
           wrapper: wrapper.id,
           host: safeHost(fetched.url),
@@ -293,9 +295,25 @@ export class WrapExecutor {
         });
 
         if (!pageOk) {
+          // One re-mint for an OAuth2 credential the API rejected, then give up with AUTH_REQUIRED.
+          const rejected = fetched.response.status === 401 || fetched.response.status === 403;
+          if (rejected && secretRefreshable && !authRetried && wrapper.request.auth && this.secrets) {
+            authRetried = true;
+            const refreshed = await this.secrets.resolve(wrapper.request.auth, safeHost(url), { forceRefresh: true });
+            if (refreshed.ok && refreshed.header && refreshed.value !== undefined) {
+              built.headers[refreshed.header] = refreshed.value;
+              secretHeader = refreshed.header;
+              secretValues = secretVariants(refreshed.value);
+              index -= 1; // retry this page once
+              continue;
+            }
+          }
+          pages.push(fetched);
           failed = fetched;
           break;
         }
+
+        pages.push(fetched);
 
         const json = parseJson(fetched.text, fetched.contentType);
         const safeJson = json === undefined ? undefined : redactDeep(json, secretValues);
@@ -411,16 +429,36 @@ export class WrapExecutor {
       const status = failedPage.response.status;
       const message = `HTTP ${status}${failedPage.response.statusText ? ` ${failedPage.response.statusText}` : ''}`;
       const excerpt = clip(redactText(failedPage.text, secretValues), 600);
-      result.markdown = excerpt
-        ? `**${message}**\n\n\`\`\`\n${excerpt}\n\`\`\``
-        : `**${message}**`;
+      const authRejected = status === 401 || status === 403;
+      const credential = wrapper.request.auth ? ` "${wrapper.request.auth}"` : '';
+
+      if (authRejected) {
+        const hint = `Credential${credential} was rejected (HTTP ${status}). Refresh it in Settings → Wrappers, or raise request_human_intervention.`;
+        result.markdown = `**AUTH_REQUIRED** — ${hint}${excerpt ? `\n\n\`\`\`\n${excerpt}\n\`\`\`` : ''}`;
+      } else {
+        result.markdown = excerpt
+          ? `**${message}**\n\n\`\`\`\n${excerpt}\n\`\`\``
+          : `**${message}**`;
+      }
+
       result.records = [];
       result.error = {
-        code: 'HTTP_ERROR',
-        message: excerpt ? `${message}: ${excerpt}` : message,
+        code: authRejected ? 'AUTH_REQUIRED' : 'HTTP_ERROR',
+        message: authRejected
+          ? `Credential${credential} was rejected with HTTP ${status}. Refresh it in Settings → Wrappers, or raise request_human_intervention.`
+          : excerpt
+            ? `${message}: ${excerpt}`
+            : message,
         status,
-        retryable: status === 429 || status >= 500,
+        retryable: !authRejected && (status === 429 || status >= 500),
       };
+    } else {
+      // A live success is the verification signal surfaced as `lastVerified`.
+      try {
+        this.store.touchVerified(wrapper.id);
+      } catch {
+        /* verification metadata is best-effort */
+      }
     }
 
     return result;

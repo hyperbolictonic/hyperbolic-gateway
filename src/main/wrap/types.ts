@@ -76,6 +76,8 @@ export interface WrapManifestEntry {
   exposeAsTool: boolean;
   /** Secret name, never its value. */
   secret?: string;
+  /** ISO timestamp of the last successful live run, if any. */
+  lastVerified?: string;
 }
 
 export interface WrapPreview {

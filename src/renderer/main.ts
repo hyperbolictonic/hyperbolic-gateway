@@ -979,6 +979,11 @@ if (settingsBtn && settingsModal) {
   const wrapValueEl = document.getElementById('settings-wrap-value') as HTMLInputElement;
   const wrapHostsEl = document.getElementById('settings-wrap-hosts') as HTMLInputElement;
   const wrapPrefixEl = document.getElementById('settings-wrap-prefix') as HTMLInputElement;
+  const wrapKindEl = document.getElementById('settings-wrap-kind') as HTMLSelectElement;
+  const wrapOAuthEl = document.getElementById('settings-wrap-oauth') as HTMLElement;
+  const wrapTokenUrlEl = document.getElementById('settings-wrap-token-url') as HTMLInputElement;
+  const wrapClientIdEl = document.getElementById('settings-wrap-client-id') as HTMLInputElement;
+  const wrapScopeEl = document.getElementById('settings-wrap-scope') as HTMLInputElement;
   const wrapResultEl = document.getElementById('settings-wrap-result') as HTMLElement;
   const wrapRefreshEl = document.getElementById('settings-wrap-refresh') as HTMLButtonElement;
   const wrapSaveEl = document.querySelector<HTMLButtonElement>('#settings-wrap-secret-form button[type="submit"]');
@@ -1041,6 +1046,15 @@ if (settingsBtn && settingsModal) {
     wrapResultEl.className = `alert alert-${kind} alert-sm font-mono text-xs`;
     wrapResultEl.textContent = text;
     wrapResultEl.classList.remove('hidden');
+  };
+
+  /** Show the OAuth2 fields only when that credential type is selected. */
+  const syncWrapKind = () => {
+    const oauth = wrapKindEl.value === 'oauth2';
+    wrapOAuthEl.classList.toggle('hidden', !oauth);
+    wrapValueEl.placeholder = oauth
+      ? 'client secret; it is never shown again'
+      : 'paste the credential; it is never shown again';
   };
 
   const showWrapperResult = (kind: 'success' | 'error' | 'info', text: string) => {
@@ -1323,7 +1337,11 @@ if (settingsBtn && settingsModal) {
     wrapHostsEl.value = (secret.allowedHosts || []).join(', ');
     wrapPrefixEl.value = secret.prefix;
     wrapValueEl.value = '';
-    wrapValueEl.placeholder = 'leave blank to keep the current value';
+    wrapKindEl.value = secret.kind === 'oauth2' ? 'oauth2' : 'static';
+    wrapTokenUrlEl.value = secret.oauth2?.tokenUrl || '';
+    wrapClientIdEl.value = secret.oauth2?.clientId || '';
+    wrapScopeEl.value = secret.oauth2?.scope || '';
+    syncWrapKind();
     wrapCancelEditEl.classList.remove('hidden');
     if (wrapSaveEl) wrapSaveEl.textContent = 'UPDATE SECRET';
     showWrapResult('info', `Editing ${secret.name}. Leave the value blank to keep the current credential.`);
@@ -1334,10 +1352,14 @@ if (settingsBtn && settingsModal) {
     editingSecretName = null;
     wrapNameEl.value = '';
     wrapValueEl.value = '';
-    wrapValueEl.placeholder = 'paste the credential; it is never shown again';
     wrapHostsEl.value = '';
     wrapHeaderEl.value = 'Authorization';
     wrapPrefixEl.value = 'Bearer ';
+    wrapKindEl.value = 'static';
+    wrapTokenUrlEl.value = '';
+    wrapClientIdEl.value = '';
+    wrapScopeEl.value = '';
+    syncWrapKind();
     wrapCancelEditEl.classList.add('hidden');
     if (wrapSaveEl) wrapSaveEl.textContent = 'SAVE SECRET';
   }
@@ -1403,6 +1425,15 @@ if (settingsBtn && settingsModal) {
       return;
     }
 
+    const kind = wrapKindEl.value === 'oauth2' ? 'oauth2' : 'static';
+    const tokenUrl = wrapTokenUrlEl.value.trim();
+    const clientId = wrapClientIdEl.value.trim();
+    const scope = wrapScopeEl.value.trim();
+    if (kind === 'oauth2' && (!tokenUrl || !clientId)) {
+      showWrapResult('error', 'An OAuth2 credential needs a token URL and a client ID.');
+      return;
+    }
+
     if (wrapSaveEl) {
       wrapSaveEl.disabled = true;
       wrapSaveEl.classList.add('loading');
@@ -1417,6 +1448,8 @@ if (settingsBtn && settingsModal) {
         allowedHosts,
         header,
         prefix,
+        kind,
+        ...(kind === 'oauth2' ? { tokenUrl, clientId, scope } : {}),
       });
       if (result?.ok) {
         resetSecretForm();
@@ -1436,6 +1469,7 @@ if (settingsBtn && settingsModal) {
   });
 
   wrapCancelEditEl.addEventListener('click', resetSecretForm);
+  wrapKindEl.addEventListener('change', syncWrapKind);
 
   wrapWrapperFilterEl.addEventListener('input', renderWrapWrappers);
 
