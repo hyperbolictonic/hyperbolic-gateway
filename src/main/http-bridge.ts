@@ -1022,6 +1022,18 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/read/url') {
+        const body = await readBody();
+        const result = await chassis.readUrl({
+          url: body?.url,
+          maxChars: body?.max_chars ?? body?.maxChars,
+          cursor: body?.cursor,
+          as: body?.as,
+        });
+        sendJson({ success: true, ...result });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/search/web') {
         const body = await readBody();
         const outcome = await chassis.searchWeb(body?.query, {

@@ -43,7 +43,7 @@ import {
 import { JsonNavigator, type JsonQueryOptions, type JsonQueryResult } from './utils/json-navigator.js';
 import { RenderedSnapshotEngine, type RenderedSnapshotOptions, type RenderedSnapshotResult } from './snapshots/rendered-snapshot.js';
 import { PrerenderEngine, type PrerenderOptions } from './prerender/prerender-engine.js';
-import { LlmSurface, type LlmSurfaceReport, type LlmSurfaceKind, type LlmFetchResult } from './llm/llm-surface.js';
+import { LlmSurface, type LlmSurfaceReport, type LlmSurfaceKind, type LlmFetchResult, type ReadUrlResult } from './llm/llm-surface.js';
 import { SearchHub, type SearchOutcome } from './search/search-engine.js';
 import { Crawler, type CrawlOptions, type CrawlOutcome } from './crawl/crawler.js';
 import { Researcher, type ResearchOptions, type ResearchOutcome } from './research/researcher.js';
@@ -245,6 +245,7 @@ export class BrowserChassis {
         }
       },
       navigateForText: (url) => this.navigateForText(url),
+      renderPage: (url) => this.readUrlRender(url),
       userAgent: this.hostProfile.userAgent,
       log: (level, msg) => this.addLog(level, msg),
     });
@@ -1622,6 +1623,39 @@ export class BrowserChassis {
   }
 
   /**
+   * Composite read (issue #1): site-provided Markdown/Text when advertised, else a detached
+   * render distilled to Markdown — one call, always text, paged for long documents.
+   */
+  public async readUrl(
+    opts: { url?: string; maxChars?: number; cursor?: number | string; as?: LlmSurfaceKind } = {},
+  ): Promise<ReadUrlResult> {
+    this.addLog(
+      'action',
+      `MCP Directive: read_url(${opts.url || 'active tab'}${opts.maxChars ? `, max_chars=${opts.maxChars}` : ''}${opts.cursor ? `, cursor=${opts.cursor}` : ''})`,
+    );
+    return await this.llmSurface.readUrl(opts);
+  }
+
+  /**
+   * Renders a URL in the shared detached view and distils it to Markdown — the composite
+   * `read_url` fallback. Deliberately not `crawlRenderPage`: `read_url` is a single-page
+   * *read* (no crawl budgets, no link harvesting), so it does not consume crawl policy.
+   */
+  public async readUrlRender(
+    url: string,
+  ): Promise<{ markdown: string; title: string; status: number; contentType: string | null }> {
+    const r = await this.loadDetached<{ title: string }>(
+      url,
+      '(() => ({ title: document.title || "" }))()',
+      {
+        timeoutMs: 25000,
+        after: async (wc) => (await RenderedSnapshotEngine.capture(wc, { format: 'markdown', waitUntilIdleMs: 400 })).content,
+      },
+    );
+    return { markdown: r.after || '', title: r.result?.title || url, status: r.status, contentType: r.contentType };
+  }
+
+  /**
    * Loads a URL in a *detached* WebContentsView (real Chromium, host fingerprint) and returns the
    * result of `script`. Used for reading advertised Markdown/Text alternates and for `search_web`
    * SERPs — without hijacking the active tab. Optionally waits for `readyScript` to become truthy.
@@ -2218,6 +2252,7 @@ export class BrowserChassis {
       'marks_offscreen',
       'llm_surface',
       'llm_fetch',
+      'read_url',
       'search_web',
       'deep_crawl',
       'research_topic',

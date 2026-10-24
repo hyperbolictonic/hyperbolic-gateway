@@ -57,6 +57,7 @@ const CANONICAL = [
   'clear_capture',
   'llm_surface',
   'llm_fetch',
+  'read_url',
   'search_web',
   'deep_crawl',
   'research_topic',

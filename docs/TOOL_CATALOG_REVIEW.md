@@ -237,9 +237,14 @@ categories), `src/mcp/README.md` (tool count), `README.md` badges/tables, `kuang
 partitions, `docs/TODO.md`, and `CHANGELOG.md`.
 
 > **Post-sweep additions:** Feature 6 (LLM-friendly discovery) added `llm_surface` + `llm_fetch`,
-> Feature 5 added `search_web`, Feature 1 added `deep_crawl`, and Feature 3 added `research_topic`,
-> taking the advertised surface to **59** (81 registered). Those tools are opt-in and not TIER-1;
-> `observe(as:"markdown")` stays the default page read.
+> Feature 5 added `search_web`, Feature 1 added `deep_crawl`, and Feature 3 added `research_topic`.
+> All four are opt-in and not TIER-1; `observe(as:"markdown")` stays the default page read.
+>
+> **2026-10-24:** the discovery layer gained the composite **`read_url`**, and issue #1 removed
+> `"rendered"` from `LlmSurfaceKind` — `llm_surface.recommended` is now **`null`** when nothing is
+> advertised, with a machine-readable **`next`** (`llm_fetch(as)` \| `observe(as:"markdown")`) and
+> **`scope`** (`origin`\|`page`) on both `llm_surface` and `llm_fetch`. Advertised surface: **63**
+> (83 registered). See [CHANGELOG.md](../CHANGELOG.md) 1.4.6.
 
 ---
 

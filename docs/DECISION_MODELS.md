@@ -47,7 +47,7 @@ Everything below is already emitted, typed, and observable from the tool result:
 | Post-condition result | `act` result → `awaited.ok` (+ `hint`) | Distinguish *acted-but-nothing-happened* from *not-ready-yet* |
 | Triage hints | `awaited.hint`, `error.hint` (viewport 0×0, unfocused window, wrong deepest `activeElement`, control rejects input) | Classify a no-op click *or* a no-op type without another round trip |
 | Typed errors | `STALE_REF`, `TIMEOUT`, `NO_TARGET`, `BAD_REQUEST`, `NOT_SUPPORTED`, `TYPE_NO_EFFECT` | Deterministic classes to route on |
-| Advisory recommendations | `llm_surface.recommended` (`llms_txt`/`llms_full`/`markdown`/`text`/`rendered`) | Precedent for "recommend, don't silently switch" |
+| Advisory recommendations | `llm_surface.recommended` (`llms_txt`/`llms_full`/`markdown`/`text`, or `null` when there is none) + `next` (`llm_fetch(as)` \| `observe(as:"markdown")`) and `scope` (`origin`\|`page`) | Precedent for "recommend, don't silently switch" — and for keeping a strategy out of the representation union |
 | **Action ledger** | `data/transitions.jsonl` (local, gitignored) | A labelled `(state, action) → outcome` dataset |
 
 ## The dataset: `data/transitions.jsonl`
