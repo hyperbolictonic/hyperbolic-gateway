@@ -158,6 +158,64 @@ try {
   await client.close().catch(() => {});
 }
 
+// ── configurable cap ─────────────────────────────────────────────────────────
+console.log('\n▶ generated-tool cap (KUANG_WRAP_MAX_TOOLS)');
+const CAPPED = ['tmp.mcp.a', 'tmp.mcp.b'];
+for (const id of CAPPED) await bridge('/wrap/wrappers', 'POST', { action: 'delete', id }).catch(() => {});
+
+const cappedTransport = new StdioClientTransport({
+  command: 'node',
+  args: ['./bin/wrap-server.cjs'],
+  env: { ...process.env, KUANG_WRAP_TOKEN_FILE: tokenFile(), KUANG_MCP_LOG: '0', KUANG_WRAP_MAX_TOOLS: '1' },
+});
+const capped = new Client(
+  { name: 'wrap-mcp-cap-test', version: '0.0.0' },
+  { capabilities: { tools: { listChanged: true } } },
+);
+
+try {
+  await capped.connect(cappedTransport);
+
+  const first = await capped.callTool({
+    name: 'wrap_create',
+    arguments: { wrapper: { ...wrapper, id: CAPPED[0], name: 'cap probe a', exposeAsTool: true } },
+  });
+  const firstText = first.content?.[0]?.text || '';
+  check('the first exposed wrapper is registered', !first.isError && !/Not registered/.test(firstText), firstText.slice(0, 70));
+
+  const second = await capped.callTool({
+    name: 'wrap_create',
+    arguments: { wrapper: { ...wrapper, id: CAPPED[1], name: 'cap probe b', exposeAsTool: true } },
+  });
+  const secondText = second.content?.[0]?.text || '';
+  check(
+    'the wrapper beyond the cap is warned about',
+    !second.isError && /cap is full/.test(secondText) && /KUANG_WRAP_MAX_TOOLS/.test(secondText),
+    secondText.split('\n').filter(Boolean).slice(-1)[0].slice(0, 100),
+  );
+
+  const tools = await capped.listTools();
+  const names = tools.tools.map((tool) => tool.name);
+  check(
+    'only the first wrapper is a generated tool',
+    names.includes('wrap_tmp_mcp_a') && !names.includes('wrap_tmp_mcp_b'),
+    names.filter((name) => name.startsWith('wrap_tmp')).join(', '),
+  );
+
+  const listed = await capped.callTool({ name: 'wrap_list', arguments: {} });
+  const listedText = listed.content?.[0]?.text || '';
+  check(
+    'wrap_list reports the cap and marks the over-cap wrapper',
+    /generated 1\/1/.test(listedText) && /tmp\.mcp\.b.*over cap/.test(listedText),
+    listedText.split('\n').find((line) => line.includes('tmp.mcp.b'))?.slice(0, 110) || '',
+  );
+} catch (err) {
+  check('generated-tool cap run', false, err.message);
+} finally {
+  for (const id of CAPPED) await bridge('/wrap/wrappers', 'POST', { action: 'delete', id }).catch(() => {});
+  await capped.close().catch(() => {});
+}
+
 const failed = results.filter((result) => !result.ok);
 const verdict = failed.length === 0 ? 'ALL CHECKS PASSED' : failed.length + ' CHECK(S) FAILED';
 console.log('\n' + verdict + ' (' + results.length + ' total)');

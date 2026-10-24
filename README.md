@@ -540,7 +540,7 @@ process, its own config entry and its own bridge token.
 | :--- | :--- | :--- |
 | Binary | `bin/mcp-server.cjs` | `bin/wrap-server.cjs` |
 | Server name | `kuang` | `kuang-wrap` |
-| Surface | 63 browser tools | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` |
+| Surface | 63 browser tools | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` (configurable via `KUANG_WRAP_MAX_TOOLS`) |
 | Env | — | `KUANG_WRAP_TOKEN_FILE` |
 
 **What it is for:** agent access to JSON APIs (dashboards, internal tools, SaaS). The wrapper

@@ -36600,7 +36600,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.76";
+var APP_VERSION = "1.4.77";
 
 // src/mcp/wrap-tool-schema.ts
 function wrapInputToZodShape(schema) {
@@ -36714,7 +36714,11 @@ var BRIDGE_TIMEOUT_MS = (() => {
 })();
 var TOKEN_FILE = process.env.KUANG_WRAP_TOKEN_FILE || "";
 var STATIC_TOKEN = process.env.KUANG_WRAP_TOKEN || process.env.KUANG_BRIDGE_TOKEN || "";
-var MAX_GENERATED_TOOLS = 40;
+var GENERATED_TOOL_CAP = (() => {
+  const raw = Number(process.env.KUANG_WRAP_MAX_TOOLS);
+  if (!Number.isFinite(raw) || raw < 0) return 40;
+  return Math.min(Math.floor(raw), 200);
+})();
 var META_TOOL_NAMES = [
   "wrap_list",
   "wrap_get",
@@ -36920,20 +36924,40 @@ function formatBytes(bytes) {
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} kB`;
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
-function formatManifest(data) {
+function formatManifest(data, cap = GENERATED_TOOL_CAP) {
   const wrappers = Array.isArray(data?.wrappers) ? data.wrappers : [];
   if (wrappers.length === 0) {
     return "No wrappers saved. Use wrap_create with id, request, inputSchema, and response.";
   }
-  return lines(
-    wrappers.map((wrapper) => {
-      const required2 = Array.isArray(wrapper.required) && wrapper.required.length > 0 ? ` \xB7 required: ${wrapper.required.join(", ")}` : "";
-      const secret = wrapper.secret ? ` \xB7 secret: ${wrapper.secret}` : "";
-      const tool = wrapper.exposeAsTool ? " \xB7 tool" : "";
-      const verified = wrapper.lastVerified ? ` \xB7 verified ${String(wrapper.lastVerified).slice(0, 10)}` : " \xB7 never verified";
-      return `${wrapper.id} \u2014 ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ", mutating" : ""})${required2}${secret}${tool}${verified}`;
-    })
+  const exposedIds = new Set(
+    wrappers.filter((wrapper) => wrapper?.exposeAsTool === true).sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, cap).map((wrapper) => String(wrapper.id))
   );
+  const rows = wrappers.map((wrapper) => {
+    const required2 = Array.isArray(wrapper.required) && wrapper.required.length > 0 ? ` \xB7 required: ${wrapper.required.join(", ")}` : "";
+    const secret = wrapper.secret ? ` \xB7 secret: ${wrapper.secret}` : "";
+    let tool = "";
+    if (wrapper.exposeAsTool) {
+      tool = cap === 0 ? " \xB7 tool (disabled: KUANG_WRAP_MAX_TOOLS=0)" : exposedIds.has(String(wrapper.id)) ? " \xB7 tool" : " \xB7 tool (over cap: call wrap_run)";
+    }
+    const verified = wrapper.lastVerified ? ` \xB7 verified ${String(wrapper.lastVerified).slice(0, 10)}` : " \xB7 never verified";
+    return `${wrapper.id} \u2014 ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ", mutating" : ""})${required2}${secret}${tool}${verified}`;
+  });
+  const header = `### Wrappers (${wrappers.length}) \xB7 generated ${exposedIds.size}/${cap}`;
+  return `${header}
+${lines(rows)}`;
+}
+function generatedWarning(wrapper, sync) {
+  if (wrapper?.exposeAsTool !== true) return "";
+  const id = String(wrapper.id || "");
+  if (sync.exposed.includes(id)) return "";
+  if (sync.cap === 0) {
+    return `
+
+\u26A0 ${id} is not registered as a generated tool: KUANG_WRAP_MAX_TOOLS=0 disables generated tools. Call it with wrap_run, or raise the cap.`;
+  }
+  return `
+
+\u26A0 ${id} is not registered as a generated tool: the ${sync.cap}-tool cap is full (the first ${sync.cap} exposed wrappers by id win). Call it with wrap_run, or set KUANG_WRAP_MAX_TOOLS higher.`;
 }
 function formatSecrets(data) {
   const secrets = Array.isArray(data?.secrets) ? data.secrets : [];
@@ -36968,15 +36992,17 @@ async function createWrapMcpServer() {
   });
   const generated = /* @__PURE__ */ new Map();
   async function refreshGeneratedTools() {
+    const unavailable = { added: 0, removed: 0, cap: GENERATED_TOOL_CAP, exposed: [] };
     let manifest;
     try {
       const response = await callBridge("/wrap/manifest");
-      if (!response.ok) return { added: 0, removed: 0 };
+      if (!response.ok) return unavailable;
       manifest = response.data;
     } catch {
-      return { added: 0, removed: 0 };
+      return unavailable;
     }
-    const exposed = (Array.isArray(manifest?.wrappers) ? manifest.wrappers : []).filter((entry) => entry?.exposeAsTool === true).sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, MAX_GENERATED_TOOLS);
+    const exposed = (Array.isArray(manifest?.wrappers) ? manifest.wrappers : []).filter((entry) => entry?.exposeAsTool === true).sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, GENERATED_TOOL_CAP);
+    const exposedIds = exposed.map((entry) => String(entry.id));
     const wanted = /* @__PURE__ */ new Set();
     let added = 0;
     for (const entry of exposed) {
@@ -37019,7 +37045,7 @@ async function createWrapMcpServer() {
       generated.delete(name);
       removed++;
     }
-    return { added, removed };
+    return { added, removed, cap: GENERATED_TOOL_CAP, exposed: exposedIds };
   }
   server.tool(
     "wrap_list",
@@ -37106,7 +37132,7 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
   );
   server.tool(
     "wrap_create",
-    "Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it.",
+    "Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it. Set `exposeAsTool: true` to register a generated `wrap_<id>` tool (capped by KUANG_WRAP_MAX_TOOLS, default 40).",
     {
       wrapper: external_exports.record(external_exports.string(), external_exports.unknown()).describe("Complete wrapper object. Use flat input arguments, not URL or header JSON.")
     },
@@ -37119,8 +37145,10 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
 - ${errors.join("\n- ")}`);
         }
         const saved = response.data.wrapper;
-        await refreshGeneratedTools();
-        return toolSuccess(`Created ${saved?.id}. Call wrap_test with dryRun first, then wrap_run.`);
+        const sync = await refreshGeneratedTools();
+        return toolSuccess(
+          `Created ${saved?.id}. Call wrap_test with dryRun first, then wrap_run.${generatedWarning(saved, sync)}`
+        );
       } catch (err) {
         return bridgeFailure(err);
       }
@@ -37140,8 +37168,11 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
           return toolError(`Wrapper rejected:
 - ${errors.join("\n- ")}`);
         }
-        await refreshGeneratedTools();
-        return toolSuccess(`Updated ${response.data.wrapper?.id}. Run wrap_test with dryRun to verify the change.`);
+        const sync = await refreshGeneratedTools();
+        const updated = response.data.wrapper;
+        return toolSuccess(
+          `Updated ${updated?.id}. Run wrap_test with dryRun to verify the change.${generatedWarning(updated, sync)}`
+        );
       } catch (err) {
         return bridgeFailure(err);
       }

@@ -35,8 +35,16 @@ const BRIDGE_TIMEOUT_MS = (() => {
 const TOKEN_FILE = process.env.KUANG_WRAP_TOKEN_FILE || '';
 const STATIC_TOKEN = process.env.KUANG_WRAP_TOKEN || process.env.KUANG_BRIDGE_TOKEN || '';
 
-/** Maximum generated `wrap_<id>` tools registered at once (S4). */
-const MAX_GENERATED_TOOLS = 40;
+/**
+ * How many generated `wrap_<id>` tools may be registered at once. This is a model-context
+ * budget, not an MCP limit (the protocol has no tool cap). `KUANG_WRAP_MAX_TOOLS=0` disables
+ * generated tools entirely; the ten meta-tools keep working.
+ */
+const GENERATED_TOOL_CAP = (() => {
+  const raw = Number(process.env.KUANG_WRAP_MAX_TOOLS);
+  if (!Number.isFinite(raw) || raw < 0) return 40;
+  return Math.min(Math.floor(raw), 200);
+})();
 
 /** Names the static meta-tools own; a generated name must never collide with one. */
 const META_TOOL_NAMES: readonly string[] = [
@@ -285,23 +293,55 @@ function formatBytes(bytes: number | undefined): string {
   return `${(bytes / 1_048_576).toFixed(1)} MB`;
 }
 
-function formatManifest(data: any): string {
+function formatManifest(data: any, cap: number = GENERATED_TOOL_CAP): string {
   const wrappers = Array.isArray(data?.wrappers) ? data.wrappers : [];
   if (wrappers.length === 0) {
     return 'No wrappers saved. Use wrap_create with id, request, inputSchema, and response.';
   }
 
-  return lines(
-    wrappers.map((wrapper: any) => {
-      const required = Array.isArray(wrapper.required) && wrapper.required.length > 0
-        ? ` · required: ${wrapper.required.join(', ')}`
-        : '';
-      const secret = wrapper.secret ? ` · secret: ${wrapper.secret}` : '';
-      const tool = wrapper.exposeAsTool ? ' · tool' : '';
-      const verified = wrapper.lastVerified ? ` · verified ${String(wrapper.lastVerified).slice(0, 10)}` : ' · never verified';
-      return `${wrapper.id} — ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ', mutating' : ''})${required}${secret}${tool}${verified}`;
-    }),
+  // Same deterministic rule the registry uses: exposed wrappers sorted by id, first `cap`.
+  const exposedIds = new Set(
+    wrappers
+      .filter((wrapper: any) => wrapper?.exposeAsTool === true)
+      .sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))
+      .slice(0, cap)
+      .map((wrapper: any) => String(wrapper.id)),
   );
+
+  const rows = wrappers.map((wrapper: any) => {
+    const required = Array.isArray(wrapper.required) && wrapper.required.length > 0
+      ? ` · required: ${wrapper.required.join(', ')}`
+      : '';
+    const secret = wrapper.secret ? ` · secret: ${wrapper.secret}` : '';
+    let tool = '';
+    if (wrapper.exposeAsTool) {
+      tool = cap === 0
+        ? ' · tool (disabled: KUANG_WRAP_MAX_TOOLS=0)'
+        : exposedIds.has(String(wrapper.id))
+          ? ' · tool'
+          : ' · tool (over cap: call wrap_run)';
+    }
+    const verified = wrapper.lastVerified ? ` · verified ${String(wrapper.lastVerified).slice(0, 10)}` : ' · never verified';
+    return `${wrapper.id} — ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ', mutating' : ''})${required}${secret}${tool}${verified}`;
+  });
+
+  const header = `### Wrappers (${wrappers.length}) · generated ${exposedIds.size}/${cap}`;
+  return `${header}\n${lines(rows)}`;
+}
+
+/**
+ * Explain why a saved wrapper with `exposeAsTool: true` is not a registered tool. Empty when
+ * it is registered, or when the wrapper did not ask to be.
+ */
+function generatedWarning(wrapper: any, sync: { cap: number; exposed: string[] }): string {
+  if (wrapper?.exposeAsTool !== true) return '';
+  const id = String(wrapper.id || '');
+  if (sync.exposed.includes(id)) return '';
+
+  if (sync.cap === 0) {
+    return `\n\n⚠ ${id} is not registered as a generated tool: KUANG_WRAP_MAX_TOOLS=0 disables generated tools. Call it with wrap_run, or raise the cap.`;
+  }
+  return `\n\n⚠ ${id} is not registered as a generated tool: the ${sync.cap}-tool cap is full (the first ${sync.cap} exposed wrappers by id win). Call it with wrap_run, or set KUANG_WRAP_MAX_TOOLS higher.`;
 }
 
 function formatSecrets(data: any): string {
@@ -346,20 +386,29 @@ export async function createWrapMcpServer() {
    * wrapper with `exposeAsTool: true` (first 40 by id), remove the ones that no longer
    * qualify. Returns how many were added/removed so callers can decide to notify.
    */
-  async function refreshGeneratedTools(): Promise<{ added: number; removed: number }> {
+  async function refreshGeneratedTools(): Promise<{
+    added: number;
+    removed: number;
+    cap: number;
+    exposed: string[];
+  }> {
+    const unavailable = { added: 0, removed: 0, cap: GENERATED_TOOL_CAP, exposed: [] as string[] };
+
     let manifest: any;
     try {
       const response = await callBridge('/wrap/manifest');
-      if (!response.ok) return { added: 0, removed: 0 };
+      if (!response.ok) return unavailable;
       manifest = response.data;
     } catch {
-      return { added: 0, removed: 0 };
+      return unavailable;
     }
 
     const exposed = (Array.isArray(manifest?.wrappers) ? manifest.wrappers : [])
       .filter((entry: any) => entry?.exposeAsTool === true)
       .sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))
-      .slice(0, MAX_GENERATED_TOOLS);
+      .slice(0, GENERATED_TOOL_CAP);
+
+    const exposedIds = exposed.map((entry: any) => String(entry.id));
 
     const wanted = new Set<string>();
     let added = 0;
@@ -412,7 +461,7 @@ export async function createWrapMcpServer() {
       removed++;
     }
 
-    return { added, removed };
+    return { added, removed, cap: GENERATED_TOOL_CAP, exposed: exposedIds };
   }
 
   // The SDK emits `tools/list_changed` itself on registerTool()/remove(), so no explicit
@@ -502,7 +551,7 @@ export async function createWrapMcpServer() {
 
   server.tool(
     'wrap_create',
-    'Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it.',
+    'Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it. Set `exposeAsTool: true` to register a generated `wrap_<id>` tool (capped by KUANG_WRAP_MAX_TOOLS, default 40).',
     {
       wrapper: z.record(z.string(), z.unknown()).describe('Complete wrapper object. Use flat input arguments, not URL or header JSON.'),
     },
@@ -514,8 +563,10 @@ export async function createWrapMcpServer() {
           return toolError(`Wrapper rejected:\n- ${errors.join('\n- ')}`);
         }
         const saved = response.data.wrapper;
-        await refreshGeneratedTools();
-        return toolSuccess(`Created ${saved?.id}. Call wrap_test with dryRun first, then wrap_run.`);
+        const sync = await refreshGeneratedTools();
+        return toolSuccess(
+          `Created ${saved?.id}. Call wrap_test with dryRun first, then wrap_run.${generatedWarning(saved, sync)}`,
+        );
       } catch (err: any) {
         return bridgeFailure(err);
       }
@@ -535,8 +586,11 @@ export async function createWrapMcpServer() {
           const errors = Array.isArray(response.data?.errors) ? response.data.errors : [response.data?.error || `HTTP ${response.status}`];
           return toolError(`Wrapper rejected:\n- ${errors.join('\n- ')}`);
         }
-        await refreshGeneratedTools();
-        return toolSuccess(`Updated ${response.data.wrapper?.id}. Run wrap_test with dryRun to verify the change.`);
+        const sync = await refreshGeneratedTools();
+        const updated = response.data.wrapper;
+        return toolSuccess(
+          `Updated ${updated?.id}. Run wrap_test with dryRun to verify the change.${generatedWarning(updated, sync)}`,
+        );
       } catch (err: any) {
         return bridgeFailure(err);
       }

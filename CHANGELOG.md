@@ -16,6 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.77] - 2026-10-24
+
+### Added
+
+- **`KUANG_WRAP_MAX_TOOLS`** now controls the generated-tool cap (default 40, max 200,
+  `0` disables generated tools). It is a model-context budget, not an MCP limit — the
+  protocol has no tool cap.
+- **The cap is visible.** `wrap_list` reports `generated X/cap` and marks an exposed wrapper
+  that is not registered (`tool (over cap: call wrap_run)` or
+  `tool (disabled: KUANG_WRAP_MAX_TOOLS=0)`), and `wrap_create`/`wrap_update` append a warning
+  naming the variable when a wrapper asks to be a tool but does not fit.
+
+### Tests
+
+- `npm run test:wrap:mcp` → 15: a second server with `KUANG_WRAP_MAX_TOOLS=1` registers the
+  first exposed wrapper, warns about the second, exposes only one generated tool, and marks
+  the over-cap wrapper in `wrap_list`.
+
 ## [1.4.76] - 2026-10-24
 
 ### Release scope since v1.4.5

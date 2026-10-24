@@ -62,7 +62,7 @@ general web scraping (that is the browser) and not for streaming or binary workl
 | Pagination | Offset, cursor, and link; page cap (10, max 25) and item cap; merged into one render; one audit row per page; `link` pages must stay same-origin |
 | Derivation | `wrap_derive` from a JSON sample or a policy-checked URL |
 | Cortex indexing | Opt-in per recipe (`index: "cortex"`); best-effort; documents mode indexes per document, otherwise one page per result |
-| Generated tools | Opt-in per wrapper (`exposeAsTool`), typed args, capped at 40, `tools/list_changed` on change |
+| Generated tools | Opt-in per wrapper (`exposeAsTool`), typed args, capped by `KUANG_WRAP_MAX_TOOLS` (default 40; `0` disables), `tools/list_changed` on change |
 | Verification metadata | `lastVerified` written after a successful live run and shown in `wrap_list` |
 | Audit | `audit.jsonl`: method, host, status, bytes, duration, error code — no headers, bodies, or query strings |
 | Tests | 50 offline, 11 generated-tool lifecycle (real MCP client), 46 live against DummyJSON |
@@ -84,7 +84,10 @@ general web scraping (that is the browser) and not for streaming or binary workl
   wrapper file on every successful run.
 - **`exposeAsTool` has no Settings control.** Only an agent (`wrap_create`/`wrap_update`) or
   a hand-edited wrapper file can enable it; the editor preserves the flag but cannot set it.
-- **The 40-tool cap silently excludes wrappers** beyond the first 40 by id.
+- **The generated-tool cap is a context budget, not a protocol limit.** It registers the first
+  `KUANG_WRAP_MAX_TOOLS` exposed wrappers (default 40, max 200, `0` disables) by **id order**,
+  so there is no per-wrapper priority: a wrapper whose id sorts late can fall outside the cap
+  even if it is the one you wanted. Over-cap wrappers are now reported (see the risks below).
 - **Secret scope is host-only**, not per-wrapper: two wrappers on the same host share one
   credential (open question 2).
 - **No retries or backoff** beyond the single auth refresh, and **no per-host concurrency
@@ -139,8 +142,10 @@ general web scraping (that is the browser) and not for streaming or binary workl
   upstream API.
 - **The audit log is local and append-only, not tamper-proof**, and it records metadata
   only — enough to debug, not to prove what was sent.
-- **The 40-tool cap** can make an exposed wrapper invisible to the agent with no warning
-  beyond this document.
+- **The generated-tool cap** (default 40, `KUANG_WRAP_MAX_TOOLS`) selects by id order, so an
+  exposed wrapper can fall outside it. `wrap_list` marks it (`tool (over cap: call wrap_run)`)
+  and create/update warn, but as a *tool* it is still invisible to the agent until the cap is
+  raised or another wrapper is removed.
 
 ## Non-goals for v1
 
@@ -297,7 +302,7 @@ needs it. That keeps discovery cheap.
 ```bash
 npm run build:mcp        # writes bin/mcp-server.cjs and bin/wrap-server.cjs
 npm run test:wrap        # 50 offline store/executor/secret/pagination/indexing/schema/oauth2 tests
-npm run test:wrap:mcp    # 11 generated-tool lifecycle checks over a real MCP client
+npm run test:wrap:mcp    # 15 generated-tool lifecycle + cap checks over a real MCP client
 npm run test:wrap:live   # 46 live checks against DummyJSON (needs the app; inline wrappers, nothing saved)
 ```
 
@@ -377,7 +382,8 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
 - `mutating` defaults to `true` for `POST`/`PUT`/`PATCH`/`DELETE`. Read-only
   wrappers are the default; mutating calls can require human approval.
 - `exposeAsTool` opts the wrapper into a generated `wrap_<id>` MCP tool (S4): it is
-  registered at server start and after any create/update/delete, capped at 40.
+  registered at server start and after any create/update/delete, capped by
+  `KUANG_WRAP_MAX_TOOLS` (default 40; `0` disables).
 
 ## Pagination
 
@@ -589,7 +595,7 @@ A wrapper with `exposeAsTool: true` is also registered as its own tool, named
 `wrap_<id>` with every character outside `[A-Za-z0-9_-]` replaced by `_`
 (`dummyjson.auth.me` → `wrap_dummyjson_auth_me`), taking the wrapper's declared
 arguments as a typed Zod schema (converted from its JSON Schema). Generated tools are
-capped at 40 (first by id); the rest stay callable through `wrap_run`.
+capped by `KUANG_WRAP_MAX_TOOLS` (default 40; `0` disables); the rest stay callable through `wrap_run`.
 Create/update/delete and `wrap_reload` reconcile the set, and the SDK emits
 `tools/list_changed`, so a connected client sees the change without a restart. They
 belong to `kuang-wrap` only — the browser server's tool list is untouched.
@@ -660,7 +666,9 @@ separate reusable recipe store is planned.
   Both use IPC; no bridge route can write a secret.
 - `KUANG_WRAP_ALLOW_PRIVATE=1` permits localhost/private destinations;
   `KUANG_WRAP_ALLOW_HTTP=1` permits plain http; `KUANG_MCP_LOG=0` silences the
-  wrap server file log; `KUANG_WRAP_TIMEOUT_MS` overrides its bridge timeout.
+  wrap server file log; `KUANG_WRAP_TIMEOUT_MS` overrides its bridge timeout;
+  `KUANG_WRAP_MAX_TOOLS` sets the generated-tool cap (default 40, max 200, `0` disables
+  generated tools — a context budget, not an MCP limit).
 - The recipe library is bundled into main and is not a runtime dependency of
   the MCP server. It has no dependencies of its own, so until it is linked into
   the pnpm workspace it is imported by relative path and tested directly with
@@ -675,7 +683,7 @@ separate reusable recipe store is planned.
 | **S2a** ✅ | Rotating wrap bridge token, token-file handoff, 401 gate | Missing/stale token gets 401 before any wrapper or outbound request |
 | **S2** ✅ | `safeStorage`, host binding, Settings → Wrappers editor, audit | Unit tests prove a foreign-host secret is refused and a cross-origin redirect drops the injected header |
 | **S3** ✅ | Derived recipes (`wrap_derive`), documents mode, pagination (offset/cursor/link, page- and item-capped), and opt-in Cortex indexing | A paginated API returns all pages up to the cap ✅; documents are searchable ✅ |
-| **S4** ✅ | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | 40-tool cap holds ✅; client sees a new tool without restart ✅ |
+| **S4** ✅ | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | cap configurable (`KUANG_WRAP_MAX_TOOLS`) and visible ✅; client sees a new tool without restart ✅ |
 | **S5** ✅ | OAuth2 client credentials, expiry handling, `lastVerified` | One re-mint, then `AUTH_REQUIRED` with a human-action hint ✅ (no silent 401 loop); `lastVerified` written on success ✅ |
 
 ## Threat model
@@ -688,7 +696,7 @@ separate reusable recipe store is planned.
 | A paginated `next` link points at an attacker host | `link` pagination is same-origin only; every page URL is re-checked by `assertSafeUrl` before it is fetched |
 | Credential leaks into logs or responses | Bridge logs and previews redact credential-shaped keys; an upstream response that echoes a secret is redacted before rendering; audit rows store host/status/bytes only; tests assert values are absent. |
 | Prompt injection inside an API response | Response is data; it is rendered, never executed |
-| Tool-list exhaustion | Ten meta-tools plus opt-in generated tools, capped at 40 |
+| Tool-list exhaustion | Ten meta-tools plus opt-in generated tools, capped by `KUANG_WRAP_MAX_TOOLS` (default 40) |
 | Schema drift breaks a wrapper | `wrap_test` and clear upstream errors; `lastVerified` is stored but not refreshed yet |
 | Linux has no keyring | Detect `basic_text`; warn and refuse secrets if requested |
 
@@ -703,7 +711,7 @@ separate reusable recipe store is planned.
 4. ~~Where do parsed documents go?~~ **Shipped:** returned inline and, when a recipe sets
    `index: "cortex"`, also written to Cortex — opt-in because it costs embeddings and disk.
 5. ~~Do we expose generated tools by default?~~ **Shipped:** no — opt-in per wrapper
-   (`exposeAsTool`), capped at 40, with `tools/list_changed` on change.
+   (`exposeAsTool`), capped by `KUANG_WRAP_MAX_TOOLS`, with `tools/list_changed` on change.
 
 ## Decision log
 
