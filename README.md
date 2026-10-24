@@ -56,7 +56,9 @@ where you already run it — local or remote — and Kuang supplies the browser,
 - **Self-hosted by construction.** `stdio` MCP plus a localhost bridge. No account, no dashboard, and no
   telemetry leaving the machine.
 
-![Kuang Grade Mark Eleven with the built-in manual open](docs/assets/manual.png)
+![Kuang Grade Mark Eleven driving a real Chromium window](docs/assets/demo.webp)
+
+<sub>[Open the MP4](docs/assets/demo.mp4) if your browser does not animate WebP.</sub>
 
 > [!WARNING]
 > **EXPERIMENTAL PROTOTYPE**: Kuang Grade Mark Eleven is currently under active, experimental development. Tool contracts, telemetry tuning, and database schemas may evolve rapidly. Built for developers experimenting with multimodal local AI agents.
