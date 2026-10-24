@@ -11,6 +11,19 @@ When agents interact with complex web applications (e.g. Skyscanner flight matri
 
 ## Detection & Accessibility Metadata
 
+### Shadow DOM
+
+The scanner collects **roots** before candidates: the document plus every open `el.shadowRoot`
+(recursively), then runs the interactive selector in each root — so a web component's inner control
+gets its own mark. Selectors resolve through open roots, and a custom-element host resolves to the
+control a mouse would actually hit. Hit-tests use `kqAtPoint` (deep) because `elementFromPoint`
+returns the host, and containment uses `kqContainsComposed` because `contains()` does not cross a
+boundary.
+
+Closed roots (`attachShadow({mode:'closed'})`) are invisible to page JavaScript and therefore get no
+marks. Full detail: [docs/SHADOW_DOM_AND_FRAMES.md](../../../docs/SHADOW_DOM_AND_FRAMES.md).
+
+
 Marks are built from three layers, so custom (non-`<select>`) widgets are covered:
 
 1. **Semantic HTML + ARIA roles:** `a[href]`, `button`, `input`, `select`, `textarea`, `summary`, `contenteditable`, and roles `button`, `link`, `checkbox`, `radio`, `switch`, `combobox`, `option`, `treeitem`, `tab`, `menuitem*`, `slider`, `spinbutton`, `searchbox`, `textbox`.
