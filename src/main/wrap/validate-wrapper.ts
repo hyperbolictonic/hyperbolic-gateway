@@ -152,7 +152,7 @@ function normalizeRequest(input: unknown, errors: string[]): WrapRequest | undef
       query = source.query;
       for (const key of Object.keys(query)) {
         if (CREDENTIAL_QUERY_KEYS.has(key.toLowerCase())) {
-          errors.push(`request.query.${key} looks like a credential; secrets are not enabled in this build`);
+          errors.push(`request.query.${key} looks like a credential; query strings end up in logs and proxies — use request.auth (a secret) instead`);
         }
       }
     }
