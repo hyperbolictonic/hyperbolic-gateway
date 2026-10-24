@@ -1055,6 +1055,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       'OPTIONAL decision model (absent unless configured — see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no — never prose. ' +
       'This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. ' +
       'Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) → decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) → act(mark_id) → check the returned delta/typing verdict. ' +
+      'FAN OUT THE HEADS: ask operation + every plausible target head (click_target, type_text_target, select_target) + done in the same call, then execute only the head matching the chosen operation — one round trip per step instead of operation-then-target. Ask only for heads the page offers. ' +
       'Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default — experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
     parameters: {
       state: z.any().describe('What the model reasons over: a string, JSON (e.g. the components array), or an array of values'),
@@ -1114,7 +1115,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       conditions: z.array(z.record(z.string(), z.any())).describe('Array of condition objects, e.g. [{"type":"selector","selector":".result"}]'),
       require: z.enum(['any', 'all']).optional().default('any').describe('"all" = every condition must hold; "any" = first one (default)'),
       timeout_ms: z.coerce.number().optional().default(15000).describe('Give up after this many ms (default: 15000)'),
-      poll_ms: z.coerce.number().optional().default(250).describe('Poll interval in ms (default: 250)'),
+      poll_ms: z.coerce.number().optional().default(120).describe('Poll interval in ms (default: 120 � sites settle in tens of ms, so 250 wastes a quarter second per wait)'),
     },
     endpoint: '/wait-for',
     payload: (args) => ({

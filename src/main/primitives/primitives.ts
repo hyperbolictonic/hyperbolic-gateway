@@ -639,7 +639,7 @@ export class Primitives {
     opts: { timeoutMs?: number; pollMs?: number; require?: 'any' | 'all' } = {}
   ): Promise<WaitResult> {
     const timeoutMs = opts.timeoutMs && opts.timeoutMs > 0 ? opts.timeoutMs : 15000;
-    const pollMs = opts.pollMs && opts.pollMs > 0 ? opts.pollMs : 250;
+    const pollMs = opts.pollMs && opts.pollMs > 0 ? opts.pollMs : 120;
     const requireMode: 'any' | 'all' = opts.require === 'all' ? 'all' : 'any';
     const list = (conditions || []).filter(Boolean);
     const started = Date.now();

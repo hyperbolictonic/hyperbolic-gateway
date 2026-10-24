@@ -16,7 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.78] - 2026-10-24
+## [1.4.79] - 2026-10-24
+
+### Added
+
+- **Settings → INPUT: human pacing knobs.** Pointer speed (px/s), typing speed (wpm) and click dwell
+  (ms), persisted to `data/input-profile.json` and applied live over IPC — no restart. Env
+  overrides exist for one-off runs: `KUANG_MOUSE_SPEED_PX_S`, `KUANG_TYPING_WPM`,
+  `KUANG_CLICK_DWELL_MS` (plus the existing absolute `KUANG_CURSOR_BUDGET_MS`).
+- **Speculative fan-out guidance for `decide`.** The OKF guide and the `decide` description now say
+  to ask the operation head and every plausible target head (`click_target`, `type_text_target`,
+  `select_target`, `done`) in the same call, then execute only the head matching the chosen
+  operation — one round trip per step instead of operation-then-target. This mirrors the
+  jev-ultrafast/TypeSafe loop, using the same `jev-1.13` backend we already call.
+
+### Changed
+
+- **Mouse pacing is distance-based.** The glide budget is now `distance / pointer speed`
+  (default 1400 px/s, clamped 70–800 ms) instead of the previous fixed budget, and the path is
+  sampled at most 12 times with the in-page trail drawn every third sample. A fast human crosses
+  500 px in ~350 ms; a gaming mouse quicker. Measured on Skyscanner: click **4 094 ms → 1 700–2 000 ms**
+  (originally 40 000–49 000 ms before the budget existed).
+- **Typing cadence follows the WPM setting** (`12000 / wpm` ms per character, with extra pauses on
+  spaces and punctuation) instead of a fixed 60–140 ms per key. Default 220 wpm ≈ 55 ms/char.
+- **`wait_for` polls every 120 ms by default** (was 250 ms). Sites settle in tens of milliseconds,
+  so the old interval added up to a quarter second of dead time per wait.
+
+
 
 ### Added
 

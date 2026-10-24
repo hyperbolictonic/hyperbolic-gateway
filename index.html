@@ -290,6 +290,7 @@
         <span class="font-mono text-sm font-bold text-primary">⚙️ SETTINGS</span>
         <div class="tabs tabs-boxed tabs-sm bg-base-100 font-mono text-[11px]">
           <button type="button" id="settings-tab-decision" class="tab tab-active" data-settings-tab="decision">DECISION MODEL</button>
+          <button type="button" id="settings-tab-input" class="tab" data-settings-tab="input">INPUT</button>
           <button type="button" id="settings-tab-recording" class="tab" data-settings-tab="recording">RECORDING</button>
           <button type="button" id="settings-tab-research" class="tab" data-settings-tab="research">RESEARCH</button>
           <button type="button" id="settings-tab-wrappers" class="tab" data-settings-tab="wrappers">WRAPPERS</button>
@@ -367,6 +368,58 @@
       </section>
 
       <!-- Recording -->
+      <section data-settings-panel="input" class="hidden max-w-2xl mx-auto w-full">
+        <div>
+          <h3 class="font-mono text-sm font-bold text-primary">HUMAN INPUT</h3>
+          <p class="text-xs text-base-content/60 mt-1">
+            How the cursor and keyboard move. The defaults aim at a comfortable fast human; lower
+            them for a more deliberate, harder-to-spot cadence, raise them when a flow feels slow.
+            Saved to <code class="font-mono">data/input-profile.json</code> and applied live.
+          </p>
+        </div>
+
+        <form id="settings-input-form" class="mt-5 space-y-6">
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">
+              Pointer speed — <span id="input-mouse-value" class="text-primary">1400</span> px/s
+            </legend>
+            <input id="input-mouse-speed" type="range" min="200" max="6000" step="100" value="1400" class="range range-sm range-primary w-full" />
+            <p class="label font-mono text-[10px]">
+              Glide time is derived from distance ÷ speed. 1400 px/s crosses 500px in ≈360 ms;
+              3000+ feels like a gaming mouse; 600 is a careful human.
+            </p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">
+              Typing — <span id="input-typing-value" class="text-primary">220</span> wpm
+            </legend>
+            <input id="input-typing-speed" type="range" min="40" max="600" step="10" value="220" class="range range-sm range-primary w-full" />
+            <p class="label font-mono text-[10px]">
+              5 characters per word. 220 wpm ≈ 55 ms per keystroke, with extra deliberation on
+              spaces and punctuation. 120 wpm is a normal human; 400+ is transcription speed.
+            </p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">
+              Click dwell — <span id="input-dwell-value" class="text-primary">55</span> ms
+            </legend>
+            <input id="input-click-dwell" type="range" min="0" max="300" step="5" value="55" class="range range-sm range-primary w-full" />
+            <p class="label font-mono text-[10px]">
+              Pause before pressing and how long the button is held. 0 is instant and slightly
+              synthetic; 40–80 ms looks human.
+            </p>
+          </fieldset>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE</button>
+            <button type="button" id="settings-input-reset" class="btn btn-sm btn-ghost font-mono text-xs">RESET DEFAULTS</button>
+            <span id="settings-input-result" class="hidden alert alert-sm font-mono text-xs"></span>
+          </div>
+        </form>
+      </section>
+
       <section data-settings-panel="recording" class="hidden max-w-3xl mx-auto w-full">
         <div class="flex items-start justify-between gap-4">
           <div>

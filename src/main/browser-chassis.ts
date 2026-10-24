@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { BrowserWindow, nativeImage, ipcMain, clipboard, session, WebContentsView, type Session, type WebContents } from 'electron';
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
+import { loadInputProfile, saveInputProfile, type InputProfile } from './telemetry/input-profile.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
@@ -170,6 +171,9 @@ export class BrowserChassis {
         });
       },
     });
+
+    // Human pacing knobs (Settings → INPUT); loaded once at boot, updated live over IPC.
+    this.simulator.setProfile(loadInputProfile());
 
     this.shieldBreaker = new ShieldBreaker(this.simulator);
     this.downloadManager = new DownloadManager();
@@ -709,6 +713,14 @@ export class BrowserChassis {
         canGoBack: usable ? wc.navigationHistory.canGoBack() : false,
         canGoForward: usable ? wc.navigationHistory.canGoForward() : false,
       };
+    });
+
+    // Human-input pacing (Settings → INPUT). IPC only: settings are never changed over HTTP.
+    ipcMain.handle('input:get-profile', () => loadInputProfile());
+    ipcMain.handle('input:save-profile', (_: any, patch: Partial<InputProfile>) => {
+      const result = saveInputProfile(patch || {});
+      if (result.ok) this.simulator.setProfile(result.profile);
+      return result;
     });
 
     ipcMain.handle('chassis:harvest', async () => {

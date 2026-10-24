@@ -10,6 +10,16 @@ export interface ElectronAPI {
   goForward: () => Promise<{ message: string }>;
   reload: () => Promise<{ message: string }>;
   getNavState: () => Promise<{ canGoBack: boolean; canGoForward: boolean }>;
+  getInputProfile: () => Promise<{ mouseSpeedPxPerSec: number; typingWpm: number; clickDwellMs: number }>;
+  saveInputProfile: (patch: {
+    mouseSpeedPxPerSec?: number;
+    typingWpm?: number;
+    clickDwellMs?: number;
+  }) => Promise<{
+    ok: boolean;
+    profile: { mouseSpeedPxPerSec: number; typingWpm: number; clickDwellMs: number };
+    errors: string[];
+  }>;
   harvest: () => Promise<HarvestedConstruct>;
   setViewportVisibility: (visible: boolean) => void;
   getSidebarMode: () => Promise<'docked' | 'floating' | 'collapsed'>;
@@ -120,6 +130,8 @@ const api: ElectronAPI = {
   goForward: () => ipcRenderer.invoke('chassis:go-forward'),
   reload: () => ipcRenderer.invoke('chassis:reload'),
   getNavState: () => ipcRenderer.invoke('chassis:get-nav-state'),
+  getInputProfile: () => ipcRenderer.invoke('input:get-profile'),
+  saveInputProfile: (patch) => ipcRenderer.invoke('input:save-profile', patch),
   harvest: () => ipcRenderer.invoke('chassis:harvest'),
   setViewportVisibility: (visible: boolean) => ipcRenderer.send('chassis:set-viewport-visibility', visible),
   getSidebarMode: () => ipcRenderer.invoke('chassis:get-sidebar-mode'),

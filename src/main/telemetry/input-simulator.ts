@@ -74,6 +74,24 @@ function keyDescriptor(ch: string): { key: string; code: string; vk: number } {
 export class HumanizedInputSimulator {
   private currentCursor: Point = { x: 100, y: 100 };
 
+  /** Human pacing knobs; replaced at runtime by Settings → INPUT. */
+  private profile = {
+    mouseSpeedPxPerSec: 1400,
+    typingWpm: 220,
+    clickDwellMs: 55,
+  };
+
+  public setProfile(profile: Partial<typeof this.profile>): void {
+    for (const key of Object.keys(this.profile) as Array<keyof typeof this.profile>) {
+      const value = profile[key];
+      if (typeof value === 'number' && Number.isFinite(value)) this.profile[key] = value;
+    }
+  }
+
+  public getProfile(): typeof this.profile {
+    return { ...this.profile };
+  }
+
   /**
    * Which transport delivered the most recent input event: `cdp` (focus-independent,
    * preferred) or `native` (`webContents.sendInputEvent`, needs OS window focus).
@@ -183,28 +201,36 @@ export class HumanizedInputSimulator {
     await this.ensureVisualCursor(webContents);
 
     // A 140-step trajectory means 140 awaited `Input.dispatchMouseEvent` round trips. On a heavy
-    // page (Skyscanner, Reddit) each one costs 50-300ms because the renderer is busy, so a single
-    // click took 40-50s. Keep the organic shape but bound the cost: dispatch at most
-    // MAX_DISPATCH_POINTS samples, and hard-stop at CURSOR_BUDGET_MS (jump to the target).
-    const MAX_DISPATCH_POINTS = 28;
+    // page each one costs 50-300ms because the renderer is busy, so a single click took 40-50s.
+    //
+    // Two knobs, both distance-aware so the glide matches a comfortable mouse rather than a
+    // slow-motion replay: a fast human flicks ~500px in 250-400ms (1200+dpi gaming mouse even
+    // quicker), and a short hop is near-instant. Budget = distance / speed, from the profile;
+    // KUANG_CURSOR_BUDGET_MS overrides it with a fixed value (0 = no artificial dwell at all).
+    const MAX_DISPATCH_POINTS = 12;
+    const distance = Math.hypot(target.x - this.currentCursor.x, target.y - this.currentCursor.y);
+    const rawBudget = process.env.KUANG_CURSOR_BUDGET_MS;
     const CURSOR_BUDGET_MS = (() => {
-      const raw = Number(process.env.KUANG_CURSOR_BUDGET_MS);
-      return Number.isFinite(raw) && raw > 0 ? raw : 900;
-    })();
-    const stride = Math.max(1, Math.ceil(trajectory.length / MAX_DISPATCH_POINTS));
-    const startedAt = Date.now();
-    let overBudget = false;
-
-    for (let i = 0; i < trajectory.length; i++) {
-      const step = trajectory[i];
-      const isLast = i === trajectory.length - 1;
-      if (i % stride !== 0 && !isLast) continue;
-
-      if (!isLast && Date.now() - startedAt > CURSOR_BUDGET_MS) {
-        overBudget = true;
-        continue;
+      if (rawBudget !== undefined && rawBudget !== '') {
+        const n = Number(rawBudget);
+        if (Number.isFinite(n) && n >= 0) return n;
       }
+      const ms = (distance / Math.max(200, this.profile.mouseSpeedPxPerSec)) * 1000;
+      return Math.round(Math.min(800, Math.max(70, ms)));
+    })();
 
+    const stride = Math.max(1, Math.ceil(trajectory.length / MAX_DISPATCH_POINTS));
+    const points: typeof trajectory = [];
+    for (let i = 0; i < trajectory.length; i++) {
+      if (i % stride === 0 || i === trajectory.length - 1) points.push(trajectory[i]);
+    }
+    // Pace the samples to fill the budget exactly, instead of summing the (much longer) raw
+    // per-step cadence. Never below 4ms: back-to-back CDP moves coalesce into one jump.
+    const rawPacing = points.reduce((sum, s) => sum + Math.max(6, s.delayMs), 0);
+    const pace = rawPacing > 0 ? CURSOR_BUDGET_MS / rawPacing : 0;
+
+    let sampleIndex = 0;
+    for (const step of points) {
       await this.dispatch(
         webContents,
         'Input.dispatchMouseEvent',
@@ -220,20 +246,25 @@ export class HumanizedInputSimulator {
         }
       );
 
-      // Update in-page visual pointer position and phosphor trail
-      webContents.executeJavaScript(
-        `window.__kuangMoveCursor && window.__kuangMoveCursor(${step.x}, ${step.y}, ${step.isCorrective ? 'true' : 'false'})`,
-        true
-      ).catch(() => {});
+      // Draw the trail every third sample (and the last one). One executeJavaScript per sample
+      // queues work on the renderer's main thread, and the awaited CDP moves then wait behind it
+      // — on a heavy page that cost more than the glide itself.
+      const drawTrail = sampleIndex % 3 === 0 || sampleIndex === points.length - 1;
+      if (drawTrail) {
+        webContents.executeJavaScript(
+          `window.__kuangMoveCursor && window.__kuangMoveCursor(${step.x}, ${step.y}, ${step.isCorrective ? 'true' : 'false'})`,
+          true
+        ).catch(() => {});
+      }
+      sampleIndex++;
 
       this.currentCursor = { x: step.x, y: step.y };
 
-      // Skipped samples contribute no dwell; the remaining ones keep a small human rhythm.
-      await sleep(Math.min(step.delayMs, 24));
+      if (CURSOR_BUDGET_MS > 0) await sleep(Math.max(4, Math.min(step.delayMs * pace, 40)));
     }
 
-    if (overBudget) {
-      // Land exactly on target even when the budget cut the glide short.
+    // Land exactly on target (the sampled path can end a pixel or two off).
+    if (points.length === 0 || this.currentCursor.x !== target.x || this.currentCursor.y !== target.y) {
       await this.dispatch(
         webContents,
         'Input.dispatchMouseEvent',
@@ -382,8 +413,8 @@ export class HumanizedInputSimulator {
       true
     ).catch(() => {});
 
-    // Pre-click hesitation (mimicking visual confirmation)
-    await sleep(35 + Math.random() * 55);
+    // Pre-click hesitation (mimicking visual confirmation), scaled by the profile.
+    await sleep(Math.max(0, this.profile.clickDwellMs * (0.6 + Math.random() * 0.6)));
 
     // Mouse Down
     await this.dispatch(
@@ -401,8 +432,8 @@ export class HumanizedInputSimulator {
       }
     );
 
-    // Contact duration (finger depressing mouse switch)
-    await sleep(45 + Math.random() * 45);
+    // Contact duration (finger depressing mouse switch), scaled by the profile.
+    await sleep(Math.max(0, this.profile.clickDwellMs * (0.8 + Math.random() * 0.5)));
 
     // Mouse Up
     await this.dispatch(
@@ -528,12 +559,14 @@ export class HumanizedInputSimulator {
         });
       }
 
-      // Variable inter-key latency (60-140ms, with extra pauses on spaces and punctuation)
-      let delay = 60 + Math.floor(Math.random() * 70);
+      // Variable inter-key latency derived from the typing WPM setting (12000 / wpm ms per
+      // character), with extra deliberation on spaces and punctuation. 220 wpm ≈ 55ms/char.
+      const base = 12000 / Math.max(40, this.profile.typingWpm);
+      let delay = base * (0.72 + Math.random() * 0.56);
       if (char === ' ') {
-        delay += 90 + Math.floor(Math.random() * 100); // Spacebar deliberation pause
+        delay *= 1.35 + Math.random() * 0.5;
       } else if (['.', ',', '!', '?', ';'].includes(char)) {
-        delay += 140 + Math.floor(Math.random() * 150); // Punctuation pause
+        delay *= 1.6 + Math.random() * 0.9;
       }
 
       this.reporter?.onKey?.(char, delay);

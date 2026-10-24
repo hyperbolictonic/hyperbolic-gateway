@@ -37647,7 +37647,7 @@ ${lines.join("\n")}${lines.length ? "\n" : ""}${data.message || ""}${tail}`;
   },
   {
     name: "decide",
-    description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default \u2014 experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
+    description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. FAN OUT THE HEADS: ask operation + every plausible target head (click_target, type_text_target, select_target) + done in the same call, then execute only the head matching the chosen operation \u2014 one round trip per step instead of operation-then-target. Ask only for heads the page offers. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default \u2014 experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
     parameters: {
       state: external_exports.any().describe("What the model reasons over: a string, JSON (e.g. the components array), or an array of values"),
       questions: external_exports.record(external_exports.string(), external_exports.any()).describe('Typed questions keyed by name. For TypeSafe: {"operation":{"type":"choice","instructions":"\u2026","criteria":{"click":"Click a control","done":"The goal is met"}},"done":{"type":"noul","instructions":"\u2026"}} \u2014 choice takes criteria (option\u2192description), NOT options. Local open-jev takes options instead.'),
@@ -37706,7 +37706,7 @@ ${lines.join("\n")}${hint}`;
       conditions: external_exports.array(external_exports.record(external_exports.string(), external_exports.any())).describe('Array of condition objects, e.g. [{"type":"selector","selector":".result"}]'),
       require: external_exports.enum(["any", "all"]).optional().default("any").describe('"all" = every condition must hold; "any" = first one (default)'),
       timeout_ms: external_exports.coerce.number().optional().default(15e3).describe("Give up after this many ms (default: 15000)"),
-      poll_ms: external_exports.coerce.number().optional().default(250).describe("Poll interval in ms (default: 250)")
+      poll_ms: external_exports.coerce.number().optional().default(120).describe("Poll interval in ms (default: 120 \uFFFD sites settle in tens of ms, so 250 wastes a quarter second per wait)")
     },
     endpoint: "/wait-for",
     payload: (args) => ({
@@ -38227,7 +38227,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.78";
+var APP_VERSION = "1.4.79";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
@@ -38543,7 +38543,8 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
   - DECISION-FIRST NAVIGATION (when a decision model is configured \u2014 see tools/list for decide/drive):
     * USE IT WHEN THE CHOICE IS GENUINELY AMBIGUOUS: two or more visible controls could plausibly be the right one (sort tabs, filter chips, date cells, result rows), the page is unfamiliar, or you need a judgement ("is this goal already met?"). Then: observe(as:"components") -> decide(...) -> act(mark_id) -> verify.
     * DO NOT USE IT WHEN THE ANSWER IS DETERMINISTIC: a known URL, a known form field, a stable selector, a control find(role,name) already identifies, or a step you are about to repeat mechanically. decide costs ~0.5s and a paid model call and is not reproducible; find/act/navigate are faster and exact. Rule of thumb: if exactly one control matches, do not ask.
-    * One decide call answers several questions at once (operation, target, done?). Pass guard:{components, threshold} so an answer naming a missing id or a control that cannot accept the operation is rejected instead of executed.
+    * One decide call answers several questions at once (operation, target, done?). ASK ALL THE HEADS TOGETHER and use only the one that matches the chosen operation: {operation: choice, click_target: choice over clickable components, type_text_target: choice over typed components, done: noul}. That is one round trip per step instead of operation-then-target, and the unused heads are discarded. Only ask for heads the page actually offers (a page with no text fields needs no type_text_target).
+    * Pass guard:{components, threshold} so an answer naming a missing id or a control that cannot accept the operation is rejected instead of executed.
     * drive(goal, values?, max_steps?) is for a short, well-scoped goal with genuine ambiguity per step. It is not a retry engine: a guard rejection means fall back to observe(markdown) + find.
     * decide CHOOSES, it does not act or verify. Every decision is followed by act + expect/diff/page_state. Never treat "done" as proof \u2014 check the page.
 
