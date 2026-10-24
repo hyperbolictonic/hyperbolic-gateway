@@ -16,7 +16,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.83] - 2026-10-24
+## [1.4.84] - 2026-10-24
+
+### Added
+
+- **Consent walls inside child frames are now answerable.** When the top document offers no
+  control and the page embeds any `<iframe>`, the same scan runs in every frame's isolated world
+  (the 1.4.82 helper). The chosen control is clicked at its top-level coordinates — the iframe's
+  rect plus the control's local centre — so it is still a **trusted CDP click**, not a synthetic
+  `element.click()`.
+  - the result reports `frame: "main" | "child"` and `delivery: "cdp" | "in-frame"`
+  - if the offset cannot be derived (nested frame, dynamic `src`), the fallback activates the
+    marked control in-frame and says so, rather than silently pretending it clicked
+  - frame traversal only runs when the top document embeds something, so pages without iframes pay
+    nothing extra
+
+### Verified
+
+- `npm run test:dom` → **17 checks**, including a cross-origin consent iframe: answered with
+  `reject`, `frame=child`, `delivery=cdp`, and the child's DOM confirms the click landed.
+
+### Notes
+
+- Isolated worlds share the DOM but **not** page globals: `window.__x` set by the page is invisible
+  to frame evaluation, while attributes and DOM state are readable. Tests and any future frame work
+  should assert on DOM, not on page variables.
+- The 1.4.81 limitation ("CMPs inside a cross-origin iframe are left for a human") no longer holds
+  for the common single-level embed.
+
+
 
 ### Added
 

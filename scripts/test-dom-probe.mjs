@@ -43,11 +43,30 @@ const MAIN = `<!doctype html>
     </div>
     <input id="hidden-field" type="text" style="display:none">
     <iframe id="child" src="CHILD_URL" width="400" height="200"></iframe>
+    <iframe id="consent-frame" src="CONSENT_URL" style="position:fixed;left:640px;top:40px;width:420px;height:220px;border:1px solid #ccc"></iframe>
   </main>
 </body></html>`;
 
 const CHILD = `<!doctype html><html><head><title>Probe Child</title></head>
 <body><h1>Child frame</h1><button id="child-btn">Child accept</button></body></html>`;
+
+const CONSENT_CHILD = `<!doctype html><html><head><title>Consent Child</title></head>
+<body style="margin:0;font:14px sans-serif;background:#fff">
+  <div role="dialog" id="consent-banner" style="padding:16px">
+    <h3 style="margin:0 0 8px">We value your privacy</h3>
+    <p style="margin:0 0 12px">We and our partners store cookies.</p>
+    <button id="ck-reject" style="padding:8px 12px;margin-right:8px">Reject all</button>
+    <button id="ck-accept" style="padding:8px 12px">Accept all</button>
+  </div>
+  <script>
+    document.getElementById('ck-reject').addEventListener('click', () => {
+      document.documentElement.setAttribute('data-consent-choice', 'reject');
+    });
+    document.getElementById('ck-accept').addEventListener('click', () => {
+      document.documentElement.setAttribute('data-consent-choice', 'accept');
+    });
+  </script>
+</body></html>`;
 
 async function main() {
   try {
@@ -60,17 +79,22 @@ async function main() {
   await call('/window/visibility', 'POST', { visible: true });
   await sleep(300);
 
-  // Child frame on its own port: same host, different origin.
-  const childServer = http.createServer((_req, res) => {
+  // Child frames on their own port: same host, different origin.
+  const childServer = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(CHILD);
+    res.end(String(req.url || '').includes('consent') ? CONSENT_CHILD : CHILD);
   });
   await new Promise((r) => childServer.listen(0, '127.0.0.1', r));
   const childPort = childServer.address().port;
 
   const mainServer = http.createServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(MAIN.replace('CHILD_URL', `http://127.0.0.1:${childPort}/child.html`));
+    res.end(
+      MAIN.replace('CHILD_URL', `http://127.0.0.1:${childPort}/child.html`).replace(
+        'CONSENT_URL',
+        `http://127.0.0.1:${childPort}/consent.html`
+      )
+    );
   });
   await new Promise((r) => mainServer.listen(0, '127.0.0.1', r));
   const port = mainServer.address().port;
@@ -133,6 +157,26 @@ async function main() {
       !!foundMark?.facts && foundMark.facts.disabled === true && typeof foundMark.facts.occluded === 'boolean',
       foundMark?.facts ? JSON.stringify(foundMark.facts) : 'no facts'
     );
+
+    // --- frame-scoped consent (Phase 3) -------------------------------------
+    const consent = await call('/shield/dismiss', 'POST', {}).catch((e) => ({ error: String(e) }));
+    check(
+      'consent inside a cross-origin iframe is answered',
+      consent?.result?.dismissed === true && consent?.result?.frame === 'child',
+      consent?.result ? `${consent.result.intent} via ${consent.result.delivery}, frame=${consent.result.frame}` : String(consent?.error || '')
+    );
+    check(
+      'consent pick is the least-invasive control (reject before accept)',
+      consent?.result?.intent === 'reject',
+      String(consent?.result?.intent || 'none')
+    );
+    const childChoice = await call('/evaluate', 'POST', {
+      frames: true,
+      max_frames: 6,
+      script: `document.documentElement.getAttribute('data-consent-choice')`,
+    });
+    const rejected = (childChoice.frames || []).some((f) => f.ok && f.value === 'reject');
+    check('the click actually landed inside the child frame', rejected, rejected ? 'child recorded reject' : 'child saw no click');
 
     // --- /evaluate frames ---------------------------------------------------
     const frameEval = await call('/evaluate', 'POST', {
