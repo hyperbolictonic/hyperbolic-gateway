@@ -1,0 +1,180 @@
+/**
+ * Control facts — one description of an element, shared by marks, `find`, the decision guard and
+ * recipes.
+ *
+ * The point of this module is that all four consumers ask the same question and get the same
+ * answer: what is this thing, can a mouse actually hit it right now, and what does it accept?
+ * Duplicating that logic is how `act` and `injectMarks` drift apart (one resolves a covered card,
+ * the other skips it).
+ *
+ * Runs as a single injected expression: no per-element round trips, no framework dependency.
+ */
+
+export type ControlAction = 'click' | 'type' | 'hover' | 'select' | 'press' | 'scroll';
+
+export interface ControlFacts {
+  /** Mark id when the element was already stamped by Set-of-Marks. */
+  id?: number;
+  tag: string;
+  role: string;
+  name: string;
+  value?: string;
+  state: string[];
+  actions: ControlAction[];
+  /** Laid out and not display:none / visibility:hidden / opacity:0 / aria-hidden. */
+  visible: boolean;
+  /** True when a hit-test at the element's own centre lands on something else. */
+  occluded: boolean;
+  disabled: boolean;
+  /** Nearest landmark-ish ancestor: header, nav, main, footer, dialog, aside, form, or "page". */
+  region: string;
+  regionName?: string;
+  rect: { x: number; y: number; width: number; height: number };
+}
+
+export interface ControlFactsOptions {
+  /** CSS selector; omitted = every interactive candidate on the page. */
+  selector?: string;
+  /** Cap the number of returned controls (default 200). */
+  limit?: number;
+  /** Include elements below/above the fold (default true). */
+  includeOffscreen?: boolean;
+  /** Skip the hit-test (cheaper, but `occluded` is then always false). */
+  skipHitTest?: boolean;
+}
+
+/**
+ * Shared in-page helpers. Kept as one string so the expression stays self-contained and cannot
+ * accidentally depend on module scope inside the renderer.
+ */
+const HELPERS = `
+  const clean = (s) => (s || '').replace(/\\s+/g, ' ').trim();
+  const accName = (el) => {
+    let n = clean(el.getAttribute && el.getAttribute('aria-label'));
+    if (n) return n;
+    n = clean(el.innerText || el.textContent);
+    if (n) return n.slice(0, 120);
+    if (el.getAttribute) {
+      for (const a of ['placeholder', 'title', 'alt', 'name', 'value']) {
+        const v = el.getAttribute(a);
+        if (v) return clean(v);
+      }
+    }
+    return '';
+  };
+  const isVisible = (el, rect) => {
+    if (!rect || rect.width < 1 || rect.height < 1) return false;
+    const st = getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+    if (el.closest && el.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
+    return true;
+  };
+  const actionsFor = (el) => {
+    const out = [];
+    const tag = el.tagName;
+    const role = (el.getAttribute && el.getAttribute('role') || '').toLowerCase();
+    const type = (el.getAttribute && el.getAttribute('type') || '').toLowerCase();
+    if (el.disabled || (el.getAttribute && el.getAttribute('aria-disabled') === 'true')) return out;
+    if (tag === 'INPUT') {
+      if (['button', 'submit', 'reset', 'checkbox', 'radio', 'file'].includes(type)) out.push('click');
+      else out.push('type');
+      if (type === 'checkbox' || type === 'radio') out.push('click');
+      out.push('hover');
+      return out;
+    }
+    if (tag === 'TEXTAREA' || el.isContentEditable) { out.push('type', 'hover'); return out; }
+    if (tag === 'SELECT') { out.push('select', 'click'); return out; }
+    if (tag === 'A' || tag === 'BUTTON' || tag === 'SUMMARY' || role === 'button' || role === 'link' || role === 'tab' || role === 'menuitem') {
+      out.push('click', 'hover');
+      return out;
+    }
+    out.push('click', 'hover');
+    return out;
+  };
+  const regionOf = (el) => {
+    const map = { HEADER: 'header', NAV: 'nav', MAIN: 'main', FOOTER: 'footer', ASIDE: 'aside', FORM: 'form', DIALOG: 'dialog', SECTION: 'section' };
+    let node = el;
+    while (node && node !== document.body) {
+      const r = (node.getAttribute && node.getAttribute('role') || '').toLowerCase();
+      if (r === 'dialog' || r === 'alertdialog') return { region: 'dialog', regionName: clean(node.getAttribute('aria-label') || '') || undefined };
+      const name = map[node.tagName];
+      if (name) {
+        return { region: name, regionName: clean(node.getAttribute('aria-label') || '') || undefined };
+      }
+      node = node.parentElement;
+    }
+    return { region: 'page' };
+  };
+`;
+
+/** Build the self-contained expression. Callers only ever pass plain JSON-able options. */
+export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
+  const options = {
+    selector: opts.selector,
+    limit: opts.limit && opts.limit > 0 ? Math.min(opts.limit, 500) : 200,
+    includeOffscreen: opts.includeOffscreen !== false,
+    skipHitTest: opts.skipHitTest === true,
+  };
+  return `(() => {
+    const opts = ${JSON.stringify(options)};
+    ${HELPERS}
+    const SEL = 'a[href],button,input,select,textarea,summary,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="checkbox"],[role="combobox"],[contenteditable="true"],[onclick],[tabindex]:not([tabindex="-1"])';
+    const root = opts.selector ? document.querySelector(opts.selector) : document.body;
+    if (!root) return { error: 'root not found', controls: [] };
+    const nodes = opts.selector && root.matches && root.matches(SEL) ? [root] : Array.from(root.querySelectorAll(SEL));
+    const out = [];
+    for (const el of nodes) {
+      if (out.length >= opts.limit) break;
+      const rect = el.getBoundingClientRect();
+      if (!opts.includeOffscreen && (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth)) continue;
+      const visible = isVisible(el, rect);
+      const actions = actionsFor(el);
+      if (!actions.length) continue;
+      let occluded = false;
+      if (visible && !opts.skipHitTest && rect.top < window.innerHeight && rect.bottom > 0) {
+        const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
+        const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
+        const hit = document.elementFromPoint(cx, cy);
+        occluded = !!(hit && hit !== el && !el.contains(hit) && !hit.contains(el));
+      }
+      const { region, regionName } = regionOf(el);
+      const markAttr = el.getAttribute('data-mark-id');
+      out.push({
+        id: markAttr && !isNaN(Number(markAttr)) ? Number(markAttr) : undefined,
+        tag: el.tagName.toLowerCase(),
+        role: clean((el.getAttribute('role') || el.tagName).toLowerCase()),
+        name: accName(el),
+        value: el.value !== undefined && el.value !== '' ? clean(String(el.value)).slice(0, 80) : undefined,
+        state: [
+          el.disabled ? 'disabled' : '',
+          el.getAttribute && el.getAttribute('aria-disabled') === 'true' ? 'aria-disabled' : '',
+          el.checked ? 'checked' : '',
+          el.getAttribute && el.getAttribute('aria-expanded') === 'true' ? 'expanded' : '',
+          el.getAttribute && el.getAttribute('aria-required') === 'true' ? 'required' : '',
+        ].filter(Boolean),
+        actions,
+        visible,
+        occluded,
+        disabled: !!(el.disabled || (el.getAttribute && el.getAttribute('aria-disabled') === 'true')),
+        region,
+        regionName,
+        rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
+      });
+    }
+    return { url: location.href, count: out.length, controls: out };
+  })()`;
+}
+
+/** Parse the expression result into typed facts, tolerating an adapter that returned a string. */
+export function parseControlFacts(raw: unknown): { url?: string; controls: ControlFacts[] } {
+  let value: any = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return { controls: [] };
+    }
+  }
+  const controls = Array.isArray(value?.controls) ? (value.controls as ControlFacts[]) : [];
+  return { url: value?.url, controls };
+}

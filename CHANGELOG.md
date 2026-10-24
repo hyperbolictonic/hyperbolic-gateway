@@ -16,7 +16,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.81] - 2026-10-24
+## [1.4.82] - 2026-10-24
+
+### Added
+
+- **Control facts — one description of an element, shared.** `src/main/primitives/control-facts.ts`
+  builds a single injected expression that answers the questions marks, `find`, the decision guard
+  and recipes all need: role, accessible name, value, state, accepted actions, visibility,
+  occlusion (real hit-test), disabled, landmark region and rect. Exposed read-only at
+  `POST /dom/facts`. Deliberately not wired into any hot path yet — that is Phase 2, and it lands
+  once, in one place, instead of four slightly different copies.
+- **Frame-scoped evaluation.** `src/main/browser/frame-eval.ts` walks the CDP frame tree and
+  evaluates an expression in each frame's own isolated world, so cross-origin children (Sourcepoint
+  consent, embedded checkouts) become reachable. `POST /evaluate` with `{frames:true}` returns
+  `{frameId,url,ok,value,error}` per frame.
+  - opt-in only; two CDP commands per frame
+  - frame budget defaults to 8 (max 32), per-command timeout 1500 ms
+  - isolated-world context ids cached per frame and invalidated on `did-start-loading`
+  - blank frames skipped unless asked for; failures reported per frame, never thrown
+- **`npm run test:dom`** — 10 live checks against a local fixture: onclick-only card, covered
+  button (occlusion), hidden input, typed input, main-frame read, cross-origin child read,
+  per-frame failure reporting, blank-frame skipping.
+
+
 
 ### Changed
 

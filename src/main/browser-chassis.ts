@@ -14,6 +14,8 @@ import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/h
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
 import { ShieldBreaker, type ShieldDismissResult, type ConsentPolicy } from './shield/shield-breaker.js';
+import { evaluateInFrames, type FrameEvalOptions, type FrameEvalResult } from './browser/frame-eval.js';
+import { controlFactsExpression, parseControlFacts, type ControlFacts, type ControlFactsOptions } from './primitives/control-facts.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
 import {
@@ -1055,8 +1057,7 @@ export class BrowserChassis {
     }
   }
 
-  public async dismissConsent(options: { policy?: ConsentPolicy; forceRemove?: boolean } = {}): Promise<ShieldDismissResult> {
-    const wc = this.getActiveWebContents();
+  public async dismissConsent(options: { policy?: ConsentPolicy; forceRemove?: boolean } = {}): Promise<ShieldDismissResult> {    const wc = this.getActiveWebContents();
     this.addLog('action', 'Shield Directive: dismiss_consent()');
     // An explicit call is allowed the last-resort removal; the background sweep is not.
     const result = await this.shieldBreaker.dismissConsent(wc, {
@@ -1511,6 +1512,26 @@ export class BrowserChassis {
     this.addLog('action', `MCP Directive: evaluate_javascript("${script.substring(0, 30)}...")`);
     const result = await wc.executeJavaScript(script);
     return result;
+  }
+
+  /**
+   * Evaluate in the main frame and its child frames (cross-origin included), via CDP isolated
+   * worlds. Opt-in: two CDP commands per frame, so callers pass a frame budget.
+   */
+  public async evaluateInFrames(script: string, options?: FrameEvalOptions): Promise<FrameEvalResult[]> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: evaluate_in_frames(${options?.maxFrames ?? 8} max)`);
+    return evaluateInFrames(wc, script, options);
+  }
+
+  /**
+   * Shared control description used by marks, find, the decision guard and recipes.
+   * One injected expression, no per-element round trips.
+   */
+  public async describeControls(options: ControlFactsOptions = {}): Promise<{ url?: string; controls: ControlFacts[] }> {
+    const wc = this.getActiveWebContents();
+    const raw = await wc.executeJavaScript(controlFactsExpression(options)).catch(() => null);
+    return parseControlFacts(raw);
   }
 
   public async goBack(): Promise<string> {

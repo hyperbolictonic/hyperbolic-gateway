@@ -249,8 +249,32 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
       if (req.method === 'POST' && pathname === '/evaluate') {
         const body = await readBody();
         const script = body.script || body.code || body.js || body.expression || body.javascript || '';
+        // Frame mode is opt-in: every frame costs two CDP commands, so the default stays the
+        // single main-frame evaluate.
+        if (body.frames === true || body.include_frames === true) {
+          const frames = await chassis.evaluateInFrames(script, {
+            maxFrames: body.max_frames !== undefined ? Number(body.max_frames) : undefined,
+            timeoutMs: body.timeout_ms !== undefined ? Number(body.timeout_ms) : undefined,
+            includeBlank: body.include_blank === true,
+          });
+          sendJson({ success: true, frames });
+          return;
+        }
         const result = await chassis.evaluateJavaScript(script);
         sendJson({ success: true, result });
+        return;
+      }
+
+      // Shared control facts (marks / find / guard / recipes). Read-only, one injected expression.
+      if (req.method === 'POST' && pathname === '/dom/facts') {
+        const body = await readBody();
+        const facts = await chassis.describeControls({
+          selector: body?.selector,
+          limit: body?.limit !== undefined ? Number(body.limit) : undefined,
+          includeOffscreen: body?.include_offscreen !== false,
+          skipHitTest: body?.skip_hit_test === true,
+        });
+        sendJson({ success: true, ...facts });
         return;
       }
 
