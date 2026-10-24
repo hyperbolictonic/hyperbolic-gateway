@@ -118,7 +118,7 @@ function fakeCipher(available = true) {
   };
 }
 
-test('stores encrypted, host-bound secrets and never lists values', () => {
+test('stores encrypted, host-bound secrets and never lists values', async () => {
   const { dir } = tempStore();
   const store = new SecretStore(dir, fakeCipher());
 
@@ -133,26 +133,26 @@ test('stores encrypted, host-bound secrets and never lists values', () => {
   assert.doesNotMatch(raw, /top-secret/);
   assert.match(raw, /ciphertext/);
 
-  const exact = store.resolve('weather-key', 'api.example.com');
+  const exact = await store.resolve('weather-key', 'api.example.com');
   assert.equal(exact.ok, true);
   assert.equal(exact.header, 'Authorization');
   assert.equal(exact.value, 'Bearer top-secret');
 
-  const wildcard = store.resolve('weather-key', 'v1.example.org');
+  const wildcard = await store.resolve('weather-key', 'v1.example.org');
   assert.equal(wildcard.ok, true);
 
-  const foreign = store.resolve('weather-key', 'evil.example.com');
+  const foreign = await store.resolve('weather-key', 'evil.example.com');
   assert.equal(foreign.ok, false);
   assert.equal(foreign.code, 'SECRET_HOST_MISMATCH');
 
   const reloaded = new SecretStore(dir, fakeCipher());
-  assert.equal(reloaded.resolve('weather-key', 'api.example.com').ok, true);
+  assert.equal((await reloaded.resolve('weather-key', 'api.example.com')).ok, true);
   assert.equal(reloaded.set({ name: 'weather-key', value: 'rotated', allowedHosts: 'api.example.com' }).ok, true);
-  assert.equal(reloaded.resolve('weather-key', 'api.example.com').value, 'Bearer rotated');
+  assert.equal((await reloaded.resolve('weather-key', 'api.example.com')).value, 'Bearer rotated');
   assert.equal(reloaded.set({ name: 'weather-key', value: '', allowedHosts: 'api.example.com, new.example.com' }).ok, true);
-  assert.equal(reloaded.resolve('weather-key', 'new.example.com').value, 'Bearer rotated');
+  assert.equal((await reloaded.resolve('weather-key', 'new.example.com')).value, 'Bearer rotated');
   assert.equal(reloaded.delete('weather-key'), true);
-  assert.equal(reloaded.resolve('weather-key', 'api.example.com').code, 'SECRET_NOT_FOUND');
+  assert.equal((await reloaded.resolve('weather-key', 'api.example.com')).code, 'SECRET_NOT_FOUND');
 });
 
 test('refuses secrets when OS encryption is unavailable', () => {
@@ -1123,6 +1123,238 @@ test('derives MCP-safe, collision-free tool names', () => {
   assert.equal(long.length, 128);
   assert.equal(isToolName(long), true);
 });
+
+// ── oauth2 client credentials (S5) ───────────────────────────────────────────
+
+function oauthSecret(overrides = {}) {
+  return {
+    name: 'oauth-key',
+    value: 'client-secret',
+    allowedHosts: 'api.example.com',
+    kind: 'oauth2',
+    tokenUrl: 'https://auth.example.com/oauth/token',
+    clientId: 'client-id',
+    scope: 'read:things',
+    ...overrides,
+  };
+}
+
+test('mints and caches an OAuth2 client-credentials token', async () => {
+  const { dir } = tempStore();
+  const calls = [];
+  const now = 1_000_000;
+  const store = new SecretStore(dir, fakeCipher(), {
+    now: () => now,
+    mintToken: async (input) => {
+      calls.push(input);
+      return { accessToken: `tok-${calls.length}`, expiresIn: 3600 };
+    },
+  });
+
+  assert.equal(store.set(oauthSecret()).ok, true);
+
+  const first = await store.resolve('oauth-key', 'api.example.com');
+  assert.equal(first.ok, true);
+  assert.equal(first.value, 'Bearer tok-1');
+  assert.equal(first.refreshable, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].clientSecret, 'client-secret');
+  assert.equal(calls[0].clientId, 'client-id');
+  assert.equal(calls[0].scope, 'read:things');
+
+  // Neither metadata nor disk ever contains the token.
+  assert.doesNotMatch(JSON.stringify(store.list()), /tok-1/);
+  assert.doesNotMatch(fs.readFileSync(path.join(dir, 'secrets.json'), 'utf8'), /tok-1/);
+
+  // A second resolve reuses the cache.
+  assert.equal((await store.resolve('oauth-key', 'api.example.com')).value, 'Bearer tok-1');
+  assert.equal(calls.length, 1);
+
+  // forceRefresh mints again (used after a 401).
+  assert.equal((await store.resolve('oauth-key', 'api.example.com', { forceRefresh: true })).value, 'Bearer tok-2');
+  assert.equal(calls.length, 2);
+});
+
+test('re-mints an OAuth2 token inside the expiry window', async () => {
+  const { dir } = tempStore();
+  let calls = 0;
+  let now = 1_000_000;
+  const store = new SecretStore(dir, fakeCipher(), {
+    now: () => now,
+    mintToken: async () => {
+      calls++;
+      return { accessToken: `tok-${calls}`, expiresIn: 100 };
+    },
+  });
+
+  store.set(oauthSecret());
+  assert.equal((await store.resolve('oauth-key', 'api.example.com')).value, 'Bearer tok-1');
+
+  now += 50_000; // inside the 60-second early-refresh window
+  assert.equal((await store.resolve('oauth-key', 'api.example.com')).value, 'Bearer tok-2');
+  assert.equal(calls, 2);
+});
+
+test('persists the OAuth2 token cache across store instances', async () => {
+  const { dir } = tempStore();
+  let calls = 0;
+  const options = {
+    now: () => 1_000_000,
+    mintToken: async () => {
+      calls++;
+      return { accessToken: 'tok-persist', expiresIn: 3600 };
+    },
+  };
+
+  const first = new SecretStore(dir, fakeCipher(), options);
+  first.set(oauthSecret());
+  await first.resolve('oauth-key', 'api.example.com');
+
+  const second = new SecretStore(dir, fakeCipher(), options);
+  assert.equal((await second.resolve('oauth-key', 'api.example.com')).value, 'Bearer tok-persist');
+  assert.equal(calls, 1);
+});
+
+test('reports a failed OAuth2 token request', async () => {
+  const { dir } = tempStore();
+  const store = new SecretStore(dir, fakeCipher(), {
+    mintToken: async () => {
+      throw new Error('invalid_client');
+    },
+  });
+
+  store.set(oauthSecret());
+  const result = await store.resolve('oauth-key', 'api.example.com');
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'TOKEN_REQUEST_FAILED');
+  assert.equal(result.refreshable, true);
+  assert.match(result.message, /invalid_client/);
+});
+
+test('validates OAuth2 credential input', () => {
+  const { dir } = tempStore();
+  const store = new SecretStore(dir, fakeCipher(), { mintToken: async () => ({ accessToken: 't', expiresIn: 60 }) });
+
+  assert.equal(store.set(oauthSecret({ tokenUrl: 'http://auth.example.com/token' })).ok, false);
+  assert.equal(store.set(oauthSecret({ tokenUrl: '' })).ok, false);
+  assert.equal(store.set(oauthSecret({ clientId: '' })).ok, false);
+  assert.equal(store.set(oauthSecret()).ok, true);
+  assert.equal(store.list()[0].kind, 'oauth2');
+  assert.equal(store.list()[0].oauth2?.tokenUrl, 'https://auth.example.com/oauth/token');
+  assert.doesNotMatch(JSON.stringify(store.list()), /client-secret/);
+
+  // A static credential is still the default.
+  assert.equal(store.set({ name: 'plain', value: 'x', allowedHosts: 'api.example.com' }).ok, true);
+  assert.equal(store.list().find((secret) => secret.name === 'plain')?.kind, 'static');
+});
+
+test('refreshes an OAuth2 credential once on 401 and retries', async () => {
+  const { store } = tempStore();
+  const base = listWrapper();
+  store.create({ ...base, request: { ...base.request, auth: 'oauth' } });
+
+  const resolves = [];
+  let attempts = 0;
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    secrets: {
+      resolve: async (_name, _host, options = {}) => {
+        resolves.push(options.forceRefresh === true);
+        return {
+          ok: true,
+          header: 'Authorization',
+          value: options.forceRefresh ? 'Bearer fresh' : 'Bearer stale',
+          refreshable: true,
+        };
+      },
+    },
+    fetchImpl: async (_url, init) => {
+      attempts++;
+      if (init.headers.Authorization === 'Bearer stale') return new Response('unauthorized', { status: 401 });
+      return jsonResponse({ items: [{ id: 1, name: 'A' }] });
+    },
+  });
+
+  const result = await executor.run('demo.list', { city: 'Paris' });
+  assert.equal(result.ok, true);
+  assert.equal(attempts, 2);
+  assert.deepEqual(resolves, [false, true]);
+  assert.equal(result.records.length, 1);
+});
+
+test('reports AUTH_REQUIRED when the refreshed credential is still rejected', async () => {
+  const { store } = tempStore();
+  const base = listWrapper();
+  store.create({ ...base, request: { ...base.request, auth: 'oauth' } });
+
+  let attempts = 0;
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    secrets: {
+      resolve: async () => ({ ok: true, header: 'Authorization', value: 'Bearer nope', refreshable: true }),
+    },
+    fetchImpl: async () => {
+      attempts++;
+      return new Response('unauthorized', { status: 401 });
+    },
+  });
+
+  const result = await executor.run('demo.list', { city: 'Paris' });
+  assert.equal(result.ok, false);
+  assert.equal(attempts, 2); // initial + one retry
+  assert.equal(result.error.code, 'AUTH_REQUIRED');
+  assert.equal(result.error.retryable, false);
+  assert.match(result.error.message, /Settings/);
+  assert.match(result.markdown, /AUTH_REQUIRED/);
+  assert.equal(store.get('demo.list').lastVerified, undefined);
+});
+
+test('a static credential rejected with 401 is not retried', async () => {
+  const { store } = tempStore();
+  const base = listWrapper();
+  store.create({ ...base, request: { ...base.request, auth: 'static-key' } });
+
+  const resolves = [];
+  let attempts = 0;
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    secrets: {
+      resolve: async () => {
+        resolves.push(true);
+        return { ok: true, header: 'Authorization', value: 'Bearer static', refreshable: false };
+      },
+    },
+    fetchImpl: async () => {
+      attempts++;
+      return new Response('unauthorized', { status: 401 });
+    },
+  });
+
+  const result = await executor.run('demo.list', { city: 'Paris' });
+  assert.equal(attempts, 1);
+  assert.equal(resolves.length, 1);
+  assert.equal(result.error.code, 'AUTH_REQUIRED');
+});
+
+test('records lastVerified on a successful live run only', async () => {
+  const { store } = tempStore();
+  store.create(listWrapper());
+  const executor = new WrapExecutor(store, {
+    allowPrivateHosts: true,
+    fetchImpl: async () => jsonResponse({ items: [{ id: 1, name: 'A' }] }),
+  });
+
+  const preview = await executor.test({ id: 'demo.list', args: { city: 'Paris' } });
+  assert.equal(preview.dryRun, true);
+  assert.equal(store.get('demo.list').lastVerified, undefined);
+
+  const result = await executor.run('demo.list', { city: 'Paris' });
+  assert.equal(result.ok, true);
+  const verified = store.get('demo.list').lastVerified;
+  assert.match(String(verified), /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(store.manifest().find((entry) => entry.id === 'demo.list')?.lastVerified, verified);
+});
+
 
 
 

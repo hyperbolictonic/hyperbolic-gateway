@@ -1,13 +1,14 @@
 # Kuang Wrap — design notes
 
-**Status:** active development, branch `feat/kuang-wrap`. Slices 0–4 are
+**Status:** active development, branch `feat/kuang-wrap`. Slices 0–5 are
 implemented: the pure recipe library, wrapper store/executor, the `kuang-wrap`
 MCP server, the rotating bridge-token gate, encrypted host-bound credentials with
-a human-only Settings → Wrappers editor, recipe pagination (offset/cursor/link,
-page- and item-capped), documents mode, recipe derivation (`wrap_derive`), opt-in
-**Cortex indexing**, and opt-in **generated `wrap_<id>` tools** (capped at 40, with
-live `tools/list_changed`). Still planned: OAuth/token refresh and human approval
-for mutating calls.
+a human-only Settings → Wrappers editor, recipe pagination, documents mode,
+`wrap_derive`, opt-in Cortex indexing, generated `wrap_<id>` tools, and OAuth2
+client-credentials with `AUTH_REQUIRED` handling and `lastVerified`. Read
+[Honest status](#honest-status-what-works-what-doesnt-what-is-untested-what-is-risky)
+for what is partial, untested, and risky; the main open product decision is human
+approval for mutating calls.
 
 Kuang Wrap is a second MCP server that lets an agent turn a REST endpoint into
 a saved, typed tool: a wrapper for the request, a recipe for the response, and
@@ -35,9 +36,116 @@ The MCP process is stateless. It asks the app for the manifest and forwards
 calls. **Secrets never enter the MCP process.** That is the whole security
 model in one sentence.
 
+## Honest status: what works, what doesn't, what is untested, what is risky
+
+This section is deliberately blunt. The wrapper system is a developer tool, not a hardened
+API gateway; read it before pointing it at anything that matters.
+
+### What it does and what it is for
+
+Kuang Wrap turns a REST endpoint into a **saved, typed tool**. A wrapper is a deterministic
+request template plus a response recipe; a credential is a host-bound secret that main
+attaches at request time. An agent gets flat, validated arguments instead of assembling
+URLs, headers, and JSON bodies, and it never sees a credential value. It is for **agent
+access to JSON APIs** — dashboards, internal tools, SaaS APIs, documentation — not for
+general web scraping (that is the browser) and not for streaming or binary workloads.
+
+### What works
+
+| Area | State |
+| --- | --- |
+| Request build | URL/query/header/body templates, typed JSON (numbers/booleans/arrays/objects preserved), omitted vs explicit `null`, defaults, no expression language |
+| Argument validation | JSON Schema subset in main; generated tools get the same schema as Zod for the client |
+| Outbound policy | HTTPS only (plain HTTP opt-in), private/loopback/link-local blocked, redirect cap + re-check, credential dropped on a cross-origin redirect, 5 MB cap, 15 s default timeout |
+| Credentials | Static value, or **OAuth2 client_credentials** (mint, cache, early refresh, one forced re-mint on 401); encrypted with `safeStorage`; human-only writes; host-bound; values never enter the MCP process |
+| Recipes | Table / document / documents; fields, record projection, templates; escaping, item and character caps with `meta.truncated` |
+| Pagination | Offset, cursor, and link; page cap (10, max 25) and item cap; merged into one render; one audit row per page; `link` pages must stay same-origin |
+| Derivation | `wrap_derive` from a JSON sample or a policy-checked URL |
+| Cortex indexing | Opt-in per recipe (`index: "cortex"`); best-effort; documents mode indexes per document, otherwise one page per result |
+| Generated tools | Opt-in per wrapper (`exposeAsTool`), typed args, capped at 40, `tools/list_changed` on change |
+| Verification metadata | `lastVerified` written after a successful live run and shown in `wrap_list` |
+| Audit | `audit.jsonl`: method, host, status, bytes, duration, error code — no headers, bodies, or query strings |
+| Tests | 50 offline, 11 generated-tool lifecycle (real MCP client), 46 live against DummyJSON |
+
+### What does not work (or is partial)
+
+- **There is no human-approval gate for mutating calls.** `mutating` is metadata only —
+  nothing blocks or confirms a `POST`/`PUT`/`PATCH`/`DELETE`. This is an open decision, not
+  an oversight (see open question 3).
+- **OAuth2 supports only the `client_credentials` grant.** No authorization-code, device
+  flow, PKCE, `refresh_token`, per-user tokens, token revocation, or OIDC discovery — you
+  paste the token URL and client id/secret.
+- **The wrap server never raises HIL itself.** A rejected credential gets one re-mint and
+  then a structured `AUTH_REQUIRED` result. The *agent* has to call
+  `request_human_intervention` (a browser-server tool) or a human has to update the
+  credential. No desktop notification is emitted from this path.
+- **`lastVerified` is a liveness signal, not a correctness proof.** It means "the upstream
+  answered without an HTTP error", not "the response was right". It also rewrites the
+  wrapper file on every successful run.
+- **`exposeAsTool` has no Settings control.** Only an agent (`wrap_create`/`wrap_update`) or
+  a hand-edited wrapper file can enable it; the editor preserves the flag but cannot set it.
+- **The 40-tool cap silently excludes wrappers** beyond the first 40 by id.
+- **Secret scope is host-only**, not per-wrapper: two wrappers on the same host share one
+  credential (open question 2).
+- **No retries or backoff** beyond the single auth refresh, and **no per-host concurrency
+  queue** (both planned, neither built).
+- **`link` pagination stops on a cross-origin next URL** instead of following it; cursor
+  paging assumes the same HTTP method for every page (no POST-body cursors).
+- **No response-schema validation.** A recipe maps paths; missing or renamed fields render
+  empty rather than erroring.
+- **No standalone daemon.** The Electron app must be running; the wrap server only forwards
+  to the local bridge.
+- Out of scope by design: GraphQL, gRPC, WebSocket subscriptions, binary downloads, cloud
+  sync of wrappers or secrets.
+
+### What is untested (or only tested offline)
+
+- **OAuth2 against a real identity provider.** The tests inject a token minter; the default
+  minter's form-encoded POST, policy check, and error parsing have no live test.
+- **Live cursor and link pagination.** DummyJSON has no cursor API, so those paths are
+  covered by offline fixtures only; the live suite exercises offset paging.
+- **Cortex indexing in CI.** Verified with a one-off probe (the document was recalled as the
+  top hit) rather than in the suite, so repeat runs do not accumulate embeddings.
+- **The 5 MB response cap and cross-origin redirect credential-drop** are unit-tested, not
+  exercised against a live hostile server.
+- **The Linux keyring path** (`basic_text` detection and refusal) — developed and tested on
+  Windows only.
+- **Clients that ignore `tools/list_changed`** — they need a reconnect before a new
+  generated tool appears; there is no fallback beyond that.
+- **The Settings OAuth2 form** has no automated UI test (the repo has no renderer test
+  harness).
+- **No staleness policy.** `lastVerified` is displayed but nothing warns or blocks after a
+  wrapper has not been verified for a long time.
+
+### What is risky
+
+- **DNS rebinding:** the address is checked before `fetch`, which resolves again. A hostile
+  DNS server could rebind between the two; pinning the checked address in the socket is not
+  implemented.
+- **Prompt injection is a data problem, not a code one.** Responses are rendered, never
+  executed, but a model can still be persuaded by text inside a response. Treat wrapper
+  output as untrusted input.
+- **Agents can author wrappers.** A secret cannot be created or bound by an agent, and it is
+  only attached on hosts a human approved. But an agent *can* save a wrapper pointing at any
+  public HTTPS host; if a human later binds a credential to that host, the credential goes
+  there. Human binding is the boundary.
+- **The token URL is not restricted by `allowedHosts`.** It is a separate, human-authored
+  destination; a typo or a hostile value sends your client secret there. HTTPS and the
+  private-host policy still apply, but there is no allowlist.
+- **Secrets and tokens live in the main process** while in use and in encrypted files at
+  rest. Anyone who can run code as your OS user (or unlock the same keychain) can decrypt
+  them. That is the same trust boundary as the app itself.
+- **No approval gate on writes** (above): an agent holding a write wrapper can mutate the
+  upstream API.
+- **The audit log is local and append-only, not tamper-proof**, and it records metadata
+  only — enough to debug, not to prove what was sent.
+- **The 40-tool cap** can make an exposed wrapper invisible to the agent with no warning
+  beyond this document.
+
 ## Non-goals for v1
 
-- OAuth2 flows and token refresh (static bearer/header/basic first).
+- OAuth2 grants beyond client credentials (authorization-code, device flow, PKCE,
+  refresh tokens, per-user tokens, discovery).
 - A standalone daemon that runs without the Kuang app.
 - GraphQL, gRPC, WebSocket subscriptions.
 - Binary downloads (the existing download manager owns that).
@@ -188,7 +296,7 @@ needs it. That keeps discovery cheap.
 
 ```bash
 npm run build:mcp        # writes bin/mcp-server.cjs and bin/wrap-server.cjs
-npm run test:wrap        # 41 offline store/executor/secret/pagination/indexing/schema tests
+npm run test:wrap        # 50 offline store/executor/secret/pagination/indexing/schema/oauth2 tests
 npm run test:wrap:mcp    # 11 generated-tool lifecycle checks over a real MCP client
 npm run test:wrap:live   # 46 live checks against DummyJSON (needs the app; inline wrappers, nothing saved)
 ```
@@ -412,6 +520,34 @@ On Linux, if `safeStorage.getSelectedStorageBackend()` returns `basic_text`,
 secrets are disabled and the panel explains how to fix the keyring. The app does
 not pretend that `basic_text` is encryption.
 
+### OAuth2 client credentials
+
+A credential is either a static value (paste the token/key) or an OAuth2
+`client_credentials` client:
+
+| Field | Meaning |
+| :--- | :--- |
+| `tokenUrl` | HTTPS token endpoint. Policy-checked (no private hosts unless allowed) but **not** restricted by `allowedHosts` |
+| `clientId` | sent as `client_id` |
+| value (write-only) | the client secret, encrypted at rest |
+| `scope` / `audience` | optional, sent only when present |
+
+Minting is a form-encoded `POST` (`grant_type=client_credentials&client_id=…&client_secret=…`).
+The access token is cached (encrypted, alongside the record) until **60 s before**
+`expires_in`, then re-minted. A wrapper call that gets 401/403 triggers **one** forced
+re-mint and a single retry; if that still fails the result is `AUTH_REQUIRED` with a hint to
+update the credential or raise HIL. There is no retry loop and no background refresher.
+
+Not supported: authorization-code, device flow, PKCE, refresh tokens, per-user tokens,
+token revocation, OIDC discovery. The honest-status section lists the associated risks.
+
+### Verification metadata
+
+Every successful live run writes `lastVerified` (ISO timestamp) into the wrapper file.
+`wrap_list` shows `verified YYYY-MM-DD`, or `never verified`. It means "the upstream
+answered without an HTTP error" — a liveness signal only, not proof that the output was
+correct.
+
 ## Execution policy
 
 - Schemes: `https` by default. Plain `http` is rejected unless
@@ -540,7 +676,7 @@ separate reusable recipe store is planned.
 | **S2** ✅ | `safeStorage`, host binding, Settings → Wrappers editor, audit | Unit tests prove a foreign-host secret is refused and a cross-origin redirect drops the injected header |
 | **S3** ✅ | Derived recipes (`wrap_derive`), documents mode, pagination (offset/cursor/link, page- and item-capped), and opt-in Cortex indexing | A paginated API returns all pages up to the cap ✅; documents are searchable ✅ |
 | **S4** ✅ | Generated tools, `sendToolListChanged`; MCP Clients entry and docs are already in S1 | 40-tool cap holds ✅; client sees a new tool without restart ✅ |
-| **S5** | OAuth2 client credentials, expiry HIL, `lastVerified` | Expired token produces a human-action request, not a silent 401 loop |
+| **S5** ✅ | OAuth2 client credentials, expiry handling, `lastVerified` | One re-mint, then `AUTH_REQUIRED` with a human-action hint ✅ (no silent 401 loop); `lastVerified` written on success ✅ |
 
 ## Threat model
 

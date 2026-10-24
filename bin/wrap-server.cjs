@@ -36600,7 +36600,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.74";
+var APP_VERSION = "1.4.75";
 
 // src/mcp/wrap-tool-schema.ts
 function wrapInputToZodShape(schema) {
@@ -36929,7 +36929,9 @@ function formatManifest(data) {
     wrappers.map((wrapper) => {
       const required2 = Array.isArray(wrapper.required) && wrapper.required.length > 0 ? ` \xB7 required: ${wrapper.required.join(", ")}` : "";
       const secret = wrapper.secret ? ` \xB7 secret: ${wrapper.secret}` : "";
-      return `${wrapper.id} \u2014 ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ", mutating" : ""})${required2}${secret}`;
+      const tool = wrapper.exposeAsTool ? " \xB7 tool" : "";
+      const verified = wrapper.lastVerified ? ` \xB7 verified ${String(wrapper.lastVerified).slice(0, 10)}` : " \xB7 never verified";
+      return `${wrapper.id} \u2014 ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ", mutating" : ""})${required2}${secret}${tool}${verified}`;
     })
   );
 }
@@ -36944,7 +36946,8 @@ _${data.warning}_` : "";
   return lines(
     secrets.map((secret) => {
       const hosts = Array.isArray(secret.allowedHosts) ? secret.allowedHosts.join(", ") : "";
-      return `${secret.name} \xB7 ${secret.header} \xB7 ${hosts}`;
+      const kind = secret.kind === "oauth2" ? "oauth2 \xB7 " : "";
+      return `${secret.name} \xB7 ${kind}${secret.header} \xB7 ${hosts}`;
     })
   ) + warning;
 }

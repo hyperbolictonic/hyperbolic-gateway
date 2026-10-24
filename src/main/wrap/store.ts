@@ -105,6 +105,7 @@ export class WrapStore {
         required: wrapper.inputSchema?.required || [],
         exposeAsTool: Boolean(wrapper.exposeAsTool),
         secret: wrapper.request.auth,
+        lastVerified: wrapper.lastVerified,
       };
     });
   }
@@ -115,6 +116,13 @@ export class WrapStore {
     } catch {
       return 0;
     }
+  }
+
+  /** Record a successful live run without going through full validation. */
+  touchVerified(id: string, at: string = new Date().toISOString()): boolean {
+    const wrapper = this.get(id);
+    if (!wrapper) return false;
+    return this.write({ ...wrapper, lastVerified: at }).ok;
   }
 
   private wrappersDir(): string {

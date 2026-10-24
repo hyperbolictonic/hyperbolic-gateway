@@ -573,8 +573,33 @@
             </div>
 
             <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Credential type</legend>
+              <select id="settings-wrap-kind" class="select select-sm w-full font-mono text-xs">
+                <option value="static">Static value (paste a token or API key)</option>
+                <option value="oauth2">OAuth2 client credentials (mint a token)</option>
+              </select>
+              <p class="label font-mono text-[10px]">OAuth2 uses only the <code class="font-mono">client_credentials</code> grant: it posts to the token URL, caches the token until it expires, and re-mints on demand. It does not support authorization-code, device flow, or refresh tokens.</p>
+            </fieldset>
+
+            <div id="settings-wrap-oauth" class="hidden space-y-3">
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Token URL</legend>
+                <input id="settings-wrap-token-url" type="url" class="input input-sm w-full font-mono text-xs" placeholder="https://auth.example.com/oauth/token" autocomplete="off" />
+              </fieldset>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Client ID</legend>
+                <input id="settings-wrap-client-id" type="text" class="input input-sm w-full font-mono text-xs" placeholder="client id" autocomplete="off" />
+              </fieldset>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Scope (optional)</legend>
+                <input id="settings-wrap-scope" type="text" class="input input-sm w-full font-mono text-xs" placeholder="read:things" autocomplete="off" />
+              </fieldset>
+            </div>
+
+            <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">Value (write-only)</legend>
               <input id="settings-wrap-value" type="password" class="input input-sm w-full font-mono text-xs" placeholder="paste the credential; it is never shown again" autocomplete="off" />
+              <p class="label font-mono text-[10px]">For an OAuth2 credential this is the client secret; it is encrypted and never leaves main.</p>
             </fieldset>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
