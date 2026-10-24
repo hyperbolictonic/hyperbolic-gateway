@@ -356,6 +356,41 @@ export async function createWrapMcpServer() {
   );
 
   server.tool(
+    'wrap_derive',
+    'Derive a first-draft response recipe from a JSON sample (an object, an array, or a JSON string) or from a live URL. Returns a recipe you can drop into wrap_create/wrap_update as `response`. It reads the shape only — primitive fields, a table for arrays, a document for objects — so edit it afterwards if you need nested or formatted fields.',
+    {
+      sample: z.unknown().optional().describe('A JSON sample: an object, an array, or a JSON string'),
+      url: z.string().optional().describe('Fetch this URL with a policy-checked GET and derive from its JSON (ignored when sample is given)'),
+      id: z.string().optional().describe('Optional recipe id'),
+      name: z.string().optional().describe('Optional recipe name'),
+      description: z.string().optional(),
+      max_fields: z.coerce.number().optional().describe('Maximum fields to infer (default 12, max 60)'),
+    },
+    async ({ sample, url, id, name, description, max_fields }) => {
+      try {
+        const response = await callBridge('/wrap/derive', 'POST', {
+          sample,
+          url,
+          id,
+          name,
+          description,
+          max_fields,
+        });
+        if (!response.ok || response.data?.success === false) {
+          return toolError(errorText(response.data?.code, response.data?.error || `HTTP ${response.status}`));
+        }
+        const recipe = response.data.recipe;
+        return toolSuccess(
+          `## Derived recipe (from ${response.data.source})\n\n\`\`\`json\n${JSON.stringify(recipe, null, 2)}\n\`\`\`\n\n` +
+            'Pass this as `response` to wrap_create (or wrap_update), then wrap_test it against a real call.',
+        );
+      } catch (err: any) {
+        return bridgeFailure(err);
+      }
+    },
+  );
+
+  server.tool(
     'wrap_create',
     'Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it.',
     {

@@ -16,6 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.72] - 2026-10-24
+
+### Added
+
+- **`wrap_derive` (S3)** — infer a first-draft response recipe from a JSON sample or a live
+  URL. It picks the first array it recognises (`items`, `results`, `data`, …), takes up to
+  `max_fields` primitive fields from the first item, and returns `{ source, recipe }`; pass
+  the recipe to `wrap_create` as `response`. The URL form is fetched through the executor, so
+  it obeys the same outbound policy and never attaches a secret. The `kuang-wrap` surface is
+  now ten meta-tools, with bridge route `POST /wrap/derive`.
+- The executor's `test()` accepts `includeRaw`, so the derive route reuses the fetched JSON
+  instead of issuing a second request.
+
+### Tests
+
+- `npm run test:wrap:live` extended to 46 checks: inline-sample derive, URL derive, and a
+  non-JSON sample rejection.
+
 ## [1.4.71] - 2026-10-24
 
 ### Added

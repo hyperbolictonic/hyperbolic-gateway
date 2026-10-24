@@ -18,6 +18,7 @@ import type { WrapStore } from './wrap/store.js';
 import type { SecretStore } from './wrap/secrets.js';
 import type { WrapAuditLog } from './wrap/audit.js';
 import { isWrapAuthorized, tokenFromHeaders } from './wrap/auth.js';
+import { deriveRecipe } from '../../packages/recipe/src/index.ts';
 
 export interface WrapBridge {
   store: WrapStore;
@@ -1271,6 +1272,65 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
             maxPages: body?.maxPages !== undefined ? Number(body.maxPages) : undefined,
           });
           sendJson(result);
+          return;
+        }
+
+        if (req.method === 'POST' && pathname === '/wrap/derive') {
+          const body = await readBody();
+          let sample: unknown = body?.sample;
+          let source: 'sample' | 'url' = 'sample';
+
+          // A URL is fetched through the executor, so the same outbound policy applies.
+          if ((sample === undefined || sample === null) && typeof body?.url === 'string' && body.url) {
+            const fetched = await wrap.executor.test({
+              wrapper: {
+                schemaVersion: 1,
+                id: 'derive.sample',
+                name: 'derive sample',
+                request: { method: 'GET', url: body.url },
+              },
+              args: {},
+              dryRun: false,
+              includeRaw: true,
+              maxPages: 1,
+            });
+            if (fetched.ok !== true) {
+              sendJson(
+                {
+                  success: false,
+                  error: fetched.error?.message || `Could not fetch ${body.url}`,
+                  code: fetched.error?.code || 'FETCH_FAILED',
+                },
+                400,
+              );
+              return;
+            }
+            sample = fetched.response?.json;
+            source = 'url';
+          }
+
+          if (typeof sample === 'string') {
+            try {
+              sample = JSON.parse(sample);
+            } catch {
+              sendJson({ success: false, error: 'sample is not valid JSON', code: 'BAD_REQUEST' }, 400);
+              return;
+            }
+          }
+
+          if (sample === undefined || sample === null) {
+            sendJson({ success: false, error: 'Provide a JSON sample or a url to fetch.', code: 'BAD_REQUEST' }, 400);
+            return;
+          }
+
+          const maxFields = body?.max_fields ?? body?.maxFields;
+          const recipe = deriveRecipe(sample, undefined, {
+            id: typeof body?.id === 'string' ? body.id : undefined,
+            name: typeof body?.name === 'string' ? body.name : undefined,
+            description: typeof body?.description === 'string' ? body.description : undefined,
+            maxFields: maxFields !== undefined ? Number(maxFields) : undefined,
+          });
+          sendJson({ success: true, source, recipe });
           return;
         }
 

@@ -36600,7 +36600,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.71";
+var APP_VERSION = "1.4.72";
 
 // src/mcp/wrap-server.ts
 var BRIDGE_URL = (process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111").replace(/\/$/, "");
@@ -36882,6 +36882,45 @@ async function createWrapMcpServer() {
         const response = await callBridge("/wrap/secrets");
         if (!response.ok) return toolError(errorText(response.data?.code, response.data?.error || `HTTP ${response.status}`));
         return toolSuccess(formatSecrets(response.data));
+      } catch (err) {
+        return bridgeFailure(err);
+      }
+    }
+  );
+  server.tool(
+    "wrap_derive",
+    "Derive a first-draft response recipe from a JSON sample (an object, an array, or a JSON string) or from a live URL. Returns a recipe you can drop into wrap_create/wrap_update as `response`. It reads the shape only \u2014 primitive fields, a table for arrays, a document for objects \u2014 so edit it afterwards if you need nested or formatted fields.",
+    {
+      sample: external_exports.unknown().optional().describe("A JSON sample: an object, an array, or a JSON string"),
+      url: external_exports.string().optional().describe("Fetch this URL with a policy-checked GET and derive from its JSON (ignored when sample is given)"),
+      id: external_exports.string().optional().describe("Optional recipe id"),
+      name: external_exports.string().optional().describe("Optional recipe name"),
+      description: external_exports.string().optional(),
+      max_fields: external_exports.coerce.number().optional().describe("Maximum fields to infer (default 12, max 60)")
+    },
+    async ({ sample, url: url2, id, name, description, max_fields }) => {
+      try {
+        const response = await callBridge("/wrap/derive", "POST", {
+          sample,
+          url: url2,
+          id,
+          name,
+          description,
+          max_fields
+        });
+        if (!response.ok || response.data?.success === false) {
+          return toolError(errorText(response.data?.code, response.data?.error || `HTTP ${response.status}`));
+        }
+        const recipe = response.data.recipe;
+        return toolSuccess(
+          `## Derived recipe (from ${response.data.source})
+
+\`\`\`json
+${JSON.stringify(recipe, null, 2)}
+\`\`\`
+
+Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it against a real call.`
+        );
       } catch (err) {
         return bridgeFailure(err);
       }

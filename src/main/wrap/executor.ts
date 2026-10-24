@@ -153,6 +153,7 @@ export class WrapExecutor {
     dryRun?: boolean;
     format?: WrapFormat;
     maxPages?: number;
+    includeRaw?: boolean;
   }): Promise<WrapRunResult> {
     const resolved = this.resolve(input.id, input.wrapper);
     if (!resolved.wrapper) return failure({ id: input.id || '(unsaved)', name: input.id || '(unsaved)' }, resolved.code, resolved.message);
@@ -163,7 +164,7 @@ export class WrapExecutor {
 
     return this.execute(resolved.wrapper, input.args, {
       dryRun: input.dryRun !== false,
-      includeRaw: false,
+      includeRaw: Boolean(input.includeRaw),
       format: input.format || 'markdown',
       maxPages: input.maxPages,
     });
