@@ -1,5 +1,6 @@
 import { BrowserWindow, clipboard, type WebContents } from 'electron';
 import { generateOrganicTrajectory, type Point, type PathStep, type ChaosKinematicsOptions } from './bezier.js';
+import { bump } from '../metrics.js';
 
 export interface InputTelemetryReporter {
   onMouseMove?: (point: Point, velocity: number) => void;
@@ -142,6 +143,7 @@ export class HumanizedInputSimulator {
   ): Promise<boolean> {
     const dbg = this.getCdp(webContents);
     if (!dbg) return false;
+    bump('cdp.input');
     try {
       await dbg.sendCommand(method, params);
       return true;
@@ -418,6 +420,7 @@ export class HumanizedInputSimulator {
     target: Point,
     options?: { button?: 'left' | 'right' | 'middle'; clickCount?: number }
   ): Promise<void> {
+    bump('action.click');
     const button = options?.button ?? 'left';
     const clickCount = options?.clickCount ?? 1;
 
@@ -531,6 +534,7 @@ export class HumanizedInputSimulator {
     options?: { baseSpeedWpm?: number }
   ): Promise<void> {
     this.ensureInputTarget(webContents);
+    bump('action.type');
     for (let i = 0; i < text.length; i++) {
       if (this.humanGate?.()) {
         throw new Error('HUMAN_IN_PROGRESS: the human is using the browser — synthetic typing is paused.');
@@ -677,6 +681,7 @@ export class HumanizedInputSimulator {
     chunks: number = 8
   ): Promise<void> {
     this.ensureInputTarget(webContents);
+    bump('action.scroll');
     const step = Math.round(deltaY / chunks);
     for (let i = 0; i < chunks; i++) {
       await this.dispatch(

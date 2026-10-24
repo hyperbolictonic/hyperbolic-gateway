@@ -203,3 +203,23 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 - **`select` action** on `act` — deliberately excluded because setting a native value is a TIER-3 DOM mutation; the documented marks flow (click trigger → `list_marks` → click option) is the humanlike path.
 - **`download` wait condition** — needs a download correlation id.
 - **Permission tiers / read-only mode** — needs a policy surface in the MCP client.
+
+### [ ] 17. Live verification backlog — *scheduled 2026-10-25*
+
+Things that are unit-tested or bridge-tested but **not yet verified end-to-end against a real page**:
+
+- **`drive(save_recipe: true)` → replay.** The compiler (`compile.ts`) has 9 offline checks and the
+  replay engine has 11 live checks, but the seam between them is unverified: on the fixture,
+  `drive` returned `needs_agent` (the guard rejected every option) before reaching `done`, so no
+  recipe was produced. Tomorrow: run `drive` on a page where the decision model succeeds, confirm a
+  recipe is saved, reload the page, `replay`, and assert the end state.
+- **Consent inside a real CMP iframe.** Sourcepoint/Quantcast are covered by a local cross-origin
+  fixture; the Guardian now redirects to an ad-lite page, so no live CMP was exercised after
+  Phase 3. Pick a site that still ships a same-origin-reachable CMP and confirm `frame: "child"` with
+  `delivery: "cdp"`.
+- **Human takeover during a real agent action.** Verified with a real OS click *between* actions;
+  still unverified *mid-action* (the click arriving while the trajectory is in flight). Expect the
+  grace window to swallow it — confirm whether that is acceptable or needs a stricter signal.
+- **`recipe` replay across a page change.** Retirement is wired (3 consecutive failures) but only
+  exercised once.
+

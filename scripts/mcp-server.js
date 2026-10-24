@@ -38288,7 +38288,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.87";
+var APP_VERSION = "1.4.88";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
@@ -38479,6 +38479,23 @@ async function callBridge(endpoint, method = "GET", body = null) {
   }
   return await res.json();
 }
+var versionCheckDone = false;
+var versionNote = null;
+var versionNoteShown = false;
+async function versionNoteOnce() {
+  if (versionCheckDone) return versionNote;
+  versionCheckDone = true;
+  try {
+    const health = await callBridge("/health", "GET");
+    const appVersion = String(health?.version || "");
+    if (appVersion && appVersion !== APP_VERSION) {
+      versionNote = `\u26A0 STALE MCP SERVER \u2014 this server is v${APP_VERSION}, the running app is v${appVersion}. Tool schemas and descriptions come from this process; restart the MCP client session to refresh them. Until then, prefer the bridge directly if a tool rejects an argument the app supports.`;
+      logMcp(`[Version] MCP server v${APP_VERSION} != app v${appVersion} \u2014 stale schemas`, "error");
+    }
+  } catch {
+  }
+  return versionNote;
+}
 function extractCleanBase64(data) {
   const raw = data?.screenshot?.base64Image || data?.base64Image || data?.image || "";
   return typeof raw === "string" ? raw.replace(/^data:image\/[a-z]+;base64,/, "") : "";
@@ -38561,6 +38578,14 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
         const rawText = tool.format ? tool.format(data, args) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
         const text = clampText(typeof rawText === "string" ? rawText : String(rawText ?? ""));
         logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
+        let outputText = text;
+        const staleNote = await versionNoteOnce();
+        if (staleNote && !versionNoteShown) {
+          versionNoteShown = true;
+          outputText = `${staleNote}
+
+${text}`;
+        }
         if (tool.name === "observe" && data?.as === "components" && Array.isArray(data.components)) {
           const components = data.components.slice(0, 120).map((c) => ({
             id: c.id,
@@ -38575,7 +38600,7 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
             ]
           };
         }
-        return { content: [{ type: "text", text }] };
+        return { content: [{ type: "text", text: outputText }] };
       } catch (err) {
         logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, "error");
         return {

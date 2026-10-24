@@ -6,6 +6,7 @@ import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, Tab
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { loadInputProfile, saveInputProfile, type InputProfile } from './telemetry/input-profile.js';
 import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
+import { bump } from './metrics.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
@@ -1020,6 +1021,7 @@ export class BrowserChassis {
 
   // MCP Operations on Active Tab
   public async navigateTo(url: string, autoDismissConsent: boolean = true): Promise<string> {
+    bump('nav');
     const wc = this.getActiveWebContents();
     this.state.agentStatus = 'TRAVERSING';
     this.broadcastState();

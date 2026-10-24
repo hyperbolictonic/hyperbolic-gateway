@@ -9,6 +9,7 @@ import { driveTask } from './drive/driver.js';
 import { loadRecipes, recipesFor, saveRecipe, deleteRecipe, recordResult } from './recipes/recipe-store.js';
 import { replayRecipe, type RecipeRunner } from './recipes/replay.js';
 import { compileDriveSteps } from './recipes/compile.js';
+import { summary, snapshot, resetMetrics } from './metrics.js';
 import {
   getRecordingConfig,
   getRecordingStatus,
@@ -153,8 +154,18 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           window: { visible: chassis.isWindowVisible(), focused: chassis.isWindowFocused() },
           input: { transport: chassis.getSimulator().lastInputTransport },
           human: { paused: chassis.isHumanActive(), ...chassis.getHumanStatus() },
+          metrics: summary(),
           info,
         });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/metrics') {
+        sendJson({ success: true, version: APP_VERSION, counters: snapshot() });
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/metrics/reset') {
+        sendJson({ success: true, ...resetMetrics() });
         return;
       }
 

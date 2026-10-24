@@ -12,6 +12,7 @@
  * Reuse (Phase 2+): marks, consent, extract. Keep it dependency-free.
  */
 import type { WebContents } from 'electron';
+import { bump } from '../metrics.js';
 
 export interface FrameEvalOptions {
   /** Frames to visit, breadth-first including the main frame (default 8). */
@@ -98,9 +99,11 @@ export async function evaluateInFrames(
 
   try {
     if (!pageEnabled) {
+      bump('cdp.frame');
       await withTimeout(dbg.sendCommand('Page.enable'), timeoutMs, 'Page.enable');
       cache.set('__page__', { loaderId: '', contextId: 0, pageEnabled: true });
     }
+    bump('cdp.frame');
     const tree = (await withTimeout(dbg.sendCommand('Page.getFrameTree'), timeoutMs, 'Page.getFrameTree')) as any;
     const frames = flatten(tree?.frameTree).slice(0, maxFrames);
     const results: FrameEvalResult[] = [];

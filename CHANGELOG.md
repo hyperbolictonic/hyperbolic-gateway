@@ -16,7 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.87] - 2026-10-24
+## [1.4.88] - 2026-10-24
+
+### Added
+
+- **Ops metrics.** Small counters — `cdp.input`, `cdp.frame`, `action.click`, `action.type`,
+  `action.scroll`, `nav` — exposed at `GET /metrics` (full map) and summarised in `bridge_health` as
+  `metrics: {cdp, actions, navigations}`. `POST /metrics/reset` clears them. The point is the metric
+  jev-ultrafast reports: **CDP commands per task**, the honest measure of whether a change actually
+  reduced round trips.
+- **Stale MCP server guard.** The MCP server process is spawned once per client session, so rebuilding
+  the app leaves yesterday's tool schemas running against today's bridge — which is exactly how
+  `target_text` and `recipe` looked broken during development. On the first tool result the server
+  now compares its bundled `APP_VERSION` with the live app version and, on a mismatch, prefixes one
+  result with `⚠ STALE MCP SERVER — this server is vX, the running app is vY … restart the MCP client
+  session`.
+- **Live verification backlog** in [`docs/TODO.md`](../../docs/TODO.md) item 17, scheduled 2026-10-25:
+  `drive → save → replay` end-to-end, a real CMP iframe, takeover mid-action, and recipe retirement.
+
+
 
 ### Added
 

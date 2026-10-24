@@ -58,6 +58,14 @@ Only **verified** steps are compiled:
 The compiler is a pure function (`compile.ts`) with an offline test suite:
 `npm run test:recipe:compile` (9 checks).
 
+## Outstanding verification
+
+The seam between learning and replay is currently unit-tested only: on the fixture, `drive` returned
+`needs_agent` before reaching `done`, so `save_recipe` never produced anything. See
+[docs/TODO.md](../../../docs/TODO.md) item 17 (scheduled 2026-10-25) for the live check: run `drive`
+somewhere the decision model succeeds, confirm the recipe is stored, reload, replay, assert the end
+state.
+
 ## Lifecycle
 
 - storage: `data/recipes.json` (gitignored, local only)

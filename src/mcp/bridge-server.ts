@@ -206,8 +206,40 @@ async function callBridge(endpoint: string, method: string = 'GET', body: any = 
   return await res.json();
 }
 
-function extractCleanBase64(data: any): string {
-  const raw = data?.screenshot?.base64Image || data?.base64Image || data?.image || '';
+/**
+ * Stale-server guard.
+ *
+ * Tool schemas and descriptions live in this bundled process, which the MCP client spawns once per
+ * session. Rebuilding the app (or the bundle) does not update a running server, so an agent can end
+ * up calling yesterday's schema against today's bridge — which is exactly how `target_text` and the
+ * new `recipe` action looked broken during development.
+ *
+ * Compare once per process against the live app version and say so, loudly, on the first result.
+ */
+let versionCheckDone = false;
+let versionNote: string | null = null;
+let versionNoteShown = false;
+
+async function versionNoteOnce(): Promise<string | null> {
+  if (versionCheckDone) return versionNote;
+  versionCheckDone = true;
+  try {
+    const health = await callBridge('/health', 'GET');
+    const appVersion = String(health?.version || '');
+    if (appVersion && appVersion !== APP_VERSION) {
+      versionNote =
+        `⚠ STALE MCP SERVER — this server is v${APP_VERSION}, the running app is v${appVersion}. ` +
+        `Tool schemas and descriptions come from this process; restart the MCP client session to refresh them. ` +
+        `Until then, prefer the bridge directly if a tool rejects an argument the app supports.`;
+      logMcp(`[Version] MCP server v${APP_VERSION} != app v${appVersion} — stale schemas`, 'error');
+    }
+  } catch {
+    // Bridge down or mid-restart: the normal tool error will be more useful than a version note.
+  }
+  return versionNote;
+}
+
+function extractCleanBase64(data: any): string {  const raw = data?.screenshot?.base64Image || data?.base64Image || data?.image || '';
   return typeof raw === 'string' ? raw.replace(/^data:image\/[a-z]+;base64,/, '') : '';
 }
 
@@ -328,6 +360,14 @@ export async function createBridgeMcpServer() {
         const text = clampText(typeof rawText === 'string' ? rawText : String(rawText ?? ''));
         logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
 
+        // A stale server silently rejects arguments the app already supports; say so once.
+        let outputText = text;
+        const staleNote = await versionNoteOnce();
+        if (staleNote && !versionNoteShown) {
+          versionNoteShown = true;
+          outputText = `${staleNote}\n\n${text}`;
+        }
+
         // observe(as:"components") is the input to the decision loop, so hand back the machine
         // table too — decide(state: <this>, guard:{components: [ids]}) can consume it verbatim
         // instead of the agent re-typing ids out of the prose projection.
@@ -343,7 +383,7 @@ export async function createBridgeMcpServer() {
           };
         }
 
-        return { content: [{ type: 'text', text }] };
+        return { content: [{ type: 'text', text: outputText }] };
       } catch (err: any) {
         logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, 'error');
         return {
