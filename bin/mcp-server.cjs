@@ -38227,7 +38227,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.79";
+var APP_VERSION = "1.4.80";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
@@ -38547,6 +38547,7 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
     * Pass guard:{components, threshold} so an answer naming a missing id or a control that cannot accept the operation is rejected instead of executed.
     * drive(goal, values?, max_steps?) is for a short, well-scoped goal with genuine ambiguity per step. It is not a retry engine: a guard rejection means fall back to observe(markdown) + find.
     * decide CHOOSES, it does not act or verify. Every decision is followed by act + expect/diff/page_state. Never treat "done" as proof \u2014 check the page.
+    * HUMAN_DECISION_REQUIRED means the guarded choice did not clear its threshold. Kuang has already raised the HIL banner and will not act. Do NOT guess, do NOT retry with a lower threshold: wait for the human, then re-observe and continue (or ask them in chat if they are present).
 
 2. [ORTHOGONAL PRIMITIVES \u2014 PREFER THESE OVER BLIND SLEEPS]
   - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate; returns {ok, waitedMs, attempts, results[]}. Replaces every sleep.

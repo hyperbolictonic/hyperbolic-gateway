@@ -16,7 +16,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.79] - 2026-10-24
+## [1.4.80] - 2026-10-24
+
+### Added
+
+- **A decision that needs a human now raises HIL.** When a guarded `decide` returns
+  `accepted:false` — confidence under the threshold, or every option eliminated — Kuang raises the
+  human-intervention request itself (banner, notification, window to front) listing the candidate
+  options and why the guard rejected them, and answers the caller with `409
+  HUMAN_DECISION_REQUIRED` plus `hil_id`, `options` and `reasons`. The agent is told not to guess
+  and not to lower the threshold; it waits for the human, then re-observes. Previously this path
+  returned `fallback: "agent"`, which is exactly an invitation to answer with a coin flip.
+
+### Fixed
+
+- **`scroll_page` silently did nothing when the wheel was swallowed.** On pages with a fixed
+  header, a consent layer or a custom inner scroller, the wheel lands on something that does not
+  scroll while the call still reported success (Mobalytics: document 2 783 px tall, `scrollY` stuck
+  at 0). The scroll is now verified, and if the position did not change it scrolls the real
+  container under the viewport centre and says so in the result. On the page that exposed it:
+  `scrollY 0 → 700`, with `(wheel was swallowed — scrolled the active scroll container instead)`.
+
+
 
 ### Added
 

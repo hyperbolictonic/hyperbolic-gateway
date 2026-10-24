@@ -855,6 +855,35 @@ export class BrowserChassis {
   public getDecisionEvents(): DecisionEvent[] {
     return this.decisionLog;
   }
+
+  /**
+   * A guarded decision that cannot clear its threshold is a HUMAN decision, not an agent guess.
+   * Raise the HIL banner (with the options) and hand the caller a `human_required` result so it
+   * stops instead of acting on a coin flip. Non-blocking: the request is registered synchronously,
+   * and the promise is left to resolve when the person acts or the request times out.
+   */
+  public requestHumanForDecision(
+    info: { question?: string; options?: string[]; confidence?: number; reasons?: string[] },
+    url?: string
+  ): string | null {
+    const existing = this.hilManager.getActiveRequest();
+    if (existing) return existing.id; // already asking the human; do not stack requests
+
+    const pageUrl = url || this.getPageInfo().url;
+    const options = (info.options || []).map((o) => String(o).trim()).filter(Boolean).slice(0, 6);
+    const bits = [
+      info.question ? `Decision needed: ${info.question}` : 'Decision needed',
+      options.length ? `Options: ${options.map((o) => `"${o}"`).join(', ')}` : '',
+      typeof info.confidence === 'number' ? `(model confidence ${info.confidence.toFixed(2)})` : '',
+      info.reasons?.length ? `— ${info.reasons.slice(0, 2).join('; ')}` : '',
+    ].filter(Boolean);
+    const reason = bits.join(' ').slice(0, 400);
+
+    const pending = this.requestHumanIntervention(reason, { url: pageUrl, bringToFront: true, timeoutSeconds: 300 });
+    const id = this.hilManager.getActiveRequest()?.id ?? null;
+    void pending.catch(() => null); // resolves when the human acts; we do not block the HTTP call
+    return id;
+  }
   private async indexTabQuietly(tab: TabInstance) {
     try {
       const url = tab.url;
@@ -1244,12 +1273,50 @@ export class BrowserChassis {
     this.addLog('action', `MCP Directive: scroll_page(${direction}, ${amount}px)`);
 
     const deltaY = direction === 'down' ? amount : -amount;
+    const readScroll = () =>
+      wc
+        .executeJavaScript(
+          `(() => { const el = document.scrollingElement || document.documentElement; return { y: Math.round(window.scrollY || el.scrollTop || 0) }; })()`
+        )
+        .catch(() => null);
+    const before = await readScroll();
+
     await this.simulator.scrollPage(wc, deltaY);
+
+    // A wheel event lands on whatever is under the cursor. On pages with a fixed header, a
+    // cookie layer or a custom inner scroller, the wheel is swallowed and the "successful" call
+    // moves nothing (seen on Mobalytics: html is 2 783px tall, scrollY stayed 0). Verify, and
+    // fall back to scrolling the real scroller under the viewport centre.
+    const after = await readScroll();
+    let usedFallback = false;
+    if (before && after && Math.abs(after.y - before.y) < 2) {
+      const fallback = await wc
+        .executeJavaScript(
+          `(() => {
+            const delta = ${deltaY};
+            const doc = document.scrollingElement || document.documentElement;
+            let node = document.elementFromPoint(Math.round(innerWidth / 2), Math.round(innerHeight / 2));
+            let inner = null;
+            while (node && node !== document.body && node !== document.documentElement) {
+              const st = getComputedStyle(node);
+              if (node.scrollHeight > node.clientHeight + 40 && /auto|scroll|overlay/.test(st.overflowY)) { inner = node; break; }
+              node = node.parentElement;
+            }
+            const y0 = inner ? inner.scrollTop : doc.scrollTop;
+            (inner || doc).scrollBy(0, delta);
+            const y1 = inner ? inner.scrollTop : doc.scrollTop;
+            return JSON.stringify({ target: inner ? 'inner' : 'document', before: Math.round(y0), after: Math.round(y1) });
+          })()`
+        )
+        .catch(() => null);
+      usedFallback = true;
+      this.addLog('info', `scroll_page fell back to the real scroller: ${fallback || 'unknown'}`);
+    }
 
     this.state.agentStatus = 'IDLE';
     this.broadcastState();
     this.bumpRevision();
-    return `Scrolled ${direction} by ${amount}px`;
+    return `Scrolled ${direction} by ${amount}px${usedFallback ? ' (wheel was swallowed — scrolled the active scroll container instead)' : ''}`;
   }
 
   public getScreenshotsDir(): string {

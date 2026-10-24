@@ -936,6 +936,41 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         if (screenshotNote || (result as any).imageNote) {
           (result as any).screenshot = (result as any).imageNote || screenshotNote;
         }
+        // A guarded call that did not accept any answer (`accepted:false` — confidence gate or every
+        // option eliminated) is exactly the case a person should answer. Note it arrives with
+        // ok:true, so this must be checked BEFORE the success branch.
+        if ((result as any).accepted === false) {
+          const optionNames: string[] = [];
+          for (const q of Object.values(body?.questions || {}) as any[]) {
+            const criteria = q?.criteria;
+            if (criteria && typeof criteria === 'object') optionNames.push(...Object.keys(criteria));
+          }
+          const options = [...new Set(optionNames)];
+          const hilId = chassis.requestHumanForDecision(
+            {
+              question: typeof body?.state === 'string' ? body.state.split('\n')[0].slice(0, 140) : undefined,
+              options,
+              reasons: (result as any).reasons,
+            },
+            chassis.getPageInfo().url
+          );
+          sendJson(
+            {
+              success: false,
+              error: 'human decision required — the guarded choice did not clear its threshold',
+              code: 'HUMAN_DECISION_REQUIRED',
+              human_required: true,
+              hil_id: hilId,
+              options,
+              reasons: (result as any).reasons,
+              hint: 'Do NOT guess or act. A human has been asked (the HIL banner is up). Wait for them to resolve it, then re-observe the page and continue.',
+              protocol: result.protocol,
+              latencyMs: result.latencyMs,
+            },
+            409
+          );
+          return;
+        }
         if (result.ok) {
           // "Blocked" without a deterministic match is not a compliance boundary we can prove.
           // The agent decides: it may know the site, or it may call request_human_intervention.
@@ -960,6 +995,8 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
               chassis.getPageInfo().url
             );
           }
+          // A guarded call whose every option was rejected is handled above (accepted:false) —
+          // this branch is for transport/backend failures only.
           const status = code === 'TIMEOUT' ? 504 : code === 'HUMAN_REQUIRED' ? 409 : code === 'UPSTREAM_ERROR' ? 502 : 400;
           sendJson(
             {
