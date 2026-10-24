@@ -23,7 +23,7 @@ mutation beyond Mark Eleven's own `data-mark-id` stamp), so they do **not** trip
 | `find(role, name, contains, regex, tag, selector, limit)` | Semantic element search → **refs** | rows carrying `mark` ids | hand-written CSS/XPath |
 | `extract(kind, ref, selector, limit)` | Structured read: `list` \| `table` \| `tables` \| `app_data` \| `schema_org` (`type` filters JSON-LD by @type) | `{rows}` / `{headers, rows, records}` / embedded JSON / typed JSON-LD items | regex over HTML |
 | `collect_all(selector, ref, scroll, max_scrolls, max)` | Scroll a lazy/virtualized list to the end, dedupe rows | rows + scroll diagnostics | a manual scroll-and-harvest sweep |
-| `llm_surface(url)` / `llm_fetch(url, as)` | Read a site's *own* Markdown/Text (`/llms.txt`, `<link rel=alternate>`, or negotiation) — **GATED** on an advertised surface | surface report / `{as, url, contentType, bytes, content, via}` | rendering a docs page just to read its text |
+| `llm_surface(url)` / `llm_fetch(url, as)` / `read_url(url, max_chars?, cursor?)` | Read a URL as Markdown — the site's *own* (`/llms.txt`, `<link rel=alternate>` or a real `<a href="….md">` link, or negotiation), else a detached render. `read_url` is the one-call composite; `llm_surface.recommended` is `null` when there is nothing fetchable (follow `next`) | surface report / `{as, url, scope, scope_mismatch, contentType, bytes, content, via}` / `{via, as, scope, total, offset, next_cursor, truncated, content, reason?}` | rendering a docs page just to read its text |
 | `search_web(query, engine?, engines?, url_template?, max_results?)` | Multi-engine web search in a detached view with automatic fallback | ranked `{rank, title, url, snippet}` | manual SERP navigation |
 | `deep_crawl(url, max_depth?, max_pages?, match_patterns?, …)` | Autonomous BFS crawl; distill + index each page to Cortex (cheap `llm` path first) | per-page summary + `cortexIndexed` | turn-by-turn navigate-and-harvest |
 | `research_topic(query, max_sources?, …)` | Search → gather top sources → distill → index; **extractive** cited highlights | sources + highlights + `cortexIndexed` | manual search-and-read across tabs |
@@ -303,7 +303,7 @@ and stops with a typed status: `done`, `blocked`, `human_required`, `needs_agent
 Call `bridge_health()` once per session:
 `{status, app, version, revision, capabilities[], window:{visible,focused}, input:{transport}, lastActionAt}`.
 `capabilities` advertises which primitives this build negotiated
-(`observe:v2, wait_for, extract:list,table,app_data, collect_all, find, expect, act, page_state, diff, network_since, export_har, contexts, marks_offscreen, llm_surface, llm_fetch`).
+(`observe:v2, wait_for, extract:list,table,app_data, collect_all, find, expect, act, page_state, diff, network_since, export_har, contexts, marks_offscreen, llm_surface, llm_fetch, read_url`).
 
 ## 8. Known Limits
 

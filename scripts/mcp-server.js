@@ -37801,38 +37801,72 @@ ${rows.join("\n")}`;
   },
   {
     name: "llm_surface",
-    description: 'Checks whether a site publishes an LLM-friendly representation \u2014 a `/llms.txt` / `/llms-full.txt` index, a `/sitemap.xml`, a page-level `<link rel="alternate" type="text/markdown|text/plain">`, or Markdown content negotiation \u2014 so you can read it as text instead of rendering. Returns `recommended`: "llms_txt" | "llms_full" | "markdown" | "text" | "rendered". When it is "rendered", read the page the normal way with `observe(as:"markdown")`. Only well-known paths are probed; results are cached per origin. url defaults to the active tab.',
+    description: 'Checks whether a site publishes an LLM-friendly representation \u2014 a `/llms.txt` / `/llms-full.txt` index, a `/sitemap.xml`, a page-level Markdown/Text alternate (a declared `<link rel="alternate">`, or a real `<a href="\u2026.md">` link on the page), or Markdown content negotiation \u2014 so you can read it as text instead of rendering. Returns `recommended`: "llms_txt" | "llms_full" | "markdown" | "text", or **null** when the site advertises none (never "rendered"). Also returns `scope` ("origin" for a site-wide index, "page" for this page) and `next` \u2014 the unambiguous next step: `{tool:"llm_fetch", as}` when something is fetchable, else `{tool:"observe", as:"markdown"}`. A null `recommended` is NOT a fetch target: follow `next`, or just call `read_url`. Only well-known paths are probed and results are cached per origin; url defaults to the active tab.',
     parameters: {
       url: external_exports.string().optional().describe("Site or page URL to inspect (default: the active tab)")
     },
     endpoint: "/llm/surface",
     payload: (args) => ({ url: args?.url }),
     format: (data) => {
+      const rec = data.recommended ? `**${data.recommended}**${data.scope ? ` (${data.scope} scope)` : ""}` : "**none** \u2014 render the page";
+      const next = data.next?.tool === "llm_fetch" ? `llm_fetch({ as: "${data.next.as}" })` : 'observe({ as: "markdown" })';
       const lines = [
         `### LLM surface \u2014 ${data.origin || data.url}`,
-        `- recommended: **${data.recommended}**`,
+        `- recommended: ${rec}`,
+        `- next: ${next}`,
         `- llms.txt: ${data.llms_txt?.found ? `${data.llms_txt.url} (${data.llms_txt.bytes}B)` : "\u2014"}`,
         `- llms-full.txt: ${data.llms_full?.found ? `${data.llms_full.url} (${data.llms_full.bytes}B)` : "\u2014"}`,
         `- sitemap.xml: ${data.sitemap?.found ? `${data.sitemap.url} (${data.sitemap.entries ?? 0} urls)` : "\u2014"}`,
-        `- markdown alternates: ${data.markdown_alternates?.length ? data.markdown_alternates.map((a) => a.href).join(", ") : "\u2014"}`,
+        `- markdown alternates: ${data.markdown_alternates?.length ? data.markdown_alternates.map((a) => `${a.href}${a.source === "anchor" ? " (from a page link)" : ""}`).join(", ") : "\u2014"}`,
         `- accepts markdown (negotiation): ${data.content_negotiation?.accepts_markdown ? "yes" : "no"}`
       ];
-      if (data.recommended === "rendered") lines.push("", 'No LLM surface found \u2014 read it with `observe(as:"markdown")`.');
+      if (!data.recommended) {
+        lines.push("", 'No fetchable LLM surface \u2014 read it with `read_url` (or `observe({ as: "markdown" })`).');
+      }
+      if (data.notes?.length) lines.push("", ...data.notes.map((n) => `> ${n}`));
       return lines.join("\n");
     }
   },
   {
     name: "llm_fetch",
-    description: 'Fetches a site-provided Markdown/Text representation that `llm_surface` found \u2014 an `/llms.txt` index, a page-level Markdown/Text alternate, or a negotiated Markdown body. GATED: it refuses with NO_LLM_SURFACE unless the site actually advertises a surface, and never fetches arbitrary URLs or guesses paths. For a normal rendered page use `observe(as:"markdown")` instead.',
+    description: 'Fetches a site-provided Markdown/Text representation that `llm_surface` found \u2014 an `/llms.txt` index, a page-level Markdown/Text alternate, or a negotiated Markdown body. GATED: it refuses with NO_LLM_SURFACE unless the site actually advertises a surface, and never fetches arbitrary URLs or guesses paths. The result carries `scope` ("origin"|"page") and `scope_mismatch` \u2014 true when you asked for a page but only a site-wide index exists. For the rendered page use `observe({ as: "markdown" })`; for one call that always returns text use `read_url`.',
     parameters: {
       url: external_exports.string().optional().describe("Site or page URL (default: the active tab)"),
       as: external_exports.enum(["llms_txt", "llms_full", "markdown", "text"]).optional().describe("Which advertised representation to fetch (default: the probe's recommended)")
     },
     endpoint: "/llm/fetch",
     payload: (args) => ({ url: args?.url, as: args?.as }),
-    format: (data) => `### llm_fetch ${data.as} \xB7 ${data.url} (${data.contentType || "unknown"}, ${data.bytes} bytes, via ${data.via})
+    format: (data) => {
+      const warn = data.scope_mismatch ? "\n> Scope mismatch: you asked for a page, but this is the site-wide index." : "";
+      return `### llm_fetch ${data.as} \xB7 ${data.url} (${data.contentType || "unknown"}, ${data.bytes} bytes, ${data.scope} scope, via ${data.via})${warn}
 
-${data.content || ""}`
+${data.content || ""}`;
+    }
+  },
+  {
+    name: "read_url",
+    description: 'Reads a URL as Markdown in ONE call \u2014 the composite front door. Reads the site\'s own LLM-friendly representation when one covers the URL you asked for (a page-level Markdown/Text alternate for a page); otherwise it renders the URL in a DETACHED view (your active tab is never hijacked) and distils it to Markdown. Always returns Markdown text, so you never have to branch on `llm_surface.recommended`. A site-wide `/llms.txt` index is never returned in place of a page \u2014 the page is rendered instead, and `reason` says why. Reports `via` ("llm_fetch"|"render"), `scope` ("origin"|"page"), `scope_mismatch` and `reason`. PAGED: pass `max_chars` and follow `next_cursor`, because a long ToS/legal page exceeds a single call.',
+    parameters: {
+      url: external_exports.string().optional().describe("URL to read as Markdown (default: the active tab)"),
+      max_chars: external_exports.coerce.number().optional().describe("Maximum characters to return per call (default 20000, cap 50000)"),
+      cursor: external_exports.union([external_exports.string(), external_exports.number()]).optional().describe("Character offset to continue from (the previous call's next_cursor)"),
+      as: external_exports.enum(["llms_txt", "llms_full", "markdown", "text"]).optional().describe("Force a specific advertised representation instead of the probe's recommendation")
+    },
+    endpoint: "/read/url",
+    payload: (args) => ({ url: args?.url, max_chars: args?.max_chars, cursor: args?.cursor, as: args?.as }),
+    format: (data) => {
+      const how = data.via === "llm_fetch" ? `site-provided ${data.as}` : "rendered";
+      const head = [
+        `### read_url \xB7 ${how} \xB7 ${data.url}`,
+        `- scope: ${data.scope}${data.scope_mismatch ? " (asked for a page, got the site-wide index)" : ""}`,
+        `- ${data.total} chars total \xB7 showing ${data.offset}\u2013${data.offset + (data.content?.length || 0)}${data.truncated ? ` \xB7 continue with ${data.next_cursor}` : ""}`
+      ];
+      if (data.title) head.push(`- title: ${data.title}`);
+      if (data.reason) head.push(`- rendered because: ${data.reason}`);
+      return `${head.join("\n")}
+
+${data.content || ""}`;
+    }
   },
   {
     name: "search_web",
@@ -38186,7 +38220,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.5";
+var APP_VERSION = "1.4.6";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
@@ -38495,7 +38529,8 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
   - extract(kind:"list"|"table"|"tables"|"app_data"|"schema_org", ref?, selector?, type?): structured read (repeating rows, one table, every table, embedded __NEXT_DATA__/JSON-LD, or typed schema.org items \u2014 pass type to keep just e.g. "Recipe").
   - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): scroll a lazy/infinite list to the end and dedupe rows in ONE call, with scroll diagnostics.
   - observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): one observation model; page huge pages with budget + next_cursor.
-  - llm_surface(url?) / llm_fetch(url?, as?): a site's OWN Markdown/Text (llms.txt, <link rel=alternate>, or negotiated) instead of a render \u2014 GATED on an advertised surface; fall back to observe(as:"markdown").
+  - read_url(url?, max_chars?, cursor?): read ANY URL as Markdown in ONE call \u2014 site-provided Markdown/Text when the site advertises it, else a detached render distilled to Markdown (your active tab is untouched); paged via max_chars + next_cursor. Prefer this to read a specific URL.
+  - llm_surface(url?) / llm_fetch(url?, as?): the site's OWN Markdown/Text (llms.txt, <link rel=alternate> or a real <a href="\u2026.md"> page link, or negotiated) instead of a render \u2014 GATED on an advertised surface. 'recommended' is NULL when there is none (that is NOT a fetch target): follow 'next' (llm_fetch(as) or observe(as:"markdown")). Both report 'scope' (origin|page).
   - search_web(query, engine?, engines?, url_template?, max_results?): multi-engine search in a detached view with automatic fallback \u2192 ranked {title,url,snippet}; feed the URLs to navigate_to / collect_all.
   - deep_crawl(url, max_depth?, max_pages?, match_patterns?, same_origin?, prefer_llm?, harvest_to_cortex?): autonomous BFS crawl that distills + indexes each page into Cortex (cheap llm path first); scope with match_patterns.
   - research_topic(query, max_sources?, engine?, url_template?, excerpt_chars?, harvest_to_cortex?): autonomous search \u2192 gather top sources \u2192 distill \u2192 index into Cortex; returns cited EXTRACTIVE evidence (no prose \u2014 you synthesize).
@@ -38671,6 +38706,7 @@ Reach for these first; anything whose description starts with \`[TIER n]\` is a 
 | Job | Use | Fallback |
 | :--- | :--- | :--- |
 | Read / understand a page | \`observe(as:"markdown")\` | \`take_screenshot(marks:true, detail:"economy")\` |
+| Read a URL as Markdown (site-provided or rendered) | \`read_url(url)\` | \`llm_surface\` \u2192 \`llm_fetch\` \u2192 \`observe(as:"markdown")\` |
 | Find an element | \`find(...)\` | \`observe(as:"som")\` and read the \`[#ID]\` |
 | Act on an element | \`act(mark_id, action)\` | \`act(selector)\` / \`act(x, y)\` |
 | Wait for readiness | \`wait_for(conditions[])\` | \u2014 |
@@ -38731,8 +38767,9 @@ Rules of thumb:
 - extract(kind:"list"|"table"|"tables"|"app_data"|"schema_org", ref?, selector?, type?): structured reads (rows, tables, every table, embedded JSON, typed JSON-LD).
 - collect_all(selector?, ref?, scroll?, max_scrolls?, max?): harvest a lazy/infinite list in one call.
 - observe(as:"markdown"|"text"|"ax"|"som", region?, budget?, cursor?): budgeted, cursor-paged observation. markdown reads the COMPOSED DOM (open shadow roots, live form values, passwords as a length only); its envelope reports reader/extracted_chars/page_chars/shadow_roots; it returns a 25,000-char default view (budget:0 = the whole construct) and a partly-visible or text-free page says so.
-- llm_surface(url?): checks whether a site publishes an LLM-friendly Markdown/Text surface (/llms.txt, /sitemap.xml, <link rel=alternate>, or content negotiation) and returns recommended ("llms_txt"|"llms_full"|"markdown"|"text"|"rendered").
-- llm_fetch(url?, as?): fetches that advertised representation (GATED \u2014 NO_LLM_SURFACE when nothing is advertised). For a normal rendered page use observe(as:"markdown").
+- read_url(url?, max_chars?, cursor?): read ANY URL as Markdown in one call (site-provided Markdown/Text when advertised, else a detached render); always returns text, paged via max_chars + next_cursor.
+- llm_surface(url?): checks whether a site publishes an LLM-friendly Markdown/Text surface (/llms.txt, /sitemap.xml, <link rel=alternate> or a real <a href="\u2026.md"> page link, or content negotiation) and returns recommended ("llms_txt"|"llms_full"|"markdown"|"text", or NULL when there is none), scope (origin|page) and next (the unambiguous next step).
+- llm_fetch(url?, as?): fetches that advertised representation (GATED \u2014 NO_LLM_SURFACE when nothing is advertised, or when recommended is null). Reports scope + scope_mismatch. For a normal rendered page use observe(as:"markdown") or read_url.
 - page_state() / diff(since?): cheap change detection for loops.
 - export_har(pattern?, limit?, save?): HAR 1.2 export. context_save/open/list/delete(name): cookie+storage profiles.
 - Condition vocabulary: selector/gone/text/regex/url/role_name/count/network_idle/stable/revision. Errors: STALE_REF|TIMEOUT|NO_TARGET|BAD_REQUEST|NOT_SUPPORTED|NO_LLM_SURFACE|FETCH_BLOCKED.`,
@@ -38745,7 +38782,7 @@ Rules of thumb:
 - bridge_health(): version, revision, capabilities, window, input.transport (replaces get_page_info).
 - get_console_logs(limit?): Returns live browser console logs.
 - act(mark_id | selector | x,y, action): the single interaction entry point; address by Set-of-Marks badge, CSS selector, or viewport coordinates.
-- llm_surface(url?) / llm_fetch(url?, as?): read a site's OWN Markdown/Text (llms.txt, sitemap, <link rel=alternate>, or negotiated) instead of rendering the page \u2014 gated on an advertised surface; otherwise use observe(as:"markdown").
+- read_url(url?, max_chars?, cursor?) / llm_surface(url?) / llm_fetch(url?, as?): read a URL as Markdown \u2014 site's OWN Markdown/Text (llms.txt, sitemap, <link rel=alternate> or a real <a href="\u2026.md"> link, or negotiated) instead of rendering the page; gated on an advertised surface (recommended null means "none \u2014 render"), else observe(as:"markdown"). read_url is the one-call composite.
 - search_web(query, engine?, engines?, url_template?, max_results?): multi-engine web search (google|duckduckgo|bing|brave|startpage|custom) run in a detached view with automatic fallback; returns ranked {title,url,snippet}.
 - deep_crawl(url, max_depth?, max_pages?, match_patterns?, same_origin?, prefer_llm?, harvest_to_cortex?): autonomous BFS crawl; distills each page to Markdown and indexes it into Cortex (cheap llm path first).
 - research_topic(query, max_sources?, engine?, url_template?): autonomous search \u2192 gather top sources \u2192 distill \u2192 index into Cortex; returns cited EXTRACTIVE evidence (you write the answer).`,

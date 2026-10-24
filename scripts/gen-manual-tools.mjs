@@ -23,7 +23,7 @@ const WELCOME_PATH = path.join(ROOT, 'public', 'welcome.html');
 const BEGIN = '        <!-- BEGIN GENERATED: complete tool list — regenerate with `npm run manual:tools` -->';
 const END = '        <!-- END GENERATED: complete tool list -->';
 
-// Authoritative hidden-alias count: 82 registered entries − 62 advertised catalog entries.
+// Authoritative hidden-alias count: 83 registered entries - 63 advertised catalog entries.
 // (The README's dagger rows only mark 21 of the 23; two renamed aliases have no row.)
 const DEPRECATED_ALIASES = 23;
 

@@ -13,6 +13,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > This is a deliberate, temporary deviation from strict semver; each increment still gets its own
 > Added/Fixed/Changed section here.
 
+## [1.4.6] - 2026-10-24
+
+### Added
+
+- **`read_url` — read any URL as Markdown in one call.** It probes the site's own LLM-friendly
+  surface and reads it when one is advertised, otherwise it renders the URL in a **detached view**
+  (your active tab is never hijacked) and distils it to Markdown. It always returns Markdown text,
+  so a caller never has to branch on `llm_surface.recommended`, and it reports `via`
+  (`llm_fetch`|`render`), `scope` (`origin`|`page`), `scope_mismatch` and — when it rendered —
+  `reason`. Paged with `max_chars` + `next_cursor`, because a ToS-style page exceeds one call.
+- **Page-level Markdown alternates are also discovered from real anchors.** `llm_surface` now reads
+  not only a declared `<link rel="alternate">` but any real `<a href="….md|.txt">` on the page
+  (a "View as Markdown" link, or the page's own `.md` sibling that a site links to itself), ranked so
+  a declared link or a same-page sibling wins. Anchors are **read from the page, never guessed**, and
+  each alternate carries `source` (`link`|`anchor`) and `page_level`.
+
+### Changed
+
+- **`llm_surface` no longer reports `"rendered"` as a representation.** `"rendered"` sat in the same
+  union as the fetchable kinds, so callers read it as "fetch the rendered variant" and got an HTTP 400
+  from `llm_fetch`. `recommended` is now `null` when the site advertises nothing — a *representation*
+  is fetchable, a *strategy* is not — and `llm_surface` returns a machine-readable **`next`**
+  (`{tool:"llm_fetch", as}` or `{tool:"observe", as:"markdown"}`), so any caller that plans from
+  `tools/list` can act without trial and error. Fixes issue #1.
+- **`scope` + `scope_mismatch`.** `llm_surface` and `llm_fetch` now say whether a representation
+  covers the whole site (`origin`) or the requested page (`page`), prefer a page-level alternate when
+  one exists, and flag `scope_mismatch: true` when a page request can only be answered with a
+  site-wide `/llms.txt` index — so a caller never silently summarises the wrong document.
+- `llm_fetch` error classes are unchanged (`NO_LLM_SURFACE`, `FETCH_BLOCKED`); the gate message now
+  names the render path explicitly.
+
+### Fixed
+
+- **A page URL could be answered with the site-wide index without saying so.** With both an
+  `/llms.txt` and a page-level alternate present, `recommended` returned `llms_txt` first; a page now
+  resolves to its own `markdown` alternate, and the origin index is returned (flagged) only when it is
+  the only option.
+- **`read_url` never answers a page with a site-wide index.** When the only surface for a page URL is
+  an origin index (the issue's `core.telegram.org` case), it renders the page and reports
+  `reason: "only the site-wide llms_txt index is available for this page"`, rather than handing back
+  a different document. An explicit `as` still wins.
+
+### Docs
+
+- Descriptions, the OKF guide and the `mark-eleven://tools/recommended` resource, the default-tab
+  Manual (regenerated), `README.md`, `docs/TOOL_CATALOG_REVIEW.md`, `docs/DECISION_MODELS.md`,
+  `TODO_RESEARCH_CRAWL.md` §5, `src/mcp/README.md` and the plugin skill updated for the new shape.
+  **63 advertised tools.**
+
+### Tests
+
+- `npm run test:llm` extended: `recommended: null` + `next`, `scope`/`scope_mismatch`, anchor
+  discovery, and `read_url` fetch + render + paging. `npm run test:mcp:surface` now lists `read_url`.
+
 ## [1.4.5] - 2026-10-22
 
 ### Added

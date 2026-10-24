@@ -10,7 +10,7 @@ The standalone stdio server executable ([`scripts/mcp-server.js`](../../scripts/
 
 ---
 
-## 🧰 Registered MCP Tool Domains (62 Advertised Tools)
+## 🧰 Registered MCP Tool Domains (63 Advertised Tools)
 
 Deprecated aliases are hidden from `tools/list` (they still work by name); the canonical name is listed here.
 
@@ -29,18 +29,18 @@ Deprecated aliases are hidden from `tools/list` (they still work by name); the c
 11. **Desktop System Tray & HIL Intervention (6 Tools):** `set_window_visibility`, `configure_system_tray`, `request_human_intervention`, `resolve_human_intervention`, `get_human_intervention_status`, `send_notification`.
 12. **Orthogonal Primitives & Abstraction (11 Tools):** `wait_for`, `observe`, `extract`, `collect_all`, `find`, `expect`, `act`, `page_state`, `diff`, `bridge_health`, `export_har`. (`focus_window` is a hidden alias of `set_window_visibility`.)
 13. **Assistance & Discovery (1 Tool):** `help`.
-14. **Discovery (5 Tools):** `llm_surface` (probes a site for `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, a `<link rel="alternate">`, or Markdown negotiation), `llm_fetch` (fetches that advertised representation; GATED on a confirmed surface), `search_web` (multi-engine web search in a detached view with automatic fallback), `deep_crawl` (autonomous BFS crawl that distills each page and indexes it into Cortex), `research_topic` (search → gather → distill → index; returns cited extractive evidence).
+14. **Discovery (6 Tools):** `llm_surface` (probes a site for `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, a page-level Markdown/Text alternate — declared `<link rel="alternate">` or a real `<a href="….md">` link — or Markdown negotiation; `recommended` is `null` + `next` when there is none), `llm_fetch` (fetches that advertised representation; GATED on a confirmed surface; reports `scope`/`scope_mismatch`), `read_url` (the composite: site-provided Markdown/Text when advertised, else a detached render, paged via `max_chars`/`next_cursor`), `search_web` (multi-engine web search in a detached view with automatic fallback), `deep_crawl` (autonomous BFS crawl that distills each page and indexes it into Cortex), `research_topic` (search → gather → distill → index; returns cited extractive evidence).
 15. **Timelapse Recording (3 Tools):** `record_start` (returns when capture is live), `record_stop` (saves VP9/WebM and returns the absolute path), `list_recordings` (newest first). A human-only switch in Settings → Recording removes all three from `tools/list` and makes the bridge refuse them.
 16. **Optional Decision Layer (2 Tools, only when configured):** `decide` (one typed decision) and `drive` (observe → decide → act loop), registered first when a decision backend is configured.
 
-In addition to the 62 advertised tools, `bridge-server.ts` registers **7 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://tools/recommended` (the canonical "what to use when" order across the five common jobs), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
+In addition to the 63 advertised tools, `bridge-server.ts` registers **7 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://tools/recommended` (the canonical "what to use when" order across the five common jobs), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
 
 ---
 
 ## 📄 Key Source Files
 
 - **[`tools-catalog.ts`](./tools-catalog.ts)**:
-  Central repository of the tool definitions (**82 registered**, of which **19 deprecated aliases are hidden from `tools/list`** — plus 4 legacy names cloned at runtime — **62 advertised** including the built-in `help`), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters. Because the `endpoint`/`method` here must match `src/main/http-bridge.ts` exactly, **run `npm run test:mcp:contract` after editing this file** — it fails if any entry maps to a route the bridge does not serve. `npm run test:mcp:surface` verifies the hidden/canonical split.
+  Central repository of the tool definitions (**83 registered**, of which **19 deprecated aliases are hidden from `tools/list`** — plus 4 legacy names cloned at runtime — **63 advertised** including the built-in `help`), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters. Because the `endpoint`/`method` here must match `src/main/http-bridge.ts` exactly, **run `npm run test:mcp:contract` after editing this file** — it fails if any entry maps to a route the bridge does not serve. `npm run test:mcp:surface` verifies the hidden/canonical split.
 - **[`bridge-server.ts`](./bridge-server.ts)**:
   Factory `createBridgeMcpServer()` configuring `@modelcontextprotocol/sdk` to forward tool calls to the active browser chassis via `http://127.0.0.1:4111` and package dual text + native base64 PNG image blocks.
 - **[`bin/mcp-server.cjs`](../../bin/mcp-server.cjs)** & **[`scripts/mcp-server.js`](../../scripts/mcp-server.js)**:

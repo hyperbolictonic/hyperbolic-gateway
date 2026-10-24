@@ -544,7 +544,7 @@
         <!-- BEGIN GENERATED: complete tool list — regenerate with `npm run manual:tools` -->
         <details style="margin-top:18px;">
           <summary style="cursor:pointer; font-weight:700; font-size:15px; color:var(--accent); padding:6px 0;">
-            Complete tool list — 62 advertised + 2 optional (click to expand)
+            Complete tool list — 63 advertised + 2 optional (click to expand)
           </summary>
           <p style="font-size:12px; color:var(--text-muted);">
             Every advertised tool grouped by area. Rows shaded amber are <strong>optional</strong>: they appear only when a decision model is configured, and are then listed first. 23 deprecated aliases (e.g. <code>go_to_url</code>,
@@ -631,13 +631,19 @@
                 <td></td>
                 <td><code>llm_surface</code></td>
                 <td><code>url?: string</code></td>
-                <td>Checks whether a site publishes an LLM-friendly representation (<code>/llms.txt</code> / <code>/llms-full.txt</code>, <code>/sitemap.xml</code>, a <code>&lt;link rel="alternate"&gt;</code>, or Markdown content negotiation) and returns <code>recommended</code>. Well-known paths only; cached per origin.</td>
+                <td>Checks whether a site publishes an LLM-friendly representation (<code>/llms.txt</code> / <code>/llms-full.txt</code>, <code>/sitemap.xml</code>, a <code>&lt;link rel="alternate"&gt;</code> <strong>or a real <code>&lt;a href="….md"&gt;</code> page link</strong>, or Markdown content negotiation) and returns <code>recommended</code> — <code>"llms_txt" | "llms_full" | "markdown" | "text"</code>, or <strong><code>null</code></strong> when there is none (never <code>"rendered"</code>). Also <code>scope</code> (<code>"origin"</code> | <code>"page"</code>) and <strong><code>next</code></strong> — the unambiguous next step (<code>llm_fetch(as)</code> or <code>observe({as:"markdown"})</code>). Well-known paths only; cached per origin.</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><code>read_url</code></td>
+                <td><code>url?: string</code>, <code>max_chars?: number</code>, <code>cursor?: string | number</code>, <code>as?: 'llms_txt' | 'llms_full' | 'markdown' | 'text'</code></td>
+                <td><strong>Read any URL as Markdown in ONE call.</strong> Reads the site's own representation when one covers the URL asked for (a *page-level* alternate for a page); otherwise a <strong>detached render</strong> distilled to Markdown (your active tab is never hijacked). A site-wide index is never returned in place of a page — the page is rendered, and <code>reason</code> says why. Always returns text, so you never branch on <code>recommended</code>. Reports <code>via</code>, <code>scope</code>, <code>scope_mismatch</code> and <code>reason</code>; paged with <code>max_chars</code> + <code>next_cursor</code>.</td>
               </tr>
               <tr>
                 <td></td>
                 <td><code>llm_fetch</code></td>
                 <td><code>url?: string</code>, <code>as?: 'llms_txt' | 'llms_full' | 'markdown' | 'text'</code></td>
-                <td>Fetches that advertised Markdown/Text representation (~5–10× cheaper than a render). <strong>Gated:</strong> refuses (<code>NO_LLM_SURFACE</code>) unless the site advertises a surface. Per-page alternates load via a real navigation, not a synthetic fetch.</td>
+                <td>Fetches that advertised Markdown/Text representation (~5–10× cheaper than a render). <strong>Gated:</strong> refuses (<code>NO_LLM_SURFACE</code>) unless the site advertises a surface. Reports <code>scope</code> + <code>scope_mismatch</code> (page requested, site-wide index returned). Per-page alternates load via a real navigation, not a synthetic fetch.</td>
               </tr>
               <tr>
                 <td></td>

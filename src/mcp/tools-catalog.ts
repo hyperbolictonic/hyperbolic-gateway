@@ -1207,24 +1207,33 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'llm_surface',
     description:
-      'Checks whether a site publishes an LLM-friendly representation — a `/llms.txt` / `/llms-full.txt` index, a `/sitemap.xml`, a page-level `<link rel="alternate" type="text/markdown|text/plain">`, or Markdown content negotiation — so you can read it as text instead of rendering. ' +
-      'Returns `recommended`: "llms_txt" | "llms_full" | "markdown" | "text" | "rendered". When it is "rendered", read the page the normal way with `observe(as:"markdown")`. Only well-known paths are probed; results are cached per origin. url defaults to the active tab.',
+      'Checks whether a site publishes an LLM-friendly representation — a `/llms.txt` / `/llms-full.txt` index, a `/sitemap.xml`, a page-level Markdown/Text alternate (a declared `<link rel="alternate">`, or a real `<a href="….md">` link on the page), or Markdown content negotiation — so you can read it as text instead of rendering. ' +
+      'Returns `recommended`: "llms_txt" | "llms_full" | "markdown" | "text", or **null** when the site advertises none (never "rendered"). Also returns `scope` ("origin" for a site-wide index, "page" for this page) and `next` — the unambiguous next step: `{tool:"llm_fetch", as}` when something is fetchable, else `{tool:"observe", as:"markdown"}`. A null `recommended` is NOT a fetch target: follow `next`, or just call `read_url`. Only well-known paths are probed and results are cached per origin; url defaults to the active tab.',
     parameters: {
       url: z.string().optional().describe('Site or page URL to inspect (default: the active tab)'),
     },
     endpoint: '/llm/surface',
     payload: (args) => ({ url: args?.url }),
     format: (data) => {
+      const rec = data.recommended
+        ? `**${data.recommended}**${data.scope ? ` (${data.scope} scope)` : ''}`
+        : '**none** — render the page';
+      const next =
+        data.next?.tool === 'llm_fetch' ? `llm_fetch({ as: "${data.next.as}" })` : 'observe({ as: "markdown" })';
       const lines = [
         `### LLM surface — ${data.origin || data.url}`,
-        `- recommended: **${data.recommended}**`,
+        `- recommended: ${rec}`,
+        `- next: ${next}`,
         `- llms.txt: ${data.llms_txt?.found ? `${data.llms_txt.url} (${data.llms_txt.bytes}B)` : '—'}`,
         `- llms-full.txt: ${data.llms_full?.found ? `${data.llms_full.url} (${data.llms_full.bytes}B)` : '—'}`,
         `- sitemap.xml: ${data.sitemap?.found ? `${data.sitemap.url} (${data.sitemap.entries ?? 0} urls)` : '—'}`,
-        `- markdown alternates: ${data.markdown_alternates?.length ? data.markdown_alternates.map((a: any) => a.href).join(', ') : '—'}`,
+        `- markdown alternates: ${data.markdown_alternates?.length ? data.markdown_alternates.map((a: any) => `${a.href}${a.source === 'anchor' ? ' (from a page link)' : ''}`).join(', ') : '—'}`,
         `- accepts markdown (negotiation): ${data.content_negotiation?.accepts_markdown ? 'yes' : 'no'}`,
       ];
-      if (data.recommended === 'rendered') lines.push('', 'No LLM surface found — read it with `observe(as:"markdown")`.');
+      if (!data.recommended) {
+        lines.push('', 'No fetchable LLM surface — read it with `read_url` (or `observe({ as: "markdown" })`).');
+      }
+      if (data.notes?.length) lines.push('', ...data.notes.map((n: string) => `> ${n}`));
       return lines.join('\n');
     },
   },
@@ -1232,14 +1241,42 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'llm_fetch',
     description:
       'Fetches a site-provided Markdown/Text representation that `llm_surface` found — an `/llms.txt` index, a page-level Markdown/Text alternate, or a negotiated Markdown body. ' +
-      'GATED: it refuses with NO_LLM_SURFACE unless the site actually advertises a surface, and never fetches arbitrary URLs or guesses paths. For a normal rendered page use `observe(as:"markdown")` instead.',
+      'GATED: it refuses with NO_LLM_SURFACE unless the site actually advertises a surface, and never fetches arbitrary URLs or guesses paths. The result carries `scope` ("origin"|"page") and `scope_mismatch` — true when you asked for a page but only a site-wide index exists. For the rendered page use `observe({ as: "markdown" })`; for one call that always returns text use `read_url`.',
     parameters: {
       url: z.string().optional().describe('Site or page URL (default: the active tab)'),
       as: z.enum(['llms_txt', 'llms_full', 'markdown', 'text']).optional().describe('Which advertised representation to fetch (default: the probe\'s recommended)'),
     },
     endpoint: '/llm/fetch',
     payload: (args) => ({ url: args?.url, as: args?.as }),
-    format: (data) => `### llm_fetch ${data.as} · ${data.url} (${data.contentType || 'unknown'}, ${data.bytes} bytes, via ${data.via})\n\n${data.content || ''}`,
+    format: (data) => {
+      const warn = data.scope_mismatch ? '\n> Scope mismatch: you asked for a page, but this is the site-wide index.' : '';
+      return `### llm_fetch ${data.as} · ${data.url} (${data.contentType || 'unknown'}, ${data.bytes} bytes, ${data.scope} scope, via ${data.via})${warn}\n\n${data.content || ''}`;
+    },
+  },
+  {
+    name: 'read_url',
+    description:
+      'Reads a URL as Markdown in ONE call — the composite front door. Reads the site\'s own LLM-friendly representation when one covers the URL you asked for (a page-level Markdown/Text alternate for a page); otherwise it renders the URL in a DETACHED view (your active tab is never hijacked) and distils it to Markdown. ' +
+      'Always returns Markdown text, so you never have to branch on `llm_surface.recommended`. A site-wide `/llms.txt` index is never returned in place of a page — the page is rendered instead, and `reason` says why. Reports `via` ("llm_fetch"|"render"), `scope` ("origin"|"page"), `scope_mismatch` and `reason`. PAGED: pass `max_chars` and follow `next_cursor`, because a long ToS/legal page exceeds a single call.',
+    parameters: {
+      url: z.string().optional().describe('URL to read as Markdown (default: the active tab)'),
+      max_chars: z.coerce.number().optional().describe('Maximum characters to return per call (default 20000, cap 50000)'),
+      cursor: z.union([z.string(), z.number()]).optional().describe('Character offset to continue from (the previous call\'s next_cursor)'),
+      as: z.enum(['llms_txt', 'llms_full', 'markdown', 'text']).optional().describe('Force a specific advertised representation instead of the probe\'s recommendation'),
+    },
+    endpoint: '/read/url',
+    payload: (args) => ({ url: args?.url, max_chars: args?.max_chars, cursor: args?.cursor, as: args?.as }),
+    format: (data) => {
+      const how = data.via === 'llm_fetch' ? `site-provided ${data.as}` : 'rendered';
+      const head = [
+        `### read_url · ${how} · ${data.url}`,
+        `- scope: ${data.scope}${data.scope_mismatch ? ' (asked for a page, got the site-wide index)' : ''}`,
+        `- ${data.total} chars total · showing ${data.offset}–${data.offset + (data.content?.length || 0)}${data.truncated ? ` · continue with ${data.next_cursor}` : ''}`,
+      ];
+      if (data.title) head.push(`- title: ${data.title}`);
+      if (data.reason) head.push(`- rendered because: ${data.reason}`);
+      return `${head.join('\n')}\n\n${data.content || ''}`;
+    },
   },
   {
     name: 'search_web',
