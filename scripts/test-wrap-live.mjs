@@ -447,6 +447,51 @@ await test('maxPages caps the run and reports more remaining', async () => {
   };
 });
 
+// ── recipe derivation (S3) ───────────────────────────────────────────────────
+group('Recipe derivation');
+
+await test('wrap_derive infers a table recipe from an inline sample', async () => {
+  const r = await post('/wrap/derive', {
+    sample: {
+      items: [
+        { id: 1, name: 'A', price: 2.5, tags: ['x'] },
+        { id: 2, name: 'B', price: 3, tags: [] },
+      ],
+    },
+    name: 'Demo items',
+  });
+  const recipe = r.recipe;
+  return {
+    ok:
+      r.success === true &&
+      r.source === 'sample' &&
+      recipe?.select === '$.items' &&
+      recipe?.mode === 'table' &&
+      (recipe?.fields || []).some((field) => field.path === 'name'),
+    detail: `select=${recipe?.select} mode=${recipe?.mode} fields=${(recipe?.fields || []).length}`,
+  };
+});
+
+await test('wrap_derive fetches a URL and derives from its JSON', async () => {
+  const r = await post('/wrap/derive', { url: `${API}/users?limit=2`, max_fields: 6 });
+  const recipe = r.recipe;
+  return {
+    ok:
+      r.success === true &&
+      r.source === 'url' &&
+      recipe?.select === '$.users' &&
+      recipe?.mode === 'table' &&
+      (recipe?.fields || []).length <= 6 &&
+      (recipe?.fields || []).some((field) => field.path === 'firstName'),
+    detail: `select=${recipe?.select} mode=${recipe?.mode} fields=${(recipe?.fields || []).length}`,
+  };
+});
+
+await test('wrap_derive rejects a non-JSON sample', async () => {
+  const r = await post('/wrap/derive', { sample: 'not json{' });
+  return { ok: r.success === false && r.code === 'BAD_REQUEST', detail: `${r.code}: ${r.error}` };
+});
+
 // ── upstream errors ──────────────────────────────────────────────────────────
 group('Upstream errors');
 
