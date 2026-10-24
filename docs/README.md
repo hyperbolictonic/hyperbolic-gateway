@@ -8,6 +8,7 @@ Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade 
 
 - [CODEBASE.md](./CODEBASE.md) — Architecture lowdown: system maps, call paths, findings, optimisations, and an airline-search walkthrough.
 - [BUILDING.md](./BUILDING.md) — Installers, CI, signing, auto-update and the release policy.
+- [CONTROL_LAYER.md](./CONTROL_LAYER.md) — **Targeting, consent and human takeover**: control facts, text anchoring, frame evaluation, consent policy, takeover arbitration, input pacing.
 - [DECISION_MODELS.md](./DECISION_MODELS.md) — The optional `decide` / `drive` decision layer.
 - [KUANG_WRAP.md](./KUANG_WRAP.md) - The second MCP server for saved REST wrappers and response recipes. S1 (store, executor, bridge, `kuang-wrap`) and S2 (host-bound `safeStorage` credentials, Settings → Wrappers, audit) are implemented.
 - [RESEARCH_STEALTH.md](./RESEARCH_STEALTH.md) - Settings → Research: isolated research session, proxy, engine chain, cooldowns, delays, hidden-view activation, and challenge backoff.
@@ -29,6 +30,8 @@ Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade 
 - [LanceDB Cortex Persistent Memory (src/main/cortex)](../src/main/cortex/README.md)
 - [Multi-Tab Orchestration (src/main/tabs)](../src/main/tabs/README.md)
 - [Autonomous Shield Breaker & Consent Dismissal (src/main/shield)](../src/main/shield/README.md)
+- [Human Input & Takeover Arbitration (src/main/input)](../src/main/input/README.md)
+- [Frame-Scoped Evaluation (src/main/browser)](../src/main/browser/README.md)
 - [Download Manager & Document Harvester (src/main/downloads)](../src/main/downloads/README.md)
 - [Session & Cookie Jar Vault (src/main/session)](../src/main/session/README.md)
 - [Live Network & Stream Interceptor (src/main/network)](../src/main/network/README.md)

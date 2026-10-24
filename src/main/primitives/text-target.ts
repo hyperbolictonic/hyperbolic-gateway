@@ -59,10 +59,13 @@ export function textTargetExpression(query: string, options: TextTargetOptions =
     if (!needle) return { query: raw, matches: [], unique: false };
     const matches = [];
     const seen = new Set();
-    const els = document.querySelectorAll(${JSON.stringify(TAGS)});
+    const els = document.querySelectorAll(${JSON.stringify(`${TAGS},input,textarea,select`)});
     for (const el of els) {
       if (matches.length >= opts.max) break;
-      const text = (el.innerText || '').replace(/\\s+/g, ' ').trim();
+      const rawText = (el.innerText || '').trim();
+      // Form controls have no innerText: use the label a person would read on/next to them.
+      const label = rawText || (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || '')) || '';
+      const text = String(label).replace(/\\s+/g, ' ').trim();
       if (!text) continue;
       if (text.length > 400) continue; // a wrapper, not the content
       const hay = opts.caseSensitive ? text : text.toLowerCase();

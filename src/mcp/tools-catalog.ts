@@ -1066,6 +1066,53 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
   },
   {
+    name: 'recipe',
+    description:
+      'Navigation recipes: a page path compiled into descriptor steps and replayed with ZERO model calls. ' +
+      'action="save" stores steps that address controls by visible text (works for semantics-free React cards and form fields) with optional expect conditions; action="replay" walks them by id, or by the best match for a url; action="list"; action="delete". ' +
+      'Recipes are local (data/recipes.json), scoped to origin + path (a trailing * makes the path a prefix), and are retired after 3 consecutive failed replays — a stale path stops being retried instead of failing forever. ' +
+      'A replay stops at the first step whose control cannot be resolved or whose expectation does not hold, and reports the index. Prefer this for repeat visits once a path is known; use drive/decide while it is still being discovered.',
+    parameters: {
+      action: z.enum(['list', 'save', 'replay', 'delete']).default('list').describe('What to do'),
+      id: z.string().optional().describe('Recipe id (replay/delete)'),
+      url: z.string().optional().describe('Page URL the recipe belongs to (save), or the page to match (replay/list)'),
+      name: z.string().optional().describe('Human name for the recipe'),
+      path: z.string().optional().describe('Path pattern instead of the URL pathname (a trailing * matches a prefix)'),
+      steps: z.array(z.object({
+        action: z.enum(['click', 'type']),
+        target: z.string().describe('Visible text, or a form field label / placeholder / name'),
+        value: z.string().optional().describe('Value for action="type"'),
+        expect: z.array(z.record(z.string(), z.any())).optional().describe('wait_for conditions asserted after the step'),
+      })).optional().describe('Steps to store (save)'),
+      expect_timeout_ms: z.coerce.number().optional().describe('Per-step expectation timeout during replay (default 8000)'),
+    },
+    endpoint: '/recipes',
+    payload: (args) => ({
+      action: args?.action || 'list',
+      id: args?.id,
+      url: args?.url,
+      name: args?.name,
+      path: args?.path,
+      steps: args?.steps,
+      expect_timeout_ms: args?.expect_timeout_ms,
+    }),
+    format: (data) => {
+      if (data.success === false) return `recipe failed: ${data.error || (data.errors || []).join('; ')}`;
+      if (data.recipes) {
+        if (!data.recipes.length) return 'No recipes saved.';
+        return data.recipes
+          .map((r: any) => `${r.id} · ${r.name} · ${r.origin}${r.path} · ${r.steps.length} step(s) · ${r.successes}/${r.attempts} ok${r.consecutiveFailures ? ` · ${r.consecutiveFailures} miss` : ''}`)
+          .join('\n');
+      }
+      if (data.result) {
+        const lines = (data.result.steps || []).map((s: any) => `${s.index + 1}. ${s.step.action} "${s.step.target}" ${s.ok ? '✓' : '✗'} ${s.ms}ms${s.error ? ` — ${s.error}` : ''}`);
+        return `replay · ${data.result.status} · ${data.result.steps.length} step(s) · ${data.result.ms}ms\n${lines.join('\n')}\n${data.result.message}`;
+      }
+      if (data.recipe) return `saved ${data.recipe.id} · ${data.recipe.name} · ${data.recipe.steps.length} step(s)`;
+      return JSON.stringify(data).slice(0, 400);
+    },
+  },
+  {
     name: 'decide',
     description:
       'OPTIONAL decision model (absent unless configured — see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no — never prose. ' +

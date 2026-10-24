@@ -16,7 +16,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.85] - 2026-10-24
+## [1.4.86] - 2026-10-24
+
+### Added
+
+- **Navigation recipes (Phase 5).** A page path is compiled into descriptor steps and replayed with
+  **zero model calls**: `recipe {action:"save"|"replay"|"list"|"delete"}`.
+  - a step names a control by visible text (or a form field's aria-label / placeholder / name), with
+    an optional `expect` — never a mark id or a selector
+  - scope is `origin` + `path` (trailing `*` = prefix); stored locally in `data/recipes.json`
+  - metrics (`attempts`, `successes`, `consecutiveFailures`, `lastVerified`); a recipe retires after
+    **3 consecutive failed replays** instead of being retried forever
+  - a replay stops at the first step whose control cannot be resolved or whose expectation fails and
+    reports the index — a half-applied recipe is worse than a refusal
+  - measured on the fixture: **3 steps in ~2 s, 0 model calls** (`click → type → click + expect`)
+- **`act(target_text)` now also matches form fields** by aria-label / placeholder / name, so a typed
+  step can be anchored the same way a click is.
+- **Documentation**: new [docs/CONTROL_LAYER.md](../../docs/CONTROL_LAYER.md) (targeting, consent,
+  takeover, pacing) plus subsystem pages for `src/main/input`, `src/main/browser` and
+  `src/main/recipes`, and rewrites of the shield and primitives pages. Linked from `docs/README.md`
+  and the root README index.
+- **`npm run test:recipes`** — 11 checks: save, validation, replay, real end-state, metrics, stale
+  step, delete.
+
+### Fixed
+
+- Text targeting threw when the candidate selector string was built (`querySelectorAll(NodeList +
+  ',input,…')`), so `target_text` silently found nothing. Found by the recipe replay test.
+
+
 
 ### Added
 

@@ -37658,6 +37658,49 @@ ${lines.join("\n")}${lines.length ? "\n" : ""}${data.message || ""}${tail}`;
     }
   },
   {
+    name: "recipe",
+    description: 'Navigation recipes: a page path compiled into descriptor steps and replayed with ZERO model calls. action="save" stores steps that address controls by visible text (works for semantics-free React cards and form fields) with optional expect conditions; action="replay" walks them by id, or by the best match for a url; action="list"; action="delete". Recipes are local (data/recipes.json), scoped to origin + path (a trailing * makes the path a prefix), and are retired after 3 consecutive failed replays \u2014 a stale path stops being retried instead of failing forever. A replay stops at the first step whose control cannot be resolved or whose expectation does not hold, and reports the index. Prefer this for repeat visits once a path is known; use drive/decide while it is still being discovered.',
+    parameters: {
+      action: external_exports.enum(["list", "save", "replay", "delete"]).default("list").describe("What to do"),
+      id: external_exports.string().optional().describe("Recipe id (replay/delete)"),
+      url: external_exports.string().optional().describe("Page URL the recipe belongs to (save), or the page to match (replay/list)"),
+      name: external_exports.string().optional().describe("Human name for the recipe"),
+      path: external_exports.string().optional().describe("Path pattern instead of the URL pathname (a trailing * matches a prefix)"),
+      steps: external_exports.array(external_exports.object({
+        action: external_exports.enum(["click", "type"]),
+        target: external_exports.string().describe("Visible text, or a form field label / placeholder / name"),
+        value: external_exports.string().optional().describe('Value for action="type"'),
+        expect: external_exports.array(external_exports.record(external_exports.string(), external_exports.any())).optional().describe("wait_for conditions asserted after the step")
+      })).optional().describe("Steps to store (save)"),
+      expect_timeout_ms: external_exports.coerce.number().optional().describe("Per-step expectation timeout during replay (default 8000)")
+    },
+    endpoint: "/recipes",
+    payload: (args) => ({
+      action: args?.action || "list",
+      id: args?.id,
+      url: args?.url,
+      name: args?.name,
+      path: args?.path,
+      steps: args?.steps,
+      expect_timeout_ms: args?.expect_timeout_ms
+    }),
+    format: (data) => {
+      if (data.success === false) return `recipe failed: ${data.error || (data.errors || []).join("; ")}`;
+      if (data.recipes) {
+        if (!data.recipes.length) return "No recipes saved.";
+        return data.recipes.map((r) => `${r.id} \xB7 ${r.name} \xB7 ${r.origin}${r.path} \xB7 ${r.steps.length} step(s) \xB7 ${r.successes}/${r.attempts} ok${r.consecutiveFailures ? ` \xB7 ${r.consecutiveFailures} miss` : ""}`).join("\n");
+      }
+      if (data.result) {
+        const lines = (data.result.steps || []).map((s) => `${s.index + 1}. ${s.step.action} "${s.step.target}" ${s.ok ? "\u2713" : "\u2717"} ${s.ms}ms${s.error ? ` \u2014 ${s.error}` : ""}`);
+        return `replay \xB7 ${data.result.status} \xB7 ${data.result.steps.length} step(s) \xB7 ${data.result.ms}ms
+${lines.join("\n")}
+${data.result.message}`;
+      }
+      if (data.recipe) return `saved ${data.recipe.id} \xB7 ${data.recipe.name} \xB7 ${data.recipe.steps.length} step(s)`;
+      return JSON.stringify(data).slice(0, 400);
+    }
+  },
+  {
     name: "decide",
     description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. FAN OUT THE HEADS: ask operation + every plausible target head (click_target, type_text_target, select_target) + done in the same call, then execute only the head matching the chosen operation \u2014 one round trip per step instead of operation-then-target. Ask only for heads the page offers. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default \u2014 experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
     parameters: {
@@ -38241,7 +38284,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.85";
+var APP_VERSION = "1.4.86";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

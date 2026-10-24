@@ -6,6 +6,8 @@ import { APP_VERSION } from '../shared/version.js';
 import { runDecision, decisionStatus } from './decide/decision-client.js';
 import { decideGuarded } from './decide/decision-guard.js';
 import { driveTask } from './drive/driver.js';
+import { loadRecipes, recipesFor, saveRecipe, deleteRecipe, recordResult } from './recipes/recipe-store.js';
+import { replayRecipe, type RecipeRunner } from './recipes/replay.js';
 import {
   getRecordingConfig,
   getRecordingStatus,
@@ -162,6 +164,48 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
       if (req.method === 'POST' && pathname === '/human/resume') {
         sendJson({ success: true, ...chassis.resumeHuman() });
         return;
+      }
+
+      // ---- navigation recipes (Phase 5) -------------------------------------
+      if (req.method === 'GET' && pathname === '/recipes') {
+        const url = String(new URL(req.url || '/', 'http://localhost').searchParams.get('url') || '');
+        const store = loadRecipes();
+        sendJson({ success: true, total: store.recipes.length, recipes: url ? recipesFor(url) : store.recipes });
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/recipes') {
+        {
+          const body = await readBody();
+          const action = String(body?.action || 'list');
+          if (action === 'save') {
+            const saved = saveRecipe({ url: body?.url, name: body?.name, path: body?.path, steps: body?.steps });
+            sendJson({ success: saved.ok, ...saved }, saved.ok ? 200 : 400);
+            return;
+          }
+          if (action === 'delete') {
+            const removed = deleteRecipe(String(body?.id || ''));
+            sendJson({ success: removed, removed });
+            return;
+          }
+          if (action === 'replay') {
+            const target = body?.id
+              ? loadRecipes().recipes.find((r) => r.id === body.id)
+              : recipesFor(String(body?.url || ''))[0];
+            if (!target) {
+              sendJson({ success: false, error: 'no recipe matched that id or url', code: 'NO_RECIPE' }, 404);
+              return;
+            }
+            const result = await replayRecipe(chassis.getPrimitives() as unknown as RecipeRunner, target, {
+              expectTimeoutMs: body?.expect_timeout_ms !== undefined ? Number(body.expect_timeout_ms) : undefined,
+            });
+            const updated = recordResult(target.id, result.status === 'ok');
+            sendJson({ success: result.status === 'ok', result, recipe: updated });
+            return;
+          }
+          const url = String(body?.url || '');
+          sendJson({ success: true, total: loadRecipes().recipes.length, recipes: url ? recipesFor(url) : loadRecipes().recipes });
+          return;
+        }
       }
 
       if (req.method === 'POST' && pathname === '/navigate') {

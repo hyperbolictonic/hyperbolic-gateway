@@ -44,6 +44,25 @@ probe scripts, condition evaluation, the revision→state cache, and the delta/d
 **Refs are marks.** A ref *is* a `data-mark-id` badge id — `find` returns rows carrying the
 `mark`, and `act(markId=…)` re-resolves the element's live centre each time.
 
+## Targeting
+
+Three ways to name a target, in order of preference:
+
+1. **`mark_id`** — a Set-of-Marks badge; re-resolved against the live DOM on every act.
+2. **`selector`** — CSS, shadow-piercing, resolves a custom-element host to the control a mouse hits.
+3. **`target_text`** — the deepest visible element whose own text matches. For controls with no
+   semantics at all (React cards: a `<div>` with a handler three levels up, no role/href/onclick).
+   Ambiguous matches are refused with `AMBIGUOUS` + candidates rather than clicking blind.
+
+`control-facts.ts` is the shared description behind marks, `find`, the guard and recipes: role,
+accessible name, value, state, accepted actions, visibility, **occlusion** (hit-test at the centre of
+the *visible* portion), disabled, landmark region and rect. Exposed at `POST /dom/facts`.
+
+`text-target.ts` builds the text resolver; `dom-targeting.ts` owns `kqSafePoint`, which clicks the
+visible portion of large cards instead of a geometric centre that may be off-screen.
+
+Reference: [docs/CONTROL_LAYER.md](../../../docs/CONTROL_LAYER.md).
+
 ## Wait Condition Vocabulary
 
 `wait_for` and the implicit `act(await_conditions=[…])` share one vocabulary:
@@ -53,7 +72,9 @@ probe scripts, condition evaluation, the revision→state cache, and the delta/d
 ## Structured Errors
 
 New endpoints throw `PrimitiveError` with a stable `code` (mapped to HTTP 400):
-`STALE_REF` (re-scan and re-issue), `TIMEOUT`, `NO_TARGET`, `BAD_REQUEST`, `NOT_SUPPORTED`.
+`STALE_REF` (re-scan and re-issue), `TIMEOUT`, `NO_TARGET`, `AMBIGUOUS` (text matched more than one
+element), `BAD_REQUEST`, `NOT_SUPPORTED`, `HUMAN_IN_PROGRESS` (a person is using the browser;
+synthetic input is paused — poll `/human/status`, then re-observe).
 
 ## Input Delivery
 
