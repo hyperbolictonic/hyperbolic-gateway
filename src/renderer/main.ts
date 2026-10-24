@@ -342,18 +342,38 @@ urlForm.addEventListener('submit', async (e) => {
   }
 });
 
+// Browser history controls: the toolbar buttons, Alt+Left/Right and F5 all funnel into the same
+// IPC the MCP navigate_history tool uses.
+const navBackBtn = document.getElementById('nav-back-btn') as HTMLButtonElement | null;
+const navForwardBtn = document.getElementById('nav-forward-btn') as HTMLButtonElement | null;
+const navReloadBtn = document.getElementById('nav-reload-btn') as HTMLButtonElement | null;
+
+navBackBtn?.addEventListener('click', () => {
+  void window.electronAPI?.goBack();
+});
+navForwardBtn?.addEventListener('click', () => {
+  void window.electronAPI?.goForward();
+});
+navReloadBtn?.addEventListener('click', () => {
+  void window.electronAPI?.reload();
+});
+
 // Harvest Action
 harvestBtn.addEventListener('click', async () => {
   if (window.electronAPI) {
+    const icon = document.getElementById('harvest-icon');
+    const spinner = document.getElementById('harvest-spinner');
     harvestBtn.disabled = true;
-    harvestBtn.innerHTML = '<span class="loading loading-spinner loading-xs"></span><span>HARVESTING</span>';
+    icon?.classList.add('hidden');
+    spinner?.classList.remove('hidden');
     try {
       const construct = await window.electronAPI.harvest();
       renderConstruct(construct);
       switchTab('construct');
     } finally {
       harvestBtn.disabled = false;
-      harvestBtn.innerHTML = '<span>📄</span><span>HARVEST</span>';
+      spinner?.classList.add('hidden');
+      icon?.classList.remove('hidden');
     }
   }
 });
@@ -445,6 +465,11 @@ function updateState(state: ChassisState) {
   activeUrl = state.currentUrl;
   activeTitle = state.pageTitle;
   checkCurrentBookmarkState(state.currentUrl);
+
+  // Grey out history buttons the active tab cannot honour, instead of letting a click no-op
+  // (Electron's navigationHistory silently returns undefined at either end of the stack).
+  if (navBackBtn) navBackBtn.disabled = state.canGoBack !== true;
+  if (navForwardBtn) navForwardBtn.disabled = state.canGoForward !== true;
 
   if (state.isLoading) {
     viewportLoadingSpinner.classList.remove('hidden');
@@ -624,6 +649,20 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     harvestBtn.click();
   }
+  // Browser muscle memory. The browsing view owns focus most of the time, so these only fire when
+  // the app shell has focus; the same actions are in the right-click menu on the page itself.
+  if (e.altKey && e.key === 'ArrowLeft') {
+    e.preventDefault();
+    void window.electronAPI?.goBack();
+  }
+  if (e.altKey && e.key === 'ArrowRight') {
+    e.preventDefault();
+    void window.electronAPI?.goForward();
+  }
+  if (e.key === 'F5') {
+    e.preventDefault();
+    void window.electronAPI?.reload();
+  }
 });
 
 // ---- Timelapse recorder (Settings → Recording, or the REC button) ---------------------------
@@ -683,8 +722,14 @@ function applyRecordingStatus(state: any) {
     recordBtn.classList.toggle('btn-error', recording);
     recordBtn.classList.toggle('btn-ghost', !recording);
     recordBtn.classList.toggle('opacity-50', !enabled && !recording);
-    recordBtn.title = recording
-      ? 'Stop and save the timelapse'
+    // The toolbar button is icon-only now, so the label lives in the tooltip instead of a native
+    // title (which would render a second, delayed tooltip on top of the daisyUI one).
+    recordBtn.removeAttribute('title');
+  }
+  const recordTooltip = document.getElementById('record-tooltip');
+  if (recordTooltip) {
+    recordTooltip.dataset.tip = recording
+      ? `Stop and save the timelapse · ${formatElapsed(Date.now() - (state.startedAt || Date.now()))}`
       : enabled
         ? 'Record a timelapse of this window'
         : 'Recording is disabled — open Settings → Recording';
@@ -708,7 +753,7 @@ function applyRecordingStatus(state: any) {
   }
 
   if (state.error && !recording) {
-    if (recordBtn) recordBtn.title = `Recording failed: ${state.error}`;
+    if (recordTooltip) recordTooltip.dataset.tip = `Recording failed: ${state.error}`;
     if (settingsRecResult) showRecResult('error', state.error);
   }
 
@@ -811,7 +856,8 @@ recordBtn?.addEventListener('click', async () => {
     }
   } catch (err: any) {
     const message = String(err?.message || err);
-    if (recordBtn) recordBtn.title = `Recording failed: ${message}`;
+    const tip = document.getElementById('record-tooltip');
+    if (tip) tip.dataset.tip = `Recording failed: ${message}`;
     showRecResult('error', message);
   } finally {
     recordBtn.disabled = false;

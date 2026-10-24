@@ -519,18 +519,29 @@ export class MarksOverlay {
             // A large card link's centre is often covered by a nested overlay; click a point that
             // belongs to the element instead (kqSafePoint tries several offsets).
             const point = kqSafePoint(el);
-            return { x: point.x, y: point.y, covered: point.covered === true };          })()
+            const rect = el.getBoundingClientRect();
+            // Live identity, so a mark that outlived the cached table still reports what it is
+            // instead of a faceless "ELEMENT". Cheap: same round trip as the coordinates.
+            const name = (
+              (el.getAttribute && el.getAttribute('aria-label')) ||
+              (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim()
+            ).slice(0, 90);
+            return {
+              x: point.x, y: point.y, covered: point.covered === true,
+              tag: (el.tagName || 'ELEMENT').toUpperCase(), name,
+              rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+            };          })()
         `);
         if (liveInfo) {
           return {
             mark: cached || {
               id: markId,
-              tag: 'ELEMENT',
-              text: '',
-              rect: { x: liveInfo.x, y: liveInfo.y, width: 0, height: 0 },
-              center: liveInfo,
+              tag: liveInfo.tag || 'ELEMENT',
+              text: liveInfo.name || '',
+              rect: liveInfo.rect || { x: liveInfo.x, y: liveInfo.y, width: 0, height: 0 },
+              center: { x: liveInfo.x, y: liveInfo.y },
             },
-            currentCenter: liveInfo,
+            currentCenter: { x: liveInfo.x, y: liveInfo.y },
           };
         }
       } catch {}

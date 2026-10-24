@@ -50,6 +50,9 @@ export interface ChassisState {
   agentStatus: AgentStatus;
   activeAction: string;
   cursor: { x: number; y: number };
+  /** Whether the active tab can step back / forward, so the toolbar can disable the buttons. */
+  canGoBack?: boolean;
+  canGoForward?: boolean;
   activeTabId?: string;
   tabs?: TabSummary[];
   stats: {

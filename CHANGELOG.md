@@ -16,7 +16,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.77] - 2026-10-24
+## [1.4.78] - 2026-10-24
+
+### Added
+
+- **Browser history controls.** `←` / `→` / `⟳` in the header, wired to the same methods the
+  MCP `navigate_history` tool and the right-click menu use; Alt+←/→ and F5 work when the shell
+  has focus. `ChassisState` now carries `canGoBack` / `canGoForward`, read at broadcast time
+  because SPAs navigate with `pushState` and tab switches swap the history stack, so the buttons
+  disable at either end instead of silently no-oping.
+- **Icon-only toolbar.** CORTEX, HARVEST, SETTINGS, ABOUT and REC became square icon buttons with
+  daisyUI tooltips; the URL field lost its `max-w-2xl` cap and now takes the reclaimed width.
+  REC's elapsed time moved into its tooltip, and the harvest spinner replaces the icon in place.
+- **`observe(as:"components")` returns the machine table.** The MCP tool now emits a second text
+  block with `{components:[{id,role,name,actions}]}` so it can be fed straight to
+  `decide(state, guard:{components})` instead of being re-typed out of the prose projection.
+- **When to use the decision model.** The OKF guide, the recommended-order resource and the `act`
+  description now state the trade-off explicitly: ask `decide` when two or more controls
+  plausibly match, the page is unfamiliar, or the question is a judgement ("is it done?"); use
+  `find`/`act`/`navigate` when exactly one control matches. Every decision must be verified —
+  `decide` chooses, it does not act or prove.
+
+### Fixed
+
+- **The floating Cyberdeck panel covered the page's scrollbar.** The browsing view spans the full
+  window width, so a panel flush to the right edge sat on the scrollbar track. The panel (and the
+  collapsed rail) is now inset by `PAGE_SCROLLBAR_GUTTER = 16` px, leaving the track draggable.
+- **Tooltips rendered under the tab bar.** `#app-header` and `#tab-bar-container` were both
+  `z-30`; the header is now `z-40` and every tooltip wrapper `z-50`, with `tooltip-end` on the two
+  rightmost buttons so they do not run off the window edge.
+- **`extract(kind:"list")` returned JavaScript source.** The container heuristic scored exact
+  sibling-signature repeats, so a wall of inline `<script>` tags won on script-heavy pages
+  (Skyscanner). Rows are now scored by content density, non-content subtrees (`script`, `style`,
+  `template`, `svg`, `iframe`, …) are never scored or descended into, and the deepest winning
+  container is preferred so one sponsored card cannot break the match. `collect_all` shares the
+  fix.
+- **`act(mark_id)` reported `<ELEMENT> ""`.** When a mark outlived the cached table the resolver
+  fabricated an anonymous element. It now reads the live tag, accessible name and rect, so logs
+  and deltas name what was actually clicked.
+- **Clicks took 40–50 s on heavy pages.** `moveMouseTo` awaited one CDP `dispatchMouseEvent` per
+  trajectory sample — up to 140 round trips to a busy renderer. The organic path is now sampled
+  (max 28 points) with a hard `KUANG_CURSOR_BUDGET_MS` budget (default 900 ms) that jumps to the
+  target when exceeded. Measured on Skyscanner: 4 094 ms → 1 010 ms for a near click,
+  40 000–49 000 ms → 3 188 ms for the first far click (the remainder is one-time ghost-cursor
+  injection).
+
+
 
 ### Added
 

@@ -37723,7 +37723,7 @@ ${lines.join("\n")}`;
   },
   {
     name: "observe",
-    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 readable construct with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table) \xB7 as="components" (decision-ready table: role, name, value, state, affordances and region per component). Markdown returns a 25,000-char default view \u2014 page it with budget + next_cursor, or pass budget=0 for the whole construct. The front-matter reports reader, extracted_chars and page_chars (how much of the page text the readable region covers) plus shadow_roots, so a genuinely short page can be told apart from a partly-visible one. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`.',
+    description: 'One budgeted observation model with projections. as="markdown" (TIER 1 readable construct with inline [#id] marks) \xB7 as="text" (innerText, region-scoped) \xB7 as="ax" (accessibility tree) \xB7 as="som" (numbered marks table) \xB7 as="components" (decision-ready table: role, name, value, state, affordances and region per component). Markdown returns a 25,000-char default view - page it with budget + next_cursor, or pass budget=0 for the whole construct. The front-matter reports reader, extracted_chars and page_chars (how much of the page text the readable region covers) plus shadow_roots, so a genuinely short page can be told apart from a partly-visible one. region accepts a mark id (number) or CSS selector. For structured list/table/app-data extraction use `extract`. When a decision model is configured, as="components" is the intended input to `decide`: observe -> decide -> act(mark_id), instead of hand-scanning the mark list on a busy page.',
     parameters: {
       as: external_exports.enum(["markdown", "text", "ax", "som", "components"]).optional().default("markdown").describe("Projection to return (default: markdown)"),
       region: external_exports.union([external_exports.coerce.number(), external_exports.string()]).optional().describe("Scope to a mark id (number) or CSS selector (string)"),
@@ -38069,7 +38069,7 @@ ${lines.join("\n")}`;
   },
   {
     name: "act",
-    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit \u2014 so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths \u2014 never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP \u2192 request_human_intervention). NOT for navigation (use navigate_to) or scrolling (use scroll_page).',
+    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, or x/y viewport coordinates. Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit \u2014 so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths \u2014 never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP \u2192 request_human_intervention). NOT for navigation (use navigate_to) or scrolling (use scroll_page). Choosing the target is a separate job: when a decision model is configured AND two or more controls plausibly match, prefer observe(as:"components") -> decide -> act(mark_id); when exactly one control matches, find/act is faster and deterministic.',
     parameters: {
       mark_id: external_exports.coerce.number().optional().describe("Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)"),
       selector: external_exports.coerce.string().optional().describe('CSS selector of the target, when you have no mark id (e.g. "button.submit", "#search-input")'),
@@ -38227,7 +38227,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.77";
+var APP_VERSION = "1.4.78";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
@@ -38500,6 +38500,20 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
         const rawText = tool.format ? tool.format(data, args) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
         const text = clampText(typeof rawText === "string" ? rawText : String(rawText ?? ""));
         logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
+        if (tool.name === "observe" && data?.as === "components" && Array.isArray(data.components)) {
+          const components = data.components.slice(0, 120).map((c) => ({
+            id: c.id,
+            role: c.role,
+            name: c.name,
+            actions: c.actions
+          }));
+          return {
+            content: [
+              { type: "text", text },
+              { type: "text", text: JSON.stringify({ components }) }
+            ]
+          };
+        }
         return { content: [{ type: "text", text }] };
       } catch (err) {
         logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, "error");
@@ -38526,6 +38540,12 @@ Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for i
     * TIER 3 (Use deliberately): evaluate_javascript() -> arbitrary page JS that can read AND mutate. A powerful tool for what the primitives cannot express \u2014 prefer observe/extract for reads and act for clicks/typing, since heavy injected JS is a bot-detection signal (untrusted events).
   - Start non-trivial sessions with bridge_health() to read capabilities[], revision and input.transport.
   - QUICK DECISION ORDER (5 common jobs): read a page -> observe(as:"markdown"); find an element -> find(); act -> act(mark_id | selector | x,y, action); wait -> wait_for(conditions[]); harvest a lazy list -> collect_all(). Full detail: mark-eleven://tools/recommended.
+  - DECISION-FIRST NAVIGATION (when a decision model is configured \u2014 see tools/list for decide/drive):
+    * USE IT WHEN THE CHOICE IS GENUINELY AMBIGUOUS: two or more visible controls could plausibly be the right one (sort tabs, filter chips, date cells, result rows), the page is unfamiliar, or you need a judgement ("is this goal already met?"). Then: observe(as:"components") -> decide(...) -> act(mark_id) -> verify.
+    * DO NOT USE IT WHEN THE ANSWER IS DETERMINISTIC: a known URL, a known form field, a stable selector, a control find(role,name) already identifies, or a step you are about to repeat mechanically. decide costs ~0.5s and a paid model call and is not reproducible; find/act/navigate are faster and exact. Rule of thumb: if exactly one control matches, do not ask.
+    * One decide call answers several questions at once (operation, target, done?). Pass guard:{components, threshold} so an answer naming a missing id or a control that cannot accept the operation is rejected instead of executed.
+    * drive(goal, values?, max_steps?) is for a short, well-scoped goal with genuine ambiguity per step. It is not a retry engine: a guard rejection means fall back to observe(markdown) + find.
+    * decide CHOOSES, it does not act or verify. Every decision is followed by act + expect/diff/page_state. Never treat "done" as proof \u2014 check the page.
 
 2. [ORTHOGONAL PRIMITIVES \u2014 PREFER THESE OVER BLIND SLEEPS]
   - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate; returns {ok, waitedMs, attempts, results[]}. Replaces every sleep.
@@ -38712,6 +38732,8 @@ Reach for these first; anything whose description starts with \`[TIER n]\` is a 
 
 | Job | Use | Fallback |
 | :--- | :--- | :--- |
+| Decide what to click on a busy page | \`observe(as:"components")\` \u2192 \`decide\` \u2192 \`act(mark_id)\` | \`observe(as:"markdown")\` + \`find\` |
+| Run a short, well-scoped goal | \`drive(goal, values?, max_steps?)\` | the manual decide loop above |
 | Read / understand a page | \`observe(as:"markdown")\` | \`take_screenshot(marks:true, detail:"economy")\` |
 | Read a URL as Markdown (site-provided or rendered) | \`read_url(url)\` | \`llm_surface\` \u2192 \`llm_fetch\` \u2192 \`observe(as:"markdown")\` |
 | Find an element | \`find(...)\` | \`observe(as:"som")\` and read the \`[#ID]\` |
@@ -38721,6 +38743,8 @@ Reach for these first; anything whose description starts with \`[TIER n]\` is a 
 
 Rules of thumb:
 - Never \`sleep\`; use \`wait_for\` or \`act(await_conditions=[...])\`.
+- Ask \`decide\` only when the choice is ambiguous (2+ plausible controls, unfamiliar page, or a "is it done?" judgement). One matching control means \`find\` + \`act\` \u2014 that is faster, deterministic and free.
+- Guard every decision with the component list so it cannot invent a target, and verify the outcome (\`expect\`, \`diff\`, or the delta \`act\` returns) \u2014 decide chooses, it does not act or prove.
 - Prefer act() over \`evaluate_javascript\` (TIER 3): CDP input is the humanlike path, and heavy injected JS is a bot-detection signal \u2014 it stays available for what the primitives cannot express.
 - Prefer \`observe\` over screenshots; prefer a mark id over a CSS selector.
 - Use \`expect(...)\` to assert now, \`page_state()\`/\`diff(since)\` to confirm change cheaply.

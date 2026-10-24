@@ -182,7 +182,29 @@ export class HumanizedInputSimulator {
     // Initialize visual ghost cursor overlay inside the web page if needed
     await this.ensureVisualCursor(webContents);
 
-    for (const step of trajectory) {
+    // A 140-step trajectory means 140 awaited `Input.dispatchMouseEvent` round trips. On a heavy
+    // page (Skyscanner, Reddit) each one costs 50-300ms because the renderer is busy, so a single
+    // click took 40-50s. Keep the organic shape but bound the cost: dispatch at most
+    // MAX_DISPATCH_POINTS samples, and hard-stop at CURSOR_BUDGET_MS (jump to the target).
+    const MAX_DISPATCH_POINTS = 28;
+    const CURSOR_BUDGET_MS = (() => {
+      const raw = Number(process.env.KUANG_CURSOR_BUDGET_MS);
+      return Number.isFinite(raw) && raw > 0 ? raw : 900;
+    })();
+    const stride = Math.max(1, Math.ceil(trajectory.length / MAX_DISPATCH_POINTS));
+    const startedAt = Date.now();
+    let overBudget = false;
+
+    for (let i = 0; i < trajectory.length; i++) {
+      const step = trajectory[i];
+      const isLast = i === trajectory.length - 1;
+      if (i % stride !== 0 && !isLast) continue;
+
+      if (!isLast && Date.now() - startedAt > CURSOR_BUDGET_MS) {
+        overBudget = true;
+        continue;
+      }
+
       await this.dispatch(
         webContents,
         'Input.dispatchMouseEvent',
@@ -206,7 +228,21 @@ export class HumanizedInputSimulator {
 
       this.currentCursor = { x: step.x, y: step.y };
 
-      await sleep(step.delayMs);
+      // Skipped samples contribute no dwell; the remaining ones keep a small human rhythm.
+      await sleep(Math.min(step.delayMs, 24));
+    }
+
+    if (overBudget) {
+      // Land exactly on target even when the budget cut the glide short.
+      await this.dispatch(
+        webContents,
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: target.x, y: target.y, button: 'none', buttons: 0, pointerType: 'mouse' },
+        () => {
+          webContents.sendInputEvent({ type: 'mouseMove', x: target.x, y: target.y });
+        }
+      );
+      this.currentCursor = { x: target.x, y: target.y };
     }
 
     // Report the glide ONCE, not once per step. The in-page phosphor trail is already drawn

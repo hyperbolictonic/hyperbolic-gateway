@@ -48,6 +48,12 @@ import { SearchHub, type SearchOutcome } from './search/search-engine.js';
 import { Crawler, type CrawlOptions, type CrawlOutcome } from './crawl/crawler.js';
 import { Researcher, type ResearchOptions, type ResearchOutcome } from './research/researcher.js';
 
+/**
+ * Width of the page's classic scrollbar in the browsing view. Floating/docked panels are inset by
+ * this much so they never sit on top of the scrollbar track (Chromium reserves 15px on Windows).
+ */
+const PAGE_SCROLLBAR_GUTTER = 16;
+
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
   /** Recent decision-model calls, mirrored to the HUD (newest last, capped at 50). */
@@ -99,6 +105,8 @@ export class BrowserChassis {
     agentStatus: 'IDLE',
     activeAction: 'Standby - Awaiting MCP Uplink',
     cursor: { x: 100, y: 100 },
+    canGoBack: false,
+    canGoForward: false,
     tabs: [],
     stats: {
       totalInteractions: 0,
@@ -427,15 +435,21 @@ export class BrowserChassis {
     }
 
     const [winWidth, winHeight] = this.mainWindow.getSize();
+    // Leave the page's right-edge scrollbar out from under the panel. The browsing view spans the
+    // full window width (floating panels sit *over* the page), so a panel flush to the right edge
+    // covers the scrollbar track completely and the page becomes undraggable by hand.
+    const scrollbarGutter = PAGE_SCROLLBAR_GUTTER;
+    const usableWidth = Math.max(0, winWidth - scrollbarGutter);
+
     if (this.sidebarMode === 'collapsed') {
       // Keep the collapsed overlay small so it only captures the toggle, not
       // the page's right-edge scrollbar.
       const width = 36;
       const height = 60;
       this.sidebarView.setBounds({
-        x: Math.max(0, winWidth - width),
+        x: Math.max(0, usableWidth - width),
         y: 108,
-        width: Math.min(width, winWidth),
+        width: Math.min(width, usableWidth),
         height: Math.min(height, Math.max(0, winHeight - 108)),
       });
       return;
@@ -443,9 +457,9 @@ export class BrowserChassis {
 
     const width = 420;
     this.sidebarView.setBounds({
-      x: Math.max(0, winWidth - width),
+      x: Math.max(0, usableWidth - width),
       y: 100,
-      width: Math.min(width, winWidth),
+      width: Math.min(width, usableWidth),
       height: Math.max(0, winHeight - 100),
     });
   }
@@ -683,6 +697,20 @@ export class BrowserChassis {
       return { success: true };
     });
 
+    // Toolbar history controls. These are the same entry points the MCP `navigate_history` tool and
+    // the right-click menu use, so a human and an agent cannot drift apart.
+    ipcMain.handle('chassis:go-back', async () => ({ message: await this.goBack() }));
+    ipcMain.handle('chassis:go-forward', async () => ({ message: await this.goForward() }));
+    ipcMain.handle('chassis:reload', async () => ({ message: await this.reload() }));
+    ipcMain.handle('chassis:get-nav-state', () => {
+      const wc = this.tabManager?.getActiveTab()?.view?.webContents;
+      const usable = wc && !wc.isDestroyed();
+      return {
+        canGoBack: usable ? wc.navigationHistory.canGoBack() : false,
+        canGoForward: usable ? wc.navigationHistory.canGoForward() : false,
+      };
+    });
+
     ipcMain.handle('chassis:harvest', async () => {
       return await this.harvestMarkdown();
     });
@@ -835,6 +863,17 @@ export class BrowserChassis {
   }
 
   private broadcastState() {
+    // History availability is read at broadcast time, not cached on navigation: SPAs use pushState,
+    // which fires no navigation event, and a tab switch swaps the history stack under the toolbar.
+    try {
+      const wc = this.tabManager?.getActiveTab()?.view?.webContents;
+      if (wc && !wc.isDestroyed()) {
+        this.state.canGoBack = wc.navigationHistory.canGoBack();
+        this.state.canGoForward = wc.navigationHistory.canGoForward();
+      }
+    } catch {
+      // A tab mid-teardown has no usable history; leave the previous flags alone.
+    }
     this.sendToSurfaces('chassis:state-updated', this.state);
   }
 
@@ -1393,6 +1432,7 @@ export class BrowserChassis {
     if (wc.navigationHistory.canGoBack()) {
       wc.navigationHistory.goBack();
       this.bumpRevision();
+      this.broadcastState();
       return 'Navigated back in history';
     }
     return 'Cannot navigate back; at start of history';
@@ -1403,6 +1443,7 @@ export class BrowserChassis {
     if (wc.navigationHistory.canGoForward()) {
       wc.navigationHistory.goForward();
       this.bumpRevision();
+      this.broadcastState();
       return 'Navigated forward in history';
     }
     return 'Cannot navigate forward; at end of history';
@@ -1412,6 +1453,7 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     wc.reload();
     this.bumpRevision();
+    this.broadcastState();
     return 'Reloaded active web page';
   }
 

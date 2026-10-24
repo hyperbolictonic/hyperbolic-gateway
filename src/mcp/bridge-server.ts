@@ -327,6 +327,22 @@ export async function createBridgeMcpServer() {
             : JSON.stringify(data, null, 2);
         const text = clampText(typeof rawText === 'string' ? rawText : String(rawText ?? ''));
         logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
+
+        // observe(as:"components") is the input to the decision loop, so hand back the machine
+        // table too — decide(state: <this>, guard:{components: [ids]}) can consume it verbatim
+        // instead of the agent re-typing ids out of the prose projection.
+        if (tool.name === 'observe' && data?.as === 'components' && Array.isArray(data.components)) {
+          const components = data.components.slice(0, 120).map((c: any) => ({
+            id: c.id, role: c.role, name: c.name, actions: c.actions,
+          }));
+          return {
+            content: [
+              { type: 'text', text },
+              { type: 'text', text: JSON.stringify({ components }) },
+            ],
+          };
+        }
+
         return { content: [{ type: 'text', text }] };
       } catch (err: any) {
         logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, 'error');
@@ -356,6 +372,12 @@ export async function createBridgeMcpServer() {
     * TIER 3 (Use deliberately): evaluate_javascript() -> arbitrary page JS that can read AND mutate. A powerful tool for what the primitives cannot express — prefer observe/extract for reads and act for clicks/typing, since heavy injected JS is a bot-detection signal (untrusted events).
   - Start non-trivial sessions with bridge_health() to read capabilities[], revision and input.transport.
   - QUICK DECISION ORDER (5 common jobs): read a page -> observe(as:"markdown"); find an element -> find(); act -> act(mark_id | selector | x,y, action); wait -> wait_for(conditions[]); harvest a lazy list -> collect_all(). Full detail: mark-eleven://tools/recommended.
+  - DECISION-FIRST NAVIGATION (when a decision model is configured — see tools/list for decide/drive):
+    * USE IT WHEN THE CHOICE IS GENUINELY AMBIGUOUS: two or more visible controls could plausibly be the right one (sort tabs, filter chips, date cells, result rows), the page is unfamiliar, or you need a judgement ("is this goal already met?"). Then: observe(as:"components") -> decide(...) -> act(mark_id) -> verify.
+    * DO NOT USE IT WHEN THE ANSWER IS DETERMINISTIC: a known URL, a known form field, a stable selector, a control find(role,name) already identifies, or a step you are about to repeat mechanically. decide costs ~0.5s and a paid model call and is not reproducible; find/act/navigate are faster and exact. Rule of thumb: if exactly one control matches, do not ask.
+    * One decide call answers several questions at once (operation, target, done?). Pass guard:{components, threshold} so an answer naming a missing id or a control that cannot accept the operation is rejected instead of executed.
+    * drive(goal, values?, max_steps?) is for a short, well-scoped goal with genuine ambiguity per step. It is not a retry engine: a guard rejection means fall back to observe(markdown) + find.
+    * decide CHOOSES, it does not act or verify. Every decision is followed by act + expect/diff/page_state. Never treat "done" as proof — check the page.
 
 2. [ORTHOGONAL PRIMITIVES — PREFER THESE OVER BLIND SLEEPS]
   - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate; returns {ok, waitedMs, attempts, results[]}. Replaces every sleep.
@@ -544,6 +566,8 @@ Reach for these first; anything whose description starts with \`[TIER n]\` is a 
 
 | Job | Use | Fallback |
 | :--- | :--- | :--- |
+| Decide what to click on a busy page | \`observe(as:"components")\` → \`decide\` → \`act(mark_id)\` | \`observe(as:"markdown")\` + \`find\` |
+| Run a short, well-scoped goal | \`drive(goal, values?, max_steps?)\` | the manual decide loop above |
 | Read / understand a page | \`observe(as:"markdown")\` | \`take_screenshot(marks:true, detail:"economy")\` |
 | Read a URL as Markdown (site-provided or rendered) | \`read_url(url)\` | \`llm_surface\` → \`llm_fetch\` → \`observe(as:"markdown")\` |
 | Find an element | \`find(...)\` | \`observe(as:"som")\` and read the \`[#ID]\` |
@@ -553,6 +577,8 @@ Reach for these first; anything whose description starts with \`[TIER n]\` is a 
 
 Rules of thumb:
 - Never \`sleep\`; use \`wait_for\` or \`act(await_conditions=[...])\`.
+- Ask \`decide\` only when the choice is ambiguous (2+ plausible controls, unfamiliar page, or a "is it done?" judgement). One matching control means \`find\` + \`act\` — that is faster, deterministic and free.
+- Guard every decision with the component list so it cannot invent a target, and verify the outcome (\`expect\`, \`diff\`, or the delta \`act\` returns) — decide chooses, it does not act or prove.
 - Prefer act() over \`evaluate_javascript\` (TIER 3): CDP input is the humanlike path, and heavy injected JS is a bot-detection signal — it stays available for what the primitives cannot express.
 - Prefer \`observe\` over screenshots; prefer a mark id over a CSS selector.
 - Use \`expect(...)\` to assert now, \`page_state()\`/\`diff(since)\` to confirm change cheaply.

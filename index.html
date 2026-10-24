@@ -13,7 +13,7 @@
   </head>
   <body class="h-full flex flex-col overflow-hidden bg-base-200 font-sans">
     <!-- Top Cyberdeck Navbar -->
-    <header id="app-header" class="navbar bg-base-300 border-b border-base-100 px-4 h-16 min-h-16 flex items-center justify-between z-30 shadow-md">
+    <header id="app-header" class="navbar bg-base-300 border-b border-base-100 px-4 h-16 min-h-16 flex items-center justify-between z-40 shadow-md">
       <!-- Deck Branding & Status -->
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 font-mono font-bold tracking-wider text-base-content">
@@ -28,8 +28,17 @@
       </div>
 
       <!-- Center URL Navigator (Mockup Browser Bar) -->
-      <div class="flex-1 max-w-2xl mx-4">
+      <div class="flex-1 mx-4">
         <form id="url-form" class="join w-full">
+          <button id="nav-back-btn" type="button" class="btn btn-sm btn-ghost join-item px-2 text-base-content/70 hover:text-accent disabled:opacity-30" title="Back (Alt+Left)" aria-label="Back">
+            ←
+          </button>
+          <button id="nav-forward-btn" type="button" class="btn btn-sm btn-ghost join-item px-2 text-base-content/70 hover:text-accent disabled:opacity-30" title="Forward (Alt+Right)" aria-label="Forward">
+            →
+          </button>
+          <button id="nav-reload-btn" type="button" class="btn btn-sm btn-ghost join-item px-2 text-base-content/70 hover:text-accent" title="Reload (F5)" aria-label="Reload">
+            ⟳
+          </button>
           <div class="join-item bg-base-100 flex items-center px-3 border border-base-100 text-xs font-mono opacity-70">
             HTTPS://
           </div>
@@ -42,34 +51,52 @@
           <button id="bookmark-toggle-btn" type="button" class="btn btn-sm btn-ghost join-item px-2.5 text-base-content/60 hover:text-warning" title="Bookmark current page (☆/★)">
             <span id="bookmark-star-icon" class="text-sm">☆</span>
           </button>
-          <button id="navigate-btn" type="submit" class="btn btn-sm btn-primary join-item font-mono text-xs">
-            ENGAGE
+          <button id="navigate-btn" type="submit" class="btn btn-sm btn-primary join-item btn-square" title="Navigate to this URL" aria-label="Navigate">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
           </button>
         </form>
       </div>
 
       <!-- Action Utilities -->
-      <div class="flex items-center gap-2">
-        <button id="cortex-btn" class="btn btn-sm btn-outline btn-secondary font-mono text-xs gap-1.5" title="LanceDB Semantic Cortex & Bookmarks">
-          <span>🧠</span>
-          <span>CORTEX</span>
-        </button>
-        <button id="harvest-btn" class="btn btn-sm btn-outline btn-accent font-mono text-xs gap-1.5" title="Extract clean markdown construct">
-          <span>📄</span>
-          <span>HARVEST</span>
-        </button>
-        <button id="settings-btn" class="btn btn-sm btn-outline btn-primary font-mono text-xs gap-1.5" title="Settings — decision model, recording and MCP clients">
-          <span>⚙️</span>
-          <span>SETTINGS</span>
-        </button>
-        <button id="about-btn" class="btn btn-sm btn-ghost font-mono text-xs gap-1 border border-base-100" title="System Specifications & About">
-          <span>ℹ️</span>
-          <span>ABOUT</span>
-        </button>
-        <button id="record-btn" class="btn btn-sm btn-ghost font-mono text-xs gap-1.5 text-error/90 hover:bg-error/10" title="Record a timelapse of this window (Settings → Recording)">
-          <span id="record-dot" class="text-error animate-pulse">●</span>
-          <span id="record-label">REC</span>
-        </button>
+      <div class="flex items-center gap-1">
+        <div class="tooltip tooltip-bottom z-50" data-tip="Cortex — recall &amp; bookmarks">
+          <button id="cortex-btn" class="btn btn-sm btn-ghost btn-square text-secondary" aria-label="Cortex — semantic recall and bookmarks">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+            </svg>
+          </button>
+        </div>
+        <div class="tooltip tooltip-bottom z-50" data-tip="Harvest as markdown (Ctrl+H)">
+          <button id="harvest-btn" class="btn btn-sm btn-ghost btn-square text-accent" aria-label="Harvest page as markdown">
+            <span id="harvest-spinner" class="hidden"><span class="loading loading-spinner loading-xs"></span></span>
+            <svg id="harvest-icon" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 8.25h5.25M8.25 15h3.75m-6 5.25H6.75A1.125 1.125 0 0 1 5.625 19.1V4.9c0-.621.504-1.125 1.125-1.125h7.19a1.125 1.125 0 0 1 .796.33l3.809 3.808c.211.211.33.497.33.796v10.39c0 .621-.504 1.125-1.125 1.125H6.75Z" />
+            </svg>
+          </button>
+        </div>
+        <div class="tooltip tooltip-bottom z-50" data-tip="Settings">
+          <button id="settings-btn" class="btn btn-sm btn-ghost btn-square text-primary" aria-label="Settings">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+          </button>
+        </div>
+        <div class="tooltip tooltip-bottom tooltip-end z-50" data-tip="About">
+          <button id="about-btn" class="btn btn-sm btn-ghost btn-square text-base-content/70" aria-label="About">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+            </svg>
+          </button>
+        </div>
+        <div id="record-tooltip" class="tooltip tooltip-bottom tooltip-end z-50" data-tip="Record timelapse">
+          <button id="record-btn" class="btn btn-sm btn-ghost btn-square text-error/90 hover:bg-error/10" aria-label="Record a timelapse">
+            <span id="record-dot" class="text-xs leading-none text-error animate-pulse">●</span>
+            <span id="record-label" class="sr-only">REC</span>
+          </button>
+        </div>
       </div>
     </header>
 

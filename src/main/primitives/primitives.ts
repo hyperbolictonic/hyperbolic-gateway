@@ -441,27 +441,31 @@ function buildExtractScript(opts: ExtractOptions): string {
     }
 
     // list
+    // Skip non-content subtrees: script clusters look exactly like a "repeating item container"
+    // (N siblings, identical signature) and would otherwise win and return JS source instead of
+    // rows. Seen on Skyscanner, which keeps ~700 inline scripts under <head>.
+    const NON_CONTENT = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'META', 'LINK', 'HEAD', 'TITLE', 'SVG', 'IFRAME', 'CANVAS']);
+    const isContent = (el) => el && !NON_CONTENT.has(el.tagName) && isVisible(el);
+    // A result row is a *content-bearing* child. Requiring identical sibling signatures (the old
+    // heuristic) breaks the moment one card is a sponsored ad or a "show more" divider, so score
+    // by density of text-bearing children and prefer the deepest container that still wins.
+    const isItem = (el) => isContent(el) && ((el.innerText || '').trim().length >= 25 || !!el.querySelector('a[href]'));
     let best = null; let bestScore = 0;
     const walk = (node, depth) => {
-      if (!node || depth > 8) return;
+      if (!node || depth > 12 || NON_CONTENT.has(node.tagName)) return;
       const kids = Array.from(node.children || []);
       if (kids.length >= 3) {
-        const counts = {};
-        for (const k of kids) { const s = sig(k); counts[s] = (counts[s] || 0) + 1; }
-        for (const s of Object.keys(counts)) {
-          const c = counts[s];
-          if (c >= 3) {
-            const score = c * 1000 - depth * 10 - Math.abs(kids.length - c);
-            if (score > bestScore) { bestScore = score; best = { node: node, sig: s, count: c }; }
-          }
+        const items = kids.filter(isItem);
+        if (items.length >= 3) {
+          const score = items.length * 1000 + depth * 5 - Math.abs(kids.length - items.length) * 8;
+          if (score > bestScore) { bestScore = score; best = { node: node, count: items.length }; }
         }
       }
       for (const k of kids) walk(k, depth + 1);
     };
     walk(root, 0);
     const container = best ? best.node : root;
-    let children = Array.from(container.children || []);
-    if (best) { const f = children.filter((el) => sig(el) === best.sig); if (f.length >= 3) children = f; }
+    const children = Array.from(container.children || []).filter(isItem);
     const seen = {}; const out = [];
     for (const el of children) {
       const r = rowOf(el);
@@ -472,7 +476,7 @@ function buildExtractScript(opts: ExtractOptions): string {
       out.push(r);
       if (out.length >= limit) break;
     }
-    return { kind: 'list', container: best ? { sig: best.sig, matched: best.count } : { sig: null, matched: children.length }, count: out.length, rows: out };
+    return { kind: 'list', container: best ? { matched: best.count } : { matched: children.length }, count: out.length, rows: out };
   })()`;
 }
 
@@ -499,24 +503,27 @@ function buildCollectScript(opts: CollectOptions): string {
         mark: markEl ? Number(markEl.getAttribute('data-mark-id')) : undefined
       };
     };
+    // Same non-content guard as extract(list): a wall of inline <script> siblings must never
+    // win, and rows are scored by content density so one sponsored card cannot break the match.
+    const NON_CONTENT = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'META', 'LINK', 'HEAD', 'TITLE', 'SVG', 'IFRAME', 'CANVAS']);
+    const isContent = (el) => el && !NON_CONTENT.has(el.tagName) && isVisible(el);
+    const isItem = (el) => isContent(el) && ((el.innerText || '').trim().length >= 25 || !!el.querySelector('a[href]'));
     let best = null; let bestScore = 0;
     const walk = (node, depth) => {
-      if (!node || depth > 8) return;
+      if (!node || depth > 12 || NON_CONTENT.has(node.tagName)) return;
       const kids = Array.from(node.children || []);
       if (kids.length >= 3) {
-        const counts = {};
-        for (const k of kids) { const s = sig(k); counts[s] = (counts[s] || 0) + 1; }
-        for (const s of Object.keys(counts)) {
-          const c = counts[s];
-          if (c >= 3) { const score = c * 1000 - depth * 10 - Math.abs(kids.length - c); if (score > bestScore) { bestScore = score; best = { node: node, sig: s, count: c }; } }
+        const items = kids.filter(isItem);
+        if (items.length >= 3) {
+          const score = items.length * 1000 + depth * 5 - Math.abs(kids.length - items.length) * 8;
+          if (score > bestScore) { bestScore = score; best = { node: node, count: items.length }; }
         }
       }
       for (const k of kids) walk(k, depth + 1);
     };
     walk(root, 0);
     const container = best ? best.node : root;
-    let rows = Array.from(container.children || []);
-    if (best) { const f = rows.filter((el) => sig(el) === best.sig); if (f.length >= 3) rows = f; }
+    const rows = Array.from(container.children || []).filter(isItem);
     const target = opts.scroll === 'window' ? (document.scrollingElement || document.documentElement) : container;
     const seen = {}; const out = [];
     const read = () => {
