@@ -397,7 +397,7 @@ export async function createBridgeMcpServer() {
   - research_topic(query, max_sources?, engine?, url_template?, excerpt_chars?, harvest_to_cortex?): autonomous search → gather top sources → distill → index into Cortex; returns cited EXTRACTIVE evidence (no prose — you synthesize).
   - page_state() / diff(since?): cheap change signature + field-by-field diff for loops (no full re-reads).
   - Condition vocabulary: selector / gone / text(regex) / url / role_name / count(min/equals/max) / network_idle / stable(target:"marks"|"height"|"text"|"nodes") / revision. WARNING: skeletons can satisfy a naive selector early — prefer stable/count for lazily-rendered lists.
-  - Errors are machine-coded (HTTP 400): STALE_REF (re-scan), TIMEOUT, NO_TARGET, BAD_REQUEST, NOT_SUPPORTED. See resource mark-eleven://okf/partitions/primitives-and-workflows for recipes R1-R6.
+  - Errors are machine-coded (HTTP 400): STALE_REF (re-scan), TIMEOUT, NO_TARGET, BAD_REQUEST, NOT_SUPPORTED, HUMAN_IN_PROGRESS (a person is using the browser — synthetic input is paused; poll /human/status, wait for them to go idle or for ~2s of quiet, then re-observe). See resource mark-eleven://okf/partitions/primitives-and-workflows for recipes R1-R6.
 
 3. [VISUAL GROUNDING & SET-OF-MARKS (SoM)]
   - ONE tool, three detail levels (identical badge IDs): take_screenshot(marks:true, detail?):

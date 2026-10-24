@@ -499,6 +499,9 @@ function updateState(state: ChassisState) {
     case 'AWAITING_INPUT':
       agentStatusBadge.classList.add('badge-warning', 'animate-pulse');
       break;
+    case 'HUMAN_INPUT':
+      agentStatusBadge.classList.add('badge-info', 'animate-pulse');
+      break;
   }
 
   // Update Stats

@@ -1,4 +1,4 @@
-export type AgentStatus = 'IDLE' | 'TRAVERSING' | 'SIMULATING_INPUT' | 'HARVESTING' | 'ERROR' | 'AWAITING_INPUT';
+export type AgentStatus = 'IDLE' | 'TRAVERSING' | 'SIMULATING_INPUT' | 'HARVESTING' | 'ERROR' | 'AWAITING_INPUT' | 'HUMAN_INPUT';
 
 export interface CursorPosition {
   x: number;

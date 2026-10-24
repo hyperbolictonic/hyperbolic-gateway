@@ -5,6 +5,7 @@ import { BrowserWindow, nativeImage, ipcMain, clipboard, session, WebContentsVie
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { loadInputProfile, saveInputProfile, type InputProfile } from './telemetry/input-profile.js';
+import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
@@ -96,6 +97,10 @@ export class BrowserChassis {
   private sidebarMode: 'docked' | 'floating' | 'collapsed' = 'floating';
   /** Origins whose consent wall has already been answered (or deliberately left) this session. */
   private consentAnsweredOrigins = new Set<string>();
+  /** Human takeover state: synthetic input is refused until this timestamp. */
+  private humanMonitor = new HumanActivityMonitor();
+  private humanActiveUntil = 0;
+  private humanResetTimer: NodeJS.Timeout | null = null;
   /** How to answer a consent wall. KUANG_CONSENT_POLICY=essential|accept|reject. */
   private consentPolicy: ConsentPolicy = (() => {
     const raw = String(process.env.KUANG_CONSENT_POLICY || '').toLowerCase();
@@ -183,6 +188,10 @@ export class BrowserChassis {
 
     // Human pacing knobs (Settings → INPUT); loaded once at boot, updated live over IPC.
     this.simulator.setProfile(loadInputProfile());
+    // Takeover arbitration: every synthetic dispatch is stamped so the monitor can tell our input
+    // from the person's, and the gate refuses input while the human has the wheel.
+    this.simulator.setSyntheticMarker((at) => this.humanMonitor.markSynthetic(at));
+    this.simulator.setHumanGate(() => this.isHumanActive());
 
     this.shieldBreaker = new ShieldBreaker(this.simulator);
     this.downloadManager = new DownloadManager();
@@ -353,6 +362,10 @@ export class BrowserChassis {
 
           if (!tab.isLoading) this.bumpRevision();
 
+          // Re-arm the takeover listener after every document (listeners die with the page).
+          if (!tab.isLoading && tab.url && !tab.url.startsWith('mark-eleven:') && tab.url !== 'about:blank') {
+            void tab.view.webContents.executeJavaScript(humanListenerScript()).catch(() => null);
+          }
           if (!tab.isLoading && tab.url && !tab.url.startsWith('mark-eleven:') && tab.url !== 'about:blank') {
             this.indexTabQuietly(tab);
           }
@@ -372,6 +385,9 @@ export class BrowserChassis {
       onConsoleLog: (log) => {
         this.targetConsoleLogs.push(log);
         if (this.targetConsoleLogs.length > 200) this.targetConsoleLogs.shift();
+        // Takeover channel: the page reports trusted pointer/key/wheel activity with a magic prefix.
+        const human = this.humanMonitor.ingest(log.message);
+        if (human) this.noteHumanInput(human);
       },
     });
 
@@ -863,6 +879,64 @@ export class BrowserChassis {
   /** Recent decision-model calls, for `GET /decisions` and the HUD's DECISIONS tab. */
   public getDecisionEvents(): DecisionEvent[] {
     return this.decisionLog;
+  }
+
+  // ---- human takeover ------------------------------------------------------
+
+  /** Synthetic input is refused while a human was active within the grace window. */
+  public isHumanActive(): boolean {
+    return Date.now() < this.humanActiveUntil;
+  }
+
+  public getHumanStatus(): { active: boolean; activeForMs: number; last: HumanActivity | null } {
+    const active = this.isHumanActive();
+    return {
+      active,
+      activeForMs: active ? this.humanActiveUntil - Date.now() : 0,
+      last: this.humanMonitor.getLastHuman(),
+    };
+  }
+
+  /** Clear the takeover window (the agent asks to resume, or the HUD button does). */
+  public resumeHuman(): { resumed: boolean } {
+    this.humanActiveUntil = 0;
+    if (this.humanResetTimer) {
+      clearTimeout(this.humanResetTimer);
+      this.humanResetTimer = null;
+    }
+    if (this.state.agentStatus === 'HUMAN_INPUT') {
+      this.state.agentStatus = 'IDLE';
+      this.state.activeAction = 'Human handed back control';
+      this.broadcastState();
+    }
+    this.addLog('info', 'Human takeover cleared — agent may act again.');
+    return { resumed: true };
+  }
+
+  private noteHumanInput(activity: HumanActivity): void {
+    if (activity.url && this.state.currentUrl && activity.url !== this.state.currentUrl) return; // stale tab
+    // A human keeps the wheel for a short quiet period; every new event extends it.
+    this.humanActiveUntil = Date.now() + 2000;
+    if (this.humanResetTimer) clearTimeout(this.humanResetTimer);
+    this.humanResetTimer = setTimeout(() => {
+      if (this.state.agentStatus === 'HUMAN_INPUT' && !this.isHumanActive()) {
+        this.state.agentStatus = 'IDLE';
+        this.state.activeAction = 'Human idle — agent may resume';
+        this.broadcastState();
+        this.addLog('info', 'Human went idle — agent may resume.');
+      }
+    }, 2100);
+
+    const wasActive = this.state.agentStatus === 'HUMAN_INPUT';
+    this.state.agentStatus = 'HUMAN_INPUT';
+    this.state.activeAction = `Human takeover (${activity.kind}${activity.target ? `: ${activity.target}` : ''}) — agent paused`;
+    this.emitTelemetry({
+      type: 'click',
+      timestamp: activity.at,
+      details: `HUMAN ${activity.kind}${activity.target ? ` on ${activity.target}` : ''} — synthetic input paused`,
+    });
+    if (!wasActive) this.addLog('warn', `Human takeover detected (${activity.kind}${activity.target ? `: ${activity.target}` : ''}) — synthetic input paused for ${SYNTHETIC_GRACE_MS}ms+ quiet.`);
+    this.broadcastState();
   }
 
   /**

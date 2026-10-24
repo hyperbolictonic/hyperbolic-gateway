@@ -88,6 +88,19 @@ export class HumanizedInputSimulator {
     }
   }
 
+  private humanGate?: () => boolean;
+  private syntheticMarker?: (at: number) => void;
+
+  /** Called before every synthetic dispatch: return true to refuse input (human has the wheel). */
+  public setHumanGate(gate: () => boolean): void {
+    this.humanGate = gate;
+  }
+
+  /** Called immediately before dispatching, so the monitor can tell our input from a human's. */
+  public setSyntheticMarker(marker: (at: number) => void): void {
+    this.syntheticMarker = marker;
+  }
+
   public getProfile(): typeof this.profile {
     return { ...this.profile };
   }
@@ -147,6 +160,10 @@ export class HumanizedInputSimulator {
     params: Record<string, unknown>,
     nativeFallback: () => void
   ): Promise<void> {
+    if (this.humanGate?.()) {
+      throw new Error('HUMAN_IN_PROGRESS: the human is using the browser — synthetic input is paused. Wait for them to finish (poll /human/status) and re-observe.');
+    }
+    this.syntheticMarker?.(Date.now());
     if (await this.cdp(webContents, method, params)) {
       this.lastInputTransport = 'cdp';
       return;
@@ -515,6 +532,10 @@ export class HumanizedInputSimulator {
   ): Promise<void> {
     this.ensureInputTarget(webContents);
     for (let i = 0; i < text.length; i++) {
+      if (this.humanGate?.()) {
+        throw new Error('HUMAN_IN_PROGRESS: the human is using the browser — synthetic typing is paused.');
+      }
+      this.syntheticMarker?.(Date.now());
       const char = text[i];
       const d = keyDescriptor(char);
 

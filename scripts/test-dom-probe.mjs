@@ -178,6 +178,24 @@ async function main() {
     const rejected = (childChoice.frames || []).some((f) => f.ok && f.value === 'reject');
     check('the click actually landed inside the child frame', rejected, rejected ? 'child recorded reject' : 'child saw no click');
 
+    // --- human takeover (Phase 4) -------------------------------------------
+    const humanBefore = await call('/human/status');
+    check('human status endpoint reports idle before any input', humanBefore.active === false, JSON.stringify(humanBefore.last || null));
+
+    // Our own synthetic click must NOT register as a human takeover.
+    await call('/act', 'POST', { target_text: 'Plain button', action: 'click' });
+    await sleep(300);
+    const afterSynthetic = await call('/human/status');
+    check('synthetic input never counts as human', afterSynthetic.active === false, `active=${afterSynthetic.active}`);
+
+    // A page-script (untrusted) pointer event must be ignored too.
+    await call('/evaluate', 'POST', {
+      script: `document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`,
+    });
+    await sleep(250);
+    const afterScript = await call('/human/status');
+    check('untrusted page events never count as human', afterScript.active === false, `active=${afterScript.active}`);
+
     // --- /evaluate frames ---------------------------------------------------
     const frameEval = await call('/evaluate', 'POST', {
       frames: true,

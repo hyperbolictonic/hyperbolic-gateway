@@ -16,7 +16,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
-## [1.4.84] - 2026-10-24
+## [1.4.85] - 2026-10-24
+
+### Added
+
+- **Human takeover detection and arbitration.** The page reports trusted pointer/key/wheel/touch
+  activity over a console channel; the agent's own CDP input is bracketed by a synthetic marker so
+  the two can be told apart. While a person is active, synthetic input is **refused** with
+  `HUMAN_IN_PROGRESS` instead of fighting them for the cursor.
+  - window: every human event extends a 2 s quiet period; the agent may act again after it lapses
+  - `GET /human/status` → `{active, activeForMs, last:{kind,at,url,target}}`
+  - `POST /human/resume` clears it explicitly (HUD/manual hand-back)
+  - `bridge_health` gains `human.paused` + the same status
+  - `AgentStatus` gains `HUMAN_INPUT`, shown as a pulsing info badge in the HUD with the takeover
+    description in the action line
+- **`npm run test:human`** — 7 offline checks of the predicate (untrusted events, grace window
+  boundary, no-dispatch case).
+- `/dom/facts`, `/evaluate{frames}` tests extended: **`npm run test:dom` → 20 checks**, including
+  "synthetic input never counts as human" and "untrusted page events never count as human".
+
+### Verified live (real OS input, not synthetic)
+
+- a physical click at (400, 400) → `active: true`, `last: {kind:"pointer", url:"https://example.com/", target:"body \"This domain is for use in documentation \""}`
+- an `act` attempt during that window → `500 HUMAN_IN_PROGRESS: the human is using the browser — synthetic input is paused…`
+
+### Notes
+
+- Detection is timing-based by necessity: CDP and human input are both trusted in the DOM. A human
+  event arriving inside the 180 ms synthetic grace window is indistinguishable and is treated as
+  the agent's — the alternative (blocking our own clicks) is worse.
+- The listener re-arms on every document load; it is idempotent per page.
+
+
 
 ### Added
 

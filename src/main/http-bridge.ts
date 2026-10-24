@@ -149,8 +149,18 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           lastActionAt,
           window: { visible: chassis.isWindowVisible(), focused: chassis.isWindowFocused() },
           input: { transport: chassis.getSimulator().lastInputTransport },
+          human: { paused: chassis.isHumanActive(), ...chassis.getHumanStatus() },
           info,
         });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/human/status') {
+        sendJson({ success: true, ...chassis.getHumanStatus() });
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/human/resume') {
+        sendJson({ success: true, ...chassis.resumeHuman() });
         return;
       }
 
