@@ -1794,6 +1794,7 @@ export class BrowserChassis {
                   skipHitTest: options.skipHitTest === true,
                   deep: settings.shadow.deepOpenRoots,
                   markIdBase: 100 + (index - 1) * 100,
+                  component: settings.shadow.componentSurface,
                 }),
         }
       );

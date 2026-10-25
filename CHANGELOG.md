@@ -16,6 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.98] - 2026-10-25
+
+### Added
+
+- **Component signatures on sealed and frame results.** The host surface is now attached to closed
+  shadow-root controls (read from the light-DOM host through the pierced tree + `CSS.getComputedStyleForNode`)
+  and to `frames` / `find(include_frames:true)` controls (read in the frame). Recipes can therefore
+  anchor on components regardless of whether the control is in the main document, a closed root, or
+  an iframe.
+- The page-side signature helper uses `:defined` instead of `customElements.get`, so it works in the
+  isolated world used by frame evaluation; a defined custom element reports `defined:true` there too.
+
+### Tests
+
+- `test:sealed` now asserts the host signature (`host-one`, `part`, `exportparts`, `--brand`) and is
+  18 checks.
+- `test:framemarks` now asserts the frame host signature and is 8 checks.
+- `test:component` / unit remain 9/9 and 3/3.
+
 ## [1.4.97] - 2026-10-25
 
 ### Added

@@ -33,9 +33,13 @@ const MAIN = (crossUrl) => `<!doctype html><html><head><title>Frame Marks</title
 
 const CHILD = (label, key) => `<!doctype html><html><head><title>${label}</title></head>
 <body style="margin:0;padding:10px;font:16px sans-serif">
-<button id="btn">${label} Button</button>
+<frame-widget part="card" exportparts="button:frame-button" style="--frame:#0af">
+  <button id="btn">${label} Button</button>
+</frame-widget>
 <input id="field" aria-label="${label} Field" />
 <script>
+class FrameWidget extends HTMLElement {}
+customElements.define('frame-widget', FrameWidget);
 document.getElementById('btn').addEventListener('click', () => {
   document.documentElement.setAttribute('data-${key}-click', '1');
 });
@@ -88,6 +92,13 @@ async function main() {
     const cross = frameMarks.find((m) => /Cross Frame Button/.test(m.text || ''));
     check('find(include_frames) returns both child buttons with 100+ ids', frameMarks.length === 2 && !!same && !!cross, frameMarks.map((m) => `#${m.id}:${m.text}`).join(' | '));
     check('frame marks carry the frame identity', !!same?.frameId && !!cross?.frameId && same.frameId !== cross.frameId, `same=${same?.frameId} cross=${cross?.frameId}`);
+    check(
+      'frame marks carry the host component signature',
+      /^frame-widget:[0-9a-f]{8}$/.test(String(same?.component?.signature)) &&
+        same?.component?.part?.includes('card') &&
+        same?.component?.exportparts?.includes('button:frame-button'),
+      JSON.stringify(same?.component || null)
+    );
 
     if (same && cross) {
       await call('/act', 'POST', { mark_id: same.id, action: 'click' });

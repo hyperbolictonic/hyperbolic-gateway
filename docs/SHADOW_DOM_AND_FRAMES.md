@@ -154,7 +154,8 @@ tree after each step to see which inner node actually has focus:
 ### Component signatures (1.4.94)
 
 A mark from `find`/`observe(as:"components")` carries the nearest custom-element host's exported
-surface:
+surface. The same surface is attached to sealed controls (read from the light-DOM host through CDP)
+and to `frames`/frame-mark controls (read in the frame):
 
 ```jsonc
 {
@@ -178,8 +179,8 @@ Recipes store the signature on a step. Replay verifies it **before** acting:
   burning three attempts
 - `componentSurface` off in Settings → `409 SIGNATURE_UNAVAILABLE` (not a silent click)
 
-Limits: signatures are read from the **host**, so they cover page-visible targets. Sealed and
-iframe results do not carry them yet; `partHighlight` and `cdpStyleMatch` are not built.
+Limits: signatures are read from the **host**, so they cover page-visible hosts. Sealed and iframe
+controls now carry the same surface; `partHighlight` and `cdpStyleMatch` are not built.
 
 ### Limits
 
@@ -334,9 +335,8 @@ Closed roots, frames, Tab entry, signatures, frame mark ids and force-open are s
 work is polish/optimization:
 
 1. **Clone Lab** is still a proposal ([`TODO.md`](./TODO.md) item 18).
-2. `partHighlight` and `cdpStyleMatch` remain off/unbuilt; they are additive polish, not blockers.
-3. Sealed and iframe results still do not carry component signatures; page-visible hosts do.
-4. Offscreen sealed controls are flagged, not scrollable via a sealed token.
+2. Offscreen sealed controls are flagged, not scrollable via a sealed token.
+3. `partHighlight` and `cdpStyleMatch` remain off/unbuilt; they are additive polish, not blockers.
 
 Force-open is the one detectably risky path: off by default, opt-in per run, confirmed in Settings,
 and called out by a red chip. See [`SHADOW_WALK.md`](./SHADOW_WALK.md).

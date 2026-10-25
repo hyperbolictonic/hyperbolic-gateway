@@ -1063,6 +1063,7 @@ export class Primitives {
                 },
                 frameId: frame.frameId,
                 frameUrl: frame.url,
+                component: control.component,
                 facts: {
                   visible: control.visible,
                   occluded: control.occluded,

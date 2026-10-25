@@ -21,6 +21,8 @@
 import type { WebContents } from 'electron';
 import { bump } from '../metrics.js';
 import { listFrames, type FrameInfo } from '../browser/frames.js';
+import { normalizeSurface, type ComponentSurface } from './component-signature.js';
+import { loadShadowWalkSettings } from './settings.js';
 
 export interface SealedRect {
   x: number;
@@ -41,6 +43,8 @@ export interface SealedControl {
   disabled?: boolean;
   focusable?: boolean;
   focused?: boolean;
+  /** Host exported surface, when the control belongs to a custom-element host. */
+  component?: ComponentSurface;
 }
 
 export interface SealedFindOptions {
@@ -114,6 +118,7 @@ interface Identity {
   focusable: boolean;
   focused: boolean;
   order: number;
+  component?: ComponentSurface;
 }
 
 interface CacheEntry {
@@ -158,25 +163,40 @@ function viewportOf(metrics: any): SealedRect {
 }
 
 /** Walk a DOM tree (already pierced) and index everything under a closed shadow root. */
-function collectClosed(root: any): { ids: Set<number>; info: Map<number, { nodeName: string; order: number }> } {
+function collectClosed(root: any): {
+  ids: Set<number>;
+  info: Map<number, { nodeName: string; order: number; host?: any }>;
+} {
   const ids = new Set<number>();
-  const info = new Map<number, { nodeName: string; order: number }>();
+  const info = new Map<number, { nodeName: string; order: number; host?: any }>();
   let order = 0;
-  const walk = (node: any, insideClosed: boolean) => {
+  const walk = (node: any, insideClosed: boolean, host: any) => {
     if (!node) return;
-    const nowInside = insideClosed || node.shadowRootType === 'closed';
-    if (nowInside && node.backendNodeId) {
+    if (insideClosed && node.backendNodeId) {
       ids.add(Number(node.backendNodeId));
       info.set(Number(node.backendNodeId), {
         nodeName: String(node.nodeName || '').toUpperCase(),
         order: order++,
+        host,
       });
     }
-    for (const child of node.children || []) walk(child, nowInside);
-    for (const shadow of node.shadowRoots || []) walk(shadow, nowInside);
+    for (const child of node.children || []) walk(child, insideClosed, host);
+    for (const shadow of node.shadowRoots || []) {
+      const closed = shadow.shadowRootType === 'closed';
+      // The host of a closed root is the node that owns it; nested hosts replace it for their
+      // own descendants.
+      walk(shadow, insideClosed || closed, closed ? node : host);
+    }
   };
-  walk(root, false);
+  walk(root, false, undefined);
   return { ids, info };
+}
+
+function attributesOf(node: any): Record<string, string> {
+  const out: Record<string, string> = {};
+  const attrs = node?.attributes || [];
+  for (let i = 0; i + 1 < attrs.length; i += 2) out[String(attrs[i])] = String(attrs[i + 1]);
+  return out;
 }
 
 /**
@@ -214,10 +234,13 @@ export async function findSealedControls(
   const main = frames.find((f) => f.depth === 0);
   if (!main) return empty(['The frame list has no main frame.']);
 
+  const settings = loadShadowWalkSettings();
+  const componentsEnabled = settings.shadow.componentSurface;
   const key = [
     main.loaderId || main.url,
     frames.map((f) => `${f.frameId}:${f.depth}:${f.url}`).join(','),
     options.revision ?? 0,
+    componentsEnabled ? 'components' : 'plain',
   ].join('|');
 
   const cache = caches.get(wc);
@@ -243,6 +266,8 @@ export async function findSealedControls(
     const sessions = new Map<string, TargetSession>();
     const opened: string[] = [];
     const axEnabled = new Set<string | undefined>();
+    const cssEnabled = new Set<string | undefined>();
+    const surfaceCache = new Map<number, ComponentSurface>();
     const docCache = new Map<string, any>();
 
     const send = async (sessionId: string | undefined, method: string, params: Record<string, unknown> = {}) => {
@@ -254,6 +279,41 @@ export async function findSealedControls(
     const sessionFor = (frame: FrameInfo | undefined): string | undefined => {
       if (!frame?.oopif || !frame.targetId) return undefined;
       return sessions.get(frame.targetId)?.sessionId;
+    };
+
+    const surfaceFor = async (host: any, session: string | undefined): Promise<ComponentSurface | undefined> => {
+      const backend = Number(host?.backendNodeId);
+      if (!backend) return undefined;
+      const cached = surfaceCache.get(backend);
+      if (cached) return cached;
+
+      const attrs = attributesOf(host);
+      let cssVars: string[] = [];
+      try {
+        if (!cssEnabled.has(session)) {
+          await send(session, 'CSS.enable');
+          cssEnabled.add(session);
+        }
+        if (host.nodeId) {
+          const computed = await send(session, 'CSS.getComputedStyleForNode', { nodeId: host.nodeId });
+          cssVars = (computed?.computedStyle || [])
+            .map((item: any) => String(item?.name || ''))
+            .filter((name: string) => name.startsWith('--'))
+            .sort();
+        }
+      } catch {
+        // part/exportparts are still useful without computed custom properties.
+      }
+
+      const surface = normalizeSurface({
+        tag: host.nodeName,
+        defined: true,
+        part: String(attrs.part || '').split(/\s+/).filter(Boolean),
+        exportparts: String(attrs.exportparts || '').split(','),
+        cssVars,
+      });
+      surfaceCache.set(backend, surface);
+      return surface;
     };
 
     try {
@@ -348,6 +408,7 @@ export async function findSealedControls(
 
             const dom = closed.info.get(backend);
             const focusable = property(node, 'focusable') === true;
+            const component = componentsEnabled && dom?.host ? await surfaceFor(dom.host, session) : undefined;
             identities.push({
               backendNodeId: backend,
               frameIndex: i,
@@ -359,6 +420,7 @@ export async function findSealedControls(
               focusable,
               focused: property(node, 'focused') === true,
               order: order++,
+              component,
             });
           }
         } catch (err: any) {
@@ -376,6 +438,9 @@ export async function findSealedControls(
       // Release the AX domain promptly; the page cannot see it, but leaving it on is still state.
       for (const session of axEnabled) {
         await send(session, 'Accessibility.disable').catch(() => undefined);
+      }
+      for (const session of cssEnabled) {
+        await send(session, 'CSS.disable').catch(() => undefined);
       }
       for (const sessionId of opened) {
         await dbg.sendCommand('Target.detachFromTarget', { sessionId } as any).catch(() => undefined);
@@ -465,6 +530,7 @@ export async function findSealedControls(
         disabled: id.disabled || undefined,
         focusable: id.focusable || undefined,
         focused: id.focused || undefined,
+        component: id.component,
       });
     }
 

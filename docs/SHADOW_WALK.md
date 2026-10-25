@@ -96,7 +96,7 @@ The invariant is testable, not aspirational — the metrics registry already cou
 | `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ✅ today (frame ids 100+) |
 | type / press | ✅ today | ✅ today (coordinate click focuses inside) | ✅ today |
 | `focus_walk` (Tab) | — | ✅ **today** | — |
-| component signature | ✅ today (host surface) | ❌ not attached to sealed results yet | ❌ not attached |
+| component signature | ✅ today | ✅ today (host surface) | ✅ today (host surface) |
 | `observe` text from closed roots | — | ❌ (AX has names, not bodies) | ❌ |
 
 `act(mark_id)` inside a closed root is deliberately not planned: an id implies a DOM handle we do

@@ -9,7 +9,7 @@
  *
  * Runs as a single injected expression: no per-element round trips, no framework dependency.
  */
-
+import { COMPONENT_SIGNATURE_HELPERS, type ComponentSurface } from '../shadow-walk/component-signature.js';
 export type ControlAction = 'click' | 'type' | 'hover' | 'select' | 'press' | 'scroll';
 
 export interface ControlFacts {
@@ -30,6 +30,8 @@ export interface ControlFacts {
   region: string;
   regionName?: string;
   rect: { x: number; y: number; width: number; height: number };
+  /** Nearest custom-element host's exported surface, when requested. */
+  component?: ComponentSurface;
 }
 
 export interface ControlFactsOptions {
@@ -54,6 +56,8 @@ export interface ControlFactsOptions {
    * scanner so an iframe control gets a stable id without colliding with main-frame marks.
    */
   markIdBase?: number;
+  /** Attach the nearest custom-element host's exported surface. */
+  component?: boolean;
 }
 
 /**
@@ -130,10 +134,12 @@ export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
     skipHitTest: opts.skipHitTest === true,
     deep: opts.deep === true,
     markIdBase: Number.isFinite(opts.markIdBase) ? Number(opts.markIdBase) : undefined,
+    component: opts.component === true,
   };
   return `(() => {
     const opts = ${JSON.stringify(options)};
     ${HELPERS}
+    ${options.component ? COMPONENT_SIGNATURE_HELPERS : ''}
     const SEL = 'a[href],button,input,select,textarea,summary,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="checkbox"],[role="combobox"],[contenteditable="true"],[onclick],[tabindex]:not([tabindex="-1"])';
     let nodes;
     const deepQuery = (root) => {
@@ -220,6 +226,7 @@ export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
         disabled: !!(el.disabled || (el.getAttribute && el.getAttribute('aria-disabled') === 'true')),
         region,
         regionName,
+        component: opts.component && typeof kqComponentSurface === 'function' ? (kqComponentSurface(el) || undefined) : undefined,
         rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
       });
     }

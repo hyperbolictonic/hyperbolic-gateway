@@ -58,7 +58,7 @@ customElements.define('host-child', HostChild);
 
 const MAIN = (crossUrl) => `<!doctype html><html><head><title>Sealed Main</title></head>
 <body style="margin:0;font:16px sans-serif">
-<host-one></host-one>
+<host-one part="card" exportparts="button:pay-button" style="--brand:#0af"></host-one>
 <iframe id="same" src="/same" style="display:block;width:420px;height:140px;border:1px solid #ccc"></iframe>
 <iframe id="cross" src="${crossUrl}" style="display:block;width:420px;height:140px;border:1px solid #ccc"></iframe>
 <script>
@@ -178,6 +178,15 @@ async function main() {
       'sealed results never carry input values',
       sealed.every((c) => c.value === undefined) && !JSON.stringify(sealed).includes('hunter2'),
       'value absent'
+    );
+    const payComponent = sealed.find((c) => c.name === 'Sealed Pay')?.component;
+    check(
+      'sealed results carry the host component signature',
+      /^host-one:[0-9a-f]{8}$/.test(String(payComponent?.signature)) &&
+        payComponent?.part?.includes('card') &&
+        payComponent?.exportparts?.includes('button:pay-button') &&
+        payComponent?.cssVars?.includes('--brand'),
+      JSON.stringify(payComponent || null)
     );
     check('the first scan is not cached', found.sealedCached === false, `cached=${found.sealedCached}`);
 

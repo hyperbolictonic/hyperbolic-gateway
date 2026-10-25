@@ -90,7 +90,7 @@ export const COMPONENT_SIGNATURE_HELPERS = `
       }
     } catch (e) {}
     cssVars.sort();
-    const defined = !!(window.customElements && customElements.get(tag));
+    const defined = (() => { try { return host.matches(':defined'); } catch (e) { return false; } })();
     const base = [tag, defined ? '1' : '0', 'part:' + part.join(','), 'exports:' + exportparts.join(','), 'vars:' + cssVars.join(',')].join('|');
     let hash = 5381;
     for (let i = 0; i < base.length; i++) hash = ((hash << 5) + hash + base.charCodeAt(i)) >>> 0;
