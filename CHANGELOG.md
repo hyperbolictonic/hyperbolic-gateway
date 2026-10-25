@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.99] - 2026-10-25
+
+### Added
+
+- **Offscreen sealed controls are actionable.** `find(sealed:true)` now issues a short-lived
+  `token` (`st_…`, 2 minutes) for each result, included in JSON and the text output. Pass it as
+  `act(sealed_token)` (HTTP `sealed_token`, MCP `sealed_token`): the browser resolves the backend
+  node in its frame, calls `DOM.scrollIntoViewIfNeeded`, re-measures the box model, composes the
+  frame offset, and only then clicks/types. No stale coordinate is clicked.
+- Tokens are per tab, cleared by a fresh full sealed scan, and fail with `STALE_REF` after
+  navigation/expiry. `sealed.tokens` is counted in metrics.
+- `test:sealed` now includes a far-down closed-root button: `inViewport:false`, token issued,
+  `act(sealed_token)` scrolls and clicks it (20 checks).
+
 ## [1.4.98] - 2026-10-25
 
 ### Added

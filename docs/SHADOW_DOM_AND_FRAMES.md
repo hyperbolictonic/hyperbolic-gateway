@@ -108,7 +108,8 @@ How it stays honest:
   their own target session, and the target root's top-level rect composes the coordinates.
 - **Hidden semantics come from AX for free.** `display:none`, `visibility:hidden` and
   `aria-hidden` controls are absent. Zero-size controls are dropped; offscreen ones are returned
-  with `inViewport:false` rather than silently clicked.
+  with `inViewport:false` and a short-lived `token` (`st_…`) accepted by `act(sealed_token)`,
+  which scrolls the real node into view and re-measures it before clicking.
 - **Quiet by default.** Nothing scans on navigation, observe, plain `find`, screenshot or idle.
   The first call costs one AX tree + one pierce per frame set; identities are cached by document
   revision for 5 seconds, and a repeat call only re-measures the matches. Six full scans per
@@ -189,7 +190,8 @@ controls now carry the same surface; `partHighlight` and `cdpStyleMatch` are not
   read the root's text or values.
 - Shadow content is **not** flattened into `observe(as:"text")` regions the way it is for markdown.
 - `find(sealed:true)` returns coordinates, not mark ids: an id would imply a DOM handle that does
-  not exist. Re-run `find` after scrolling or a layout change.
+  not exist. Re-run `find` after a layout change; offscreen controls get a short-lived token that
+  `act(sealed_token)` can scroll and re-measure.
 - CSS `selector` filtering is not available for sealed controls (there is no page-side selector
   engine that can see them); use `name`, `role`, `tag` or `contains`.
 
@@ -335,8 +337,9 @@ Closed roots, frames, Tab entry, signatures, frame mark ids and force-open are s
 work is polish/optimization:
 
 1. **Clone Lab** is still a proposal ([`TODO.md`](./TODO.md) item 18).
-2. Offscreen sealed controls are flagged, not scrollable via a sealed token.
-3. `partHighlight` and `cdpStyleMatch` remain off/unbuilt; they are additive polish, not blockers.
+2. `partHighlight` and `cdpStyleMatch` remain off/unbuilt; they are additive polish, not blockers.
+3. `observe`/`extract` are still main-frame only; `find(include_frames)` and frame mark ids cover
+   the frame path.
 
 Force-open is the one detectably risky path: off by default, opt-in per run, confirmed in Settings,
 and called out by a red chip. See [`SHADOW_WALK.md`](./SHADOW_WALK.md).

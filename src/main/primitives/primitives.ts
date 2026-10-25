@@ -55,6 +55,8 @@ export interface PrimitivesHost {
   componentSurfaceEnabled?(): boolean;
   /** Optional frame scan for `find(include_frames)` / mark ids. */
   getFrames?(opts: any): Promise<{ frames: any[]; notes?: string[] }>;
+  /** Resolve an opaque sealed token to a live, scrolled target centre. */
+  resolveSealedToken?(token: string): Promise<{ center: { x: number; y: number }; rect: { x: number; y: number; width: number; height: number }; frameId: string } | null>;
   clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string>;
   typeText(text: string, selector?: string, opts?: { clearFirst?: boolean }): Promise<string>;
   /** CDP text insertion — no key events. Fallback when keystrokes are provably ignored. */
@@ -212,6 +214,8 @@ export interface ActOptions {
   y?: number;
   /** Anchor by visible text — for controls with no semantics (React cards, divs with handlers). */
   targetText?: string;
+  /** Opaque token from a sealed result; resolves, scrolls, and re-measures the offscreen control. */
+  sealedToken?: string;
   /** Require an exact (trimmed) text match instead of substring. */
   targetExact?: boolean;
   action: 'click' | 'type' | 'hover' | 'press' | 'focus';
@@ -1094,7 +1098,8 @@ export class Primitives {
       const cx = Math.round(control.rect.x + control.rect.width / 2);
       const cy = Math.round(control.rect.y + control.rect.height / 2);
       const flags = [control.inViewport ? '' : 'offscreen', control.disabled ? 'disabled' : ''].filter(Boolean);
-      return `[sealed] <${control.role}> "${control.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(', ')}}` : ''}`;
+      const token = control.token ? ` token=${control.token}` : '';
+      return `[sealed] <${control.role}> "${control.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(', ')}}` : ''}${token}`;
     });
 
     const text = [lines.join('\n'), frameLines.join('\n'), sealedLines.join('\n')].filter(Boolean).join('\n');
@@ -1128,11 +1133,13 @@ export class Primitives {
     const hasCoords = px !== undefined && py !== undefined;
     const targetText = opts.targetText ? String(opts.targetText).replace(/\s+/g, ' ').trim() : undefined;
     const hasText = !!targetText;
+    const sealedToken = opts.sealedToken ? String(opts.sealedToken) : undefined;
+    const hasSealedToken = !!sealedToken;
 
-    if (action !== 'press' && !hasMark && !selector && !hasCoords && !hasText) {
+    if (action !== 'press' && !hasMark && !selector && !hasCoords && !hasText && !hasSealedToken) {
       throw new PrimitiveError(
         'BAD_REQUEST',
-        'act needs a target: mark_id, selector, x+y, or target_text (only action="press" is targetless)'
+        'act needs a target: mark_id, selector, x+y, target_text, or sealed_token (only action="press" is targetless)'
       );
     }
 
@@ -1199,6 +1206,19 @@ export class Primitives {
         target = { center };
         const pointFacts = await this.probeField({ point: center });
         if (pointFacts) target.field = pointFacts;
+      } else if (hasSealedToken) {
+        if (!this.host.resolveSealedToken) {
+          throw new PrimitiveError('NOT_SUPPORTED', 'Sealed tokens are not available in this build.');
+        }
+        const resolved = await this.host.resolveSealedToken(sealedToken!);
+        if (!resolved) {
+          throw new PrimitiveError('STALE_REF', 'The sealed target expired or the frame navigated. Re-run find(sealed:true).');
+        }
+        center = resolved.center;
+        address = `sealed ${sealedToken!.slice(0, 10)}`;
+        target = { text: 'sealed control', center };
+        const pointFacts = await this.probeField({ point: center });
+        if (pointFacts) target.field = pointFacts;
       }
     }
 
@@ -1223,7 +1243,7 @@ export class Primitives {
       case 'click':
       case 'focus':
         if (hasMark) await this.host.clickMark(markId!);
-        else await this.host.clickElement(selector, hasCoords || hasText ? center! : undefined);
+        else await this.host.clickElement(selector, hasCoords || hasText || hasSealedToken ? center! : undefined);
         break;
       case 'hover':
         await this.host.moveMouseTo(center!);

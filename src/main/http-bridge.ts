@@ -1323,6 +1323,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           selector,
           targetText,
           targetExact: body?.target_exact === true || body?.targetExact === true,
+          sealedToken: body?.sealed_token !== undefined ? String(body.sealed_token) : body?.sealedToken !== undefined ? String(body.sealedToken) : undefined,
           x,
           y,
           action: body?.action || 'click',

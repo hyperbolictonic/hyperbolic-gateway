@@ -38163,7 +38163,8 @@ ${rows.join("\n")}`;
         const cx = Math.round(c.rect.x + c.rect.width / 2);
         const cy = Math.round(c.rect.y + c.rect.height / 2);
         const flags = [c.inViewport === false ? "offscreen" : "", c.disabled ? "disabled" : ""].filter(Boolean);
-        return `[sealed] <${c.role}> "${c.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(", ")}}` : ""}`;
+        const token = c.token ? ` token=${c.token}` : "";
+        return `[sealed] <${c.role}> "${c.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(", ")}}` : ""}${token}`;
       });
       const sealedNote = data.sealedTotal !== void 0 ? `
 sealed: ${(data.sealed || []).length} of ${data.sealedTotal}${data.sealedCached ? " (cached)" : ""}` : "";
@@ -38227,6 +38228,7 @@ ${rows.join("\n")}`;
       x: external_exports.coerce.number().optional().describe("Viewport X for coordinate targeting (pair with y)"),
       y: external_exports.coerce.number().optional().describe("Viewport Y for coordinate targeting (pair with x)"),
       target_text: external_exports.string().optional().describe("Anchor by visible text when the control has no semantics (React card divs, handler-only elements). Resolves the deepest visible element containing the text; refuses when more than one match is ambiguous"),
+      sealed_token: external_exports.string().optional().describe("Opaque token from find(sealed:true); scrolls/re-measures the sealed control before acting"),
       action: external_exports.enum(["click", "focus", "hover", "type", "press"]).default("click").describe('Action to perform (default: "click")'),
       text: external_exports.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
       secret: external_exports.coerce.boolean().optional().default(false).describe("Redact typed text from logs"),
@@ -38240,6 +38242,7 @@ ${rows.join("\n")}`;
       mark_id: args?.mark_id,
       selector: args?.selector,
       target_text: args?.target_text,
+      sealed_token: args?.sealed_token,
       x: args?.x,
       y: args?.y,
       action: args?.action || "click",
@@ -38380,7 +38383,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.98";
+var APP_VERSION = "1.4.99";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

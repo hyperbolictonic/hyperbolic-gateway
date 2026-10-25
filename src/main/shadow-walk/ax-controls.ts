@@ -23,6 +23,7 @@ import { bump } from '../metrics.js';
 import { listFrames, type FrameInfo } from '../browser/frames.js';
 import { normalizeSurface, type ComponentSurface } from './component-signature.js';
 import { loadShadowWalkSettings } from './settings.js';
+import { clearSealedTokens, issueSealedToken } from './sealed-targets.js';
 
 export interface SealedRect {
   x: number;
@@ -45,6 +46,8 @@ export interface SealedControl {
   focused?: boolean;
   /** Host exported surface, when the control belongs to a custom-element host. */
   component?: ComponentSurface;
+  /** Short-lived capability for scrolling/re-measuring an offscreen control. */
+  token?: string;
 }
 
 export interface SealedFindOptions {
@@ -268,6 +271,7 @@ export async function findSealedControls(
     const axEnabled = new Set<string | undefined>();
     const cssEnabled = new Set<string | undefined>();
     const surfaceCache = new Map<number, ComponentSurface>();
+    clearSealedTokens(wc);
     const docCache = new Map<string, any>();
 
     const send = async (sessionId: string | undefined, method: string, params: Record<string, unknown> = {}) => {
@@ -531,6 +535,7 @@ export async function findSealedControls(
         focusable: id.focusable || undefined,
         focused: id.focused || undefined,
         component: id.component,
+        token: issueSealedToken(wc, id.backendNodeId, frame.frameId) || undefined,
       });
     }
 

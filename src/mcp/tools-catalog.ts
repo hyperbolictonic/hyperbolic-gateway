@@ -1582,7 +1582,8 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
         const cx = Math.round(c.rect.x + c.rect.width / 2);
         const cy = Math.round(c.rect.y + c.rect.height / 2);
         const flags = [c.inViewport === false ? 'offscreen' : '', c.disabled ? 'disabled' : ''].filter(Boolean);
-        return `[sealed] <${c.role}> "${c.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(', ')}}` : ''}`;
+        const token = c.token ? ` token=${c.token}` : '';
+        return `[sealed] <${c.role}> "${c.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(', ')}}` : ''}${token}`;
       });
       const sealedNote = data.sealedTotal !== undefined
         ? `\nsealed: ${(data.sealed || []).length} of ${data.sealedTotal}${data.sealedCached ? ' (cached)' : ''}`
@@ -1652,6 +1653,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       x: z.coerce.number().optional().describe('Viewport X for coordinate targeting (pair with y)'),
       y: z.coerce.number().optional().describe('Viewport Y for coordinate targeting (pair with x)'),
       target_text: z.string().optional().describe('Anchor by visible text when the control has no semantics (React card divs, handler-only elements). Resolves the deepest visible element containing the text; refuses when more than one match is ambiguous'),
+      sealed_token: z.string().optional().describe('Opaque token from find(sealed:true); scrolls/re-measures the sealed control before acting'),
       action: z.enum(['click', 'focus', 'hover', 'type', 'press']).default('click').describe('Action to perform (default: "click")'),
       text: z.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
       secret: z.coerce.boolean().optional().default(false).describe('Redact typed text from logs'),
@@ -1665,6 +1667,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       mark_id: args?.mark_id,
       selector: args?.selector,
       target_text: args?.target_text,
+      sealed_token: args?.sealed_token,
       x: args?.x,
       y: args?.y,
       action: args?.action || 'click',

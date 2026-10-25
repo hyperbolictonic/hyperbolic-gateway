@@ -239,7 +239,8 @@ it off removes it for future documents, while the current document stays patched
   - Map role → actions; carry `name`, `disabled`, `focused`, `focusable`. The AX value field is
     dropped at the boundary (see below).
 - `find {sealed:true}` adds a `sealed` array (`role`, `name`, `rect`, `actions`, `source:"ax"`),
-  separate from `marks` so nothing pretends to have a mark id. Text output prints `@ (x, y)`.
+  separate from `marks` so nothing pretends to have a mark id. Text output prints `@ (x, y)` and,
+  for offscreen controls, a short-lived `token` accepted by `act(sealed_token)`.
   **`value` is never populated for sealed controls** (AX exposes field values; a password or card
   number is not a fact we are allowed to collect).
 - Identity cache keyed by `(tab, loaderId, frame set, revision)` with a 5 s TTL, plus the 6/minute

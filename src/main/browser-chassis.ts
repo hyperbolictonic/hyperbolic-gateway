@@ -21,6 +21,7 @@ import { listFrames, type FrameInfo } from './browser/frames.js';
 import { clearFrameMarks, registerFrameMarks, resolveFrameMark } from './browser/frame-marks.js';
 import { findSealedControls, type SealedFindOptions, type SealedFindResult } from './shadow-walk/ax-controls.js';
 import { runTabWalk, type TabWalkOptions, type TabWalkResult } from './shadow-walk/tab-walk.js';
+import { resolveSealedToken as resolveSealedTarget } from './shadow-walk/sealed-targets.js';
 import { loadShadowWalkSettings, shadowWalkRefusal, type ShadowWalkSurface } from './shadow-walk/settings.js';
 import {
   syncForceOpen,
@@ -262,6 +263,7 @@ export class BrowserChassis {
           ? resolveFrameMark(this.getActiveWebContents(), Number(id))
           : this.marksOverlay.getMarkTarget(this.getActiveWebContents(), id),
       getFrames: (opts) => this.getFrames(opts),
+      resolveSealedToken: (token) => resolveSealedTarget(this.getActiveWebContents(), token),
       clickMark: (id) => this.clickMark(id),
       typeMark: (id, text, opts) => this.typeMark(id, text, opts),
       clickElement: (selector, coords) => this.clickElement(selector, coords),

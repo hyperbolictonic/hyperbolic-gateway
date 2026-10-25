@@ -61,7 +61,19 @@ const MAIN = (crossUrl) => `<!doctype html><html><head><title>Sealed Main</title
 <host-one part="card" exportparts="button:pay-button" style="--brand:#0af"></host-one>
 <iframe id="same" src="/same" style="display:block;width:420px;height:140px;border:1px solid #ccc"></iframe>
 <iframe id="cross" src="${crossUrl}" style="display:block;width:420px;height:140px;border:1px solid #ccc"></iframe>
+<host-far style="display:block;margin-top:1700px;padding:10px"></host-far>
 <script>
+class HostFar extends HTMLElement {
+  constructor() {
+    super();
+    const root = this.attachShadow({ mode: 'closed' });
+    root.innerHTML = '<button id="far">Far Sealed</button>';
+    root.getElementById('far').addEventListener('click', () => {
+      document.documentElement.setAttribute('data-far', '1');
+    });
+  }
+}
+customElements.define('host-far', HostFar);
 class HostTwo extends HTMLElement {
   constructor() {
     super();
@@ -272,6 +284,22 @@ async function main() {
     } else {
       check('clicking a sealed control inside a same-site frame lands', false, 'frame missing');
       check('clicking a sealed control inside a cross-site frame lands', false, 'frame missing');
+    }
+
+    // --- offscreen sealed control: token scrolls + re-measures -----------------
+    const farFound = await call('/find', 'POST', { sealed: true, name: 'Far Sealed', limit: 5 });
+    const far = (farFound.sealed || []).find((c) => c.name === 'Far Sealed');
+    check(
+      'an offscreen sealed control is flagged and gets a token',
+      far?.inViewport === false && typeof far?.token === 'string' && far.token.startsWith('st_'),
+      far ? `inViewport=${far.inViewport} token=${String(far.token).slice(0, 8)}` : 'not found'
+    );
+    if (far?.token) {
+      await call('/act', 'POST', { sealed_token: far.token, action: 'click' });
+      const farProbe = await call('/evaluate', 'POST', { script: `document.documentElement.getAttribute('data-far')` });
+      check('act(sealed_token) scrolls to the offscreen control and clicks it', farProbe.result === '1', `data-far=${farProbe.result || 'none'}`);
+    } else {
+      check('act(sealed_token) scrolls to the offscreen control and clicks it', false, 'no token');
     }
 
     // --- rate limit (last: it exhausts the per-tab budget) ------------------
