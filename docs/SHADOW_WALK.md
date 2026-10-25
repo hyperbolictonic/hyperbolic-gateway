@@ -22,6 +22,65 @@ This is the plan for what a closed root hides, and for the levers that are allow
 5. **Refuse, don't fall back.** A disabled capability returns a structured error with the path to
    enable it. It never silently does something weaker.
 6. **One master switch.** `enabled:false` disables every path below it, regardless of sub-levers.
+7. **Read the minimum.** Sealed results carry role, name, state and rect — never input values and
+   never text bodies. A password field's *name* is a label; its *value* is not ours to collect. The
+   accessibility tree exposes values, so this is stripped deliberately, not by accident.
+
+---
+
+## Quiet by default (the activity budget)
+
+**The walk only happens when a call asks for it.** Navigating, `observe`, `find` without
+`sealed:true`, `screenshot`, `bridge_health`, tab switching and idle time perform **zero**
+accessibility or DOM-domain enumeration. The page cannot see CDP, but a browser that walks every
+document still does fingerprint-shaped work: repeated full-tree reads, CPU spikes, and a pattern no
+human session produces. "The page can't tell" is not the same as "it looks normal".
+
+### Lifecycle of one sealed read
+
+1. **Ask.** `find(sealed:true)` or `focus_walk`. Nothing runs before this.
+2. **One enumeration per document revision.** `Accessibility.enable` → `getFullAXTree` → one
+   `DOM.getDocument({depth:-1, pierce:true})` to learn which nodes live under a closed root. The
+   result is cached by `(tab, loaderId)` and by the page revision.
+3. **Per call, no full walk.** Filter the cached identity set, then `DOM.getBoxModel` only for the
+   nodes that actually matched — capped at 40.
+4. **Per click, one node.** Re-measure only the clicked control; rects go stale, identities do not.
+   Never re-enumerate to click.
+5. **Release.** `Accessibility.disable` after ~1.5 s without a sealed call, unless the domain was
+   already on (a real screen reader attached) — then leave it alone. The AX domain is the only
+   new global state we introduce.
+
+### Cache and budget
+
+| rule | value | why |
+|---|---|---|
+| full pierce + AX tree | ≤ 1 per document revision | one question, not a sweep |
+| cache invalidation | navigation, 5 s TTL, or an action that bumps the revision | a dialog can create a new root; a page load silently changes everything |
+| `getBoxModel` | only matched nodes, ≤ 40 per call | geometry is the expensive part |
+| repeat `find(sealed)` within 2 s | cached identities, fresh geometry only for the requested subset (`cached:true`) | an agent loop must not become a scanner |
+| rate limit | 6 enumerations / minute / tab → `429 SEALED_RATE_LIMITED` with `retry_after` | bounds pathological loops |
+| background scans | none — no timers, no observers, no preload scan | the plan's hard rule |
+
+### Timing and shape
+
+`focus_walk` is a keyboard user by construction: one `Tab` every ~120 ms, stop at the limit, restore
+focus. It is not a burst of synthetic keys, and it does not start until the call names a host.
+
+The **force-open patch is the one page-load-time activity**, because it must run before the page's
+first script. That is exactly why it is `RISKY`, off by default, and shows a chrome chip while
+active. Everything else is demand-driven.
+
+### Verification
+
+The invariant is testable, not aspirational — the metrics registry already counts CDP work:
+
+- reset metrics → navigate → `observe` → `find` (no flag) → `screenshot` → assert `cdp.ax === 0` and
+  `cdp.pierce === 0`
+- two `find(sealed:true)` calls in a row → the second reports `sealed.cacheHit:true` and adds no
+  pierce
+- navigate → the next sealed call performs exactly one new enumeration
+- exceed the rate budget → `429` with `retry_after`, then recovery
+- `focus_walk` cadence asserted from the action ledger (median step gap ≥ 80 ms)
 
 ---
 
@@ -120,12 +179,18 @@ it asks.
   - Map role → actions; carry `name`, `disabled`, `focused`, `focusable`.
 - `find {sealed:true}` adds a `sealed` array (`role`, `name`, `rect`, `actions`, `source:"ax"`),
   separate from `marks` so nothing pretends to have a mark id. Text output prints `@ (x, y)`.
+  **`value` is never populated for sealed controls** (AX exposes field values; a password or card
+  number is not a fact we are allowed to collect).
+- Identity cache keyed by `(tab, loaderId, revision)` with a 5 s TTL, plus the 6/minute rate limit
+  above. Metrics: `cdp.ax`, `cdp.pierce`, `sealed.scan`, `sealed.cacheHit`, `sealed.nodes`.
 - Clicking is `act(x, y)`; typing is `act(x, y, action:"type")`. Add **Ctrl+A + Delete** (trusted
   keys) for `clear_first` on coordinate targets — it works inside a closed root where DOM
   clearing cannot.
 - Tests (`scripts/test-sealed.mjs`, live): closed-root fixture with a button and a text input.
   Assert AX finds both with real rects; a click is recorded by the component; typing changes the
-  value; **the page's own `shadowRoot` probe still returns null** (we changed nothing).
+  value; **the page's own `shadowRoot` probe still returns null** (we changed nothing). Plus the
+  quiet-by-default assertions: no AX/pierce on navigate/observe/find/screenshot, a cache hit on the
+  second sealed call, one new enumeration after navigation, and 429 past the budget.
 - Docs: matrix row, `SHADOW_DOM_AND_FRAMES.md` closed-root section.
 
 ### P2 — `1.4.91` Tab walk (`focus_walk`)
@@ -134,9 +199,10 @@ it asks.
   `Tab` / `Shift+Tab`, read the focused AX node after each step (`focused:true`), stop at the step
   limit or when focus leaves the host's AX subtree.
 - Returns `{steps:[{index, role, name, rect}], landed, restored}`. `restore:true` returns focus to
-  the start on failure. Human-like by construction: it is a keyboard user.
+  the start on failure. Human-like by construction: it is a keyboard user, one step every ~120 ms
+  (the input profile's cadence), never a burst, and it stops at the call's step budget.
 - Tests: step into a `delegatesFocus` closed root, confirm the focused node is the inner button,
-  `Enter` activates it; limit and restore verified.
+  `Enter` activates it; limit, restore and median step gap verified.
 
 ### P3 — `1.4.92` Settings surface + enforcement
 
@@ -199,7 +265,7 @@ src/main/shadow-walk/
 
 All of it composes with what exists: `control-facts.ts` (description shape), `frames.ts` (viewport
 rects, DPR-aware cropping), `primitives.ts` (`find`/`act`), `recipes` (signature anchors),
-`metrics.ts` (`cdp.ax`, `cdp.pierce`, `sealed.found`, `tabwalk.steps`).
+`metrics.ts` (`cdp.ax`, `cdp.pierce`, `sealed.scan`, `sealed.cacheHit`, `tabwalk.steps`).
 
 ---
 
