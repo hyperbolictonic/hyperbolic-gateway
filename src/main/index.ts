@@ -33,6 +33,19 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * A dev run is usually launched from a terminal that can close (or be killed) underneath it.
+ * When that pipe breaks, every later console.log throws EPIPE and the app dies with a stack trace
+ * that has nothing to do with the page it was driving. A broken console is not an application
+ * error: swallow EPIPE/ERR_STREAM_DESTROYED and keep working.
+ */
+for (const stream of [process.stdout, process.stderr]) {
+  stream?.on?.('error', (err: NodeJS.ErrnoException) => {
+    if (err?.code === 'EPIPE' || err?.code === 'ERR_STREAM_DESTROYED' || err?.code === 'ECONNRESET') return;
+    // Anything else is unusual but still must not take the browser process down.
+  });
+}
+
 // Ensure single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
