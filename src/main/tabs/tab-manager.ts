@@ -64,6 +64,11 @@ export class TabManager {
     return this.activeTabId;
   }
 
+  /** All open tabs, for tab-wide policy updates (force-open arming). */
+  public allTabs(): TabInstance[] {
+    return [...this.tabs.values()];
+  }
+
   public createTab(initialUrl: string = 'about:blank', existingView?: WebContentsView): TabInstance {
     this.counter++;
     const id = `tab_${this.counter}`;

@@ -218,8 +218,17 @@ ipcMain.handle('research:settings:save', async (_event, settings: any) => {
 
 // Shadow Walk settings: written over IPC only, read by the bridge on every guarded call.
 ipcMain.handle('shadowwalk:settings:get', () => loadShadowWalkSettings());
-ipcMain.handle('shadowwalk:settings:save', (_event, settings: any) => saveShadowWalkSettings(settings));
-ipcMain.handle('shadowwalk:settings:reset', () => saveShadowWalkSettings(DEFAULT_SHADOW_WALK_SETTINGS));
+ipcMain.handle('shadowwalk:settings:save', async (_event, settings: any) => {
+  const result = saveShadowWalkSettings(settings);
+  if (result.ok) await chassis.applyShadowWalkSettings();
+  return result;
+});
+ipcMain.handle('shadowwalk:settings:reset', async () => {
+  const result = saveShadowWalkSettings(DEFAULT_SHADOW_WALK_SETTINGS);
+  if (result.ok) await chassis.applyShadowWalkSettings();
+  return result;
+});
+ipcMain.handle('shadowwalk:detect', () => chassis.detectShadowPatch());
 
 ipcMain.handle('research:session:reset', async () => {
   try {
@@ -321,6 +330,10 @@ async function createWindow() {
 
   mainWindow.show();
   mainWindow.focus();
+
+  // Apply the persisted Shadow Walk policy (including a force-open kill-switch override) to the
+  // initial tab. Current documents are untouched; the patch lands on the next navigation.
+  void chassis.applyShadowWalkSettings();
 
   // Handle external navigation
   mainWindow.webContents.setWindowOpenHandler((details) => {

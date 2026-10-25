@@ -960,6 +960,10 @@ if (settingsBtn && settingsModal) {
   const shadowMaxFramesEl = document.getElementById('shadow-max-frames') as HTMLInputElement;
   const shadowMaxControlsEl = document.getElementById('shadow-max-controls') as HTMLInputElement;
   const shadowShotSideEl = document.getElementById('shadow-shot-side') as HTMLInputElement;
+  const shadowForceOpenEl = document.getElementById('shadow-force-open') as HTMLInputElement;
+  const shadowDetectEl = document.getElementById('settings-shadow-detect') as HTMLButtonElement;
+  const shadowDetectResultEl = document.getElementById('settings-shadow-detect-result') as HTMLElement;
+  const shadowPatchChip = document.getElementById('shadow-patch-chip') as HTMLElement | null;
   const shadowResetEl = document.getElementById('settings-shadow-reset') as HTMLButtonElement;
   const shadowResultEl = document.getElementById('settings-shadow-result') as HTMLElement;
   let shadowLoaded: any = null;
@@ -968,6 +972,12 @@ if (settingsBtn && settingsModal) {
     shadowResultEl.className = `alert alert-${kind} alert-sm font-mono text-xs`;
     shadowResultEl.textContent = text;
     shadowResultEl.classList.remove('hidden');
+  };
+
+  const refreshShadowPatchChip = (settings?: any) => {
+    if (!shadowPatchChip) return;
+    const armed = settings ? settings.enabled !== false && settings.shadow?.forceOpen === true : false;
+    shadowPatchChip.classList.toggle('hidden', !armed);
   };
 
   async function loadShadowWalkSettings(): Promise<void> {
@@ -988,6 +998,8 @@ if (settingsBtn && settingsModal) {
       shadowMaxFramesEl.value = String(settings.frames?.maxFrames ?? 6);
       shadowMaxControlsEl.value = String(settings.frames?.maxControls ?? 40);
       shadowShotSideEl.value = String(settings.frames?.screenshotMaxSide ?? 1024);
+      shadowForceOpenEl.checked = settings.shadow?.forceOpen === true;
+      refreshShadowPatchChip(settings);
     } catch (err: any) {
       showShadowResult('error', `Could not load Shadow Walk settings: ${err?.message || err}`);
     }
@@ -1002,6 +1014,15 @@ if (settingsBtn && settingsModal) {
     }
     try {
       const base = shadowLoaded || {};
+      if (shadowForceOpenEl.checked && base.shadow?.forceOpen !== true) {
+        const confirmed = window.confirm(
+          'Force-open changes attachShadow({mode:"closed"}) to open at document start. The page can detect it. Apply on the next navigation?'
+        );
+        if (!confirmed) {
+          showShadowResult('info', 'Force-open was not enabled.');
+          return;
+        }
+      }
       const result = await window.electronAPI?.saveShadowWalkSettings({
         enabled: shadowEnabledEl.checked,
         shadow: {
@@ -1012,6 +1033,7 @@ if (settingsBtn && settingsModal) {
           tabWalk: shadowTabWalkEl.checked,
           tabWalkMaxSteps: Number(shadowTabStepsEl.value) || 8,
           tabWalkRestoreFocus: shadowTabRestoreEl.checked,
+          forceOpen: shadowForceOpenEl.checked,
         },
         frames: {
           ...(base.frames || {}),
@@ -1026,6 +1048,7 @@ if (settingsBtn && settingsModal) {
       });
       if (result?.ok) {
         shadowLoaded = result.settings;
+        refreshShadowPatchChip(result.settings);
         showShadowResult('success', 'Shadow Walk settings saved. They apply to the next MCP call.');
       } else {
         showShadowResult('error', (result?.errors || []).join('; ') || 'Save failed.');
@@ -1045,6 +1068,7 @@ if (settingsBtn && settingsModal) {
       const result = await window.electronAPI?.resetShadowWalkSettings();
       if (result?.ok) {
         await loadShadowWalkSettings();
+        refreshShadowPatchChip(result.settings);
         showShadowResult('success', 'Shadow Walk defaults restored.');
       } else {
         showShadowResult('error', (result?.errors || []).join('; ') || 'Reset failed.');
@@ -1053,6 +1077,27 @@ if (settingsBtn && settingsModal) {
       showShadowResult('error', `Reset failed: ${err?.message || err}`);
     }
   });
+
+  shadowDetectEl.addEventListener('click', async () => {
+    try {
+      const result = await window.electronAPI?.detectShadowPatch();
+      const text = result
+        ? `${result.applied ? 'APPLIED' : result.armed ? 'ARMED (reload to apply)' : 'NOT APPLIED'} · detectable=${result.detectable} · ${result.note}`
+        : 'Detection returned no result.';
+      shadowDetectResultEl.className = `alert ${result?.detectable ? 'alert-error' : 'alert-ghost'} alert-sm font-mono text-[10px]`;
+      shadowDetectResultEl.textContent = text;
+      shadowDetectResultEl.classList.remove('hidden');
+    } catch (err: any) {
+      shadowDetectResultEl.className = 'alert alert-warning alert-sm font-mono text-[10px]';
+      shadowDetectResultEl.textContent = `Detection failed: ${err?.message || err}`;
+      shadowDetectResultEl.classList.remove('hidden');
+    }
+  });
+
+  void window.electronAPI
+    ?.getShadowWalkSettings()
+    .then((settings) => refreshShadowPatchChip(settings))
+    .catch(() => undefined);
 
   const showResearchResult = (kind: 'success' | 'error' | 'info', text: string) => {
     researchResultEl.className = `alert alert-${kind} alert-sm font-mono text-xs`;

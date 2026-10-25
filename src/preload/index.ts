@@ -121,6 +121,7 @@ export interface ElectronAPI {
   getShadowWalkSettings: () => Promise<any>;
   saveShadowWalkSettings: (settings: any) => Promise<{ ok: boolean; settings: any; errors: string[] }>;
   resetShadowWalkSettings: () => Promise<{ ok: boolean; settings: any; errors: string[] }>;
+  detectShadowPatch: () => Promise<any>;
   resetResearchSession: () => Promise<{ ok: boolean; error?: string }>;
 }
 
@@ -274,6 +275,7 @@ const api: ElectronAPI = {
   getShadowWalkSettings: () => ipcRenderer.invoke('shadowwalk:settings:get'),
   saveShadowWalkSettings: (settings: any) => ipcRenderer.invoke('shadowwalk:settings:save', settings),
   resetShadowWalkSettings: () => ipcRenderer.invoke('shadowwalk:settings:reset'),
+  detectShadowPatch: () => ipcRenderer.invoke('shadowwalk:detect'),
   resetResearchSession: () => ipcRenderer.invoke('research:session:reset'),
 };
 

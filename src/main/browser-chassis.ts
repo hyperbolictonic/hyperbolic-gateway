@@ -21,6 +21,12 @@ import { listFrames, type FrameInfo } from './browser/frames.js';
 import { findSealedControls, type SealedFindOptions, type SealedFindResult } from './shadow-walk/ax-controls.js';
 import { runTabWalk, type TabWalkOptions, type TabWalkResult } from './shadow-walk/tab-walk.js';
 import { loadShadowWalkSettings, shadowWalkRefusal, type ShadowWalkSurface } from './shadow-walk/settings.js';
+import {
+  syncForceOpen,
+  isForceOpenArmed,
+  detectForceOpen,
+  type ForceOpenDetection,
+} from './shadow-walk/force-open.js';
 import { controlFactsExpression, parseControlFacts, type ControlFacts, type ControlFactsOptions } from './primitives/control-facts.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
@@ -386,6 +392,18 @@ export class BrowserChassis {
       },
       onTabCreated: (tab: TabInstance) => {
         this.networkInterceptor.attach(tab.view.webContents);
+        // A tab created while force-open is armed must be patched *before* its document runs.
+        // onTabCreated fires before the first load, but CDP arming is async; if the first document
+        // already started, reload once so the patch is actually present.
+        void this.syncForceOpenFor(tab.view.webContents).then((result) => {
+          if (result.changed && result.armed && !tab.view.webContents.isDestroyed()) {
+            setTimeout(() => {
+              try {
+                tab.view.webContents.reload();
+              } catch {}
+            }, 60);
+          }
+        });
       },
       onViewAdded: () => this.bringSidebarToFront(),
       onLog: (level, msg) => this.addLog(level, msg),
@@ -1029,6 +1047,7 @@ export class BrowserChassis {
   public async navigateTo(url: string, autoDismissConsent: boolean = true): Promise<string> {
     bump('nav');
     const wc = this.getActiveWebContents();
+    await this.syncForceOpenFor(wc);
     this.state.agentStatus = 'TRAVERSING';
     this.broadcastState();
 
@@ -1626,6 +1645,41 @@ export class BrowserChassis {
     throw err;
   }
 
+  /** Arm/disarm the force-open patch for the next document in this tab. */
+  private async syncForceOpenFor(wc: WebContents): Promise<{ armed: boolean; changed: boolean; error?: string }> {
+    const settings = loadShadowWalkSettings();
+    return syncForceOpen(wc, settings.enabled && settings.shadow.forceOpen);
+  }
+
+  /**
+   * Apply the current Shadow Walk policy to every open tab. Existing documents are not patched;
+   * the patch applies on their next navigation (the UI says so).
+   */
+  public async applyShadowWalkSettings(): Promise<{ tabs: number; errors: string[] }> {
+    const settings = loadShadowWalkSettings();
+    const shouldArm = settings.enabled && settings.shadow.forceOpen;
+    const tabs = this.tabManager?.allTabs() || [];
+    const errors: string[] = [];
+    for (const tab of tabs) {
+      const result = await syncForceOpen(tab.view.webContents, shouldArm);
+      if (result.error) errors.push(result.error);
+    }
+    return { tabs: tabs.length, errors };
+  }
+
+  public forceOpenArmed(): boolean {
+    try {
+      return isForceOpenArmed(this.getActiveWebContents());
+    } catch {
+      return false;
+    }
+  }
+
+  /** A fingerprinting-style probe of the active document (read-only). */
+  public async detectShadowPatch(): Promise<ForceOpenDetection> {
+    return detectForceOpen(this.getActiveWebContents());
+  }
+
   /** Frame tree + top-level geometry (no content scan). */
   public async listFrames(options: { maxFrames?: number } = {}): Promise<FrameInfo[]> {
     this.refuseShadow('frames');
@@ -1832,6 +1886,7 @@ export class BrowserChassis {
 
   public async goBack(): Promise<string> {
     const wc = this.getActiveWebContents();
+    await this.syncForceOpenFor(wc);
     if (wc.navigationHistory.canGoBack()) {
       wc.navigationHistory.goBack();
       this.bumpRevision();
@@ -1843,6 +1898,7 @@ export class BrowserChassis {
 
   public async goForward(): Promise<string> {
     const wc = this.getActiveWebContents();
+    await this.syncForceOpenFor(wc);
     if (wc.navigationHistory.canGoForward()) {
       wc.navigationHistory.goForward();
       this.bumpRevision();
@@ -1854,6 +1910,7 @@ export class BrowserChassis {
 
   public async reload(): Promise<string> {
     const wc = this.getActiveWebContents();
+    await this.syncForceOpenFor(wc);
     wc.reload();
     this.bumpRevision();
     this.broadcastState();

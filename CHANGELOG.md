@@ -16,6 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.95] - 2026-10-25
+
+### Added
+
+- **Force-open (RISKY, off by default).** A Settings → Shadow Walk lever that patches
+  `Element.prototype.attachShadow` at document start so `{mode:"closed"}` becomes `{mode:"open"}`.
+  Injected with `Page.addScriptToEvaluateOnNewDocument`; applies on the next navigation, never to
+  the document already running.
+  - Deliberately detectable: no `toString` forgery. The page can see `host.shadowRoot !== null` and
+    the non-native function source. A **RUN DETECTION TEST** button reports armed/applied/detectable
+    with evidence; a red `SHADOW PATCH` chip shows while armed.
+  - Enabling requires a confirm in the panel. Disabling removes the script for future documents;
+    the current document stays patched until it reloads (stated in the UI).
+  - `KUANG_FORCE_OPEN_SHADOW=1` arms it for a one-off run; `KUANG_SHADOW_WALK=off` still wins.
+  - New tabs created while armed are patched before their first document (or reloaded once if the
+    CDP arm lands late). Existing tabs are armed immediately; their next navigation is patched.
+- `scripts/test-force-open.mjs` (`npm run test:forceopen`, 10 checks): closed by default, marks
+  cannot see the inner button, force-open after reload, page-side detection, marks reach the button,
+  disarm restores the boundary, and master-off disarms.
+
+### Notes
+
+- `partHighlight` and `cdpStyleMatch` remain off/unbuilt.
+- Sealed and iframe results still do not carry component signatures.
+- The Shadow Walk plan is complete through P5; frame-control mark ids and Clone Lab remain future
+  work.
+
 ## [1.4.94] - 2026-10-25
 
 ### Added

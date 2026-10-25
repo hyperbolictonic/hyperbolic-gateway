@@ -175,11 +175,15 @@ Shipped in 1.4.93:
   `FRAMES_DISABLED`, `DEEP_OPEN_ROOTS_DISABLED` — all `400` with a code, never a silent no-op.
 - Enforced limits: `tabWalkMaxSteps`, `frames.maxFrames`, `frames.maxControls`,
   `screenshots.maxSide`; turning controls/screenshots off removes output rather than pretending.
-- `bridge_health.shadowWalk` mirrors the active policy (including `forceOpen`, reported but not
-  built until P5).
+- `bridge_health.shadowWalk` mirrors the active policy (including `forceOpen` and, for the active
+  tab, `forceOpenArmed`).
 
-Component fingerprints and force-open do not appear as live levers yet; the panel says so and
-reserves the `RISKY` badge for P5.
+Force-open is the only `RISKY` lever. It is off by default, needs a confirm in the panel, shows a
+red `SHADOW PATCH` chip while armed, and is injected at document start with
+`Page.addScriptToEvaluateOnNewDocument`. No `toString` forgery is attempted: the page can detect it
+structurally and by reading the function source. The patch applies to the next navigation; turning
+it off removes it for future documents, while the current document stays patched until it reloads.
+`KUANG_FORCE_OPEN_SHADOW=1` arms it for a one-off run; `KUANG_SHADOW_WALK=off` still wins.
 
 ### Tiers
 
@@ -293,9 +297,9 @@ reserves the `RISKY` badge for P5.
 - **Shipped in 1.4.94.** Signatures are on `find` marks and `observe(as:"components")`, drive
   transcripts carry them, and recipes verify them before acting. `SIGNATURE_MISMATCH` retires the
   recipe immediately; `SIGNATURE_UNAVAILABLE` is reported when the lever is off. `partHighlight` and
-  `cdpStyleMatch` remain off and are **not built yet** — force-open is the remaining phase.
+  `cdpStyleMatch` remain off and are **not built**.
 
-### P5 — `1.4.95` Force-open patch (RISKY, last)
+### P5 — `1.4.95` Force-open patch (RISKY, last) — **shipped**
 
 - `src/main/shadow-walk/force-open.ts`: when enabled, inject at document start in the **main world**
   (`Page.addScriptToEvaluateOnNewDocument`) on the tab's navigation; remove when disabled; applies

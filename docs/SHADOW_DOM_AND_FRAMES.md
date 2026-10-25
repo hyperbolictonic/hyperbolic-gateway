@@ -318,8 +318,8 @@ assert on DOM state, not on page variables — this cost a debugging round durin
 
 ## What remains
 
-Closed roots are no longer one of the missing pieces: `find(sealed:true)` ships in 1.4.91 (AX names +
-pierced DOM + box model, coordinates instead of ids). The remaining gap is **stable identity**:
+Closed roots, frames, Tab entry, signatures and force-open are shipped. The remaining work is
+**stable identity for frame/sealed results**:
 
 1. **Frame controls as mark ids.** The `frames` scan already knows each control's absolute rect. The
    missing step is identity: stamp `data-mark-id` inside the frame during the scan (block
@@ -328,9 +328,11 @@ pierced DOM + box model, coordinates instead of ids). The remaining gap is **sta
    After that, `find`/`observe` can merge frame controls and `act(mark_id)` becomes as stable for an
    iframe as it is for the main document. `observe(markdown)` needs the same merge at the markdown
    level, which is why it is a separate step.
-2. **Force-open** is the last Shadow Walk phase and the one detectably risky lever; it is described in
-   [`SHADOW_WALK.md`](./SHADOW_WALK.md). Component signatures now ship for page-visible targets;
-   sealed/iframe results do not carry them yet. `partHighlight` and `cdpStyleMatch` are not built.
+2. **Clone Lab** is still a proposal ([`TODO.md`](./TODO.md) item 18). `partHighlight` and
+   `cdpStyleMatch` remain off/unbuilt; they are additive polish, not blockers.
+
+Force-open is the one detectably risky path: off by default, opt-in per run, confirmed in Settings,
+and called out by a red chip. See [`SHADOW_WALK.md`](./SHADOW_WALK.md).
 
 Coordinates stay the contract for sealed content: an id would imply a DOM handle that does not exist.
 The delivery plan, the settings levers, and the risk tiers live in

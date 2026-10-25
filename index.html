@@ -24,6 +24,7 @@
         <div class="flex items-center gap-2 pl-2 border-l border-base-100">
           <span id="connection-status-dot" class="status status-success status-xs"></span>
           <span id="agent-status-badge" class="badge badge-accent badge-sm font-mono tracking-tight">IDLE</span>
+          <span id="shadow-patch-chip" class="badge badge-error badge-sm font-mono tracking-tight hidden" title="Force-open patch is armed; the page can detect it. Applies on the next navigation.">SHADOW PATCH</span>
         </div>
       </div>
 
@@ -508,10 +509,26 @@
             </div>
           </fieldset>
 
-          <div class="alert alert-warning alert-sm font-mono text-[11px] items-start">
-            <span class="badge badge-error badge-xs mt-0.5">RISKY</span>
-            <span>Force-open (<code class="font-mono">attachShadow</code> patch) is not built yet. It ships last (1.4.95), stays off by default, needs a confirm, and is detectable by the page.</span>
-          </div>
+          <fieldset class="fieldset rounded border border-error/50 bg-error/5 p-4">
+            <legend class="fieldset-legend font-mono text-xs flex items-center gap-2">
+              FORCE-OPEN <span class="badge badge-error badge-xs font-mono">RISKY</span>
+            </legend>
+            <label class="flex items-center justify-between gap-3 py-1.5">
+              <span class="text-xs">Patch <code class="font-mono">attachShadow</code> at document start
+                <span class="text-base-content/50">— closed becomes open; detectable by design</span></span>
+              <input id="shadow-force-open" type="checkbox" class="toggle toggle-sm toggle-error" />
+            </label>
+            <p class="label font-mono text-[10px] text-error/80">
+              Changes page semantics and is visible to the page. Applies on the next navigation;
+              disabling stops future documents but the current one stays patched until reload.
+              Off by default; no <code class="font-mono">toString</code> forgery.
+            </p>
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <button type="button" id="settings-shadow-detect" class="btn btn-sm btn-outline btn-error font-mono text-xs">RUN DETECTION TEST</button>
+              <span id="settings-shadow-detect-result" class="hidden alert alert-sm font-mono text-[10px]"></span>
+            </div>
+          </fieldset>
+
           <div class="alert alert-ghost alert-sm font-mono text-[11px]">
             <span>Component signatures are live on find/observe (page-visible hosts). Clone Lab is a proposal only; no lever yet.</span>
           </div>

@@ -156,7 +156,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           input: { transport: chassis.getSimulator().lastInputTransport },
           human: { paused: chassis.isHumanActive(), ...chassis.getHumanStatus() },
           metrics: summary(),
-          shadowWalk: shadowWalkStatus(),
+          shadowWalk: { ...shadowWalkStatus(), forceOpenArmed: chassis.forceOpenArmed() },
           info,
         });
         return;
