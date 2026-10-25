@@ -90,6 +90,8 @@ export interface TypingOutcome {
   attempted?: TypingChannel[];
   /** True when the control was re-rendered mid-type, so no verdict is possible. */
   detached?: boolean;
+  /** Typing reached a closed-shadow target; events arrive but its value is unreadable. */
+  unobservable?: boolean;
 }
 
 export type TypingChannel = 'keys' | 'insertText' | 'paste';

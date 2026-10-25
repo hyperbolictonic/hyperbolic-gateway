@@ -15,6 +15,7 @@ import {
 import { detectSensitiveGate } from '../decide/sensitive-gate.js';
 import { controlFactsExpression, parseControlFacts } from './control-facts.js';
 import { textTargetExpression, parseTextTargets } from './text-target.js';
+import type { SealedControl, SealedFindOptions, SealedFindResult } from '../shadow-walk/ax-controls.js';
 
 /**
  * Primitives — the orthogonal observe / act / wait layer.
@@ -48,6 +49,8 @@ export interface PrimitivesHost {
   getMarkTarget(id: number): Promise<{ mark: MarkItem; currentCenter: { x: number; y: number } } | null>;
   clickMark(id: number): Promise<string>;
   typeMark(id: number, text: string, opts?: { secret?: boolean; clearFirst?: boolean }): Promise<string>;
+  /** Closed-shadow-root discovery. Optional so test hosts can omit the CDP surface. */
+  findSealed?(opts: SealedFindOptions): Promise<SealedFindResult>;
   clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string>;
   typeText(text: string, selector?: string, opts?: { clearFirst?: boolean }): Promise<string>;
   /** CDP text insertion — no key events. Fallback when keystrokes are provably ignored. */
@@ -186,6 +189,10 @@ export interface FindOptions {
   selector?: string;
   limit?: number;
   includeOffscreen?: boolean;
+  /** Also search inside closed shadow roots (AX + pierced DOM; opt-in and rate-limited). */
+  sealed?: boolean;
+  /** Force a fresh sealed scan instead of using the short identity cache. */
+  refresh?: boolean;
 }
 
 /**
@@ -965,12 +972,48 @@ export class Primitives {
       return this.markLine(m) + (flags.length ? ` {${flags.join(', ')}}` : '');
     });
 
-    return {
+    let sealed: SealedControl[] | undefined;
+    let sealedInfo: SealedFindResult | undefined;
+    if (opts.sealed) {
+      if (!this.host.findSealed) {
+        throw new PrimitiveError('NOT_SUPPORTED', 'Sealed shadow-root discovery is not available in this build.');
+      }
+      sealedInfo = await this.host.findSealed({
+        role: opts.role,
+        name: opts.name,
+        contains: opts.contains,
+        regex: opts.regex,
+        flags: opts.flags,
+        tag: opts.tag,
+        selector: opts.selector,
+        limit: opts.limit,
+        includeOffscreen: opts.includeOffscreen,
+        refresh: opts.refresh,
+      });
+      sealed = sealedInfo.controls;
+    }
+
+    const sealedLines = (sealed || []).map((control) => {
+      const cx = Math.round(control.rect.x + control.rect.width / 2);
+      const cy = Math.round(control.rect.y + control.rect.height / 2);
+      const flags = [control.inViewport ? '' : 'offscreen', control.disabled ? 'disabled' : ''].filter(Boolean);
+      return `[sealed] <${control.role}> "${control.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(', ')}}` : ''}`;
+    });
+
+    const text = [lines.join('\n'), sealedLines.join('\n')].filter(Boolean).join('\n');
+    const result: any = {
       count: limited.length,
       total: filtered.length,
       marks: limited.map((m) => ({ ...m, facts: factsById.get(m.id) })),
-      text: lines.join('\n'),
+      text,
     };
+    if (sealedInfo) {
+      result.sealed = sealedInfo.controls;
+      result.sealedTotal = sealedInfo.total;
+      result.sealedCached = sealedInfo.cached;
+      result.sealedNotes = sealedInfo.notes;
+    }
+    return result;
   }
 
   public async act(opts: ActOptions): Promise<any> {
@@ -1171,7 +1214,11 @@ export class Primitives {
     // The verdict the tool used to omit entirely: `type` reported success whether or not
     // anything was typed. A provable no-op is now a structured failure, not a summary.
     const typingFailed = typing !== null && typing.landed === false;
-    const typingHint = typingFailed ? this.typingHint(typing!) : undefined;
+    const typingHint = typingFailed
+      ? this.typingHint(typing!)
+      : typing?.unobservable
+        ? 'Keystrokes were delivered, but the control is inside a closed shadow root, so its value cannot be verified from page JS. Confirm the effect through the UI instead of retrying.'
+        : undefined;
     const ok = !typingFailed;
     const hints = [(awaited as any)?.hint, typingHint, gateWarning].filter(Boolean).join('; ') || undefined;
 
@@ -1255,6 +1302,8 @@ export class Primitives {
     };
     // Re-rendered mid-type (React/Lit swapped the node): no verdict is possible.
     if (base.detached || base.afterLength === null) return { ...base, landed: null };
+    // A closed-shadow target exposes events but not its value; the keystrokes may be fine.
+    if (probe.observable === false) return { ...base, landed: null, unobservable: true };
 
     const noEventsAtAll = base.keydowns === 0 && base.beforeinputs === 0 && base.inputs === 0;
     // clear_first + retyping the identical value leaves the length unchanged but is not a no-op.

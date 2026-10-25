@@ -91,10 +91,10 @@ The invariant is testable, not aspirational — the metrics registry already cou
 | surface | open shadow | closed shadow | iframe |
 |---|---|---|---|
 | `observe(markdown)` / `extract` | ✅ today | ❌ | ❌ |
-| `find` | ✅ today | ✅ **P1** (AX, no mark id) | ✅ today (same-site and OOPIF) |
-| `act(x, y)` | ✅ today | ✅ **P1** | ✅ today |
+| `find` | ✅ today | ✅ **today** (AX, no mark id) | ✅ today (same-site and OOPIF) |
+| `act(x, y)` | ✅ today | ✅ today | ✅ today |
 | `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ❌ |
-| type / press | ✅ today | ✅ **P1** (coordinate click focuses inside) | ✅ today |
+| type / press | ✅ today | ✅ today (coordinate click focuses inside) | ✅ today |
 | `focus_walk` (Tab) | — | ✅ **P2** | — |
 | component signature | ✅ **P4** | ✅ **P4** (host surface only) | ✅ **P4** |
 | `observe` text from closed roots | — | ❌ (AX has names, not bodies) | ❌ |
@@ -193,7 +193,7 @@ it asks.
   crop lands on the right pixels. A regression test keeps the same-site path unchanged.
 - Docs: capability matrix, `SHADOW_DOM_AND_FRAMES.md` frame section, changelog. Tag `v1.4.90`.
 
-### P1 — `1.4.91` AX sealed discovery
+### P1 — `1.4.91` AX sealed discovery — **shipped**
 
 - `src/main/shadow-walk/ax-controls.ts`
   - `Accessibility.enable` + `getFullAXTree`; keep interactive roles (`button`, `link`, `textbox`,

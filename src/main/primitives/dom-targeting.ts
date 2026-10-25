@@ -317,9 +317,13 @@ export function inputProbeInstallScript(locator: TargetLocator): string {
   if (prev && prev.detach) prev.detach();
   const host = ${elementExpr(locator)};
   const el = host ? ${locator.point ? 'host' : 'kqResolveControl(host)'} : null;
+  // A point inside a closed shadow root resolves to the custom-element host: events still reach
+  // the page, but its value is unreadable. Do not pretend that is a failed keystroke.
+  const observable = Boolean(el && (kqIsControl(el) || el.isContentEditable === true));
   const state = {
     target: el,
     value: kqValue(el),
+    observable: observable,
     keydowns: 0,
     beforeinputs: 0,
     inputs: 0,
@@ -332,7 +336,7 @@ export function inputProbeInstallScript(locator: TargetLocator): string {
   const bound = [listen('keydown', 'keydowns'), listen('beforeinput', 'beforeinputs'), listen('input', 'inputs')];
   state.detach = () => { for (const [type, handler] of bound) document.removeEventListener(type, handler, true); };
   window.__kuangInputProbe = state;
-  return { installed: true, found: Boolean(el), control: el ? kqIsControl(el) : false, tag: el && el.tagName ? el.tagName.toLowerCase() : null };
+  return { installed: true, found: Boolean(el), control: el ? kqIsControl(el) : false, observable: observable, tag: el && el.tagName ? el.tagName.toLowerCase() : null };
 })()`;
 }
 
@@ -355,6 +359,7 @@ export function inputProbeReadScript(): string {
     beforeLength: beforeLength,
     afterLength: after.length,
     changed: after !== s.value,
+    observable: s.observable !== false,
     detached: false,
     keydowns: s.keydowns,
     beforeinputs: s.beforeinputs,

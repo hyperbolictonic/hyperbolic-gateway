@@ -44,6 +44,8 @@ export interface FrameInfo {
   oopif: boolean;
   /** Target that hosts an OOPIF frame, when `oopif`. */
   targetId?: string;
+  /** Document loader id; changes on navigation and keys the sealed cache. */
+  loaderId?: string;
   /** Why this frame has no geometry, when that is the case. */
   error?: string;
 }
@@ -108,6 +110,7 @@ export async function listFrames(wc: WebContents, opts: { maxFrames?: number } =
           visibleRect: viewport.width > 0 && viewport.height > 0 ? { ...viewport } : null,
           crossOrigin: false,
           oopif: false,
+          loaderId: frame.loaderId,
         });
         continue;
       }
@@ -125,6 +128,7 @@ export async function listFrames(wc: WebContents, opts: { maxFrames?: number } =
         crossOrigin: !!mainOrigin && originOf(frame.url) !== null && originOf(frame.url) !== mainOrigin,
         oopif: frame.oopif,
         targetId: frame.targetId,
+        loaderId: frame.loaderId,
       };
 
       if (!parentOrigin) {

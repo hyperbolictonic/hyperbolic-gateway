@@ -16,6 +16,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.91] - 2026-10-25
+
+### Added
+
+- **`find {sealed:true}` — closed shadow roots become nameable.** The result gains a `sealed` array
+  alongside the normal marks. Each entry has a role, accessible name, viewport rect and action list,
+  so `act(x, y)` can click it or type into it. Closed-root controls were previously addressable only
+  if you already knew their pixels.
+  - Discovery is `Accessibility.getFullAXTree` for names + `DOM.getDocument({pierce:true})` /
+    `DOM.describeNode` (frame owner `contentDocument`) to prove the node lives under a
+    `shadowRootType:"closed"` root. `DOM.getBoxModel` supplies the rect. The page's own
+    `shadowRoot` probe still returns `null`.
+  - Per frame: same-process children use `getFullAXTree({frameId})`; cross-site children use their
+    OOPIF session and the target root's top-level rect composes the coordinates.
+  - Hidden semantics come from AX: `display:none`, `visibility:hidden` and `aria-hidden` are
+    absent. Zero-size controls are dropped; offscreen ones are returned with `inViewport:false`.
+  - **Input values are never returned.** AX exposes them; the sealed result omits them.
+  - Quiet by default: no AX or pierce work on navigation, observe, plain `find`, screenshot or idle.
+    Identities are cached by document revision for 5 seconds, repeat calls re-measure only the
+    matches, and six full scans per minute per tab return `429 SEALED_RATE_LIMITED` with
+    `retry_after`. The AX domain is enabled for the scan and disabled immediately after.
+  - `POST /find {sealed:true}` and MCP `find(sealed:true)` expose `sealed_total`, `sealed_cached`
+    and `sealed_notes`; `refresh:true` forces a fresh scan.
+- `scripts/test-sealed.mjs` (`npm run test:sealed`): closed root, nested closed root, same-site
+  closed frame, cross-site (OOPIF) closed frame, hidden/aria-hidden absence, page JS still blind,
+  coordinate click, `clear_first` typing, cache hit, quiet-by-default metrics and a real 429.
+
+### Fixed
+
+- **Typing into a closed-root field no longer duplicates the text.** The input probe could not read
+  the value behind a closed root, so a successful keystroke attempt looked like a no-op and the
+  insertText/paste fallback appended the text again. The probe now reports `observable:false`, the
+  verdict is `landed:null` with `unobservable:true`, and no fallback runs.
+
 ## [1.4.90] - 2026-10-25
 
 ### Fixed

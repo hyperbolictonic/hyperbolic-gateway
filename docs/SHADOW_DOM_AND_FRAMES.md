@@ -10,18 +10,18 @@ Two different problems that get confused because both "hide" content:
 | surface | open shadow DOM | closed shadow DOM | iframe (same-site and cross-site) |
 |---|---|---|---|
 | `observe(markdown)` | ✅ composed DOM | ❌ | ❌ main frame only |
-| Set-of-Marks / `find` | ✅ marks inside roots | ❌ | ❌ main frame only |
+| Set-of-Marks / `find` | ✅ marks inside roots | ✅ `find(sealed:true)` (coordinates, no mark id) | ✅ `find(sealed:true)` + `frames` |
 | `act(mark_id / selector)` | ✅ resolves the inner control | ❌ | ❌ |
 | `act(target_text)` | ✅ (composed text) | ❌ | ❌ |
 | `act(x, y)` | ✅ | ✅ (pixels are pixels) | ✅ |
-| `frames` — text | ✅ controls in frames | ❌ | ✅ **frame as content** |
+| `frames` — text | ✅ controls in frames | ✅ via `find(sealed:true)` | ✅ **frame as content** |
 | `frames` — screenshots | ✅ | ✅ (pixels are pixels) | ✅ |
 | `evaluate` | ✅ | ❌ | ❌ |
-| `evaluate {frames:true}` | ✅ per frame | ❌ | ✅ |
+| `evaluate {frames:true}` | ✅ per frame | ✅ when the demonstrated effect is inside the root | ✅ |
 
-A control sealed inside a closed root or an iframe is still addressable **by pixels**. The difference
-is who hands you the pixels: `frames` computes them and, with `screenshots: true`, also shows you the
-frame. Everything else is main-document only, on purpose.
+A control sealed inside a closed root or an iframe is still addressable **by pixels**. `frames`
+computes iframe pixels; `find(sealed:true)` computes closed-root pixels through the accessibility
+tree. Everything else is main-document only, on purpose.
 
 ---
 
@@ -72,13 +72,63 @@ inner control appears in control facts and not just in marks. Deep mode also fix
 that break inside a root: hit-testing descends via `shadowRoot.elementFromPoint`, and containment
 uses a composed walk instead of `el.contains()`.
 
+### Closed roots (1.4.91)
+
+`find {sealed:true}` adds a `sealed` array to the normal result. It contains closed-root controls
+with a **role, name, rect and actions** — no mark id and no input value:
+
+```jsonc
+// POST /find {"sealed": true, "contains": "Pay"}
+{
+  "marks": [ /* open/light DOM refs as before */ ],
+  "sealed": [{
+    "role": "button",
+    "name": "Sealed Pay",
+    "rect": { "x": 18, "y": 8, "width": 89, "height": 21 },
+    "actions": ["click"],
+    "source": "ax",
+    "frameId": "…",
+    "frameUrl": "https://pay.example/checkout",
+    "inViewport": true
+  }],
+  "sealedTotal": 1,
+  "sealedCached": false
+}
+```
+
+How it stays honest:
+
+- **Discovery is not page JavaScript.** `Accessibility.getFullAXTree` names the controls;
+  `DOM.getDocument({pierce:true})` (and `DOM.describeNode` on each frame owner) proves they live
+  under a `shadowRootType:"closed"` root; `DOM.getBoxModel` measures them. The page's own
+  `shadowRoot` probe still returns `null`.
+- **Per frame.** Same-process children use `getFullAXTree({frameId})`; cross-site children use
+  their own target session, and the target root's top-level rect composes the coordinates.
+- **Hidden semantics come from AX for free.** `display:none`, `visibility:hidden` and
+  `aria-hidden` controls are absent. Zero-size controls are dropped; offscreen ones are returned
+  with `inViewport:false` rather than silently clicked.
+- **Quiet by default.** Nothing scans on navigation, observe, plain `find`, screenshot or idle.
+  The first call costs one AX tree + one pierce per frame set; identities are cached by document
+  revision for 5 seconds, and a repeat call only re-measures the matches. Six full scans per
+  minute per tab is the ceiling (`429 SEALED_RATE_LIMITED` with `retry_after`). The AX domain is
+  enabled for the scan and disabled again immediately.
+- **Values never leave.** AX exposes field values (`value:"hunter2"` was observed in the probe);
+  the result deliberately omits them.
+- **Acting is coordinate-based.** `act(x, y)` clicks, `act(x, y, action:"type")` focuses and types,
+  and `clear_first` uses trusted Ctrl+A + Delete — which works inside a closed root where page JS
+  cannot clear the field. The typing verdict reports `unobservable` rather than falsely claiming
+  the value did not change.
+
 ### Limits
 
 - **Closed roots are invisible to page JavaScript.** `element.shadowRoot` is `null` for
-  `attachShadow({mode:'closed'})`. Only the CDP DOM domain sees inside; marks do not use it.
+  `attachShadow({mode:'closed'})`. Discovery is CDP-only, and `observe`/`evaluate` still cannot
+  read the root's text or values.
 - Shadow content is **not** flattened into `observe(as:"text")` regions the way it is for markdown.
-- A closed-root control can still be clicked if you know its pixels (`act(x,y)`), but nothing will
-  name it for you.
+- `find(sealed:true)` returns coordinates, not mark ids: an id would imply a DOM handle that does
+  not exist. Re-run `find` after scrolling or a layout change.
+- CSS `selector` filtering is not available for sealed controls (there is no page-side selector
+  engine that can see them); use `name`, `role`, `tag` or `contains`.
 
 ---
 
@@ -204,9 +254,10 @@ assert on DOM state, not on page variables — this cost a debugging round durin
 
 ---
 
-## Turning the remaining ❌ into ✅
+## What remains
 
-The two remaining closed cells are not magic, and neither needs a new subsystem:
+Closed roots are no longer one of the missing pieces: `find(sealed:true)` ships in 1.4.91 (AX names +
+pierced DOM + box model, coordinates instead of ids). The remaining gap is **stable identity**:
 
 1. **Frame controls as mark ids.** The `frames` scan already knows each control's absolute rect. The
    missing step is identity: stamp `data-mark-id` inside the frame during the scan (block
@@ -215,35 +266,38 @@ The two remaining closed cells are not magic, and neither needs a new subsystem:
    After that, `find`/`observe` can merge frame controls and `act(mark_id)` becomes as stable for an
    iframe as it is for the main document. `observe(markdown)` needs the same merge at the markdown
    level, which is why it is a separate step.
-2. **Closed shadow roots via CDP.** Page JavaScript is not allowed to see a closed root; the DOM
-   domain is. `DOM.getDocument({pierce: true})` returns closed children, `DOM.getBoxModel` gives
-   their quads, and `Accessibility.getPartialAXTree` gives their names. This is a deliberate
-   escape-hatch, not a default: the payload is the whole DOM tree, so it should run only when a
-   heuristic (a sized custom element with no light DOM and no open root) says a closed root exists.
+2. **Component fingerprints and force-open** are the later Shadow Walk phases; both are described in
+   [`SHADOW_WALK.md`](./SHADOW_WALK.md), including why force-open is the one detectably risky lever.
 
-Both are opt-in paths for content that cannot be reached otherwise, and both keep the rule that a
-decision which cannot be verified is reported rather than guessed.
-
+Coordinates stay the contract for sealed content: an id would imply a DOM handle that does not exist.
 The delivery plan, the settings levers, and the risk tiers live in
 [`SHADOW_WALK.md`](./SHADOW_WALK.md).
 
 ## Tests
 
-`npm run test:dom` (live bridge) covers both:
+`npm run test:dom` (live bridge) covers the general control/frame surface:
 
 - a clickable `div` with an inline handler and no role
 - occlusion (covered button), disabled control, hidden input
 - `act(target_text)` on a semantics-free element, and the ambiguity refusal
-- **cross-origin iframe**: consent answered with `frame: "child"`, `delivery: "cdp"`, and the child's
+- **cross-site iframe**: consent answered with `frame: "child"`, `delivery: "cdp"`, and the child's
   DOM confirms the click landed
-- frame evaluation reads a cross-origin child, reports per-frame errors, skips blank frames
+- frame evaluation reads a cross-site (OOPIF) child, reports per-frame errors, skips blank frames
 - **frame geometry**: `frames` reports the child's top-level rect, describes its button with offset
   coordinates, and clicking that centre is confirmed by the child document
 - **frame screenshot**: a 400×200 frame becomes a 600×300 crop at 1.5× (aspect 2.0), not a whole-page
   image
 
-Shadow-DOM coverage is exercised by the same scanner but **has no fixture of its own yet** — a
-web-component fixture is an obvious next test.
+`npm run test:sealed` is the closed-root fixture:
+
+- closed root with a button, text input, and a nested closed root
+- `display:none` and `aria-hidden` controls are absent from AX
+- page JS still reports `shadowRoot === null`
+- clicking by the returned coordinate actuates the component; typing with `clear_first` replaces the
+  value; the result never contains it
+- a same-site closed frame and a cross-site (OOPIF) closed frame are both found and clicked
+- quiet-by-default assertion (`cdp.ax === 0` until asked), identity-cache hit, and a real `429` after
+  the per-tab scan budget
 
 ## See also
 

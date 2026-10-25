@@ -38129,16 +38129,18 @@ ${rows.join("\n")}`;
   },
   {
     name: "find",
-    description: "Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act().",
+    description: "Semantic element search. Returns Set-of-Marks refs (mark ids) for the light/open DOM, and with sealed:true also returns controls inside closed shadow roots as coordinates (no mark id) \u2014 feed those to act(x, y). Filter by role, accessible/text name, regex, tag or CSS selector.",
     parameters: {
       role: external_exports.string().optional().describe('ARIA role or implied role (e.g. "button", "link", "combobox")'),
       name: external_exports.string().optional().describe("Accessible-name substring (case-insensitive)"),
       contains: external_exports.string().optional().describe("Text/value substring"),
       regex: external_exports.string().optional().describe("Regex over text/value"),
       tag: external_exports.string().optional().describe('Element tag, e.g. "A" or "BUTTON"'),
-      selector: external_exports.string().optional().describe("CSS selector the element must match"),
+      selector: external_exports.string().optional().describe("CSS selector the element must match (light/open DOM only)"),
       limit: external_exports.coerce.number().optional().default(25).describe("Max refs to return"),
-      include_offscreen: external_exports.coerce.boolean().optional().default(true).describe("Also search below/above the fold (default: true)")
+      include_offscreen: external_exports.coerce.boolean().optional().default(true).describe("Also search below/above the fold (default: true)"),
+      sealed: external_exports.coerce.boolean().optional().default(false).describe("Also search inside closed shadow roots (opt-in; cached and rate-limited)"),
+      refresh: external_exports.coerce.boolean().optional().default(false).describe("Force a fresh sealed scan instead of the short identity cache")
     },
     endpoint: "/find",
     payload: (args) => ({
@@ -38149,12 +38151,22 @@ ${rows.join("\n")}`;
       tag: args?.tag,
       selector: args?.selector,
       limit: args?.limit,
-      include_offscreen: args?.include_offscreen
+      include_offscreen: args?.include_offscreen,
+      sealed: args?.sealed,
+      refresh: args?.refresh
     }),
     format: (data) => {
       const rows = (data.marks || []).map((m) => formatMark(m));
-      return `# find \u2014 ${data.count} of ${data.total} match(es)
-${rows.join("\n")}`;
+      const sealedRows = (data.sealed || []).map((c) => {
+        const cx = Math.round(c.rect.x + c.rect.width / 2);
+        const cy = Math.round(c.rect.y + c.rect.height / 2);
+        const flags = [c.inViewport === false ? "offscreen" : "", c.disabled ? "disabled" : ""].filter(Boolean);
+        return `[sealed] <${c.role}> "${c.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(", ")}}` : ""}`;
+      });
+      const sealedNote = data.sealedTotal !== void 0 ? `
+sealed: ${(data.sealed || []).length} of ${data.sealedTotal}${data.sealedCached ? " (cached)" : ""}` : "";
+      return `# find \u2014 ${data.count} of ${data.total} match(es)${sealedNote}
+${rows.concat(sealedRows).join("\n")}`;
     }
   },
   {
@@ -38333,7 +38345,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.90";
+var APP_VERSION = "1.4.91";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

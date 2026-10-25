@@ -18,6 +18,7 @@ import { cortex, CortexDB } from './cortex/cortex-db.js';
 import { ShieldBreaker, type ShieldDismissResult, type ConsentPolicy } from './shield/shield-breaker.js';
 import { evaluateInFrames, type FrameEvalOptions, type FrameEvalResult } from './browser/frame-eval.js';
 import { listFrames, type FrameInfo } from './browser/frames.js';
+import { findSealedControls, type SealedFindOptions, type SealedFindResult } from './shadow-walk/ax-controls.js';
 import { controlFactsExpression, parseControlFacts, type ControlFacts, type ControlFactsOptions } from './primitives/control-facts.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
@@ -252,6 +253,7 @@ export class BrowserChassis {
       typeMark: (id, text, opts) => this.typeMark(id, text, opts),
       clickElement: (selector, coords) => this.clickElement(selector, coords),
       typeText: (text, selector, opts) => this.typeText(text, selector, opts),
+      findSealed: (opts) => this.findSealed(opts),
       insertText: (text) => this.simulator.insertText(this.getActiveWebContents(), text),
       pasteText: (text) => this.simulator.pasteText(this.getActiveWebContents(), text),
       moveMouseTo: (target) => this.moveMouse(target),
@@ -1614,6 +1616,13 @@ export class BrowserChassis {
   /** Frame tree + top-level geometry (no content scan). */
   public async listFrames(options: { maxFrames?: number } = {}): Promise<FrameInfo[]> {
     return listFrames(this.getActiveWebContents(), options);
+  }
+
+  /** Closed-shadow-root discovery (opt-in, cached, rate-limited). */
+  public async findSealed(options: SealedFindOptions = {}): Promise<SealedFindResult> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: find(sealed=true${options.name ? `, name="${options.name}"` : ''})`);
+    return findSealedControls(wc, { ...options, revision: this.revision });
   }
 
   /**

@@ -1277,6 +1277,8 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           selector: body?.selector,
           limit: body?.limit !== undefined ? Number(body.limit) : undefined,
           includeOffscreen: body?.include_offscreen === undefined ? true : body.include_offscreen === true,
+          sealed: body?.sealed === true,
+          refresh: body?.refresh === true,
         });
         sendJson({ success: true, ...data });
         return;
@@ -1549,6 +1551,18 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
       sendJson({ error: 'Endpoint not found' }, 404);
     } catch (err: any) {
       const code = err?.code || 'INTERNAL';
+      if (code === 'SEALED_RATE_LIMITED') {
+        sendJson(
+          {
+            success: false,
+            error: err?.message || 'Sealed discovery is rate-limited.',
+            code,
+            retry_after: Math.max(1, Math.ceil(Number(err?.retryAfterMs || 0) / 1000)),
+          },
+          429
+        );
+        return;
+      }
       const client = ['BAD_REQUEST', 'STALE_REF', 'NO_TARGET', 'NOT_SUPPORTED', 'TIMEOUT', 'NO_LLM_SURFACE', 'FETCH_BLOCKED'].includes(code);
       sendJson({ success: false, error: err?.message || String(err), code }, client ? 400 : 500);
     }

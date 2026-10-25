@@ -1548,16 +1548,18 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
   {
     name: 'find',
     description:
-      'Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act().',
+      'Semantic element search. Returns Set-of-Marks refs (mark ids) for the light/open DOM, and with sealed:true also returns controls inside closed shadow roots as coordinates (no mark id) — feed those to act(x, y). Filter by role, accessible/text name, regex, tag or CSS selector.',
     parameters: {
       role: z.string().optional().describe('ARIA role or implied role (e.g. "button", "link", "combobox")'),
       name: z.string().optional().describe('Accessible-name substring (case-insensitive)'),
       contains: z.string().optional().describe('Text/value substring'),
       regex: z.string().optional().describe('Regex over text/value'),
       tag: z.string().optional().describe('Element tag, e.g. "A" or "BUTTON"'),
-      selector: z.string().optional().describe('CSS selector the element must match'),
+      selector: z.string().optional().describe('CSS selector the element must match (light/open DOM only)'),
       limit: z.coerce.number().optional().default(25).describe('Max refs to return'),
       include_offscreen: z.coerce.boolean().optional().default(true).describe('Also search below/above the fold (default: true)'),
+      sealed: z.coerce.boolean().optional().default(false).describe('Also search inside closed shadow roots (opt-in; cached and rate-limited)'),
+      refresh: z.coerce.boolean().optional().default(false).describe('Force a fresh sealed scan instead of the short identity cache'),
     },
     endpoint: '/find',
     payload: (args) => ({
@@ -1569,10 +1571,21 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       selector: args?.selector,
       limit: args?.limit,
       include_offscreen: args?.include_offscreen,
+      sealed: args?.sealed,
+      refresh: args?.refresh,
     }),
     format: (data) => {
       const rows = (data.marks || []).map((m: any) => formatMark(m));
-      return `# find — ${data.count} of ${data.total} match(es)\n${rows.join('\n')}`;
+      const sealedRows = (data.sealed || []).map((c: any) => {
+        const cx = Math.round(c.rect.x + c.rect.width / 2);
+        const cy = Math.round(c.rect.y + c.rect.height / 2);
+        const flags = [c.inViewport === false ? 'offscreen' : '', c.disabled ? 'disabled' : ''].filter(Boolean);
+        return `[sealed] <${c.role}> "${c.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(', ')}}` : ''}`;
+      });
+      const sealedNote = data.sealedTotal !== undefined
+        ? `\nsealed: ${(data.sealed || []).length} of ${data.sealedTotal}${data.sealedCached ? ' (cached)' : ''}`
+        : '';
+      return `# find — ${data.count} of ${data.total} match(es)${sealedNote}\n${rows.concat(sealedRows).join('\n')}`;
     },
   },
   {
