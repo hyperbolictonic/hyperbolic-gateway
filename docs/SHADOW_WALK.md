@@ -39,22 +39,24 @@ human session produces. "The page can't tell" is not the same as "it looks norma
 ### Lifecycle of one sealed read
 
 1. **Ask.** `find(sealed:true)` or `focus_walk`. Nothing runs before this.
-2. **One enumeration per document revision.** `Accessibility.enable` → `getFullAXTree` → one
+2. **One enumeration per document revision.** `Accessibility.enable` → `getFullAXTree` for the main
+   frame and each same-site child (`frameId`), and on the session for each cross-site child → one
    `DOM.getDocument({depth:-1, pierce:true})` to learn which nodes live under a closed root. The
-   result is cached by `(tab, loaderId)` and by the page revision.
+   result is cached by `(tab, loaderId, frame set)` and by the page revision.
 3. **Per call, no full walk.** Filter the cached identity set, then `DOM.getBoxModel` only for the
    nodes that actually matched — capped at 40.
 4. **Per click, one node.** Re-measure only the clicked control; rects go stale, identities do not.
    Never re-enumerate to click.
 5. **Release.** `Accessibility.disable` after ~1.5 s without a sealed call, unless the domain was
    already on (a real screen reader attached) — then leave it alone. The AX domain is the only
-   new global state we introduce.
+   new global state we introduce; OOPIF sessions are detached after the scan.
 
 ### Cache and budget
 
 | rule | value | why |
 |---|---|---|
-| full pierce + AX tree | ≤ 1 per document revision | one question, not a sweep |
+| full pierce + AX tree | ≤ 1 per document revision, per frame set | one question, not a sweep |
+| measured cost (9k-node page) | AX 976 ms / 2.8 MB, pierce 191 ms / 841 KB | fine once, unacceptable per navigation |
 | cache invalidation | navigation, 5 s TTL, or an action that bumps the revision | a dialog can create a new root; a page load silently changes everything |
 | `getBoxModel` | only matched nodes, ≤ 40 per call | geometry is the expensive part |
 | repeat `find(sealed)` within 2 s | cached identities, fresh geometry only for the requested subset (`cached:true`) | an agent loop must not become a scanner |
@@ -89,7 +91,7 @@ The invariant is testable, not aspirational — the metrics registry already cou
 | surface | open shadow | closed shadow | iframe |
 |---|---|---|---|
 | `observe(markdown)` / `extract` | ✅ today | ❌ | ❌ |
-| `find` | ✅ today | ✅ **P1** (AX, no mark id) | ✅ via `frames` today |
+| `find` | ✅ today | ✅ **P1** (AX, no mark id) | ✅ same-site today · **P0** cross-site |
 | `act(x, y)` | ✅ today | ✅ **P1** | ✅ today |
 | `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ❌ |
 | type / press | ✅ today | ✅ **P1** (coordinate click focuses inside) | ✅ today |
@@ -100,6 +102,13 @@ The invariant is testable, not aspirational — the metrics registry already cou
 `act(mark_id)` inside a closed root is deliberately not planned: an id implies a DOM handle we do
 not have, and handing out an id that resolves to a cached coordinate would be a lie the first time
 the page scrolls.
+
+**Same-site vs cross-site is not a detail.** Chromium keeps a same-site iframe (two ports on the
+same host, or the same registrable domain) in the page's process, so the parent's
+`Page.getFrameTree` lists it and `getFullAXTree({frameId})` can read it. A cross-site iframe runs
+out-of-process (OOPIF): the parent's frame tree **omits it**, and it appears only as an `iframe`
+target. The 1.4.89 `frames` tests used two ports on `127.0.0.1` — cross-origin, same-site — so they
+never exercised the OOPIF path. **P0** closes that gap before P1 builds on the frame list.
 
 ---
 
@@ -166,34 +175,67 @@ it asks.
 
 ## Phases
 
-### P1 — `1.4.90` AX sealed discovery
+### P0 — `1.4.90` Cross-site frames (the foundation P1 sits on)
+
+- `frames.ts`: merge the parent frame tree with detached `iframe` targets. Attach each target
+  (`Target.attachToTarget({flatten:true})`), read its root frame (`Page.getFrameTree` in that
+  session) to learn `{frameId, parentId, url}`, and keep only targets whose ancestry reaches this
+  tab's main frame. Detach in `finally`.
+- Geometry: the parent still measures the OOPIF's `<iframe>` owner with
+  `DOM.getFrameOwner({frameId})` on the **parent** session (verified), so top-level rects compose
+  exactly like same-process frames. Add `oopif:true` and `targetId` to `FrameInfo` so consumers can
+  pick the right session instead of guessing.
+- `frame-eval.ts`: run the isolated world on the frame's own session when `oopif`, using the
+  OOPIF's root `frameId`; controls/screenshots then follow for free. Attach/detach per scan.
+- Tests: a **cross-site** fixture (different hostname, not just a second port) asserts
+  `frames` lists it with geometry, controls inside it are described and clickable, and the frame
+  crop lands on the right pixels. A regression test keeps the same-site path unchanged.
+- Docs: capability matrix, `SHADOW_DOM_AND_FRAMES.md` frame section, changelog. Tag `v1.4.90`.
+
+### P1 — `1.4.91` AX sealed discovery
 
 - `src/main/shadow-walk/ax-controls.ts`
   - `Accessibility.enable` + `getFullAXTree`; keep interactive roles (`button`, `link`, `textbox`,
     `searchbox`, `combobox`, `checkbox`, `radio`, `switch`, `tab`, `menuitem`, `slider`,
-    `spinbutton`), skip `ignored`.
-  - One `DOM.getDocument({depth:-1, pierce:true})` to build the set of `backendNodeId`s under
-    `shadowRootType:"closed"` (same call proves the root exists). Bounded by node count; opt-in.
+    `spinbutton`), skip `ignored`. AX returns the text nodes as separate `StaticText`/`InlineTextBox`
+    entries — pick the node whose role is interactive, never the label duplicate.
+  - **Per frame, not just the main document.** `getFullAXTree({frameId})` reads a same-site child
+    (verified). A cross-site child has no entry in the parent tree: use its own target session from
+    P0. Compose each frame's local rect with `FrameInfo.rect.x/y`; skip frames without geometry.
+    Bounded by `frames.maxFrames`.
+  - One `DOM.getDocument({depth:-1, pierce:true})` per document/frame set to build the set of
+    `backendNodeId`s under `shadowRootType:"closed"` (same call proves the root exists). Bounded by
+    node count; opt-in.
   - `DOM.getBoxModel({backendNodeId})` per candidate → rect in viewport pixels (subtract
-    `Page.getLayoutMetrics` page offsets, as `frames.ts` does).
-  - Map role → actions; carry `name`, `disabled`, `focused`, `focusable`.
+    `Page.getLayoutMetrics` page offsets, as `frames.ts` does). This Electron build returns
+    `{model:{…}}`; the protocol shape is `{content,…}` — accept both and assert it in a test.
+  - AX already omits `display:none`, `visibility:hidden` and `aria-hidden` content (verified). It
+    **does** return zero-size and offscreen controls: drop zero-area rects, keep offscreen ones with
+    `inViewport:false`, and let `act` call `DOM.scrollIntoViewIfNeeded` then re-measure before the
+    click. Never click a stale rect.
+  - Map role → actions; carry `name`, `disabled`, `focused`, `focusable`. The AX value field is
+    dropped at the boundary (see below).
 - `find {sealed:true}` adds a `sealed` array (`role`, `name`, `rect`, `actions`, `source:"ax"`),
   separate from `marks` so nothing pretends to have a mark id. Text output prints `@ (x, y)`.
   **`value` is never populated for sealed controls** (AX exposes field values; a password or card
   number is not a fact we are allowed to collect).
-- Identity cache keyed by `(tab, loaderId, revision)` with a 5 s TTL, plus the 6/minute rate limit
-  above. Metrics: `cdp.ax`, `cdp.pierce`, `sealed.scan`, `sealed.cacheHit`, `sealed.nodes`.
+- Identity cache keyed by `(tab, loaderId, frame set, revision)` with a 5 s TTL, plus the 6/minute
+  rate limit above. Metrics: `cdp.ax`, `cdp.pierce`, `sealed.scan`, `sealed.cacheHit`,
+  `sealed.nodes`. Cost measured on a 9,025-node page: AX 976 ms / 2.8 MB, pierce 191 ms / 841 KB —
+  one explicit call is fine, a per-navigation sweep is not.
 - Clicking is `act(x, y)`; typing is `act(x, y, action:"type")`. Add **Ctrl+A + Delete** (trusted
   keys) for `clear_first` on coordinate targets — it works inside a closed root where DOM
   clearing cannot.
-- Tests (`scripts/test-sealed.mjs`, live): closed-root fixture with a button and a text input.
-  Assert AX finds both with real rects; a click is recorded by the component; typing changes the
-  value; **the page's own `shadowRoot` probe still returns null** (we changed nothing). Plus the
+- Tests (`scripts/test-sealed.mjs`, live): closed-root fixture with a button, a disabled button and
+  a text input. Assert AX finds them with real rects; hidden and `aria-hidden` variants are absent;
+  a zero-size control is filtered; a click is recorded by the component; typing changes the value;
+  **the page's own `shadowRoot` probe still returns null** (we changed nothing). Plus the
   quiet-by-default assertions: no AX/pierce on navigate/observe/find/screenshot, a cache hit on the
-  second sealed call, one new enumeration after navigation, and 429 past the budget.
+  second sealed call, one new enumeration after navigation, and 429 past the budget. A cross-site
+  frame fixture proves the session path and offset composition.
 - Docs: matrix row, `SHADOW_DOM_AND_FRAMES.md` closed-root section.
 
-### P2 — `1.4.91` Tab walk (`focus_walk`)
+### P2 — `1.4.92` Tab walk (`focus_walk`)
 
 - `src/main/shadow-walk/tab-walk.ts`: start from a host (mark/selector/point), dispatch trusted
   `Tab` / `Shift+Tab`, read the focused AX node after each step (`focused:true`), stop at the step
@@ -204,7 +246,7 @@ it asks.
 - Tests: step into a `delegatesFocus` closed root, confirm the focused node is the inner button,
   `Enter` activates it; limit, restore and median step gap verified.
 
-### P3 — `1.4.92` Settings surface + enforcement
+### P3 — `1.4.93` Settings surface + enforcement
 
 - `src/main/shadow-walk/settings.ts` (load/save/validate, defaults above) + IPC in `index.ts` /
   `preload`; no HTTP write route.
@@ -215,7 +257,7 @@ it asks.
 - `bridge_health.shadowWalk` status.
 - Tests: persistence, master kill switch, structured refusals, contract test for new routes.
 
-### P4 — `1.4.93` Component fingerprints + recipe anchors
+### P4 — `1.4.94` Component fingerprints + recipe anchors
 
 - `src/main/shadow-walk/component-signature.ts`: `{tag, defined, part[], exportparts, cssVars[]}`
   read from the **host** (page-visible by design) → `signature` string + short hash. Attached to
@@ -230,7 +272,7 @@ it asks.
 - Tests: signature stable across re-render, changes when `part` names change; recipe replays after a
   re-skin and retires after a structural change.
 
-### P5 — `1.4.94` Force-open patch (RISKY, last)
+### P5 — `1.4.95` Force-open patch (RISKY, last)
 
 - `src/main/shadow-walk/force-open.ts`: when enabled, inject at document start in the **main world**
   (`Page.addScriptToEvaluateOnNewDocument`) on the tab's navigation; remove when disabled; applies
@@ -263,9 +305,10 @@ src/main/shadow-walk/
   README.md              subsystem reference
 ```
 
-All of it composes with what exists: `control-facts.ts` (description shape), `frames.ts` (viewport
-rects, DPR-aware cropping), `primitives.ts` (`find`/`act`), `recipes` (signature anchors),
-`metrics.ts` (`cdp.ax`, `cdp.pierce`, `sealed.scan`, `sealed.cacheHit`, `tabwalk.steps`).
+All of it composes with what exists: `control-facts.ts` (description shape), `frames.ts` (**P0**:
+cross-site discovery + viewport rects, DPR-aware cropping), `primitives.ts` (`find`/`act`),
+`recipes` (signature anchors), `metrics.ts` (`cdp.ax`, `cdp.pierce`, `sealed.scan`,
+`sealed.cacheHit`, `tabwalk.steps`).
 
 ---
 
@@ -274,6 +317,7 @@ rects, DPR-aware cropping), `primitives.ts` (`find`/`act`), `recipes` (signature
 | lever | page-visible evidence |
 |---|---|
 | AX tree / DOM pierce | none — passive CDP, no JS API exposed |
+| OOPIF target attach | none — no pause (we never use `waitForDebuggerOnStart`), no page code |
 | `find(sealed)` coordinate click | a normal trusted pointer event |
 | `focus_walk` | trusted focus/key events, i.e. a keyboard user |
 | `partHighlight` | a new rule in `document.styleSheets`, `getComputedStyle` outlines |
@@ -290,9 +334,23 @@ lever is a dead switch for a release.
 
 ---
 
-## Open questions (resolved during P1's probe)
+## Probe results (answered 2026-10-25, before P0/P1)
 
-- Does `getFullAXTree` include same-process iframe content, or only the current document?
-- Does `DOM.getBoxModel` accept a `backendNodeId` inside a closed root without `resolveNode`?
-- Nested closed roots: does the AX parent chain let `focus_walk` detect "left the component"?
-- How does the AX tree report shadow content that is visually hidden (`display:none` in the root)?
+Five throwaway Electron probes with closed-root fixtures: nested roots, same-site and cross-site
+frames, hidden variants, and a 9,025-node page.
+
+| question | answer |
+|---|---|
+| Does AX see inside a closed root? | **Yes** — button, textbox and a button inside a nested closed root all appear with names and roles. `ignored:false`. |
+| Does AX expose field values? | **Yes** — a textbox returned `value:"hunter2"`. Stripped at the boundary; sealed results never carry values. |
+| Does AX include same-process iframe content? | **Not in the parent tree**, but `getFullAXTree({frameId})` on the child frame returns it, including a closed root inside. |
+| Does AX include cross-site iframe content? | Only through the **OOPIF target's own session**. The parent's frame tree omits the frame entirely (see P0). |
+| Does `DOM.getBoxModel` accept a closed `backendNodeId`? | **Yes**, no `resolveNode` needed. This Electron build wraps the result as `{model:{…}}`; handle both shapes. Coordinates are CSS px relative to that frame's viewport. |
+| Nested closed roots: can `focus_walk` use the AX parent chain? | The chain exists (`button < generic < … < RootWebArea`), but custom elements collapse to `generic`, so it cannot name the host reliably. Use the pierce-derived `backendNodeId` set for "still inside this component". |
+| How is hidden content reported? | `display:none`, `visibility:hidden` and `aria-hidden` are **absent** from AX. Zero-size and offscreen controls are **present** — filter zero-area, flag offscreen, scroll before clicking. |
+| What does a full scan cost? | 9,025 nodes: AX **976 ms / 2.8 MB**, pierce **191 ms / 841 KB**. Acceptable once per explicit call; unacceptable on navigation or per `find`. |
+
+Two consequences are already folded into P0 and P1: cross-site frames need target sessions, and the
+quiet-by-default cache is not an optimization — it is what keeps a normal scan from looking like a
+crawler.
+

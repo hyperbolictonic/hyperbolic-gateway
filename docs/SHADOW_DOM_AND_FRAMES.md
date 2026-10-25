@@ -7,7 +7,7 @@ Two different problems that get confused because both "hide" content:
 - **Iframes** are *separate documents* (often cross-origin). The top frame cannot read them with
   `executeJavaScript`; frames need their own execution context.
 
-| surface | open shadow DOM | closed shadow DOM | iframe (any origin) |
+| surface | open shadow DOM | closed shadow DOM | iframe (same-site · cross-site in 1.4.90) |
 |---|---|---|---|
 | `observe(markdown)` | ✅ composed DOM | ❌ | ❌ main frame only |
 | Set-of-Marks / `find` | ✅ marks inside roots | ❌ | ❌ main frame only |
@@ -143,6 +143,14 @@ and that is verified in the live test — the child document records the click.
 iframe is unreachable, but the `<iframe>` element belongs to the parent, which is not. Because
 parents come before children in the tree, nested frames compose instead of falling back to
 "in-frame activation".
+
+**Known gap in 1.4.89 — cross-site frames (fixed in 1.4.90).** Chromium omits an out-of-process
+iframe (a different *site*, not merely a different origin) from the parent's `Page.getFrameTree`.
+It appears only as an `iframe` target. The 1.4.89 tests called their fixture "cross-origin" but used
+two ports on `127.0.0.1`, which Chromium keeps in-process, so the OOPIF path was never exercised.
+P0 merges the detached `iframe` targets into the frame list, adds `oopif` and `targetId` to
+`FrameInfo`, and evaluates/attaches per session. Until that ships, treat `frames` as **same-site**
+only.
 
 **How the screenshots are made.** One viewport capture, then `nativeImage.crop()` per visible frame
 (clamped to the viewport). The device-pixel ratio is derived from the captured image rather than
