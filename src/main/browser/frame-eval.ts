@@ -22,6 +22,8 @@ export interface FrameEvalOptions {
   timeoutMs?: number;
   /** Include about:blank / empty frames (default false). */
   includeBlank?: boolean;
+  /** Per-frame expression override (used by the frame-mark scanner for a unique id block). */
+  expressionForFrame?: (frame: { frameId: string; url?: string; name?: string; depth: number; oopif: boolean }, index: number) => string;
 }
 
 export interface FrameEvalResult {
@@ -98,12 +100,19 @@ export async function evaluateInFrames(
   const results: FrameEvalResult[] = [];
 
   try {
-    for (const frame of ctx.frames) {
+    for (const [index, frame] of ctx.frames.entries()) {
       const blank = !frame.url || frame.url === 'about:blank' || frame.url === 'about:srcdoc';
       if (blank && !includeBlank) {
         results.push({ frameId: frame.frameId, url: frame.url, name: frame.name, oopif: frame.oopif, ok: false, error: 'blank frame skipped' });
         continue;
       }
+
+      const frameExpression = options.expressionForFrame
+        ? options.expressionForFrame(
+            { frameId: frame.frameId, url: frame.url, name: frame.name, depth: frame.depth, oopif: frame.oopif },
+            index
+          )
+        : expression;
 
       const sessionId = ctx.sessionFor(frame.frameId);
       try {
@@ -128,7 +137,7 @@ export async function evaluateInFrames(
 
         const evaluated = (await withTimeout(
           ctx.send(sessionId, 'Runtime.evaluate', {
-            expression,
+            expression: frameExpression,
             contextId: entry.contextId,
             returnByValue: true,
             awaitPromise: true,

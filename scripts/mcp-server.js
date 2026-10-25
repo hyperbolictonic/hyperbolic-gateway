@@ -38140,6 +38140,7 @@ ${rows.join("\n")}`;
       limit: external_exports.coerce.number().optional().default(25).describe("Max refs to return"),
       include_offscreen: external_exports.coerce.boolean().optional().default(true).describe("Also search below/above the fold (default: true)"),
       sealed: external_exports.coerce.boolean().optional().default(false).describe("Also search inside closed shadow roots (opt-in; cached and rate-limited)"),
+      include_frames: external_exports.coerce.boolean().optional().default(false).describe("Also search child frames; returns 100+ mark ids usable with act(mark_id)"),
       refresh: external_exports.coerce.boolean().optional().default(false).describe("Force a fresh sealed scan instead of the short identity cache")
     },
     endpoint: "/find",
@@ -38153,6 +38154,7 @@ ${rows.join("\n")}`;
       limit: args?.limit,
       include_offscreen: args?.include_offscreen,
       sealed: args?.sealed,
+      include_frames: args?.include_frames,
       refresh: args?.refresh
     }),
     format: (data) => {
@@ -38378,7 +38380,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.96";
+var APP_VERSION = "1.4.97";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

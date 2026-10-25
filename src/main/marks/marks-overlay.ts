@@ -24,6 +24,9 @@ export interface MarkItem {
   center: { x: number; y: number };
   /** Component surface when the control belongs to a custom-element host. */
   component?: ComponentSurface;
+  /** Set when this mark lives in a child frame (ids 100+). */
+  frameId?: string;
+  frameUrl?: string;
 }
 
 export class MarksOverlay {

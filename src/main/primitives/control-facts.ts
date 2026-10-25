@@ -49,6 +49,11 @@ export interface ControlFactsOptions {
    * extra walk nor the larger result set.
    */
   deep?: boolean;
+  /**
+   * Stamp each returned control with `data-mark-id` starting at this number. Used by the frame
+   * scanner so an iframe control gets a stable id without colliding with main-frame marks.
+   */
+  markIdBase?: number;
 }
 
 /**
@@ -124,6 +129,7 @@ export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
     includeOffscreen: opts.includeOffscreen !== false,
     skipHitTest: opts.skipHitTest === true,
     deep: opts.deep === true,
+    markIdBase: Number.isFinite(opts.markIdBase) ? Number(opts.markIdBase) : undefined,
   };
   return `(() => {
     const opts = ${JSON.stringify(options)};
@@ -190,8 +196,13 @@ export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
       }
       const { region, regionName } = regionOf(el);
       const markAttr = el.getAttribute('data-mark-id');
+      let markId = markAttr && !isNaN(Number(markAttr)) ? Number(markAttr) : undefined;
+      if (opts.markIdBase !== undefined) {
+        markId = opts.markIdBase + out.length;
+        el.setAttribute('data-mark-id', String(markId));
+      }
       out.push({
-        id: markAttr && !isNaN(Number(markAttr)) ? Number(markAttr) : undefined,
+        id: markId,
         tag: el.tagName.toLowerCase(),
         role: clean((el.getAttribute('role') || el.tagName).toLowerCase()),
         name: accName(el),

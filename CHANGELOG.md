@@ -16,6 +16,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.97] - 2026-10-25
+
+### Added
+
+- **Frame control mark ids.** `find {include_frames:true}` now stamps child-frame controls with
+  100+ ids (`100 + child_index * 100`, 99 per frame) and returns them alongside main-frame marks.
+  `act(mark_id)` / `type_mark` resolve a frame mark live: find the element in its frame, scroll it
+  into view, measure, add the frame's top-level rect, then click/type.
+  - Same-site and cross-site (OOPIF) frames both work through `evaluateInFrames`.
+  - `frames` exposes the same `id` on each control.
+  - Main marks stay 1–99; the blocks never collide.
+  - `find` without `include_frames` is unchanged.
+- `scripts/test-frame-marks.mjs` (`npm run test:framemarks`, 7 checks): default main-only, both
+  frame types with 100+ ids, frame identity, mark clicks in each, typing in an OOPIF, and `frames`
+  exposing the same ids.
+
+### Notes
+
+- The test target question: Mobalytics is useful as a read-only real-world SPA smoke, but it is
+  not a reliable closed-root fixture. Keep correctness on the local closed/OOPIF fixtures; use a
+  controlled page for closed roots and an open-component site for signature smoke tests.
+
 ## [1.4.96] - 2026-10-25
 
 ### Fixed

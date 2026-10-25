@@ -18,6 +18,7 @@ import { cortex, CortexDB } from './cortex/cortex-db.js';
 import { ShieldBreaker, type ShieldDismissResult, type ConsentPolicy } from './shield/shield-breaker.js';
 import { evaluateInFrames, type FrameEvalOptions, type FrameEvalResult } from './browser/frame-eval.js';
 import { listFrames, type FrameInfo } from './browser/frames.js';
+import { clearFrameMarks, registerFrameMarks, resolveFrameMark } from './browser/frame-marks.js';
 import { findSealedControls, type SealedFindOptions, type SealedFindResult } from './shadow-walk/ax-controls.js';
 import { runTabWalk, type TabWalkOptions, type TabWalkResult } from './shadow-walk/tab-walk.js';
 import { loadShadowWalkSettings, shadowWalkRefusal, type ShadowWalkSurface } from './shadow-walk/settings.js';
@@ -256,7 +257,11 @@ export class BrowserChassis {
       injectMarks: (opts) => this.marksOverlay.injectMarks(this.getActiveWebContents(), opts || {}),
       removeMarks: () => this.marksOverlay.removeMarks(this.getActiveWebContents()),
       getMarks: () => this.getActiveMarks(),
-      getMarkTarget: (id) => this.marksOverlay.getMarkTarget(this.getActiveWebContents(), id),
+      getMarkTarget: (id) =>
+        Number(id) >= 100
+          ? resolveFrameMark(this.getActiveWebContents(), Number(id))
+          : this.marksOverlay.getMarkTarget(this.getActiveWebContents(), id),
+      getFrames: (opts) => this.getFrames(opts),
       clickMark: (id) => this.clickMark(id),
       typeMark: (id, text, opts) => this.typeMark(id, text, opts),
       clickElement: (selector, coords) => this.clickElement(selector, coords),
@@ -1771,18 +1776,26 @@ export class BrowserChassis {
 
     if (includeControls && frames.length > 1) {
       const limit = Math.max(1, Math.min(maxControls, 200));
-      // One expression, one frame-tree walk. `deep` matches the marks scanner's shadow handling;
-      // `includeOffscreen` is true per frame because the viewport test happens after offsetting.
+      clearFrameMarks(wc);
+      // One expression, one frame-tree walk. Each child frame gets its own mark-id block
+      // (100 + child_index * 100); the main frame is not stamped by this scan.
       const evaluated = await evaluateInFrames(
         wc,
-        controlFactsExpression({
-          selector: options.selector,
-          limit,
-          includeOffscreen: true,
-          skipHitTest: options.skipHitTest === true,
-          deep: settings.shadow.deepOpenRoots,
-        }),
-        { maxFrames }
+        'null',
+        {
+          maxFrames,
+          expressionForFrame: (_frame, index) =>
+            index === 0
+              ? 'null'
+              : controlFactsExpression({
+                  selector: options.selector,
+                  limit,
+                  includeOffscreen: true,
+                  skipHitTest: options.skipHitTest === true,
+                  deep: settings.shadow.deepOpenRoots,
+                  markIdBase: 100 + (index - 1) * 100,
+                }),
+        }
       );
 
       const byId = new Map(out.map((f) => [f.frameId, f]));
@@ -1815,6 +1828,12 @@ export class BrowserChassis {
         }
         frame.controls = controls;
         frame.controlsTotal = parsed.controls.length;
+        registerFrameMarks(
+          wc,
+          controls
+            .filter((control) => typeof control.id === 'number' && control.id >= 100)
+            .map((control) => ({ id: Number(control.id), frameId: frame.frameId }))
+        );
       }
     }
 
@@ -2471,9 +2490,11 @@ export class BrowserChassis {
   public async clickMark(markId: number): Promise<string> {
     const wc = this.getActiveWebContents();
     this.addLog('action', `MCP Directive: click_mark(#${markId})`);
-    const target = await this.marksOverlay.getMarkTarget(wc, markId);
+    const target = markId >= 100
+      ? await resolveFrameMark(wc, markId)
+      : await this.marksOverlay.getMarkTarget(wc, markId);
     if (!target) {
-      throw new Error(`Mark #${markId} not found. Call take_annotated_screenshot() to refresh interactive marks.`);
+      throw new Error(`Mark #${markId} not found. Call find(include_frames:true) or take_annotated_screenshot() to refresh marks.`);
     }
 
     this.state.agentStatus = 'SIMULATING_INPUT';
@@ -2500,9 +2521,11 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     const shown = opts.secret ? `[REDACTED ${String(text).length} chars]` : `"${text}"`;
     this.addLog('action', `MCP Directive: type_mark(#${markId}, ${shown}${opts.clearFirst ? ', clear_first' : ''})`);
-    const target = await this.marksOverlay.getMarkTarget(wc, markId);
+    const target = markId >= 100
+      ? await resolveFrameMark(wc, markId)
+      : await this.marksOverlay.getMarkTarget(wc, markId);
     if (!target) {
-      throw new Error(`Mark #${markId} not found. Call take_annotated_screenshot() to refresh interactive marks.`);
+      throw new Error(`Mark #${markId} not found. Call find(include_frames:true) or take_annotated_screenshot() to refresh marks.`);
     }
 
     this.state.agentStatus = 'SIMULATING_INPUT';
@@ -2514,20 +2537,22 @@ export class BrowserChassis {
     // A stray or occluded click silently sends keystrokes nowhere (sticky headers,
     // lazy re-renders, a hidden window). Verify the target actually took focus and,
     // if not, re-resolve its live centre and click once more before typing.
-    const focusedOk = await wc
-      .executeJavaScript(
-        `(() => {${DEEP_DOM_HELPERS}
-          const el = kqDeep('[data-mark-id="${markId}"]');
-          if (!el) return true;
-          const a = kqActive();
-          if (!a) return false;
-          return a === el || kqContainsComposed(el, a) || kqContainsComposed(a, el);
-        })()`
-      )
-      .catch(() => true);
+    const focusedOk = markId >= 100
+      ? true
+      : await wc
+          .executeJavaScript(
+            `(() => {${DEEP_DOM_HELPERS}
+              const el = kqDeep('[data-mark-id="${markId}"]');
+              if (!el) return true;
+              const a = kqActive();
+              if (!a) return false;
+              return a === el || kqContainsComposed(el, a) || kqContainsComposed(a, el);
+            })()`
+          )
+          .catch(() => true);
     if (focusedOk === false) {
       this.addLog('warn', `type_mark(#${markId}): target did not take focus after click; retrying once.`);
-      const retry = await this.marksOverlay.getMarkTarget(wc, markId);
+      const retry = markId >= 100 ? await resolveFrameMark(wc, markId) : await this.marksOverlay.getMarkTarget(wc, markId);
       if (retry) {
         await this.simulator.clickAt(wc, retry.currentCenter);
         await new Promise((r) => setTimeout(r, 100));

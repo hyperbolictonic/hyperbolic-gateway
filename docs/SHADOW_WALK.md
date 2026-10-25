@@ -93,7 +93,7 @@ The invariant is testable, not aspirational — the metrics registry already cou
 | `observe(markdown)` / `extract` | ✅ today | ❌ | ❌ |
 | `find` | ✅ today | ✅ **today** (AX, no mark id) | ✅ today (same-site and OOPIF) |
 | `act(x, y)` | ✅ today | ✅ today | ✅ today |
-| `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ❌ |
+| `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ✅ today (frame ids 100+) |
 | type / press | ✅ today | ✅ today (coordinate click focuses inside) | ✅ today |
 | `focus_walk` (Tab) | — | ✅ **today** | — |
 | component signature | ✅ today (host surface) | ❌ not attached to sealed results yet | ❌ not attached |

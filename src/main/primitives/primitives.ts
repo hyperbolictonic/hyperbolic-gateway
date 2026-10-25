@@ -53,6 +53,8 @@ export interface PrimitivesHost {
   findSealed?(opts: SealedFindOptions): Promise<SealedFindResult>;
   /** Whether component signatures may be attached to find/observe results. */
   componentSurfaceEnabled?(): boolean;
+  /** Optional frame scan for `find(include_frames)` / mark ids. */
+  getFrames?(opts: any): Promise<{ frames: any[]; notes?: string[] }>;
   clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string>;
   typeText(text: string, selector?: string, opts?: { clearFirst?: boolean }): Promise<string>;
   /** CDP text insertion — no key events. Fallback when keystrokes are provably ignored. */
@@ -193,6 +195,8 @@ export interface FindOptions {
   includeOffscreen?: boolean;
   /** Also search inside closed shadow roots (AX + pierced DOM; opt-in and rate-limited). */
   sealed?: boolean;
+  /** Also search controls inside child frames (same-site and OOPIF) and return 100+ mark ids. */
+  includeFrames?: boolean;
   /** Force a fresh sealed scan instead of using the short identity cache. */
   refresh?: boolean;
 }
@@ -1013,6 +1017,73 @@ export class Primitives {
       return this.markLine(m) + (flags.length ? ` {${flags.join(', ')}}` : '');
     });
 
+    // Opt-in frame marks: `getFrames` stamps child controls with 100+ IDs and registers them for
+    // live resolution. The main-frame marks stay 1..99, so the two sets never collide.
+    const frameMarks: any[] = [];
+    let frameTotal = 0;
+    let frameNote: string | undefined;
+    if (opts.includeFrames) {
+      if (!this.host.getFrames) {
+        frameNote = 'Frame scanning is not available in this build.';
+      } else {
+        try {
+          const data = await this.host.getFrames({
+            includeControls: true,
+            screenshots: false,
+            maxFrames: 6,
+            maxControls: Math.max(limit, 40),
+            includeOffscreen: opts.includeOffscreen !== false,
+          });
+          const wantRole = opts.role ? String(opts.role).toLowerCase() : '';
+          for (const frame of data.frames || []) {
+            if (frame.depth === 0 || !Array.isArray(frame.controls)) continue;
+            for (const control of frame.controls) {
+              if (typeof control.id !== 'number' || control.id < 100) continue;
+              const tag = String(control.tag || '').toUpperCase();
+              const role = String(control.role || '').toLowerCase();
+              const implied = tag === 'A' ? 'link' : tag === 'BUTTON' ? 'button' : '';
+              if (opts.tag && tag.toLowerCase() !== opts.tag.toLowerCase()) continue;
+              if (wantRole && role !== wantRole && implied !== wantRole) continue;
+              const hay = `${control.name || ''} ${control.value || ''}`.toLowerCase();
+              if (want && hay.indexOf(want) === -1) continue;
+              if (re && !re.test(`${control.name || ''} ${control.value || ''}`)) continue;
+              frameTotal += 1;
+              if (limited.length + frameMarks.length >= limit) continue;
+              const rect = control.rect;
+              frameMarks.push({
+                id: control.id,
+                tag,
+                text: control.name || '',
+                role: control.role,
+                actions: control.actions || [],
+                rect,
+                center: {
+                  x: Math.round(rect.x + rect.width / 2),
+                  y: Math.round(rect.y + rect.height / 2),
+                },
+                frameId: frame.frameId,
+                frameUrl: frame.url,
+                facts: {
+                  visible: control.visible,
+                  occluded: control.occluded,
+                  disabled: control.disabled,
+                  region: 'frame',
+                },
+              });
+            }
+          }
+          if (!frameMarks.length) frameNote = 'No matching controls inside child frames.';
+        } catch (err: any) {
+          frameNote = `Frame scan unavailable: ${String(err?.message || err)}`;
+        }
+      }
+    }
+
+    const frameLines = frameMarks.map((m) => {
+      const flags = [m.facts?.occluded ? 'occluded' : '', m.facts?.visible === false ? 'hidden' : ''].filter(Boolean);
+      return `[frame] ${this.markLine(m)}${flags.length ? ` {${flags.join(', ')}}` : ''}`;
+    });
+
     let sealed: SealedControl[] | undefined;
     if (sealedInfo) {
       sealed = sealedInfo.controls;
@@ -1025,18 +1096,19 @@ export class Primitives {
       return `[sealed] <${control.role}> "${control.name}" @ (${cx}, ${cy})${flags.length ? ` {${flags.join(', ')}}` : ''}`;
     });
 
-    const text = [lines.join('\n'), sealedLines.join('\n')].filter(Boolean).join('\n');
+    const text = [lines.join('\n'), frameLines.join('\n'), sealedLines.join('\n')].filter(Boolean).join('\n');
     const markRows = limited.map((m) => {
       const row: any = { ...m, facts: factsById.get(m.id) };
       if (!componentOn) delete row.component;
       return row;
     });
     const result: any = {
-      count: limited.length,
-      total: filtered.length,
-      marks: markRows,
+      count: limited.length + frameMarks.length,
+      total: filtered.length + frameTotal,
+      marks: markRows.concat(frameMarks),
       text,
     };
+    if (frameNote) result.frameNote = frameNote;
     if (sealedInfo) {
       result.sealed = sealedInfo.controls;
       result.sealedTotal = sealedInfo.total;

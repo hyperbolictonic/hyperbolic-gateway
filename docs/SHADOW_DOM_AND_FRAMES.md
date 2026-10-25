@@ -11,7 +11,7 @@ Two different problems that get confused because both "hide" content:
 |---|---|---|---|
 | `observe(markdown)` | ✅ composed DOM | ❌ | ❌ main frame only |
 | Set-of-Marks / `find` | ✅ marks inside roots | ✅ `find(sealed:true)` (coordinates, no mark id) | ✅ `find(sealed:true)` + `frames` |
-| `act(mark_id / selector)` | ✅ resolves the inner control | ❌ | ❌ |
+| `act(mark_id / selector)` | ✅ resolves the inner control | ❌ (sealed results carry coordinates) | ✅ 100+ frame mark ids (`find(include_frames:true)`) |
 | `act(target_text)` | ✅ (composed text) | ❌ | ❌ |
 | `act(x, y)` | ✅ | ✅ (pixels are pixels) | ✅ |
 | `frames` — text | ✅ controls in frames | ✅ via `find(sealed:true)` | ✅ **frame as content** |
@@ -292,10 +292,22 @@ An isolated world **shares the DOM but not page globals**. `window.__anything` s
 invisible inside it; attributes, text and computed styles are readable. Tests and features must
 assert on DOM state, not on page variables — this cost a debugging round during Phase 3.
 
+### Frame control marks (1.4.97)
+
+`find {include_frames:true}` stamps and returns child-frame controls with **100+ mark ids**
+(`100 + child_index * 100`, 99 ids per frame). `act(mark_id)` and `type_mark` resolve them live:
+the element is found by `data-mark-id` inside its frame, scrolled into view, measured, and the
+frame's top-level rect is added before the humanized click.
+
+- Same-site and cross-site (OOPIF) frames both use `evaluateInFrames`.
+- `frames` exposes the same `id` on each control.
+- Main-frame marks remain 1–99; the blocks never collide.
+- `find` without `include_frames` is unchanged (main-frame only).
+
 ### Limits
 
-- **Marks, `find`, `extract`, `observe` and `act(mark_id)` are main-frame only.** A control inside an
-  iframe gets no mark id — use `frames` and its reported coordinates.
+- **`observe`/`extract` are main-frame only.** `find` is main-frame by default; pass
+  `include_frames:true` for 100+ mark ids, and `act(mark_id)` resolves those frame ids live.
 - An iframe inside a **closed shadow root** has no reachable owner element, so it gets no geometry and
   no separate crop. It still appears in a full-page screenshot as pixels.
 - Geometry is origin + offset. A **CSS transform on the iframe** (scale, rotate, 3D) invalidates that
@@ -318,18 +330,13 @@ assert on DOM state, not on page variables — this cost a debugging round durin
 
 ## What remains
 
-Closed roots, frames, Tab entry, signatures and force-open are shipped. The remaining work is
-**stable identity for frame/sealed results**:
+Closed roots, frames, Tab entry, signatures, frame mark ids and force-open are shipped. Remaining
+work is polish/optimization:
 
-1. **Frame controls as mark ids.** The `frames` scan already knows each control's absolute rect. The
-   missing step is identity: stamp `data-mark-id` inside the frame during the scan (block
-   `100 + frame_index * 100`, so it never collides with the 99 main-frame marks), and have
-   `getMarkTarget` resolve a frame mark by evaluating in that frame and adding the frame origin.
-   After that, `find`/`observe` can merge frame controls and `act(mark_id)` becomes as stable for an
-   iframe as it is for the main document. `observe(markdown)` needs the same merge at the markdown
-   level, which is why it is a separate step.
-2. **Clone Lab** is still a proposal ([`TODO.md`](./TODO.md) item 18). `partHighlight` and
-   `cdpStyleMatch` remain off/unbuilt; they are additive polish, not blockers.
+1. **Clone Lab** is still a proposal ([`TODO.md`](./TODO.md) item 18).
+2. `partHighlight` and `cdpStyleMatch` remain off/unbuilt; they are additive polish, not blockers.
+3. Sealed and iframe results still do not carry component signatures; page-visible hosts do.
+4. Offscreen sealed controls are flagged, not scrollable via a sealed token.
 
 Force-open is the one detectably risky path: off by default, opt-in per run, confirmed in Settings,
 and called out by a red chip. See [`SHADOW_WALK.md`](./SHADOW_WALK.md).
