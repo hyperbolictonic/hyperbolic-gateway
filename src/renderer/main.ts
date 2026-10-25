@@ -951,6 +951,8 @@ if (settingsBtn && settingsModal) {
   const shadowAxSealedEl = document.getElementById('shadow-ax-sealed') as HTMLInputElement;
   const shadowDeepOpenEl = document.getElementById('shadow-deep-open') as HTMLInputElement;
   const shadowComponentSurfaceEl = document.getElementById('shadow-component-surface') as HTMLInputElement;
+  const shadowPartHighlightEl = document.getElementById('shadow-part-highlight') as HTMLInputElement;
+  const shadowCdpStyleEl = document.getElementById('shadow-cdp-style') as HTMLInputElement;
   const shadowTabWalkEl = document.getElementById('shadow-tab-walk') as HTMLInputElement;
   const shadowTabStepsEl = document.getElementById('shadow-tab-steps') as HTMLInputElement;
   const shadowTabRestoreEl = document.getElementById('shadow-tab-restore') as HTMLInputElement;
@@ -989,6 +991,8 @@ if (settingsBtn && settingsModal) {
       shadowAxSealedEl.checked = settings.shadow?.axSealed !== false;
       shadowDeepOpenEl.checked = settings.shadow?.deepOpenRoots !== false;
       shadowComponentSurfaceEl.checked = settings.shadow?.componentSurface !== false;
+      shadowPartHighlightEl.checked = settings.shadow?.partHighlight === true;
+      shadowCdpStyleEl.checked = settings.shadow?.cdpStyleMatch === true;
       shadowTabWalkEl.checked = settings.shadow?.tabWalk !== false;
       shadowTabStepsEl.value = String(settings.shadow?.tabWalkMaxSteps ?? 8);
       shadowTabRestoreEl.checked = settings.shadow?.tabWalkRestoreFocus !== false;
@@ -1030,6 +1034,8 @@ if (settingsBtn && settingsModal) {
           deepOpenRoots: shadowDeepOpenEl.checked,
           axSealed: shadowAxSealedEl.checked,
           componentSurface: shadowComponentSurfaceEl.checked,
+          partHighlight: shadowPartHighlightEl.checked,
+          cdpStyleMatch: shadowCdpStyleEl.checked,
           tabWalk: shadowTabWalkEl.checked,
           tabWalkMaxSteps: Number(shadowTabStepsEl.value) || 8,
           tabWalkRestoreFocus: shadowTabRestoreEl.checked,

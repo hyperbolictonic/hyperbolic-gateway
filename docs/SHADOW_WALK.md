@@ -295,10 +295,11 @@ it off removes it for future documents, while the current document stays patched
   and `constructed` when present. Low hit rate on bundled apps; built only behind the lever.
 - Tests: signature stable across re-render, changes when `part` names change; recipe replays after a
   re-skin and retires after a structural change.
-- **Shipped in 1.4.94.** Signatures are on `find` marks and `observe(as:"components")`, drive
+- **Shipped in 1.4.94.** Signatures are on `find` marks and `observe(as:"components")`; drive
   transcripts carry them, and recipes verify them before acting. `SIGNATURE_MISMATCH` retires the
-  recipe immediately; `SIGNATURE_UNAVAILABLE` is reported when the lever is off. `partHighlight` and
-  `cdpStyleMatch` remain off and are **not built**.
+  recipe immediately; `SIGNATURE_UNAVAILABLE` is reported when the lever is off.
+- **Shipped in 1.4.101.** `partHighlight` outlines exported parts for one capture (removed
+  immediately after) and `cdpStyleMatch` reports `{sourceUrl, constructed}` for sealed controls.
 
 ### P5 — `1.4.95` Force-open patch (RISKY, last) — **shipped**
 

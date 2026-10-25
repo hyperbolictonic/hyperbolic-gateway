@@ -46,6 +46,8 @@ export interface SealedControl {
   focused?: boolean;
   /** Host exported surface, when the control belongs to a custom-element host. */
   component?: ComponentSurface;
+  /** Stylesheet provenance when cdpStyleMatch is on. */
+  style?: { sourceUrl?: string; constructed?: boolean };
   /** Short-lived capability for scrolling/re-measuring an offscreen control. */
   token?: string;
 }
@@ -122,6 +124,7 @@ interface Identity {
   focused: boolean;
   order: number;
   component?: ComponentSurface;
+  style?: { sourceUrl?: string; constructed?: boolean };
 }
 
 interface CacheEntry {
@@ -239,11 +242,13 @@ export async function findSealedControls(
 
   const settings = loadShadowWalkSettings();
   const componentsEnabled = settings.shadow.componentSurface;
+  const styleMatch = settings.shadow.cdpStyleMatch;
   const key = [
     main.loaderId || main.url,
     frames.map((f) => `${f.frameId}:${f.depth}:${f.url}`).join(','),
     options.revision ?? 0,
     componentsEnabled ? 'components' : 'plain',
+    styleMatch ? 'styles' : 'best-effort',
   ].join('|');
 
   const cache = caches.get(wc);
@@ -271,6 +276,19 @@ export async function findSealedControls(
     const axEnabled = new Set<string | undefined>();
     const cssEnabled = new Set<string | undefined>();
     const surfaceCache = new Map<number, ComponentSurface>();
+    const styleHeaders = new Map<string, { sourceURL?: string; isConstructed?: boolean }>();
+    const onDebugMessage = (...args: any[]) => {
+      const method = args[1] || args[0]?.method;
+      const params = args[2] || args[0]?.params;
+      const header = params?.header;
+      if (method === 'CSS.styleSheetAdded' && header?.styleSheetId) {
+        styleHeaders.set(String(header.styleSheetId), {
+          sourceURL: header.sourceURL ? String(header.sourceURL) : undefined,
+          isConstructed: header.isConstructed === true,
+        });
+      }
+    };
+    if (styleMatch) (dbg as any).on('message', onDebugMessage);
     clearSealedTokens(wc);
     const docCache = new Map<string, any>();
 
@@ -400,6 +418,13 @@ export async function findSealedControls(
             await send(session, 'Accessibility.enable');
             axEnabled.add(session);
           }
+          if (styleMatch && !cssEnabled.has(session)) {
+            await send(session, 'CSS.enable').catch(() => undefined);
+            cssEnabled.add(session);
+            // The styleSheetAdded events for existing sheets are emitted after enable; give them
+            // one turn before matched-style lookups.
+            await new Promise((resolve) => setTimeout(resolve, 40));
+          }
           bump('cdp.ax');
           const ax = await send(session, 'Accessibility.getFullAXTree', { frameId: frame.frameId });
           const closed = collectClosed(root);
@@ -434,6 +459,44 @@ export async function findSealedControls(
 
       bump('sealed.scan');
       bump('sealed.nodes', identities.length);
+
+      if (styleMatch && identities.length) {
+        const groups = new Map<string | undefined, Identity[]>();
+        for (const identity of identities) {
+          const frame = frames[identity.frameIndex];
+          const session = sessionFor(frame);
+          const bucket = groups.get(session);
+          if (bucket) bucket.push(identity);
+          else groups.set(session, [identity]);
+        }
+        for (const [session, list] of groups) {
+          try {
+            const pushed = await send(session, 'DOM.pushNodesByBackendIdsToFrontend', {
+              backendNodeIds: list.map((identity) => identity.backendNodeId),
+            });
+            const nodeIds: number[] = pushed?.nodeIds || [];
+            for (let i = 0; i < list.length; i++) {
+              const nodeId = nodeIds[i];
+              if (!nodeId) continue;
+              const matched = await send(session, 'CSS.getMatchedStylesForNode', { nodeId }).catch(() => null);
+              for (const entry of matched?.matchedCSSRules || []) {
+                const sheetId = entry?.rule?.styleSheetId;
+                const header = sheetId ? styleHeaders.get(String(sheetId)) : undefined;
+                if (!header) continue;
+                list[i].style = {
+                  sourceUrl: header.sourceURL || undefined,
+                  constructed: header.isConstructed === true ? true : undefined,
+                };
+                break;
+              }
+            }
+          } catch {
+            // Provenance is best-effort; the control result is still valid.
+          }
+        }
+        bump('sealed.styleLookups', identities.length);
+      }
+
       if (!identities.length) notes.push('No controls were found inside closed shadow roots.');
       caches.set(wc, { key, at: Date.now(), identities, notes, frames: frames.length });
     } catch (err) {
@@ -446,6 +509,7 @@ export async function findSealedControls(
       for (const session of cssEnabled) {
         await send(session, 'CSS.disable').catch(() => undefined);
       }
+      if (styleMatch) (dbg as any).removeListener('message', onDebugMessage);
       for (const sessionId of opened) {
         await dbg.sendCommand('Target.detachFromTarget', { sessionId } as any).catch(() => undefined);
       }
@@ -535,6 +599,7 @@ export async function findSealedControls(
         focusable: id.focusable || undefined,
         focused: id.focused || undefined,
         component: id.component,
+        style: id.style,
         token: issueSealedToken(wc, id.backendNodeId, frame.frameId) || undefined,
       });
     }

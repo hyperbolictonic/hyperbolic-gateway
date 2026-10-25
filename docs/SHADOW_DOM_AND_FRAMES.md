@@ -181,7 +181,7 @@ Recipes store the signature on a step. Replay verifies it **before** acting:
 - `componentSurface` off in Settings → `409 SIGNATURE_UNAVAILABLE` (not a silent click)
 
 Limits: signatures are read from the **host**, so they cover page-visible hosts. Sealed and iframe
-controls now carry the same surface; `partHighlight` and `cdpStyleMatch` are not built.
+controls carry the same surface. `partHighlight` and `cdpStyleMatch` are described below.
 
 ### Limits
 
@@ -307,6 +307,15 @@ frame's top-level rect is added before the humanized click.
 - Main-frame marks remain 1–99; the blocks never collide.
 - `find` without `include_frames` is unchanged (main-frame only).
 
+### Visual / style provenance (1.4.101)
+
+- **`partHighlight`** (VISIBLE, off) collects `part`/`exportparts` from open shadow hosts, injects
+  `tag::part(name){outline:…}` only for the duration of one screenshot, then removes the style.
+  Closed roots are not enumerable by page JS; force-open or sealed discovery is the separate path.
+- **`cdpStyleMatch`** (COST, off) captures `CSS.styleSheetAdded` headers and runs
+  `CSS.getMatchedStylesForNode` for sealed controls. Each result may carry
+  `style: {sourceUrl, constructed}`; bundled apps often report no URL, so the fields are optional.
+
 ### Limits
 
 - **`observe`/`extract` are main-frame only.** `find` is main-frame by default; pass
@@ -337,9 +346,8 @@ Closed roots, frames, Tab entry, signatures, frame mark ids and force-open are s
 work is polish/optimization:
 
 1. **Clone Lab** is still a proposal ([`TODO.md`](./TODO.md) item 18).
-2. `partHighlight` and `cdpStyleMatch` remain off/unbuilt; they are additive polish, not blockers.
-3. `observe`/`extract` are still main-frame only; `find(include_frames)` and frame mark ids cover
-   the frame path.
+2. `observe`/`extract` are still main-frame only; `find(include_frames)` and frame mark ids cover
+   the targeting path.
 
 Force-open is the one detectably risky path: off by default, opt-in per run, confirmed in Settings,
 and called out by a red chip. See [`SHADOW_WALK.md`](./SHADOW_WALK.md).

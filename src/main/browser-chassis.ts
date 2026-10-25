@@ -22,6 +22,7 @@ import { clearFrameMarks, registerFrameMarks, resolveFrameMark } from './browser
 import { findSealedControls, type SealedFindOptions, type SealedFindResult } from './shadow-walk/ax-controls.js';
 import { runTabWalk, type TabWalkOptions, type TabWalkResult } from './shadow-walk/tab-walk.js';
 import { resolveSealedToken as resolveSealedTarget } from './shadow-walk/sealed-targets.js';
+import { withPartHighlight } from './shadow-walk/part-highlight.js';
 import { loadShadowWalkSettings, shadowWalkRefusal, type ShadowWalkSurface } from './shadow-walk/settings.js';
 import {
   syncForceOpen,
@@ -1500,27 +1501,29 @@ export class BrowserChassis {
     bounds: { x: number; y: number; width: number; height: number },
     maxRetries: number = 3
   ): Promise<Electron.NativeImage> {
-    let lastError: any = null;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        return await wc.capturePage({
-          x: 0,
-          y: 0,
-          width: Math.max(1, bounds.width),
-          height: Math.max(1, bounds.height),
-        });
-      } catch (err: any) {
-        lastError = err;
-        const msg = String(err?.message || err);
-        if (attempt < maxRetries - 1 && (msg.includes('Viz') || msg.includes('compositor') || msg.includes('Gpu') || msg.includes('GPU'))) {
-          this.addLog('warn', `Transient capturePage hitch (${msg}). Retrying in 120ms (attempt ${attempt + 1}/${maxRetries})...`);
-          await new Promise((r) => setTimeout(r, 120));
-          continue;
+    return withPartHighlight(wc, async () => {
+      let lastError: any = null;
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          return await wc.capturePage({
+            x: 0,
+            y: 0,
+            width: Math.max(1, bounds.width),
+            height: Math.max(1, bounds.height),
+          });
+        } catch (err: any) {
+          lastError = err;
+          const msg = String(err?.message || err);
+          if (attempt < maxRetries - 1 && (msg.includes('Viz') || msg.includes('compositor') || msg.includes('Gpu') || msg.includes('GPU'))) {
+            this.addLog('warn', `Transient capturePage hitch (${msg}). Retrying in 120ms (attempt ${attempt + 1}/${maxRetries})...`);
+            await new Promise((r) => setTimeout(r, 120));
+            continue;
+          }
+          throw err;
         }
-        throw err;
       }
-    }
-    throw lastError;
+      throw lastError;
+    });
   }
 
   public async takeScreenshot(opts: {

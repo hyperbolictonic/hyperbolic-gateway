@@ -15,9 +15,25 @@
  * Requires the Cyberdeck app (bridge on 127.0.0.1:4111). Prints SKIP and exits 0 when it is down.
  */
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { SHADOW_WALK_SETTINGS_FILE, DEFAULT_SHADOW_WALK_SETTINGS } from '../src/main/shadow-walk/settings.ts';
 
 const BRIDGE = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function writeSettings(patch = {}) {
+  const base = structuredClone(DEFAULT_SHADOW_WALK_SETTINGS);
+  const merged = {
+    ...base,
+    ...patch,
+    shadow: { ...base.shadow, ...(patch.shadow || {}) },
+    frames: { ...base.frames, ...(patch.frames || {}) },
+    cloneLab: { ...base.cloneLab },
+  };
+  fs.mkdirSync(path.dirname(SHADOW_WALK_SETTINGS_FILE), { recursive: true });
+  fs.writeFileSync(SHADOW_WALK_SETTINGS_FILE, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+}
 
 async function call(pathname, method = 'GET', body) {
   const res = await fetch(`${BRIDGE}${pathname}`, {
@@ -88,6 +104,11 @@ class HostOne extends HTMLElement {
   constructor() {
     super();
     const root = this.attachShadow({ mode: 'closed' });
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync('button{color:rgb(1,2,3)}');
+      root.adoptedStyleSheets = [sheet];
+    } catch (e) {}
     root.innerHTML =
       '<style>:host{display:block;padding:10px}</style>' +
       '<button id="pay">Sealed Pay</button> ' +
@@ -134,8 +155,10 @@ async function main() {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
   };
 
+  const originalSettings = fs.existsSync(SHADOW_WALK_SETTINGS_FILE) ? fs.readFileSync(SHADOW_WALK_SETTINGS_FILE, 'utf8') : null;
   let tabId = null;
   try {
+    writeSettings();
     const created = await call('/tabs/new', 'POST', { url: `http://127.0.0.1:${port}/` });
     tabId = created?.tab?.id || null;
     await sleep(1600);
@@ -200,9 +223,9 @@ async function main() {
         payComponent?.cssVars?.includes('--brand'),
       JSON.stringify(payComponent || null)
     );
-    check('the first scan is not cached', found.sealedCached === false, `cached=${found.sealedCached}`);
 
     // --- cache --------------------------------------------------------------
+    check('the first scan is not cached', found.sealedCached === false, `cached=${found.sealedCached}`);
     const scansBefore = (await call('/metrics')).counters?.['sealed.scan'] || 0;
     const again = await call('/find', 'POST', { sealed: true, contains: 'Sealed', limit: 20 });
     const scansAfter = (await call('/metrics')).counters?.['sealed.scan'] || 0;
@@ -211,6 +234,16 @@ async function main() {
       again.sealedCached === true && scansAfter === scansBefore,
       `cached=${again.sealedCached} scans ${scansBefore}->${scansAfter}`
     );
+
+    writeSettings({ shadow: { cdpStyleMatch: true } });
+    const styled = await call('/find', 'POST', { sealed: true, name: 'Sealed Pay', refresh: true });
+    const styledPay = (styled.sealed || []).find((c) => c.name === 'Sealed Pay');
+    check(
+      'cdpStyleMatch reports constructed stylesheet provenance',
+      styledPay?.style?.constructed === true || !!styledPay?.style?.sourceUrl,
+      JSON.stringify(styledPay?.style || null)
+    );
+    writeSettings();
 
     // --- click a closed-root button ----------------------------------------
     const pay = (again.sealed || []).find((c) => c.name === 'Sealed Pay');
@@ -321,6 +354,8 @@ async function main() {
     );
   } finally {
     if (tabId) await call('/tabs/close', 'POST', { tab_id: tabId }).catch(() => {});
+    if (originalSettings === null) fs.rmSync(SHADOW_WALK_SETTINGS_FILE, { force: true });
+    else fs.writeFileSync(SHADOW_WALK_SETTINGS_FILE, originalSettings, 'utf8');
     server.close();
   }
 

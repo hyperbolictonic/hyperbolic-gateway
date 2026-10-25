@@ -95,6 +95,8 @@ export interface ShadowWalkStatus {
   enabled: boolean;
   axSealed: boolean;
   componentSurface: boolean;
+  partHighlight: boolean;
+  cdpStyleMatch: boolean;
   tabWalk: boolean;
   tabWalkMaxSteps: number;
   tabWalkRestoreFocus: boolean;
@@ -223,6 +225,8 @@ export function shadowWalkStatus(settings: ShadowWalkSettings = loadShadowWalkSe
     enabled: settings.enabled,
     axSealed: settings.shadow.axSealed,
     componentSurface: settings.shadow.componentSurface,
+    partHighlight: settings.shadow.partHighlight,
+    cdpStyleMatch: settings.shadow.cdpStyleMatch,
     tabWalk: settings.shadow.tabWalk,
     tabWalkMaxSteps: settings.shadow.tabWalkMaxSteps,
     tabWalkRestoreFocus: settings.shadow.tabWalkRestoreFocus,

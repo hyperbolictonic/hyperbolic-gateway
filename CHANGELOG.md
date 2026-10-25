@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.101] - 2026-10-25
+
+### Added
+
+- **`partHighlight`** (VISIBLE, off). Before each capture, collect the exported parts of open
+  custom-element hosts, inject `tag::part(name){outline:…}`, take the screenshot, then remove the
+  style. Closed roots are not page-enumerable; force-open is the separate path. A pure rule builder
+  is unit-tested; a live shot verifies the capture path.
+- **`cdpStyleMatch`** (COST, off). Captures `CSS.styleSheetAdded` headers and runs
+  `CSS.getMatchedStylesForNode` for sealed controls. Sealed results may carry
+  `style: {sourceUrl, constructed}`. Best-effort: bundled apps often expose no URL.
+- Settings → Shadow Walk exposes both levers with `VISIBLE`/`COST` badges; `/health.shadowWalk`
+  reports them.
+- Tests: `npm run test:parthighlight` (2), `test:sealed` now 21 (constructed stylesheet provenance),
+  `test:component` 12 (part-highlight capture path).
+
 ## [1.4.100] - 2026-10-25
 
 ### Fixed

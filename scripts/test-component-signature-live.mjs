@@ -141,6 +141,10 @@ async function main() {
     const openOff = await req('/find', 'POST', { name: 'Open Shadow Action' });
     check('deepOpenRoots off keeps marks in the light DOM', (openOff.count || 0) === 0, `count=${openOff.count}`);
     writeSettings();
+    writeSettings({ shadow: { partHighlight: true } });
+    const highlightedShot = await req('/screenshot?max_width=320');
+    check('partHighlight does not break a screenshot capture', highlightedShot.status === 200 && !!highlightedShot.screenshot?.base64Image, `status=${highlightedShot.status}`);
+    writeSettings();
 
     writeSettings({ shadow: { componentSurface: false } });
     const without = await req('/observe', 'POST', { as: 'components' });
