@@ -16,6 +16,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.90] - 2026-10-25
+
+### Fixed
+
+- **Cross-site iframes are visible.** Chromium omits an out-of-process (OOPIF) iframe from the
+  tab's `Page.getFrameTree`. 1.4.89 derived the frame list from that tree only, so `frames`, frame
+  evaluation, in-frame controls and frame screenshots silently skipped cross-site children. The
+  1.4.89 suite did not catch it because its "cross-origin" fixture used two ports on `127.0.0.1` —
+  cross-origin, but same-site, so Chromium kept it in-process.
+- `src/main/browser/frame-tree.ts` now merges the parent tree with detached `iframe` targets:
+  attach with `Target.attachToTarget({flatten:true})`, read the target's frame tree, keep only
+  targets whose parent is a frame in this tab, and resolve nested OOPIFs to a fixpoint. Sessions are
+  detached in `finally`; the page is never paused and sees nothing.
+- Geometry still comes from the parent: `DOM.getFrameOwner` on the parent session, then a
+  `getBoundingClientRect` measurement of the `<iframe>` owner. Offsets compose for nested frames,
+  and the result is unchanged for same-site frames.
+- `FrameInfo` gains `oopif` and `targetId`; `FrameEvalResult` gains `oopif` so a caller can tell
+  which path produced the value.
+
+### Changed
+
+- Frame evaluation creates its isolated world and runs `Runtime.evaluate` on the frame's own
+  session. OOPIF context ids are not cached across scans because the session is per call; same-site
+  frames keep the existing document-scoped cache.
+- The live DOM suite now serves the child on `127.0.0.2` while the page stays on `127.0.0.1`, so
+  every frame check exercises a real OOPIF: frame eval, in-frame controls, consent, the offset click
+  and the cropped screenshot (25 checks).
+
 ## [1.4.89] - 2026-10-25
 
 ### Added

@@ -8,7 +8,7 @@
  *   /frames           — iframe geometry, in-frame controls offset to the page, frame screenshots
  *
  * Fixture: a card div with an inline onclick (no role), a button covered by an overlay, a plain
- * button, and an iframe served from a second port (a different origin).
+ * button, and an iframe served from a different hostname (cross-site, so out-of-process/OOPIF).
  *
  * Requires the Cyberdeck app (bridge on 127.0.0.1:4111). Prints SKIP and exits 0 when it is down.
  *
@@ -80,20 +80,22 @@ async function main() {
   await call('/window/visibility', 'POST', { visible: true });
   await sleep(300);
 
-  // Child frames on their own port: same host, different origin.
+  // Cross-site child frames: a different loopback IP from the top document. Chromium treats a
+  // different host as a different site, so the frame runs out-of-process (OOPIF) and is absent
+  // from the tab's Page.getFrameTree.
   const childServer = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(String(req.url || '').includes('consent') ? CONSENT_CHILD : CHILD);
   });
-  await new Promise((r) => childServer.listen(0, '127.0.0.1', r));
+  await new Promise((r) => childServer.listen(0, '0.0.0.0', r));
   const childPort = childServer.address().port;
 
   const mainServer = http.createServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(
-      MAIN.replace('CHILD_URL', `http://127.0.0.1:${childPort}/child.html`).replace(
+      MAIN.replace('CHILD_URL', `http://127.0.0.2:${childPort}/child.html`).replace(
         'CONSENT_URL',
-        `http://127.0.0.1:${childPort}/consent.html`
+        `http://127.0.0.2:${childPort}/consent.html`
       )
     );
   });
@@ -162,7 +164,7 @@ async function main() {
     // --- frame-scoped consent (Phase 3) -------------------------------------
     const consent = await call('/shield/dismiss', 'POST', {}).catch((e) => ({ error: String(e) }));
     check(
-      'consent inside a cross-origin iframe is answered',
+      'consent inside a cross-site iframe is answered',
       consent?.result?.dismissed === true && consent?.result?.frame === 'child',
       consent?.result ? `${consent.result.intent} via ${consent.result.delivery}, frame=${consent.result.frame}` : String(consent?.error || '')
     );
@@ -208,9 +210,9 @@ async function main() {
     const childFrame = frames.find((f) => /Probe Child/.test(f.value?.title || ''));
     check('frame eval reads the main frame', !!mainFrame && mainFrame.ok === true, mainFrame ? `buttons=${mainFrame.value.buttons}` : `${frames.length} frames`);
     check(
-      'frame eval reads a cross-origin child frame',
-      !!childFrame && childFrame.ok === true && childFrame.value?.buttons === 1,
-      childFrame ? `${childFrame.url} buttons=${childFrame.value?.buttons}` : 'child frame missing'
+      'frame eval reads a cross-site child frame',
+      !!childFrame && childFrame.ok === true && childFrame.value?.buttons === 1 && childFrame.oopif === true,
+      childFrame ? `${childFrame.url} buttons=${childFrame.value?.buttons} oopif=${childFrame.oopif}` : 'child frame missing'
     );
     check(
       'frame eval reports per-frame failures instead of throwing',
@@ -228,10 +230,13 @@ async function main() {
     const infos = Array.isArray(inventory.frames) ? inventory.frames : [];
     const childInfo = infos.find((f) => f.depth > 0 && /child\.html/.test(String(f.url || '')));
     check(
-      'frames lists a cross-origin child with top-level geometry',
-      !!childInfo && childInfo.crossOrigin === true && childInfo.rect.width > 300 && childInfo.rect.height > 150,
-      childInfo ? `${childInfo.rect.width}x${childInfo.rect.height} @ (${childInfo.rect.x}, ${childInfo.rect.y})` : 'missing'
+      'frames lists a cross-site (OOPIF) child with top-level geometry',
+      !!childInfo && childInfo.crossOrigin === true && childInfo.oopif === true && childInfo.rect.width > 300 && childInfo.rect.height > 150,
+      childInfo ? `${childInfo.rect.width}x${childInfo.rect.height} @ (${childInfo.rect.x}, ${childInfo.rect.y}) oopif=${childInfo.oopif}` : 'missing'
     );
+
+    const childAppearances = infos.filter((f) => f.depth > 0 && /child\.html/.test(String(f.url || ''))).length;
+    check('the cross-site child appears exactly once', childAppearances === 1, `${childAppearances} entries`);
 
     const childControls = Array.isArray(childInfo?.controls) ? childInfo.controls : [];
     const childBtn = childControls.find((c) => /Child accept/.test(c.name || ''));

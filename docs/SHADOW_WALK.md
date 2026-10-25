@@ -91,7 +91,7 @@ The invariant is testable, not aspirational — the metrics registry already cou
 | surface | open shadow | closed shadow | iframe |
 |---|---|---|---|
 | `observe(markdown)` / `extract` | ✅ today | ❌ | ❌ |
-| `find` | ✅ today | ✅ **P1** (AX, no mark id) | ✅ same-site today · **P0** cross-site |
+| `find` | ✅ today | ✅ **P1** (AX, no mark id) | ✅ today (same-site and OOPIF) |
 | `act(x, y)` | ✅ today | ✅ **P1** | ✅ today |
 | `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ❌ |
 | type / press | ✅ today | ✅ **P1** (coordinate click focuses inside) | ✅ today |
@@ -108,7 +108,8 @@ same host, or the same registrable domain) in the page's process, so the parent'
 `Page.getFrameTree` lists it and `getFullAXTree({frameId})` can read it. A cross-site iframe runs
 out-of-process (OOPIF): the parent's frame tree **omits it**, and it appears only as an `iframe`
 target. The 1.4.89 `frames` tests used two ports on `127.0.0.1` — cross-origin, same-site — so they
-never exercised the OOPIF path. **P0** closes that gap before P1 builds on the frame list.
+never exercised the OOPIF path. **P0** closed that gap in 1.4.90, before P1 builds on the frame
+list.
 
 ---
 
@@ -175,7 +176,7 @@ it asks.
 
 ## Phases
 
-### P0 — `1.4.90` Cross-site frames (the foundation P1 sits on)
+### P0 — `1.4.90` Cross-site frames — **shipped**
 
 - `frames.ts`: merge the parent frame tree with detached `iframe` targets. Attach each target
   (`Target.attachToTarget({flatten:true})`), read its root frame (`Page.getFrameTree` in that

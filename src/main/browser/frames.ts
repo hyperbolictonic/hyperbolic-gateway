@@ -12,12 +12,13 @@
  *     on the owner works even when the child cannot be touched;
  *   - the frame tree gives parentage, so nested frames compose instead of falling back to
  *     "in-frame activation";
- *   - `Page.getFrameTree` is the same source `evaluateInFrames` uses, so ids line up.
+ *   - cross-site frames are out-of-process and absent from the tab's `Page.getFrameTree`, so
+ *     `frame-tree.ts` merges the detached `iframe` targets first.
  *
- * Bounded and opt-in: four CDP commands per frame. Never call this on a hot path.
+ * Bounded and opt-in: a handful of CDP commands per frame. Never call this on a hot path.
  */
 import type { WebContents } from 'electron';
-import { bump } from '../metrics.js';
+import { discoverFrames } from './frame-tree.js';
 
 export interface FrameRect {
   x: number;
@@ -39,35 +40,12 @@ export interface FrameInfo {
   visibleRect: FrameRect | null;
   /** Unreachable from the top document (different origin). */
   crossOrigin: boolean;
+  /** Hosted by a separate CDP target (cross-site / OOPIF). */
+  oopif: boolean;
+  /** Target that hosts an OOPIF frame, when `oopif`. */
+  targetId?: string;
   /** Why this frame has no geometry, when that is the case. */
   error?: string;
-}
-
-const MAX_FRAMES = 16;
-
-interface TreeFrame {
-  id: string;
-  parentId?: string;
-  depth: number;
-  url: string;
-  name: string;
-}
-
-function flatten(tree: any, parentId: string | undefined = undefined, depth = 0, out: TreeFrame[] = []): TreeFrame[] {
-  const frame = tree?.frame;
-  if (frame?.id) {
-    out.push({
-      id: frame.id,
-      parentId,
-      depth,
-      url: String(frame.url || ''),
-      name: String(frame.name || ''),
-    });
-  }
-  for (const child of tree?.childFrames || []) {
-    flatten(child, frame?.id || parentId, depth + 1, out);
-  }
-  return out;
 }
 
 function originOf(url: string): string | null {
@@ -93,21 +71,17 @@ function intersect(rect: FrameRect, bounds: FrameRect): FrameRect | null {
  */
 export async function listFrames(wc: WebContents, opts: { maxFrames?: number } = {}): Promise<FrameInfo[]> {
   if (!wc || wc.isDestroyed()) return [];
-  const dbg = wc.debugger;
-  if (!dbg?.isAttached()) return [];
+  if (!wc.debugger?.isAttached()) return [];
 
-  const maxFrames = Math.max(1, Math.min(opts.maxFrames ?? 8, MAX_FRAMES));
+  const maxFrames = Math.max(1, Math.min(opts.maxFrames ?? 8, 16));
+  const ctx = await discoverFrames(wc, { maxFrames });
+  if (!ctx.frames.length) {
+    await ctx.release();
+    return [];
+  }
 
   try {
-    await dbg.sendCommand('Page.enable').catch(() => undefined);
-    await dbg.sendCommand('DOM.enable').catch(() => undefined);
-
-    bump('cdp.frame');
-    const tree = (await dbg.sendCommand('Page.getFrameTree')) as any;
-    const treeFrames = flatten(tree?.frameTree).slice(0, maxFrames);
-    if (!treeFrames.length) return [];
-
-    const metrics = (await dbg.sendCommand('Page.getLayoutMetrics')) as any;
+    const metrics = (await ctx.send(undefined, 'Page.getLayoutMetrics')) as any;
     const layout = metrics?.cssLayoutViewport || metrics?.layoutViewport || {};
     const viewport: FrameRect = {
       x: 0,
@@ -116,37 +90,41 @@ export async function listFrames(wc: WebContents, opts: { maxFrames?: number } =
       height: Number(layout.clientHeight) || 0,
     };
 
-    const mainUrl = treeFrames[0]?.url || '';
+    const mainUrl = ctx.frames.find((f) => f.depth === 0)?.url || '';
     const mainOrigin = originOf(mainUrl);
-    // Absolute origin per frame. Parents precede children in the tree, so one pass composes.
+    // Absolute origin per frame. Parents precede children, so one pass composes.
     const origins = new Map<string, { x: number; y: number }>();
     const out: FrameInfo[] = [];
 
-    for (const frame of treeFrames) {
+    for (const frame of ctx.frames) {
       if (frame.depth === 0) {
-        origins.set(frame.id, { x: 0, y: 0 });
+        origins.set(frame.frameId, { x: 0, y: 0 });
         out.push({
-          frameId: frame.id,
+          frameId: frame.frameId,
           depth: 0,
           url: frame.url,
           name: frame.name,
           rect: { ...viewport },
           visibleRect: viewport.width > 0 && viewport.height > 0 ? { ...viewport } : null,
           crossOrigin: false,
+          oopif: false,
         });
         continue;
       }
 
-      const parentOrigin = frame.parentId ? origins.get(frame.parentId) : undefined;
+      const parentOrigin = frame.parentFrameId ? origins.get(frame.parentFrameId) : undefined;
+      const parentSession = frame.parentFrameId ? ctx.sessionFor(frame.parentFrameId) : undefined;
       const base: FrameInfo = {
-        frameId: frame.id,
-        parentFrameId: frame.parentId,
+        frameId: frame.frameId,
+        parentFrameId: frame.parentFrameId,
         depth: frame.depth,
         url: frame.url,
         name: frame.name,
         rect: { x: 0, y: 0, width: 0, height: 0 },
         visibleRect: null,
         crossOrigin: !!mainOrigin && originOf(frame.url) !== null && originOf(frame.url) !== mainOrigin,
+        oopif: frame.oopif,
+        targetId: frame.targetId,
       };
 
       if (!parentOrigin) {
@@ -155,17 +133,18 @@ export async function listFrames(wc: WebContents, opts: { maxFrames?: number } =
       }
 
       try {
-        bump('cdp.frame');
-        const owner = (await dbg.sendCommand('DOM.getFrameOwner', { frameId: frame.id })) as any;
+        const owner = (await ctx.send(parentSession, 'DOM.getFrameOwner', { frameId: frame.frameId })) as any;
         if (!owner?.backendNodeId) throw new Error('frame has no owner element');
 
         // Resolve the <iframe> in its parent's document and measure it there. This is the only
-        // way to get a cross-origin frame's rect: the child is unreachable, its owner is not.
-        const resolved = (await dbg.sendCommand('DOM.resolveNode', { backendNodeId: owner.backendNodeId })) as any;
+        // way to get a cross-site frame's rect: the child is unreachable, its owner is not.
+        const resolved = (await ctx.send(parentSession, 'DOM.resolveNode', {
+          backendNodeId: owner.backendNodeId,
+        })) as any;
         const objectId = resolved?.object?.objectId;
         if (!objectId) throw new Error('owner element could not be resolved');
 
-        const measured = (await dbg.sendCommand('Runtime.callFunctionOn', {
+        const measured = (await ctx.send(parentSession, 'Runtime.callFunctionOn', {
           objectId,
           functionDeclaration: `function () {
             const r = this.getBoundingClientRect();
@@ -183,7 +162,6 @@ export async function listFrames(wc: WebContents, opts: { maxFrames?: number } =
         const local = measured?.result?.value;
         if (!local?.laidOut) {
           out.push({ ...base, error: 'frame is not laid out' });
-          origins.set(frame.id, { ...parentOrigin });
           continue;
         }
 
@@ -193,16 +171,18 @@ export async function listFrames(wc: WebContents, opts: { maxFrames?: number } =
           width: Math.round(Number(local.width) || 0),
           height: Math.round(Number(local.height) || 0),
         };
-        origins.set(frame.id, { x: rect.x, y: rect.y });
+        origins.set(frame.frameId, { x: rect.x, y: rect.y });
         out.push({ ...base, rect, visibleRect: intersect(rect, viewport) });
       } catch (err: any) {
+        // No origin fallback: a child of a failed frame must fail too, not silently inherit.
         out.push({ ...base, error: String(err?.message || err) });
-        origins.set(frame.id, { ...parentOrigin });
       }
     }
 
     return out;
-  } catch (err: any) {
+  } catch {
     return [];
+  } finally {
+    await ctx.release();
   }
 }
