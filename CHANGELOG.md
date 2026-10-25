@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.1] - 2026-10-25
+
+### Fixed
+
+- **Settings → Shadow Walk failed to load** with
+  `Cannot set properties of null (setting 'checked')`. The `Part outlines` control was missing from
+  `index.html` while the renderer still looked it up. Restored the toggle.
+- Added `scripts/test-settings-dom.mjs` (`npm run test:settings:dom`) and the same step in the guard
+  workflow: every static Settings/Shadow Walk `getElementById` target must exist in `index.html`.
+
 ## [1.5.0] - 2026-10-25
 
 The Shadow Walk milestone. The 1.4.9x series built the subsystem; this release calls the plan

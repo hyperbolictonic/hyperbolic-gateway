@@ -20,3 +20,5 @@ jobs:
         run: node scripts/check-no-local-paths.mjs
       - name: MCP catalog ↔ bridge contract
         run: node scripts/test-mcp-contract.mjs
+      - name: Settings DOM contract
+        run: node scripts/test-settings-dom.mjs
