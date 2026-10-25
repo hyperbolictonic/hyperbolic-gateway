@@ -31,6 +31,8 @@ export interface FrameEvalResult {
   url?: string;
   name?: string;
   ok: boolean;
+  /** 0 = main frame. */
+  depth?: number;
   /** Frame was hosted by a separate target (cross-site). */
   oopif?: boolean;
   value?: unknown;
@@ -103,7 +105,7 @@ export async function evaluateInFrames(
     for (const [index, frame] of ctx.frames.entries()) {
       const blank = !frame.url || frame.url === 'about:blank' || frame.url === 'about:srcdoc';
       if (blank && !includeBlank) {
-        results.push({ frameId: frame.frameId, url: frame.url, name: frame.name, oopif: frame.oopif, ok: false, error: 'blank frame skipped' });
+        results.push({ frameId: frame.frameId, url: frame.url, name: frame.name, depth: frame.depth, oopif: frame.oopif, ok: false, error: 'blank frame skipped' });
         continue;
       }
 
@@ -153,6 +155,7 @@ export async function evaluateInFrames(
             frameId: frame.frameId,
             url: frame.url,
             name: frame.name,
+            depth: frame.depth,
             oopif: frame.oopif,
             ok: false,
             error: detail?.exception?.description || detail?.text || 'frame exception',
@@ -163,6 +166,7 @@ export async function evaluateInFrames(
           frameId: frame.frameId,
           url: frame.url,
           name: frame.name,
+          depth: frame.depth,
           oopif: frame.oopif,
           ok: true,
           value: evaluated?.result?.value,
@@ -174,6 +178,7 @@ export async function evaluateInFrames(
           frameId: frame.frameId,
           url: frame.url,
           name: frame.name,
+          depth: frame.depth,
           oopif: frame.oopif,
           ok: false,
           error: String(err?.message || err),

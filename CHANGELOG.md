@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.103] - 2026-10-25
+
+### Added
+
+- **Frame-aware `extract`.** `extract(include_frames:true)` runs the same extraction script in each
+  child frame. The main result is unchanged; `frames[]` carries per-frame
+  `{frameId,url,oopif,ok,value|error}`. For `table`/`tables`, `frameRecords[]` merges records with
+  `frameId`/`frameUrl` while leaving the main rows intact.
+- Same-site and OOPIF frames both work through `evaluateInFrames`; each frame keeps its own
+  timeout/row limit. Main-frame mark refs are not used inside frames — the selector (or best
+  container) is.
+- HTTP/MCP `extract` expose `include_frames`, `max_frames`, `timeout_ms`; MCP text appends a
+  per-frame summary.
+- `test:framemarks` now 13 checks (tables and JSON-LD in both frame types).
+
 ## [1.4.102] - 2026-10-25
 
 ### Added

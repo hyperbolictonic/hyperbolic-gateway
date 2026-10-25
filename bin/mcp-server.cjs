@@ -37823,41 +37823,56 @@ ${data.text || "(no content)"}`;
       ref: external_exports.coerce.number().optional().describe("Scope to a mark id (from list_marks/find)"),
       selector: external_exports.string().optional().describe("Scope to a CSS selector (default: whole page)"),
       type: external_exports.string().optional().describe('schema_org only: filter to one schema.org @type (e.g. "Recipe")'),
-      limit: external_exports.coerce.number().optional().default(200).describe("Max rows/sources/items")
+      limit: external_exports.coerce.number().optional().default(200).describe("Max rows/sources/items"),
+      include_frames: external_exports.coerce.boolean().optional().default(false).describe("Also extract from child frames; returns per-frame results"),
+      max_frames: external_exports.coerce.number().optional().describe("Child frames to visit (default 6)"),
+      timeout_ms: external_exports.coerce.number().optional().describe("Per-frame extraction timeout (default 2000)")
     },
     endpoint: "/extract",
-    payload: (args) => ({ kind: args?.kind || "list", ref: args?.ref, selector: args?.selector, type: args?.type, limit: args?.limit }),
+    payload: (args) => ({ kind: args?.kind || "list", ref: args?.ref, selector: args?.selector, type: args?.type, limit: args?.limit, include_frames: args?.include_frames, max_frames: args?.max_frames, timeout_ms: args?.timeout_ms }),
     format: (data) => {
-      if (data.error) return `extract failed: ${data.error}`;
+      const frameSummary = Array.isArray(data.frames) && data.frames.length ? `
+
+# child frames (${data.frames.length})
+${data.frames.map((f) => {
+        if (!f.ok) return `- ${f.url || f.frameId}: ${f.error || "failed"}`;
+        const value = f.value || {};
+        if (value.kind === "table") return `- ${f.url || f.frameId}: ${value.count ?? (value.rows || []).length} rows`;
+        if (value.kind === "tables") return `- ${f.url || f.frameId}: ${(value.tables || []).length} tables`;
+        if (value.kind === "schema_org") return `- ${f.url || f.frameId}: ${value.count ?? (value.items || []).length} items`;
+        if (value.kind === "app_data") return `- ${f.url || f.frameId}: ${value.count ?? (value.sources || []).length} sources`;
+        return `- ${f.url || f.frameId}: ${value.count ?? (value.rows || []).length} rows`;
+      }).join("\n")}` : "";
+      if (data.error) return `extract failed: ${data.error}${frameSummary}`;
       if (data.kind === "table") {
         const head = (data.headers || []).join(" | ");
         const rows2 = (data.rows || []).map((r) => r.join(" | ")).join("\n");
         return `# table (${data.count} rows)
 ${head}
-${rows2}`;
+${rows2}${frameSummary}`;
       }
       if (data.kind === "tables") {
         const tables = data.tables || [];
-        if (!tables.length) return "No <table>/ARIA grid found on the page.";
+        if (!tables.length) return `No <table>/ARIA grid found on the page.${frameSummary}`;
         return tables.map((t) => `# table ${t.index} (${t.count} rows)
 ${(t.headers || []).join(" | ")}
-${(t.records || []).map((r) => Object.values(r).join(" | ")).join("\n")}`).join("\n\n");
+${(t.records || []).map((r) => Object.values(r).join(" | ")).join("\n")}`).join("\n\n") + frameSummary;
       }
       if (data.kind === "schema_org") {
         const items = data.items || [];
         const types = (data.types || []).join(", ") || "n/a";
-        if (!items.length) return `No JSON-LD (schema.org) items matched (types present: ${types}).`;
+        if (!items.length) return `No JSON-LD (schema.org) items matched (types present: ${types}).${frameSummary}`;
         const lines = items.map((it, i) => `${i + 1}. **${it.type}**${it.types?.length > 1 ? ` (${it.types.join("+")})` : ""}: ${JSON.stringify(it.data).slice(0, 600)}`);
         return `# schema_org (${data.count}/${data.total} items; types: ${types})
-${lines.join("\n")}`;
+${lines.join("\n")}${frameSummary}`;
       }
       if (data.kind === "app_data") {
         return `# app_data (${data.count} sources)
-` + (data.sources || []).map((s) => `${s.source} (${s.bytes}B, parsed=${s.parsed})`).join("\n");
+` + (data.sources || []).map((s) => `${s.source} (${s.bytes}B, parsed=${s.parsed})`).join("\n") + frameSummary;
       }
       const rows = (data.rows || []).map((r, i) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ""}${r.mark ? ` [#${r.mark}]` : ""}`);
       return `# list (${data.count} items${data.container?.sig ? `, container="${data.container.sig}"` : ""})
-${rows.join("\n")}`;
+${rows.join("\n")}${frameSummary}`;
     }
   },
   {
@@ -38385,7 +38400,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.102";
+var APP_VERSION = "1.4.103";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

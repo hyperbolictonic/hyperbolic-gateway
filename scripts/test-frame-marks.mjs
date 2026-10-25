@@ -27,6 +27,7 @@ async function call(pathname, method = 'GET', body) {
 const MAIN = (crossUrl) => `<!doctype html><html><head><title>Frame Marks</title></head>
 <body style="margin:0;padding:10px;font:16px sans-serif">
 <button id="main">Main button</button>
+<table><thead><tr><th>Main column</th></tr></thead><tbody><tr><td>Main row</td></tr></tbody></table>
 <iframe src="/same" width="420" height="150" style="display:block;border:1px solid #ccc"></iframe>
 <iframe src="${crossUrl}" width="420" height="150" style="display:block;border:1px solid #ccc"></iframe>
 </body></html>`;
@@ -37,6 +38,8 @@ const CHILD = (label, key) => `<!doctype html><html><head><title>${label}</title
   <button id="btn">${label} Button</button>
 </frame-widget>
 <input id="field" aria-label="${label} Field" />
+<table><thead><tr><th>Plan</th><th>Price</th></tr></thead><tbody><tr><td>${label}</td><td>10</td></tr></tbody></table>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"${label} Product"}</script>
 <script>
 class FrameWidget extends HTMLElement {}
 customElements.define('frame-widget', FrameWidget);
@@ -111,6 +114,24 @@ async function main() {
     const som = await call('/observe', 'POST', { as: 'som', include_frames: true, include_offscreen: true });
     const somMarks = (som.marks || []).filter((m) => typeof m.id === 'number' && m.id >= 100);
     check('observe(som) merges child-frame marks', somMarks.length >= 2, `frame marks=${somMarks.length}`);
+
+    const extracted = await call('/extract', 'POST', { kind: 'table', include_frames: true });
+    const extractFrames = Array.isArray(extracted.frames) ? extracted.frames : [];
+    check(
+      'extract(table) returns per-frame tables',
+      extractFrames.length >= 2 && extractFrames.every((f) => f.ok && f.value?.kind === 'table'),
+      extractFrames.map((f) => `${f.url}:${f.ok}`).join(' | ')
+    );
+    check(
+      'extract(table) exposes merged frameRecords with frame identity',
+      (extracted.frameRecords || []).length >= 2 && extracted.frameRecords.every((r) => r.frameId && r.frameUrl),
+      `${(extracted.frameRecords || []).length} records`
+    );
+
+    const ld = await call('/extract', 'POST', { kind: 'schema_org', type: 'Product', include_frames: true });
+    const ldFrames = Array.isArray(ld.frames) ? ld.frames : [];
+    const ldNames = ldFrames.flatMap((f) => f.value?.items || []).map((i) => i.data?.name);
+    check('extract(schema_org) reads JSON-LD inside frames', ldNames.includes('Same Frame Product') && ldNames.includes('Cross Frame Product'), ldNames.join(', '));
 
     if (same && cross) {
       await call('/act', 'POST', { mark_id: same.id, action: 'click' });

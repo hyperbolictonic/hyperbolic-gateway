@@ -306,8 +306,11 @@ frame's top-level rect is added before the humanized click.
 - `frames` exposes the same `id` on each control.
 - `observe(as:"som"|"components", include_frames:true)` merges the same marks/components; the
   decision loop can now see iframe affordances alongside page ones.
+- `extract(include_frames:true)` runs the same extraction per child frame. The main result is
+  unchanged; `frames[]` holds per-frame `{frameId,url,ok,value|error}`, and `table`/`tables` add
+  `frameRecords[]` tagged with `frameId`/`frameUrl`.
 - Main-frame marks remain 1–99; the blocks never collide.
-- `find` without `include_frames` is unchanged (main-frame only). `extract` remains main-frame only.
+- `find` without `include_frames` is unchanged (main-frame only).
 
 ### Visual / style provenance (1.4.101)
 
@@ -344,12 +347,8 @@ frame's top-level rect is added before the humanized click.
 
 ## What remains
 
-Closed roots, frames, Tab entry, signatures, frame mark ids and force-open are shipped. Remaining
-work is polish/optimization:
-
-1. **Clone Lab** is still a proposal ([`TODO.md`](./TODO.md) item 18).
-2. `extract` is still main-frame only; `observe(as:"som"|"components")`, `find(include_frames)` and
-   frame mark ids cover the observation/targeting paths.
+Remaining work is the **Clone Lab proposal** ([`TODO.md`](./TODO.md) item 18). The read/observe/
+extract/target paths now cover main documents, open/closed roots, same-site frames and OOPIFs.
 
 Force-open is the one detectably risky path: off by default, opt-in per run, confirmed in Settings,
 and called out by a red chip. See [`SHADOW_WALK.md`](./SHADOW_WALK.md).

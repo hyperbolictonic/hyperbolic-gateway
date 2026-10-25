@@ -264,6 +264,7 @@ export class BrowserChassis {
           ? resolveFrameMark(this.getActiveWebContents(), Number(id))
           : this.marksOverlay.getMarkTarget(this.getActiveWebContents(), id),
       getFrames: (opts) => this.getFrames(opts),
+      evaluateInFrames: (script, opts) => this.evaluateInFrames(script, opts),
       resolveSealedToken: (token) => resolveSealedTarget(this.getActiveWebContents(), token),
       clickMark: (id) => this.clickMark(id),
       typeMark: (id, text, opts) => this.typeMark(id, text, opts),

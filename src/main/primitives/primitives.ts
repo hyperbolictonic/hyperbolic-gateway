@@ -55,6 +55,17 @@ export interface PrimitivesHost {
   componentSurfaceEnabled?(): boolean;
   /** Optional frame scan for `find(include_frames)` / mark ids. */
   getFrames?(opts: any): Promise<{ frames: any[]; notes?: string[] }>;
+  /** Optional per-frame evaluation (used by extract(include_frames)). */
+  evaluateInFrames?(script: string, opts?: { maxFrames?: number; timeoutMs?: number }): Promise<Array<{
+    frameId: string;
+    url?: string;
+    name?: string;
+    depth?: number;
+    oopif?: boolean;
+    ok: boolean;
+    value?: any;
+    error?: string;
+  }>>;
   /** Resolve an opaque sealed token to a live, scrolled target centre. */
   resolveSealedToken?(token: string): Promise<{ center: { x: number; y: number }; rect: { x: number; y: number; width: number; height: number }; frameId: string } | null>;
   clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string>;
@@ -175,6 +186,10 @@ export interface ExtractOptions {
   /** schema_org only: filter to a single schema.org @type (case-insensitive, e.g. "Recipe"). */
   type?: string;
   limit?: number;
+  /** Also run the extraction in child frames and return per-frame results. */
+  includeFrames?: boolean;
+  maxFrames?: number;
+  timeoutMs?: number;
 }
 
 export interface CollectOptions {
@@ -970,6 +985,46 @@ export class Primitives {
     });
     const res = await this.host.evaluate(script).catch((e) => ({ error: String(e?.message || e), kind: opts.kind }));
     this.host.log('action', `MCP Directive: extract(${opts.kind})${opts.type ? ` type=${opts.type}` : ''}${opts.ref !== undefined ? ` ref=#${opts.ref}` : ''}${opts.selector ? ` selector=${opts.selector}` : ''}`);
+
+    if (opts.includeFrames && this.host.evaluateInFrames) {
+      // A main-frame mark ref cannot address a child document; the frame scan uses the selector
+      // (or the frame's best container when there is none).
+      const frameScript = buildExtractScript({
+        kind: opts.kind,
+        selector: opts.selector,
+        type: opts.type,
+        limit: opts.limit,
+      });
+      const evaluated = await this.host
+        .evaluateInFrames(frameScript, { maxFrames: opts.maxFrames ?? 6, timeoutMs: opts.timeoutMs ?? 2000 })
+        .catch(() => []);
+      const frames: any[] = (evaluated || [])
+        .filter((frame) => (frame.depth ?? 1) > 0)
+        .map((frame) => ({
+          frameId: frame.frameId,
+          url: frame.url,
+          name: frame.name,
+          oopif: frame.oopif === true,
+          ok: frame.ok === true,
+          ...(frame.ok ? { value: frame.value } : { error: frame.error }),
+        }));
+      res.frames = frames;
+      res.frameCount = frames.length;
+
+      if (opts.kind === 'table' || opts.kind === 'tables') {
+        const frameRecords: any[] = [];
+        for (const frame of frames) {
+          if (!frame.ok || !frame.value) continue;
+          const tables = opts.kind === 'tables' ? frame.value.tables || [] : [frame.value];
+          for (const table of tables) {
+            for (const record of table.records || []) {
+              frameRecords.push({ frameId: frame.frameId, frameUrl: frame.url, ...record });
+            }
+          }
+        }
+        if (frameRecords.length) res.frameRecords = frameRecords;
+      }
+    }
     return res;
   }
 
