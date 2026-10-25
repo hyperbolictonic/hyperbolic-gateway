@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.96] - 2026-10-25
+
+### Fixed
+
+- **Force-open panel no longer overflows the Settings viewport.** The daisyUI `.fieldset` grid
+  track used `1fr`, whose automatic minimum is min-content; the long force-open copy pushed it to
+  ~1100px inside a 768px panel. The Shadow Walk fieldsets now use `minmax(0,1fr)` with `min-w-0`,
+  and the explanatory paragraph is a normal block with `whitespace-normal` (daisyUI's `.label` sets
+  `nowrap`). The text wraps in place and the red box stays within the panel.
+
 ## [1.4.95] - 2026-10-25
 
 ### Added

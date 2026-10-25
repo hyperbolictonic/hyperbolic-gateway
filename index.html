@@ -440,7 +440,7 @@
         </div>
 
         <form id="settings-shadow-form" class="mt-5 space-y-6">
-          <fieldset class="fieldset rounded border border-base-100 bg-base-100/30 p-4">
+          <fieldset class="fieldset min-w-0 w-full max-w-full rounded border border-base-100 bg-base-100/30 p-4" style="grid-template-columns:minmax(0,1fr)">
             <legend class="fieldset-legend font-mono text-xs flex items-center gap-2">
               SHADOW DOM <span class="badge badge-success badge-xs font-mono">SAFE</span>
             </legend>
@@ -475,7 +475,7 @@
             </div>
           </fieldset>
 
-          <fieldset class="fieldset rounded border border-base-100 bg-base-100/30 p-4">
+          <fieldset class="fieldset min-w-0 w-full max-w-full rounded border border-base-100 bg-base-100/30 p-4" style="grid-template-columns:minmax(0,1fr)">
             <legend class="fieldset-legend font-mono text-xs flex items-center gap-2">
               IFRAMES <span class="badge badge-success badge-xs font-mono">SAFE</span>
             </legend>
@@ -509,23 +509,23 @@
             </div>
           </fieldset>
 
-          <fieldset class="fieldset rounded border border-error/50 bg-error/5 p-4">
+          <fieldset class="fieldset min-w-0 w-full max-w-full rounded border border-error/50 bg-error/5 p-4" style="grid-template-columns:minmax(0,1fr)">
             <legend class="fieldset-legend font-mono text-xs flex items-center gap-2">
               FORCE-OPEN <span class="badge badge-error badge-xs font-mono">RISKY</span>
             </legend>
-            <label class="flex items-center justify-between gap-3 py-1.5">
-              <span class="text-xs">Patch <code class="font-mono">attachShadow</code> at document start
+            <label class="flex min-w-0 items-center justify-between gap-3 py-1.5">
+              <span class="min-w-0 text-xs">Patch <code class="font-mono">attachShadow</code> at document start
                 <span class="text-base-content/50">— closed becomes open; detectable by design</span></span>
               <input id="shadow-force-open" type="checkbox" class="toggle toggle-sm toggle-error" />
             </label>
-            <p class="label font-mono text-[10px] text-error/80">
+            <p class="mt-1 whitespace-normal font-mono text-[10px] leading-relaxed text-error/80">
               Changes page semantics and is visible to the page. Applies on the next navigation;
               disabling stops future documents but the current one stays patched until reload.
               Off by default; no <code class="font-mono">toString</code> forgery.
             </p>
             <div class="flex flex-wrap items-center gap-2 pt-1">
               <button type="button" id="settings-shadow-detect" class="btn btn-sm btn-outline btn-error font-mono text-xs">RUN DETECTION TEST</button>
-              <span id="settings-shadow-detect-result" class="hidden alert alert-sm font-mono text-[10px]"></span>
+              <span id="settings-shadow-detect-result" class="hidden alert alert-sm font-mono text-[10px] break-words whitespace-normal min-w-0"></span>
             </div>
           </fieldset>
 
