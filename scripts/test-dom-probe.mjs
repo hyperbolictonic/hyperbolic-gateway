@@ -2,9 +2,10 @@
 /**
  * DOM probe foundation test (live bridge).
  *
- * Covers the two reusable pieces added in 1.4.82:
+ * Covers the reusable control/frame pieces:
  *   /dom/facts        — one injected expression describing controls (marks/find/guard/recipes)
  *   /evaluate{frames} — CDP isolated worlds, so cross-origin child frames are readable
+ *   /frames           — iframe geometry, in-frame controls offset to the page, frame screenshots
  *
  * Fixture: a card div with an inline onclick (no role), a button covered by an overlay, a plain
  * button, and an iframe served from a second port (a different origin).
@@ -48,7 +49,7 @@ const MAIN = `<!doctype html>
 </body></html>`;
 
 const CHILD = `<!doctype html><html><head><title>Probe Child</title></head>
-<body><h1>Child frame</h1><button id="child-btn">Child accept</button></body></html>`;
+<body><h1>Child frame</h1><button id="child-btn" onclick="document.documentElement.setAttribute('data-child-clicked','1')">Child accept</button></body></html>`;
 
 const CONSENT_CHILD = `<!doctype html><html><head><title>Consent Child</title></head>
 <body style="margin:0;font:14px sans-serif;background:#fff">
@@ -220,6 +221,50 @@ async function main() {
       'blank frames are skipped by default',
       frames.every((f) => !f.ok || !/^about:/.test(String(f.url || ''))),
       frames.filter((f) => /^about:/.test(String(f.url || ''))).length + ' blank'
+    );
+
+    // --- /frames: iframes as first-class content ----------------------------
+    const inventory = await call('/frames', 'POST', { include_controls: true, max_frames: 6 });
+    const infos = Array.isArray(inventory.frames) ? inventory.frames : [];
+    const childInfo = infos.find((f) => f.depth > 0 && /child\.html/.test(String(f.url || '')));
+    check(
+      'frames lists a cross-origin child with top-level geometry',
+      !!childInfo && childInfo.crossOrigin === true && childInfo.rect.width > 300 && childInfo.rect.height > 150,
+      childInfo ? `${childInfo.rect.width}x${childInfo.rect.height} @ (${childInfo.rect.x}, ${childInfo.rect.y})` : 'missing'
+    );
+
+    const childControls = Array.isArray(childInfo?.controls) ? childInfo.controls : [];
+    const childBtn = childControls.find((c) => /Child accept/.test(c.name || ''));
+    check(
+      'frames describes a control inside the child frame',
+      !!childBtn && childBtn.rect.width > 20,
+      childBtn ? `<${childBtn.tag}> "${childBtn.name}" @ (${childBtn.rect.x}, ${childBtn.rect.y}) ${childBtn.rect.width}x${childBtn.rect.height}` : 'not found'
+    );
+
+    // The offset has to be real, not just plausible: click the reported centre and let the
+    // child document confirm it received the click.
+    if (childBtn) {
+      const cx = Math.round(childBtn.rect.x + childBtn.rect.width / 2);
+      const cy = Math.round(childBtn.rect.y + childBtn.rect.height / 2);
+      await call('/act', 'POST', { x: cx, y: cy, action: 'click' });
+      const landed = await call('/evaluate', 'POST', {
+        frames: true,
+        max_frames: 6,
+        script: `document.documentElement.getAttribute('data-child-clicked')`,
+      });
+      const clicked = (landed.frames || []).some((f) => f.ok && f.value === '1');
+      check('clicking the reported frame-control centre lands in the child', clicked, `clicked (${cx}, ${cy})`);
+    } else {
+      check('clicking the reported frame-control centre lands in the child', false, 'no child control to click');
+    }
+
+    const shots = await call('/frames', 'POST', { include_controls: false, screenshots: true, max_frames: 6 });
+    const childShot = (shots.images || []).find((img) => /child\.html/.test(String(img.url || '')));
+    const aspect = childShot ? childShot.width / Math.max(1, childShot.height) : 0;
+    check(
+      'frames returns a cropped screenshot of the child frame only',
+      !!childShot && childShot.base64Image.length > 1000 && aspect > 1.5 && aspect < 2.5,
+      childShot ? `${childShot.width}x${childShot.height} (aspect ${aspect.toFixed(2)})` : 'no image'
     );
   } finally {
     if (tabId) await call('/tabs/close', 'POST', { tab_id: tabId }).catch(() => {});

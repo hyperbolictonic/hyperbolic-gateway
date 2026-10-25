@@ -16,6 +16,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.89] - 2026-10-25
+
+### Added
+
+- **`frames` — iframes as first-class content.** `POST /frames` (MCP `frames`) returns the frame
+  tree with each frame's **content-box rect in top-level viewport pixels**, the controls inside it
+  with rects already offset into the page, and — with `screenshots: true` — one cropped image per
+  visible frame. A cross-origin checkout, widget or consent wall stops being a blank box: the agent
+  can see it, read its controls, and click them with `act(x, y)`.
+  - Geometry comes from `DOM.getFrameOwner` + a measurement in the **parent** document, so a
+    cross-origin child is measurable even though it is unreadable; parents precede children in the
+    frame tree, so nested frames compose.
+  - Offset correctness is asserted live: the fixture clicks the reported centre of a control inside a
+    cross-origin child and the child document confirms the click.
+  - Screenshots are one viewport capture cropped per frame, with the device-pixel ratio derived from
+    the image rather than assumed (400×200 frame → 600×300 crop at 1.5×).
+  - The MCP tool returns multiple image content blocks, one per visible frame, each labelled.
+  - `GET /frames` is the cheaper inventory (geometry only, no content scan).
+- **Deep control facts.** `POST /dom/facts {deep:true}` walks open shadow roots like the marks
+  scanner, and fixes the two things that silently break inside a root: the hit-test descends via
+  `shadowRoot.elementFromPoint`, and containment uses a composed walk instead of `el.contains()`.
+
+### Docs
+
+- `docs/SHADOW_DOM_AND_FRAMES.md` now carries a capability matrix that includes `frames`, a worked
+  geometry/screenshot example, the transform and `clear_first` limits, and an explicit design note for
+  the two cells that are still ❌ (frame-scoped mark ids; closed roots via `DOM.getDocument` with
+  `pierce:true`).
+- `src/main/browser/README.md` documents `listFrames()`; `docs/CONTROL_LAYER.md` links frames from the
+  evaluation section.
+
 ## [1.4.88] - 2026-10-24
 
 ### Added

@@ -36,6 +36,28 @@ evaluateInFrames(wc, expression, { maxFrames?, timeoutMs?, includeBlank? })
 
 Measured: **28 ms** for a main document plus one cross-origin child (~20 ms of it frame traversal).
 
+## Frame geometry (`frames.ts`)
+
+Evaluation tells you *what* is inside a frame; it does not tell you *where* the frame is. A click
+computed from a frame-local rect therefore lands in the wrong place. `listFrames()` closes that gap:
+
+```ts
+listFrames(wc, { maxFrames? })
+  -> Array<{ frameId, parentFrameId?, depth, url, name, rect, visibleRect, crossOrigin, error? }>
+```
+
+- `DOM.getFrameOwner` returns the frame's `<iframe>` element, which lives in the **parent** document,
+  so a cross-origin child is measurable even though it is unreadable.
+- `getBoundingClientRect()` on the owner gives a parent-relative rect; the parent's absolute origin is
+  added. Parents precede children in the frame tree, so nested frames compose.
+- `rect` is the **content box** (`clientLeft`/`clientTop` + `clientWidth`/`clientHeight`), i.e. the
+  origin of the child document's viewport in page pixels.
+
+Cost: four CDP commands per frame. `POST /frames` layers controls (one control-facts expression run
+per frame via `evaluateInFrames`, offset by the frame origin) and optional screenshots (one viewport
+capture, cropped per visible frame) on top. See
+[docs/SHADOW_DOM_AND_FRAMES.md](../../../docs/SHADOW_DOM_AND_FRAMES.md#the-frame-as-content).
+
 ## Semantics you must know
 
 **Isolated worlds share the DOM but not page globals.** `window.__anything` set by the page is
@@ -48,5 +70,6 @@ fallback.
 
 ## Reuse
 
-Currently used by: consent scanning (`src/main/shield`). Intended for marks/extract of iframe content
-and for recipe replay across embedded forms.
+Currently used by: consent scanning (`src/main/shield`), and the `frames` tool (`getFrames`), which
+combines evaluation with `listFrames()` to describe and screenshot iframe content. Intended next:
+marks/extract of iframe content and recipe replay across embedded forms.

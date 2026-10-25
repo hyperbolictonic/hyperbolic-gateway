@@ -17,6 +17,7 @@ import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
 import { ShieldBreaker, type ShieldDismissResult, type ConsentPolicy } from './shield/shield-breaker.js';
 import { evaluateInFrames, type FrameEvalOptions, type FrameEvalResult } from './browser/frame-eval.js';
+import { listFrames, type FrameInfo } from './browser/frames.js';
 import { controlFactsExpression, parseControlFacts, type ControlFacts, type ControlFactsOptions } from './primitives/control-facts.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
@@ -1608,6 +1609,167 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     const raw = await wc.executeJavaScript(controlFactsExpression(options)).catch(() => null);
     return parseControlFacts(raw);
+  }
+
+  /** Frame tree + top-level geometry (no content scan). */
+  public async listFrames(options: { maxFrames?: number } = {}): Promise<FrameInfo[]> {
+    return listFrames(this.getActiveWebContents(), options);
+  }
+
+  /**
+   * A frame as first-class content: where it is, what is inside it, and (optionally) what it looks
+   * like. Frame-local control rects are offset into the top-level viewport, so the result can be
+   * clicked with act(x, y) or read coordinate-free.
+   *
+   * Opt-in and bounded: the frame walk costs CDP commands per frame, and screenshots cost one
+   * capture plus one crop per visible frame. `find(include_frames)` uses the same scan.
+   */
+  public async getFrames(options: {
+    includeControls?: boolean;
+    screenshots?: boolean;
+    maxFrames?: number;
+    maxControls?: number;
+    selector?: string;
+    includeOffscreen?: boolean;
+    skipHitTest?: boolean;
+    maxSide?: number;
+  } = {}): Promise<{
+    viewport: { width: number; height: number };
+    frames: Array<FrameInfo & { controls?: ControlFacts[]; controlsTotal?: number }>;
+    images: Array<{ frameId: string; url: string; name: string; base64Image: string; width: number; height: number; mimeType: string }>;
+    notes: string[];
+  }> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: frames(controls=${options.includeControls !== false}, screenshots=${options.screenshots === true})`);
+
+    const frames = await listFrames(wc, { maxFrames: options.maxFrames });
+    const notes: string[] = [];
+    const main = frames.find((f) => f.depth === 0);
+    const viewport = {
+      width: main?.rect.width || 0,
+      height: main?.rect.height || 0,
+    };
+    if (!frames.length) {
+      notes.push('No frame tree: the CDP debugger is not attached to the active tab.');
+      return { viewport, frames: [], images: [], notes };
+    }
+    if (frames.length === 1) notes.push('No child frames on this page.');
+
+    const out: Array<FrameInfo & { controls?: ControlFacts[]; controlsTotal?: number }> = frames.map((f) => ({ ...f }));
+
+    if (options.includeControls !== false && frames.length > 1) {
+      const limit = Math.max(1, Math.min(options.maxControls ?? 40, 200));
+      // One expression, one frame-tree walk. `deep` matches the marks scanner's shadow handling;
+      // `includeOffscreen` is true per frame because the viewport test happens after offsetting.
+      const evaluated = await evaluateInFrames(
+        wc,
+        controlFactsExpression({
+          selector: options.selector,
+          limit,
+          includeOffscreen: true,
+          skipHitTest: options.skipHitTest === true,
+          deep: true,
+        }),
+        { maxFrames: options.maxFrames ?? 8 }
+      );
+
+      const byId = new Map(out.map((f) => [f.frameId, f]));
+      for (const result of evaluated) {
+        const frame = byId.get(result.frameId);
+        if (!frame || frame.depth === 0 || !result.ok) continue;
+        const parsed = parseControlFacts(result.value);
+        const controls: ControlFacts[] = [];
+        for (const control of parsed.controls) {
+          const rect = {
+            x: control.rect.x + frame.rect.x,
+            y: control.rect.y + frame.rect.y,
+            width: control.rect.width,
+            height: control.rect.height,
+          };
+          const onScreen =
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.x < viewport.width &&
+            rect.y < viewport.height &&
+            rect.x + rect.width > 0 &&
+            rect.y + rect.height > 0;
+          if (!options.includeOffscreen && !onScreen) continue;
+          controls.push({
+            ...control,
+            rect,
+            visible: control.visible && !!frame.visibleRect,
+            occluded: control.occluded || !onScreen,
+          });
+        }
+        frame.controls = controls;
+        frame.controlsTotal = parsed.controls.length;
+      }
+    }
+
+    let images: Array<{ frameId: string; url: string; name: string; base64Image: string; width: number; height: number; mimeType: string }> = [];
+    if (options.screenshots === true && frames.length > 1) {
+      images = await this.captureFrameShots(wc, frames, options.maxSide ?? 1024).catch(() => []);
+      if (!images.length) notes.push('Frame screenshots unavailable (capture failed or every frame is offscreen).');
+    }
+
+    return { viewport, frames: out, images, notes };
+  }
+
+  /**
+   * One viewport capture, cropped per visible frame. Cheaper and more predictable than a CDP clip
+   * per frame: Chromium clips live in page coordinates, while the frame rects here are already in
+   * viewport coordinates.
+   */
+  private async captureFrameShots(
+    wc: WebContents,
+    frames: FrameInfo[],
+    maxSide: number
+  ): Promise<Array<{ frameId: string; url: string; name: string; base64Image: string; width: number; height: number; mimeType: string }>> {
+    const css = await wc.executeJavaScript('({ width: window.innerWidth, height: window.innerHeight })').catch(() => null);
+    if (!css?.width || !css?.height) return [];
+
+    const image = await this.capturePageWithRetry(wc, { x: 0, y: 0, width: css.width, height: css.height });
+    if (!image || image.isEmpty()) return [];
+    const size = image.getSize();
+    // NativeImage coordinates and getSize() share a unit; derive the ratio instead of assuming DPR.
+    const scale = size.width / css.width;
+
+    const shots: Array<{ frameId: string; url: string; name: string; base64Image: string; width: number; height: number; mimeType: string }> = [];
+    for (const frame of frames) {
+      if (frame.depth === 0 || !frame.visibleRect) continue;
+      const rect = frame.visibleRect;
+      const x = Math.max(0, Math.min(size.width - 1, Math.round(rect.x * scale)));
+      const y = Math.max(0, Math.min(size.height - 1, Math.round(rect.y * scale)));
+      const width = Math.max(1, Math.min(size.width - x, Math.round(rect.width * scale)));
+      const height = Math.max(1, Math.min(size.height - y, Math.round(rect.height * scale)));
+      if (width < 8 || height < 8) continue;
+
+      try {
+        let cropped = image.crop({ x, y, width, height });
+        const croppedSize = cropped.getSize();
+        const shrink = Math.min(1, maxSide / Math.max(croppedSize.width, croppedSize.height));
+        if (shrink < 1) {
+          cropped = cropped.resize({
+            width: Math.max(1, Math.round(croppedSize.width * shrink)),
+            height: Math.max(1, Math.round(croppedSize.height * shrink)),
+            quality: 'good',
+          });
+        }
+        const final = cropped.getSize();
+        shots.push({
+          frameId: frame.frameId,
+          url: frame.url,
+          name: frame.name,
+          base64Image: cropped.toJPEG(82).toString('base64'),
+          width: final.width,
+          height: final.height,
+          mimeType: 'image/jpeg',
+        });
+      } catch (err: any) {
+        this.addLog('warn', `Frame crop failed for ${frame.url || frame.frameId}: ${err?.message || err}`);
+      }
+    }
+    return shots;
   }
 
   public async goBack(): Promise<string> {

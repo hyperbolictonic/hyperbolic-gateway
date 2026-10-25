@@ -43,6 +43,12 @@ export interface ControlFactsOptions {
   includeOffscreen?: boolean;
   /** Skip the hit-test (cheaper, but `occluded` is then always false). */
   skipHitTest?: boolean;
+  /**
+   * Also scan open shadow roots. Matches the marks scanner, which treats a web component's
+   * inner control as a first-class candidate. Off by default: most pages need neither the
+   * extra walk nor the larger result set.
+   */
+  deep?: boolean;
 }
 
 /**
@@ -117,18 +123,49 @@ export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
     limit: opts.limit && opts.limit > 0 ? Math.min(opts.limit, 500) : 200,
     includeOffscreen: opts.includeOffscreen !== false,
     skipHitTest: opts.skipHitTest === true,
+    deep: opts.deep === true,
   };
   return `(() => {
     const opts = ${JSON.stringify(options)};
     ${HELPERS}
     const SEL = 'a[href],button,input,select,textarea,summary,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="checkbox"],[role="combobox"],[contenteditable="true"],[onclick],[tabindex]:not([tabindex="-1"])';
     let nodes;
+    const deepQuery = (root) => {
+      if (!opts.deep) return Array.from(root.querySelectorAll(SEL));
+      const roots = [];
+      const walk = (r) => {
+        roots.push(r);
+        for (const el of r.querySelectorAll('*')) if (el.shadowRoot) walk(el.shadowRoot);
+      };
+      walk(root);
+      const out = [];
+      for (const r of roots) for (const el of r.querySelectorAll(SEL)) out.push(el);
+      return out;
+    };
+    // A shadow control's hit-test returns the host, and contains() does not cross the boundary.
+    const containsComposed = (a, b) => {
+      let n = b;
+      while (n) {
+        if (n === a) return true;
+        n = n.parentNode || n.host || null;
+      }
+      return false;
+    };
+    const hitAt = (x, y) => {
+      let el = document.elementFromPoint(x, y);
+      while (opts.deep && el && el.shadowRoot) {
+        const inner = el.shadowRoot.elementFromPoint(x, y);
+        if (!inner || inner === el) break;
+        el = inner;
+      }
+      return el;
+    };
     if (opts.ids && opts.ids.length) {
       nodes = opts.ids.map((id) => document.querySelector('[data-mark-id="' + id + '"]')).filter(Boolean);
     } else {
       const root = opts.selector ? document.querySelector(opts.selector) : document.body;
       if (!root) return { error: 'root not found', controls: [] };
-      nodes = opts.selector && root.matches && root.matches(SEL) ? [root] : Array.from(root.querySelectorAll(SEL));
+      nodes = opts.selector && root.matches && root.matches(SEL) ? [root] : deepQuery(root);
     }
     const out = [];
     for (const el of nodes) {
@@ -147,8 +184,8 @@ export function controlFactsExpression(opts: ControlFactsOptions = {}): string {
         const top = Math.max(rect.top, 0);
         const bottom = Math.min(rect.bottom, window.innerHeight);
         if (right > left && bottom > top) {
-          const hit = document.elementFromPoint(Math.round((left + right) / 2), Math.round((top + bottom) / 2));
-          occluded = !!(hit && hit !== el && !el.contains(hit) && !hit.contains(el));
+          const hit = hitAt(Math.round((left + right) / 2), Math.round((top + bottom) / 2));
+          occluded = !!(hit && hit !== el && !containsComposed(el, hit) && !containsComposed(hit, el));
         }
       }
       const { region, regionName } = regionOf(el);

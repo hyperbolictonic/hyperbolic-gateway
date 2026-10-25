@@ -38083,6 +38083,51 @@ ${rows.join("\n")}`;
     }
   },
   {
+    name: "frames",
+    description: "Lists the page's iframes as first-class content instead of blank boxes: each frame's top-level rect, URL, and the controls inside it with coordinates ALREADY offset into the page viewport. Pass screenshots=true to get one image per visible frame, which is how a cross-origin widget, embedded checkout or consent wall becomes something the model can actually look at. Feed the returned control x/y to act(x, y). Marks/find remain main-frame by default, so this is the tool for anything inside an iframe.",
+    parameters: {
+      include_controls: external_exports.coerce.boolean().optional().default(true).describe("Describe the controls inside each frame (default: true)"),
+      screenshots: external_exports.coerce.boolean().optional().default(false).describe("Return one cropped image per visible frame (default: false; opt-in because it costs a capture)"),
+      selector: external_exports.string().optional().describe("Restrict the in-frame control scan to this CSS selector"),
+      max_frames: external_exports.coerce.number().optional().default(6).describe("Frame budget, breadth-first (default: 6, max: 16)"),
+      max_controls: external_exports.coerce.number().optional().default(40).describe("Max controls to describe per frame (default: 40, max: 200)"),
+      include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Also include frames/controls outside the viewport (default: false)"),
+      max_side: external_exports.coerce.number().optional().default(1024).describe("Longest side of a frame screenshot in px (default: 1024)")
+    },
+    endpoint: "/frames",
+    payload: (args) => ({
+      include_controls: args?.include_controls,
+      screenshots: args?.screenshots === true,
+      selector: args?.selector,
+      max_frames: args?.max_frames,
+      max_controls: args?.max_controls,
+      include_offscreen: args?.include_offscreen === true,
+      max_side: args?.max_side
+    }),
+    format: (data) => {
+      const frames = Array.isArray(data.frames) ? data.frames : [];
+      const vp = data.viewport || {};
+      const lines = [`# frames \u2014 ${Math.max(0, frames.length - 1)} child frame(s), viewport ${vp.width || "?"}x${vp.height || "?"}`];
+      for (const frame of frames) {
+        const where = frame.depth === 0 ? "main" : frame.rect ? `${frame.rect.width}x${frame.rect.height} @ (${frame.rect.x}, ${frame.rect.y})` : "no geometry";
+        const origin = frame.crossOrigin ? "cross-origin" : frame.depth === 0 ? "top document" : "same-origin";
+        lines.push(`[${frame.depth}] ${where} \u2014 ${frame.url || "(blank)"}${frame.name ? ` "${frame.name}"` : ""} \u2014 ${origin}${frame.error ? ` \u2014 ${frame.error}` : ""}`);
+        for (const control of frame.controls || []) {
+          const name = control.name || control.value || "";
+          const actions = (control.actions || []).join("/");
+          const flags = [control.occluded ? "occluded" : "", control.visible ? "" : "hidden", control.disabled ? "disabled" : ""].filter(Boolean);
+          lines.push(`    <${control.tag}> "${name}" @ (${control.rect.x}, ${control.rect.y})${actions ? ` {${actions}}` : ""}${flags.length ? ` [${flags.join(", ")}]` : ""}`);
+        }
+        if (frame.controlsTotal !== void 0 && frame.controlsTotal > (frame.controls || []).length) {
+          lines.push(`    \u2026 ${frame.controlsTotal - (frame.controls || []).length} more control(s) not shown`);
+        }
+      }
+      for (const note of data.notes || []) lines.push(`note: ${note}`);
+      if (Array.isArray(data.images) && data.images.length) lines.push(`${data.images.length} frame image(s) attached.`);
+      return lines.join("\n");
+    }
+  },
+  {
     name: "find",
     description: "Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act().",
     parameters: {
@@ -38288,7 +38333,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.88";
+var APP_VERSION = "1.4.89";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
@@ -38543,6 +38588,22 @@ async function createBridgeMcpServer() {
         const endpoint = tool.endpointFor ? tool.endpointFor(args) : tool.endpoint;
         logMcp(`[HTTP Forward] ${tool.method || "POST"} ${endpoint} body: ${preview(body)}`);
         const data = await callBridge(endpoint, tool.method || "POST", body);
+        if (tool.name === "frames") {
+          const images = Array.isArray(data?.images) ? data.images : [];
+          const text2 = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
+          const content = [{ type: "text", text: text2 }];
+          for (const image of images) {
+            const raw = typeof image?.base64Image === "string" ? image.base64Image.replace(/^data:image\/[a-z]+;base64,/, "") : "";
+            if (!raw) continue;
+            content.push({
+              type: "text",
+              text: `Frame image \u2014 ${image.name ? `"${image.name}" ` : ""}${image.url || image.frameId} (${image.width}x${image.height})`
+            });
+            content.push({ type: "image", data: raw, mimeType: image.mimeType || "image/jpeg" });
+          }
+          logMcp(`[Tool Success] "frames" returning text + ${images.length} frame image(s)`);
+          return { content };
+        }
         if (IMAGE_TOOLS.has(tool.name)) {
           const rawBase64 = extractCleanBase64(data);
           const screenshot = data.screenshot || data;

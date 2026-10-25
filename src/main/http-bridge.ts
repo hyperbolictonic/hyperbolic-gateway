@@ -339,8 +339,33 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           limit: body?.limit !== undefined ? Number(body.limit) : undefined,
           includeOffscreen: body?.include_offscreen !== false,
           skipHitTest: body?.skip_hit_test === true,
+          deep: body?.deep === true,
         });
         sendJson({ success: true, ...facts });
+        return;
+      }
+
+      // Iframes as first-class content: geometry, controls (offset to the top-level viewport)
+      // and optional per-frame screenshots. Opt-in because it costs CDP commands per frame.
+      if (req.method === 'GET' && pathname === '/frames') {
+        const frames = await chassis.listFrames();
+        sendJson({ success: true, frames });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/frames') {
+        const body = await readBody();
+        const result = await chassis.getFrames({
+          includeControls: body?.include_controls !== false,
+          screenshots: body?.screenshots === true,
+          maxFrames: body?.max_frames !== undefined ? Number(body.max_frames) : undefined,
+          maxControls: body?.max_controls !== undefined ? Number(body.max_controls) : undefined,
+          selector: body?.selector,
+          includeOffscreen: body?.include_offscreen === true,
+          skipHitTest: body?.skip_hit_test === true,
+          maxSide: body?.max_side !== undefined ? Number(body.max_side) : undefined,
+        });
+        sendJson({ success: true, ...result });
         return;
       }
 

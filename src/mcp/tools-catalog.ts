@@ -1498,6 +1498,54 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
   },
   {
+    name: 'frames',
+    description:
+      'Lists the page\'s iframes as first-class content instead of blank boxes: each frame\'s top-level rect, URL, and the controls inside it with coordinates ALREADY offset into the page viewport. ' +
+      'Pass screenshots=true to get one image per visible frame, which is how a cross-origin widget, embedded checkout or consent wall becomes something the model can actually look at. ' +
+      'Feed the returned control x/y to act(x, y). Marks/find remain main-frame by default, so this is the tool for anything inside an iframe.',
+    parameters: {
+      include_controls: z.coerce.boolean().optional().default(true).describe('Describe the controls inside each frame (default: true)'),
+      screenshots: z.coerce.boolean().optional().default(false).describe('Return one cropped image per visible frame (default: false; opt-in because it costs a capture)'),
+      selector: z.string().optional().describe('Restrict the in-frame control scan to this CSS selector'),
+      max_frames: z.coerce.number().optional().default(6).describe('Frame budget, breadth-first (default: 6, max: 16)'),
+      max_controls: z.coerce.number().optional().default(40).describe('Max controls to describe per frame (default: 40, max: 200)'),
+      include_offscreen: z.coerce.boolean().optional().default(false).describe('Also include frames/controls outside the viewport (default: false)'),
+      max_side: z.coerce.number().optional().default(1024).describe('Longest side of a frame screenshot in px (default: 1024)'),
+    },
+    endpoint: '/frames',
+    payload: (args) => ({
+      include_controls: args?.include_controls,
+      screenshots: args?.screenshots === true,
+      selector: args?.selector,
+      max_frames: args?.max_frames,
+      max_controls: args?.max_controls,
+      include_offscreen: args?.include_offscreen === true,
+      max_side: args?.max_side,
+    }),
+    format: (data) => {
+      const frames = Array.isArray(data.frames) ? data.frames : [];
+      const vp = data.viewport || {};
+      const lines = [`# frames — ${Math.max(0, frames.length - 1)} child frame(s), viewport ${vp.width || '?'}x${vp.height || '?'}`];
+      for (const frame of frames) {
+        const where = frame.depth === 0 ? 'main' : frame.rect ? `${frame.rect.width}x${frame.rect.height} @ (${frame.rect.x}, ${frame.rect.y})` : 'no geometry';
+        const origin = frame.crossOrigin ? 'cross-origin' : frame.depth === 0 ? 'top document' : 'same-origin';
+        lines.push(`[${frame.depth}] ${where} — ${frame.url || '(blank)'}${frame.name ? ` "${frame.name}"` : ''} — ${origin}${frame.error ? ` — ${frame.error}` : ''}`);
+        for (const control of frame.controls || []) {
+          const name = control.name || control.value || '';
+          const actions = (control.actions || []).join('/');
+          const flags = [control.occluded ? 'occluded' : '', control.visible ? '' : 'hidden', control.disabled ? 'disabled' : ''].filter(Boolean);
+          lines.push(`    <${control.tag}> "${name}" @ (${control.rect.x}, ${control.rect.y})${actions ? ` {${actions}}` : ''}${flags.length ? ` [${flags.join(', ')}]` : ''}`);
+        }
+        if (frame.controlsTotal !== undefined && frame.controlsTotal > (frame.controls || []).length) {
+          lines.push(`    … ${frame.controlsTotal - (frame.controls || []).length} more control(s) not shown`);
+        }
+      }
+      for (const note of data.notes || []) lines.push(`note: ${note}`);
+      if (Array.isArray(data.images) && data.images.length) lines.push(`${data.images.length} frame image(s) attached.`);
+      return lines.join('\n');
+    },
+  },
+  {
     name: 'find',
     description:
       'Semantic element search that returns Set-of-Marks refs (mark ids) instead of pixels. Filter by role, accessible/text name, regex, tag or CSS selector. Feed the returned ids straight into act().',

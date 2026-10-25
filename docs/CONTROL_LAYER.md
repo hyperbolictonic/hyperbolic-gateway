@@ -86,6 +86,21 @@ checkouts and some widget forms live in cross-origin child frames.
 **Isolated worlds share the DOM but not page globals.** `window.__x` set by the page is invisible to
 frame evaluation; attributes and DOM state are readable. Assert on DOM, not on page variables.
 
+Reading a frame is half the job; a frame-local rect is not a page coordinate. `POST /frames` (MCP
+`frames`) returns the frame's content-box rect, its controls offset into the page, and optionally a
+cropped screenshot per visible frame:
+
+```jsonc
+// POST /frames
+{ "include_controls": true, "screenshots": true, "max_frames": 6 }
+// -> { viewport, frames: [{ rect, crossOrigin, controls: [{ rect, name, actions }] }], images: [...] }
+```
+
+That makes an iframe something the agent can **see** and **click** rather than a blank box. Marks,
+`find`, `observe` and `act(mark_id)` remain main-frame only; see
+[SHADOW_DOM_AND_FRAMES.md](./SHADOW_DOM_AND_FRAMES.md#the-frame-as-content) for the geometry, the
+limits, and the route to frame-scoped mark ids.
+
 ---
 
 ## Consent policy

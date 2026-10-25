@@ -315,6 +315,25 @@ export async function createBridgeMcpServer() {
         logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${endpoint} body: ${preview(body)}`);
         const data = await callBridge(endpoint, tool.method || 'POST', body);
 
+        // Frame inventory: text summary plus one image per visible frame. Handled before the
+        // single-image branch because an iframe result is inherently multi-image.
+        if (tool.name === 'frames') {
+          const images = Array.isArray(data?.images) ? data.images : [];
+          const text = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
+          const content: any[] = [{ type: 'text', text }];
+          for (const image of images) {
+            const raw = typeof image?.base64Image === 'string' ? image.base64Image.replace(/^data:image\/[a-z]+;base64,/, '') : '';
+            if (!raw) continue;
+            content.push({
+              type: 'text',
+              text: `Frame image — ${image.name ? `"${image.name}" ` : ''}${image.url || image.frameId} (${image.width}x${image.height})`,
+            });
+            content.push({ type: 'image', data: raw, mimeType: image.mimeType || 'image/jpeg' });
+          }
+          logMcp(`[Tool Success] "frames" returning text + ${images.length} frame image(s)`);
+          return { content };
+        }
+
         // Image-bearing tools: plain viewport screenshots and Set-of-Marks scans.
         // After the Phase-3 merge these funnel through take_screenshot (legacy
         // names remain as hidden aliases), so branch on the target, not the name.
