@@ -316,6 +316,10 @@ The delivery plan, the settings levers, and the risk tiers live in
 - a `delegatesFocus` host reports the inner control as the initial step
 - median step gap ≥ 80ms (a keyboard user, not a burst)
 
+`npm run test:shadow` (live) and `npm run test:shadow:unit` cover the settings gate: defaults,
+clamping, corrupt-file fallback, the `KUANG_SHADOW_WALK=off` kill switch, every structured refusal,
+the master switch, output suppression and cap enforcement.
+
 `npm run test:dom` covers the general control/frame surface:
 
 - a clickable `div` with an inline handler and no role
@@ -339,6 +343,22 @@ The delivery plan, the settings levers, and the risk tiers live in
 - a same-site closed frame and a cross-site (OOPIF) closed frame are both found and clicked
 - quiet-by-default assertion (`cdp.ax === 0` until asked), identity-cache hit, and a real `429` after
   the per-tab scan budget
+
+## Settings gate
+
+The Shadow Walk levers are enforced before work starts, not after:
+
+| surface | disabled result |
+|---|---|
+| `find {sealed:true}` | `400 SEALED_DISABLED` (or `SHADOW_WALK_DISABLED` when the master is off) |
+| `focus_walk` | `400 TAB_WALK_DISABLED` |
+| `/frames`, frame geometry | `400 FRAMES_DISABLED` |
+| `/dom/facts {deep:true}` | `400 DEEP_OPEN_ROOTS_DISABLED` |
+
+The panel lives in `Settings → SHADOW WALK`; writes go over IPC to
+`data/shadow-walk.json`. `/health` returns a `shadowWalk` block with the active policy, so an agent
+can check before asking. Turning frame controls or screenshots off returns frames without those
+fields and a `notes` line, rather than silently ignoring the request.
 
 ## See also
 

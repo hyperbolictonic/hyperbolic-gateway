@@ -291,6 +291,7 @@
         <div class="tabs tabs-boxed tabs-sm bg-base-100 font-mono text-[11px]">
           <button type="button" id="settings-tab-decision" class="tab tab-active" data-settings-tab="decision">DECISION MODEL</button>
           <button type="button" id="settings-tab-input" class="tab" data-settings-tab="input">INPUT</button>
+          <button type="button" id="settings-tab-shadow" class="tab" data-settings-tab="shadow">SHADOW WALK</button>
           <button type="button" id="settings-tab-recording" class="tab" data-settings-tab="recording">RECORDING</button>
           <button type="button" id="settings-tab-research" class="tab" data-settings-tab="research">RESEARCH</button>
           <button type="button" id="settings-tab-wrappers" class="tab" data-settings-tab="wrappers">WRAPPERS</button>
@@ -416,6 +417,105 @@
             <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE</button>
             <button type="button" id="settings-input-reset" class="btn btn-sm btn-ghost font-mono text-xs">RESET DEFAULTS</button>
             <span id="settings-input-result" class="hidden alert alert-sm font-mono text-xs"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- Shadow Walk: closed roots, Tab walk, iframes -->
+      <section data-settings-panel="shadow" class="hidden max-w-3xl mx-auto w-full">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="font-mono text-sm font-bold text-primary">SHADOW WALK</h3>
+            <p class="text-xs text-base-content/60 mt-1">
+              Closed shadow roots and iframe content. Read <code class="font-mono">docs/SHADOW_WALK.md</code>
+              for the detection model. Saved to <code class="font-mono">data/shadow-walk.json</code> over IPC;
+              every lever applies to the next MCP call.
+            </p>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <span class="font-mono text-[10px] tracking-wider">MASTER</span>
+            <input id="shadow-enabled" type="checkbox" class="toggle toggle-sm toggle-primary" />
+          </label>
+        </div>
+
+        <form id="settings-shadow-form" class="mt-5 space-y-6">
+          <fieldset class="fieldset rounded border border-base-100 bg-base-100/30 p-4">
+            <legend class="fieldset-legend font-mono text-xs flex items-center gap-2">
+              SHADOW DOM <span class="badge badge-success badge-xs font-mono">SAFE</span>
+            </legend>
+
+            <label class="flex items-center justify-between gap-3 py-1.5">
+              <span class="text-xs">Sealed discovery <span class="text-base-content/50">— AX + box model for closed roots</span></span>
+              <input id="shadow-ax-sealed" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            </label>
+            <label class="flex items-center justify-between gap-3 py-1.5">
+              <span class="text-xs">Deep open roots <span class="text-base-content/50">— existing scan over open roots</span></span>
+              <input id="shadow-deep-open" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            </label>
+            <label class="flex items-center justify-between gap-3 py-1.5">
+              <span class="text-xs">Tab walk <span class="badge badge-warning badge-xs font-mono">VISIBLE</span>
+                <span class="text-base-content/50">— moves focus like a keyboard user</span></span>
+              <input id="shadow-tab-walk" type="checkbox" class="toggle toggle-sm toggle-warning" />
+            </label>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Tab walk max steps</legend>
+                <input id="shadow-tab-steps" type="number" min="1" max="12" step="1" class="input input-sm w-full font-mono text-xs" />
+              </fieldset>
+              <label class="flex items-center justify-between gap-3 pt-6">
+                <span class="text-xs">Restore focus on failure</span>
+                <input id="shadow-tab-restore" type="checkbox" class="toggle toggle-sm toggle-primary" />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset rounded border border-base-100 bg-base-100/30 p-4">
+            <legend class="fieldset-legend font-mono text-xs flex items-center gap-2">
+              IFRAMES <span class="badge badge-success badge-xs font-mono">SAFE</span>
+            </legend>
+
+            <label class="flex items-center justify-between gap-3 py-1.5">
+              <span class="text-xs">Frame geometry <span class="text-base-content/50">— same-site and cross-site (OOPIF)</span></span>
+              <input id="shadow-frame-geometry" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            </label>
+            <label class="flex items-center justify-between gap-3 py-1.5">
+              <span class="text-xs">In-frame controls <span class="text-base-content/50">— rects offset into the page</span></span>
+              <input id="shadow-frame-controls" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            </label>
+            <label class="flex items-center justify-between gap-3 py-1.5">
+              <span class="text-xs">Frame screenshots <span class="text-base-content/50">— one viewport capture, cropped</span></span>
+              <input id="shadow-frame-screenshots" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            </label>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Max frames</legend>
+                <input id="shadow-max-frames" type="number" min="1" max="16" step="1" class="input input-sm w-full font-mono text-xs" />
+              </fieldset>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Max controls</legend>
+                <input id="shadow-max-controls" type="number" min="1" max="200" step="1" class="input input-sm w-full font-mono text-xs" />
+              </fieldset>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">Screenshot max side</legend>
+                <input id="shadow-shot-side" type="number" min="256" max="4096" step="1" class="input input-sm w-full font-mono text-xs" />
+              </fieldset>
+            </div>
+          </fieldset>
+
+          <div class="alert alert-warning alert-sm font-mono text-[11px] items-start">
+            <span class="badge badge-error badge-xs mt-0.5">RISKY</span>
+            <span>Force-open (<code class="font-mono">attachShadow</code> patch) is not built yet. It ships last (1.4.95), stays off by default, needs a confirm, and is detectable by the page.</span>
+          </div>
+          <div class="alert alert-ghost alert-sm font-mono text-[11px]">
+            <span>Clone Lab is a proposal only; no lever yet. Component signatures are the next phase.</span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 border-t border-base-100 pt-3">
+            <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE</button>
+            <button type="button" id="settings-shadow-reset" class="btn btn-sm btn-ghost font-mono text-xs">RESET DEFAULTS</button>
+            <span id="settings-shadow-result" class="hidden alert alert-sm font-mono text-xs"></span>
           </div>
         </form>
       </section>

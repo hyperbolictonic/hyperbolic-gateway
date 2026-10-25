@@ -12,6 +12,7 @@ import { SecretStore } from './wrap/secrets.js';
 import type { SecretCipher } from './wrap/secrets.js';
 import { WrapAuditLog } from './wrap/audit.js';
 import { ResearchSettingsStore } from './research/settings.js';
+import { DEFAULT_SHADOW_WALK_SETTINGS, loadShadowWalkSettings, saveShadowWalkSettings } from './shadow-walk/settings.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { APP_VERSION } from '../shared/version.js';
@@ -214,6 +215,11 @@ ipcMain.handle('research:settings:save', async (_event, settings: any) => {
   if (result.ok) await chassis.setResearchSettings(result.settings);
   return result;
 });
+
+// Shadow Walk settings: written over IPC only, read by the bridge on every guarded call.
+ipcMain.handle('shadowwalk:settings:get', () => loadShadowWalkSettings());
+ipcMain.handle('shadowwalk:settings:save', (_event, settings: any) => saveShadowWalkSettings(settings));
+ipcMain.handle('shadowwalk:settings:reset', () => saveShadowWalkSettings(DEFAULT_SHADOW_WALK_SETTINGS));
 
 ipcMain.handle('research:session:reset', async () => {
   try {

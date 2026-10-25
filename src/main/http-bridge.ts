@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { BrowserChassis } from './browser-chassis.js';
 import { APP_VERSION } from '../shared/version.js';
+import { shadowWalkStatus } from './shadow-walk/settings.js';
 import { runDecision, decisionStatus } from './decide/decision-client.js';
 import { decideGuarded } from './decide/decision-guard.js';
 import { driveTask } from './drive/driver.js';
@@ -155,6 +156,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           input: { transport: chassis.getSimulator().lastInputTransport },
           human: { paused: chassis.isHumanActive(), ...chassis.getHumanStatus() },
           metrics: summary(),
+          shadowWalk: shadowWalkStatus(),
           info,
         });
         return;
@@ -1577,7 +1579,8 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         );
         return;
       }
-      const client = ['BAD_REQUEST', 'STALE_REF', 'NO_TARGET', 'NOT_SUPPORTED', 'TIMEOUT', 'NO_LLM_SURFACE', 'FETCH_BLOCKED'].includes(code);
+      const client = ['BAD_REQUEST', 'STALE_REF', 'NO_TARGET', 'NOT_SUPPORTED', 'TIMEOUT', 'NO_LLM_SURFACE', 'FETCH_BLOCKED',
+        'SHADOW_WALK_DISABLED', 'SEALED_DISABLED', 'TAB_WALK_DISABLED', 'FRAMES_DISABLED', 'DEEP_OPEN_ROOTS_DISABLED'].includes(code);
       sendJson({ success: false, error: err?.message || String(err), code }, client ? 400 : 500);
     }
   });

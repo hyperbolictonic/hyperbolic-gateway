@@ -915,6 +915,27 @@ export class Primitives {
   // ---- find / act ----------------------------------------------------------
 
   public async find(opts: FindOptions = {}): Promise<any> {
+    // Sealed discovery is guarded before marks are injected: a refused call must not mutate the
+    // page first. It is also independent of the mark table, so doing it first is cheaper on refusal.
+    let sealedInfo: SealedFindResult | undefined;
+    if (opts.sealed) {
+      if (!this.host.findSealed) {
+        throw new PrimitiveError('NOT_SUPPORTED', 'Sealed shadow-root discovery is not available in this build.');
+      }
+      sealedInfo = await this.host.findSealed({
+        role: opts.role,
+        name: opts.name,
+        contains: opts.contains,
+        regex: opts.regex,
+        flags: opts.flags,
+        tag: opts.tag,
+        selector: opts.selector,
+        limit: opts.limit,
+        includeOffscreen: opts.includeOffscreen,
+        refresh: opts.refresh,
+      });
+    }
+
     const marks = await this.host.injectMarks({ includeOffscreen: opts.includeOffscreen !== false });
     let selectorIds: Set<number> | null = null;
     if (opts.selector) {
@@ -973,23 +994,7 @@ export class Primitives {
     });
 
     let sealed: SealedControl[] | undefined;
-    let sealedInfo: SealedFindResult | undefined;
-    if (opts.sealed) {
-      if (!this.host.findSealed) {
-        throw new PrimitiveError('NOT_SUPPORTED', 'Sealed shadow-root discovery is not available in this build.');
-      }
-      sealedInfo = await this.host.findSealed({
-        role: opts.role,
-        name: opts.name,
-        contains: opts.contains,
-        regex: opts.regex,
-        flags: opts.flags,
-        tag: opts.tag,
-        selector: opts.selector,
-        limit: opts.limit,
-        includeOffscreen: opts.includeOffscreen,
-        refresh: opts.refresh,
-      });
+    if (sealedInfo) {
       sealed = sealedInfo.controls;
     }
 

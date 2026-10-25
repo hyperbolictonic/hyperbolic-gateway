@@ -118,6 +118,9 @@ export interface ElectronAPI {
   deleteWrapWrapper: (id: string) => Promise<{ ok: boolean; errors: string[] }>;
   getResearchSettings: () => Promise<any>;
   saveResearchSettings: (settings: any) => Promise<{ ok: boolean; settings: any; errors: string[] }>;
+  getShadowWalkSettings: () => Promise<any>;
+  saveShadowWalkSettings: (settings: any) => Promise<{ ok: boolean; settings: any; errors: string[] }>;
+  resetShadowWalkSettings: () => Promise<{ ok: boolean; settings: any; errors: string[] }>;
   resetResearchSession: () => Promise<{ ok: boolean; error?: string }>;
 }
 
@@ -268,6 +271,9 @@ const api: ElectronAPI = {
   deleteWrapWrapper: (id: string) => ipcRenderer.invoke('wrap:wrappers:delete', id),
   getResearchSettings: () => ipcRenderer.invoke('research:settings:get'),
   saveResearchSettings: (settings: any) => ipcRenderer.invoke('research:settings:save', settings),
+  getShadowWalkSettings: () => ipcRenderer.invoke('shadowwalk:settings:get'),
+  saveShadowWalkSettings: (settings: any) => ipcRenderer.invoke('shadowwalk:settings:save', settings),
+  resetShadowWalkSettings: () => ipcRenderer.invoke('shadowwalk:settings:reset'),
   resetResearchSession: () => ipcRenderer.invoke('research:session:reset'),
 };
 

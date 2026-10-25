@@ -163,6 +163,24 @@ Settings are written **over IPC only** (no HTTP route). The bridge reads the sam
 it. `bridge_health` reports a compact `shadowWalk` block so an agent can see what is allowed before
 it asks.
 
+Shipped in 1.4.93:
+
+- `Settings → SHADOW WALK` with a master switch, the implemented Shadow DOM levers (sealed discovery,
+  deep open roots, Tab walk + step/restore), and the iframe levers (geometry, controls, screenshots,
+  max frames/controls/screenshot side). Tier badges are visible: `SAFE` for read-only paths,
+  `VISIBLE` for the Tab walk, `RISKY` reserved for force-open.
+- `data/shadow-walk.json`, read on every guarded call and written atomically over IPC. `RESET
+  DEFAULTS` restores the shipped policy.
+- Structured refusals: `SHADOW_WALK_DISABLED`, `SEALED_DISABLED`, `TAB_WALK_DISABLED`,
+  `FRAMES_DISABLED`, `DEEP_OPEN_ROOTS_DISABLED` — all `400` with a code, never a silent no-op.
+- Enforced limits: `tabWalkMaxSteps`, `frames.maxFrames`, `frames.maxControls`,
+  `screenshots.maxSide`; turning controls/screenshots off removes output rather than pretending.
+- `bridge_health.shadowWalk` mirrors the active policy (including `forceOpen`, reported but not
+  built until P5).
+
+Component fingerprints and force-open do not appear as live levers yet; the panel says so and
+reserves the `RISKY` badge for P5.
+
 ### Tiers
 
 | tier | meaning | levers |
@@ -247,7 +265,7 @@ it asks.
 - Tests: step into a `delegatesFocus` closed root, confirm the focused node is the inner button,
   `Enter` activates it; limit, restore and median step gap verified.
 
-### P3 — `1.4.93` Settings surface + enforcement
+### P3 — `1.4.93` Settings surface + enforcement — **shipped**
 
 - `src/main/shadow-walk/settings.ts` (load/save/validate, defaults above) + IPC in `index.ts` /
   `preload`; no HTTP write route.

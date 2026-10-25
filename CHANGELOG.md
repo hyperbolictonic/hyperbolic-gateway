@@ -16,6 +16,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.93] - 2026-10-25
+
+### Added
+
+- **`Settings → SHADOW WALK`.** A master switch, the implemented Shadow DOM levers (sealed
+  discovery, deep open roots, Tab walk with max steps and focus restore), and the iframe levers
+  (geometry, controls, screenshots, max frames, max controls, screenshot side). Tier badges are
+  explicit: `SAFE` for read-only paths, `VISIBLE` for the Tab walk, `RISKY` reserved for the
+  not-yet-built force-open.
+  - Stored in `data/shadow-walk.json`, read on every guarded call, written atomically **over IPC
+    only**. `RESET DEFAULTS` restores the shipped policy. No HTTP write route exists.
+  - Numeric levers are clamped at the store boundary; a corrupt file falls back to safe defaults.
+- **Structured refusals before work starts.** `SHADOW_WALK_DISABLED` (master),
+  `SEALED_DISABLED`, `TAB_WALK_DISABLED`, `FRAMES_DISABLED`, `DEEP_OPEN_ROOTS_DISABLED` — `400`
+  with a code instead of a silent no-op. The sealed guard now runs **before** marks are injected, so
+  a refused call does not mutate the page.
+- **`bridge_health.shadowWalk`** mirrors the active policy (enabled, sealed, Tab walk + limits, deep
+  open roots, frame limits, `forceOpen` reported but not built).
+- Enforced caps: `tabWalkMaxSteps`, `frames.maxFrames`, `frames.maxControls`,
+  `screenshots.maxSide`. Turning frame controls or screenshots off returns frames without those
+  fields plus a `notes` line.
+- `scripts/test-shadow-settings.mjs` (`npm run test:shadow`, 11 checks) and
+  `scripts/test-shadow-settings-unit.mjs` (`npm run test:shadow:unit`, 7 checks) cover defaults,
+  clamping, corrupt files, the environment kill switch, every structured refusal, the master
+  switch, output suppression and cap enforcement.
+
 ## [1.4.92] - 2026-10-25
 
 ### Added

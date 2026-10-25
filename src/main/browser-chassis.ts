@@ -20,6 +20,7 @@ import { evaluateInFrames, type FrameEvalOptions, type FrameEvalResult } from '.
 import { listFrames, type FrameInfo } from './browser/frames.js';
 import { findSealedControls, type SealedFindOptions, type SealedFindResult } from './shadow-walk/ax-controls.js';
 import { runTabWalk, type TabWalkOptions, type TabWalkResult } from './shadow-walk/tab-walk.js';
+import { loadShadowWalkSettings, shadowWalkRefusal, type ShadowWalkSurface } from './shadow-walk/settings.js';
 import { controlFactsExpression, parseControlFacts, type ControlFacts, type ControlFactsOptions } from './primitives/control-facts.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
@@ -1609,18 +1610,30 @@ export class BrowserChassis {
    * One injected expression, no per-element round trips.
    */
   public async describeControls(options: ControlFactsOptions = {}): Promise<{ url?: string; controls: ControlFacts[] }> {
+    if (options.deep === true) this.refuseShadow('deepOpenRoots');
     const wc = this.getActiveWebContents();
     const raw = await wc.executeJavaScript(controlFactsExpression(options)).catch(() => null);
     return parseControlFacts(raw);
   }
 
+  /** Throws a structured refusal when a Shadow Walk surface is disabled. */
+  private refuseShadow(surface: ShadowWalkSurface): void {
+    const refusal = shadowWalkRefusal(surface);
+    if (!refusal) return;
+    const err: any = new Error(refusal.message);
+    err.code = refusal.code;
+    throw err;
+  }
+
   /** Frame tree + top-level geometry (no content scan). */
   public async listFrames(options: { maxFrames?: number } = {}): Promise<FrameInfo[]> {
+    this.refuseShadow('frames');
     return listFrames(this.getActiveWebContents(), options);
   }
 
   /** Closed-shadow-root discovery (opt-in, cached, rate-limited). */
   public async findSealed(options: SealedFindOptions = {}): Promise<SealedFindResult> {
+    this.refuseShadow('sealed');
     const wc = this.getActiveWebContents();
     this.addLog('action', `MCP Directive: find(sealed=true${options.name ? `, name="${options.name}"` : ''})`);
     return findSealedControls(wc, { ...options, revision: this.revision });
@@ -1628,9 +1641,16 @@ export class BrowserChassis {
 
   /** Trusted Tab/Shift+Tab walk into a (possibly closed) shadow subtree. */
   public async focusWalk(options: TabWalkOptions): Promise<TabWalkResult> {
+    this.refuseShadow('tabWalk');
+    const settings = loadShadowWalkSettings();
     const wc = this.getActiveWebContents();
+    const maxSteps = Math.min(
+      options.maxSteps ?? settings.shadow.tabWalkMaxSteps,
+      settings.shadow.tabWalkMaxSteps
+    );
+    const restore = options.restore ?? settings.shadow.tabWalkRestoreFocus;
     this.addLog('action', `MCP Directive: focus_walk(${options.selector || `${options.x},${options.y}`}, ${options.direction || 'forward'})`);
-    const result = await runTabWalk(wc, options, (key) => this.simulator.pressKey(wc, key));
+    const result = await runTabWalk(wc, { ...options, maxSteps, restore }, (key) => this.simulator.pressKey(wc, key));
     this.bumpRevision();
     return result;
   }
@@ -1658,10 +1678,17 @@ export class BrowserChassis {
     images: Array<{ frameId: string; url: string; name: string; base64Image: string; width: number; height: number; mimeType: string }>;
     notes: string[];
   }> {
+    this.refuseShadow('frames');
+    const settings = loadShadowWalkSettings();
     const wc = this.getActiveWebContents();
-    this.addLog('action', `MCP Directive: frames(controls=${options.includeControls !== false}, screenshots=${options.screenshots === true})`);
+    const includeControls = options.includeControls !== false && settings.frames.controls;
+    const wantScreenshots = options.screenshots === true && settings.frames.screenshots;
+    const maxFrames = Math.min(options.maxFrames ?? settings.frames.maxFrames, settings.frames.maxFrames);
+    const maxControls = Math.min(options.maxControls ?? settings.frames.maxControls, settings.frames.maxControls);
+    const maxSide = Math.min(options.maxSide ?? settings.frames.screenshotMaxSide, settings.frames.screenshotMaxSide);
+    this.addLog('action', `MCP Directive: frames(controls=${includeControls}, screenshots=${wantScreenshots})`);
 
-    const frames = await listFrames(wc, { maxFrames: options.maxFrames });
+    const frames = await listFrames(wc, { maxFrames });
     const notes: string[] = [];
     const main = frames.find((f) => f.depth === 0);
     const viewport = {
@@ -1673,11 +1700,17 @@ export class BrowserChassis {
       return { viewport, frames: [], images: [], notes };
     }
     if (frames.length === 1) notes.push('No child frames on this page.');
+    if (options.includeControls !== false && !settings.frames.controls) {
+      notes.push('Frame controls are off in Settings → Shadow Walk.');
+    }
+    if (options.screenshots === true && !settings.frames.screenshots) {
+      notes.push('Frame screenshots are off in Settings → Shadow Walk.');
+    }
 
     const out: Array<FrameInfo & { controls?: ControlFacts[]; controlsTotal?: number }> = frames.map((f) => ({ ...f }));
 
-    if (options.includeControls !== false && frames.length > 1) {
-      const limit = Math.max(1, Math.min(options.maxControls ?? 40, 200));
+    if (includeControls && frames.length > 1) {
+      const limit = Math.max(1, Math.min(maxControls, 200));
       // One expression, one frame-tree walk. `deep` matches the marks scanner's shadow handling;
       // `includeOffscreen` is true per frame because the viewport test happens after offsetting.
       const evaluated = await evaluateInFrames(
@@ -1687,9 +1720,9 @@ export class BrowserChassis {
           limit,
           includeOffscreen: true,
           skipHitTest: options.skipHitTest === true,
-          deep: true,
+          deep: settings.shadow.deepOpenRoots,
         }),
-        { maxFrames: options.maxFrames ?? 8 }
+        { maxFrames }
       );
 
       const byId = new Map(out.map((f) => [f.frameId, f]));
@@ -1726,8 +1759,8 @@ export class BrowserChassis {
     }
 
     let images: Array<{ frameId: string; url: string; name: string; base64Image: string; width: number; height: number; mimeType: string }> = [];
-    if (options.screenshots === true && frames.length > 1) {
-      images = await this.captureFrameShots(wc, frames, options.maxSide ?? 1024).catch(() => []);
+    if (wantScreenshots && frames.length > 1) {
+      images = await this.captureFrameShots(wc, frames, maxSide).catch(() => []);
       if (!images.length) notes.push('Frame screenshots unavailable (capture failed or every frame is offscreen).');
     }
 

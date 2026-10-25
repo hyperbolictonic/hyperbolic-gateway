@@ -945,6 +945,112 @@ if (settingsBtn && settingsModal) {
   const researchResultEl = document.getElementById('settings-research-result') as HTMLElement;
   const researchResetEl = document.getElementById('settings-research-reset') as HTMLButtonElement;
 
+  // Shadow Walk settings.
+  const shadowFormEl = document.getElementById('settings-shadow-form') as HTMLFormElement;
+  const shadowEnabledEl = document.getElementById('shadow-enabled') as HTMLInputElement;
+  const shadowAxSealedEl = document.getElementById('shadow-ax-sealed') as HTMLInputElement;
+  const shadowDeepOpenEl = document.getElementById('shadow-deep-open') as HTMLInputElement;
+  const shadowTabWalkEl = document.getElementById('shadow-tab-walk') as HTMLInputElement;
+  const shadowTabStepsEl = document.getElementById('shadow-tab-steps') as HTMLInputElement;
+  const shadowTabRestoreEl = document.getElementById('shadow-tab-restore') as HTMLInputElement;
+  const shadowFrameGeometryEl = document.getElementById('shadow-frame-geometry') as HTMLInputElement;
+  const shadowFrameControlsEl = document.getElementById('shadow-frame-controls') as HTMLInputElement;
+  const shadowFrameScreenshotsEl = document.getElementById('shadow-frame-screenshots') as HTMLInputElement;
+  const shadowMaxFramesEl = document.getElementById('shadow-max-frames') as HTMLInputElement;
+  const shadowMaxControlsEl = document.getElementById('shadow-max-controls') as HTMLInputElement;
+  const shadowShotSideEl = document.getElementById('shadow-shot-side') as HTMLInputElement;
+  const shadowResetEl = document.getElementById('settings-shadow-reset') as HTMLButtonElement;
+  const shadowResultEl = document.getElementById('settings-shadow-result') as HTMLElement;
+  let shadowLoaded: any = null;
+
+  const showShadowResult = (kind: 'success' | 'error' | 'info', text: string) => {
+    shadowResultEl.className = `alert alert-${kind} alert-sm font-mono text-xs`;
+    shadowResultEl.textContent = text;
+    shadowResultEl.classList.remove('hidden');
+  };
+
+  async function loadShadowWalkSettings(): Promise<void> {
+    try {
+      const settings = await window.electronAPI?.getShadowWalkSettings();
+      if (!settings) return;
+      shadowLoaded = settings;
+      shadowEnabledEl.checked = settings.enabled !== false;
+      shadowAxSealedEl.checked = settings.shadow?.axSealed !== false;
+      shadowDeepOpenEl.checked = settings.shadow?.deepOpenRoots !== false;
+      shadowTabWalkEl.checked = settings.shadow?.tabWalk !== false;
+      shadowTabStepsEl.value = String(settings.shadow?.tabWalkMaxSteps ?? 8);
+      shadowTabRestoreEl.checked = settings.shadow?.tabWalkRestoreFocus !== false;
+      shadowFrameGeometryEl.checked = settings.frames?.geometry !== false;
+      shadowFrameControlsEl.checked = settings.frames?.controls !== false;
+      shadowFrameScreenshotsEl.checked = settings.frames?.screenshots !== false;
+      shadowMaxFramesEl.value = String(settings.frames?.maxFrames ?? 6);
+      shadowMaxControlsEl.value = String(settings.frames?.maxControls ?? 40);
+      shadowShotSideEl.value = String(settings.frames?.screenshotMaxSide ?? 1024);
+    } catch (err: any) {
+      showShadowResult('error', `Could not load Shadow Walk settings: ${err?.message || err}`);
+    }
+  }
+
+  shadowFormEl.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = shadowFormEl.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (submit) {
+      submit.disabled = true;
+      submit.classList.add('loading');
+    }
+    try {
+      const base = shadowLoaded || {};
+      const result = await window.electronAPI?.saveShadowWalkSettings({
+        enabled: shadowEnabledEl.checked,
+        shadow: {
+          ...(base.shadow || {}),
+          deepOpenRoots: shadowDeepOpenEl.checked,
+          axSealed: shadowAxSealedEl.checked,
+          tabWalk: shadowTabWalkEl.checked,
+          tabWalkMaxSteps: Number(shadowTabStepsEl.value) || 8,
+          tabWalkRestoreFocus: shadowTabRestoreEl.checked,
+        },
+        frames: {
+          ...(base.frames || {}),
+          geometry: shadowFrameGeometryEl.checked,
+          controls: shadowFrameControlsEl.checked,
+          screenshots: shadowFrameScreenshotsEl.checked,
+          maxFrames: Number(shadowMaxFramesEl.value) || 6,
+          maxControls: Number(shadowMaxControlsEl.value) || 40,
+          screenshotMaxSide: Number(shadowShotSideEl.value) || 1024,
+        },
+        cloneLab: base.cloneLab || { enabled: false },
+      });
+      if (result?.ok) {
+        shadowLoaded = result.settings;
+        showShadowResult('success', 'Shadow Walk settings saved. They apply to the next MCP call.');
+      } else {
+        showShadowResult('error', (result?.errors || []).join('; ') || 'Save failed.');
+      }
+    } catch (err: any) {
+      showShadowResult('error', `Save failed: ${err?.message || err}`);
+    } finally {
+      if (submit) {
+        submit.disabled = false;
+        submit.classList.remove('loading');
+      }
+    }
+  });
+
+  shadowResetEl.addEventListener('click', async () => {
+    try {
+      const result = await window.electronAPI?.resetShadowWalkSettings();
+      if (result?.ok) {
+        await loadShadowWalkSettings();
+        showShadowResult('success', 'Shadow Walk defaults restored.');
+      } else {
+        showShadowResult('error', (result?.errors || []).join('; ') || 'Reset failed.');
+      }
+    } catch (err: any) {
+      showShadowResult('error', `Reset failed: ${err?.message || err}`);
+    }
+  });
+
   const showResearchResult = (kind: 'success' | 'error' | 'info', text: string) => {
     researchResultEl.className = `alert alert-${kind} alert-sm font-mono text-xs`;
     researchResultEl.textContent = text;
@@ -1724,6 +1830,9 @@ if (settingsBtn && settingsModal) {
     if (tab === 'input') {
       void loadInputSettings();
     }
+    if (tab === 'shadow') {
+      void loadShadowWalkSettings();
+    }
     if (tab === 'wrappers') {
       void loadWrapSettings();
       const activeWrapTab = wrapSubTabs.find((button) => button.classList.contains('tab-active'))?.dataset.wrapTab;
@@ -1839,6 +1948,7 @@ if (settingsBtn && settingsModal) {
     if (activeTab === 'recording') void loadRecordingSettings();
     if (activeTab === 'clients') void loadConnectPanel();
     if (activeTab === 'research') void loadResearchSettings();
+    if (activeTab === 'shadow') void loadShadowWalkSettings();
   });
 
   settingsModal.addEventListener('close', () => {
