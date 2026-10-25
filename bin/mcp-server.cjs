@@ -37789,6 +37789,7 @@ ${lines.join("\n")}`;
       budget: external_exports.coerce.number().optional().describe("Max characters to return; page with next_cursor. Omitted = the projection default (markdown 25,000, text/ax everything); 0 = everything"),
       cursor: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe("next_cursor from a previous observe call"),
       include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Include below/above-the-fold elements (markdown marks, som, list)"),
+      include_frames: external_exports.coerce.boolean().optional().default(false).describe("Merge child-frame controls into som/components (100+ mark ids)"),
       limit: external_exports.coerce.number().optional().describe("Max rows for list/table projections")
     },
     endpoint: "/observe",
@@ -37798,6 +37799,7 @@ ${lines.join("\n")}`;
       budget: args?.budget,
       cursor: args?.cursor,
       include_offscreen: args?.include_offscreen === true,
+      include_frames: args?.include_frames === true,
       limit: args?.limit
     }),
     format: (data) => {
@@ -38383,7 +38385,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.101";
+var APP_VERSION = "1.4.102";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

@@ -1169,6 +1169,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           budget: body?.budget !== undefined ? Number(body.budget) : undefined,
           cursor: body?.cursor,
           includeOffscreen: body?.include_offscreen === true || body?.includeOffscreen === true,
+          includeFrames: body?.include_frames === true || body?.includeFrames === true,
           limit: body?.limit !== undefined ? Number(body.limit) : undefined,
         });
         sendJson({ success: true, ...obs });

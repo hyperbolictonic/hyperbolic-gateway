@@ -163,6 +163,8 @@ export interface ObserveOptions {
   budget?: number;
   cursor?: string | number;
   includeOffscreen?: boolean;
+  /** Merge child-frame controls (100+ ids) into som/components projections. */
+  includeFrames?: boolean;
   limit?: number;
 }
 
@@ -767,8 +769,16 @@ export class Primitives {
 
     if (as === 'som') {
       const marks = await this.host.injectMarks({ includeOffscreen: opts.includeOffscreen === true });
+      let frameNote: string | undefined;
+      if (opts.includeFrames) {
+        const merged = await this.frameMarks(opts);
+        marks.push(...merged.marks);
+        frameNote = merged.note;
+      }
       const rows = marks.map((m) => this.markLine(m));
-      return { as, revision, url: info.url, title: info.title, marks, count: marks.length, text: rows.join('\n') };
+      const result: any = { as, revision, url: info.url, title: info.title, marks, count: marks.length, text: rows.join('\n') };
+      if (frameNote) result.frameNote = frameNote;
+      return result;
     }
 
     if (as === 'components') {
@@ -791,8 +801,32 @@ export class Primitives {
         rect: m.rect,
         ...(componentOn && m.component ? { signature: m.component.signature, component: m.component } : {}),
       }));
+      let frameNote: string | undefined;
+      if (opts.includeFrames) {
+        const merged = await this.frameMarks(opts);
+        for (const mark of merged.marks) {
+          components.push({
+            id: mark.id,
+            role: (mark.role || mark.tag).toLowerCase(),
+            tag: mark.tag.toLowerCase(),
+            name: mark.text || '',
+            value: mark.value,
+            state: [],
+            actions: mark.actions || [],
+            region: 'frame',
+            regionName: mark.frameUrl,
+            rect: mark.rect,
+            ...(componentOn && mark.component ? { signature: mark.component.signature, component: mark.component } : {}),
+            frameId: mark.frameId,
+            frameUrl: mark.frameUrl,
+          } as any);
+        }
+        frameNote = merged.note;
+      }
       const text = this.componentsText(components);
-      return this.pageText(as, revision, info, text, opts, { components, count: components.length });
+      const result: any = this.pageText(as, revision, info, text, opts, { components, count: components.length });
+      if (frameNote) result.frameNote = frameNote;
+      return result;
     }
 
     if (as === 'ax') {
@@ -831,6 +865,49 @@ export class Primitives {
       },
       DEFAULT_MARKDOWN_BUDGET
     );
+  }
+
+  /** Child-frame controls as mark-like rows for observe(som/components). */
+  private async frameMarks(opts: ObserveOptions): Promise<{ marks: any[]; note?: string }> {
+    if (!this.host.getFrames) return { marks: [], note: 'Frame scanning is not available in this build.' };
+    try {
+      const data = await this.host.getFrames({
+        includeControls: true,
+        screenshots: false,
+        maxFrames: 6,
+        maxControls: Math.max(1, opts.limit ?? 40),
+        includeOffscreen: opts.includeOffscreen === true,
+      });
+      const marks: any[] = [];
+      for (const frame of data.frames || []) {
+        if (frame.depth === 0 || !Array.isArray(frame.controls)) continue;
+        for (const control of frame.controls) {
+          if (typeof control.id !== 'number' || control.id < 100) continue;
+          marks.push({
+            id: control.id,
+            tag: String(control.tag || '').toUpperCase(),
+            text: control.name || '',
+            role: control.role,
+            value: control.value,
+            actions: control.actions || [],
+            rect: control.rect,
+            center: {
+              x: Math.round(control.rect.x + control.rect.width / 2),
+              y: Math.round(control.rect.y + control.rect.height / 2),
+            },
+            frameId: frame.frameId,
+            frameUrl: frame.url,
+            component: control.component,
+          });
+        }
+      }
+      return {
+        marks,
+        note: marks.length ? undefined : (data.notes || []).join('; ') || 'No visible controls inside child frames.',
+      };
+    } catch (err: any) {
+      return { marks: [], note: `Frame scan unavailable: ${String(err?.message || err)}` };
+    }
   }
 
   private pageText(

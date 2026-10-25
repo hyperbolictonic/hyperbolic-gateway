@@ -304,8 +304,10 @@ frame's top-level rect is added before the humanized click.
 
 - Same-site and cross-site (OOPIF) frames both use `evaluateInFrames`.
 - `frames` exposes the same `id` on each control.
+- `observe(as:"som"|"components", include_frames:true)` merges the same marks/components; the
+  decision loop can now see iframe affordances alongside page ones.
 - Main-frame marks remain 1–99; the blocks never collide.
-- `find` without `include_frames` is unchanged (main-frame only).
+- `find` without `include_frames` is unchanged (main-frame only). `extract` remains main-frame only.
 
 ### Visual / style provenance (1.4.101)
 
@@ -346,8 +348,8 @@ Closed roots, frames, Tab entry, signatures, frame mark ids and force-open are s
 work is polish/optimization:
 
 1. **Clone Lab** is still a proposal ([`TODO.md`](./TODO.md) item 18).
-2. `observe`/`extract` are still main-frame only; `find(include_frames)` and frame mark ids cover
-   the targeting path.
+2. `extract` is still main-frame only; `observe(as:"som"|"components")`, `find(include_frames)` and
+   frame mark ids cover the observation/targeting paths.
 
 Force-open is the one detectably risky path: off by default, opt-in per run, confirmed in Settings,
 and called out by a red chip. See [`SHADOW_WALK.md`](./SHADOW_WALK.md).

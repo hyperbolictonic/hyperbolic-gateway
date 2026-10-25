@@ -1208,6 +1208,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       budget: z.coerce.number().optional().describe('Max characters to return; page with next_cursor. Omitted = the projection default (markdown 25,000, text/ax everything); 0 = everything'),
       cursor: z.union([z.string(), z.coerce.number()]).optional().describe('next_cursor from a previous observe call'),
       include_offscreen: z.coerce.boolean().optional().default(false).describe('Include below/above-the-fold elements (markdown marks, som, list)'),
+      include_frames: z.coerce.boolean().optional().default(false).describe('Merge child-frame controls into som/components (100+ mark ids)'),
       limit: z.coerce.number().optional().describe('Max rows for list/table projections'),
     },
     endpoint: '/observe',
@@ -1217,6 +1218,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       budget: args?.budget,
       cursor: args?.cursor,
       include_offscreen: args?.include_offscreen === true,
+      include_frames: args?.include_frames === true,
       limit: args?.limit,
     }),
     format: (data) => {

@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.102] - 2026-10-25
+
+### Added
+
+- **Frame-aware `observe`.** `observe(as:"som"|"components", include_frames:true)` merges child-frame
+  controls into the main results. Frame rows carry their 100+ mark ids, frame identity and host
+  signature, so the decision loop can see and act on iframe affordances with the same model.
+- `POST /observe` and MCP `observe` accept `include_frames`; `find` without it and `extract`
+  remain main-frame only.
+- `test:framemarks` now proves both projections (10 checks).
+
 ## [1.4.101] - 2026-10-25
 
 ### Added

@@ -100,6 +100,18 @@ async function main() {
       JSON.stringify(same?.component || null)
     );
 
+    const observed = await call('/observe', 'POST', { as: 'components', include_frames: true, include_offscreen: true });
+    const frameComponents = (observed.components || []).filter((c) => typeof c.id === 'number' && c.id >= 100);
+    check(
+      'observe(components) merges child-frame controls',
+      frameComponents.length >= 2 && frameComponents.some((c) => c.frameId),
+      `frame components=${frameComponents.length} total=${(observed.components || []).length}`
+    );
+
+    const som = await call('/observe', 'POST', { as: 'som', include_frames: true, include_offscreen: true });
+    const somMarks = (som.marks || []).filter((m) => typeof m.id === 'number' && m.id >= 100);
+    check('observe(som) merges child-frame marks', somMarks.length >= 2, `frame marks=${somMarks.length}`);
+
     if (same && cross) {
       await call('/act', 'POST', { mark_id: same.id, action: 'click' });
       await call('/act', 'POST', { mark_id: cross.id, action: 'click' });
