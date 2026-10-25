@@ -255,7 +255,7 @@ export class BrowserChassis {
       log: (level, msg) => this.addLog(level, msg),
       evaluate: (script) => this.evaluateQuiet(script),
       harvest: (opts) => this.harvestMarkdown(opts),
-      injectMarks: (opts) => this.marksOverlay.injectMarks(this.getActiveWebContents(), opts || {}),
+      injectMarks: (opts) => this.scanMarks(this.getActiveWebContents(), opts || {}),
       removeMarks: () => this.marksOverlay.removeMarks(this.getActiveWebContents()),
       getMarks: () => this.getActiveMarks(),
       getMarkTarget: (id) =>
@@ -1579,7 +1579,7 @@ export class BrowserChassis {
 
     // Ensure interactive elements have data-mark-id stamps for grounded markdown
     if (opts.includeMarks !== false) {
-      await this.marksOverlay.injectMarks(wc, { includeOffscreen: Boolean(opts.includeOffscreen) });
+      await this.scanMarks(wc, { includeOffscreen: Boolean(opts.includeOffscreen) });
       await this.marksOverlay.removeMarks(wc); // Strips visual badges, keeps data-mark-id
     }
 
@@ -1641,6 +1641,18 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     const raw = await wc.executeJavaScript(controlFactsExpression(options)).catch(() => null);
     return parseControlFacts(raw);
+  }
+
+  /** Mark scan with the active Shadow Walk deep-open-roots policy applied. */
+  private async scanMarks(
+    wc: WebContents,
+    opts: { includeOffscreen?: boolean; deepOpenRoots?: boolean } = {}
+  ): Promise<MarkItem[]> {
+    const settings = loadShadowWalkSettings();
+    return this.marksOverlay.injectMarks(wc, {
+      ...opts,
+      deepOpenRoots: opts.deepOpenRoots ?? settings.shadow.deepOpenRoots,
+    });
   }
 
   /** Throws a structured refusal when a Shadow Walk surface is disabled. */
@@ -2432,7 +2444,7 @@ export class BrowserChassis {
 
     // Text-only: badges are only needed to populate the mark registry; no pixels are captured.
     if (textOnly) {
-      const textMarks = await this.marksOverlay.injectMarks(wc, { includeOffscreen });
+      const textMarks = await this.scanMarks(wc, { includeOffscreen });
       await this.marksOverlay.removeMarks(wc);
       const viewport = this.getViewportBounds();
       return {
@@ -2442,7 +2454,7 @@ export class BrowserChassis {
     }
 
     // 1. Inject visual badges into DOM
-    const marks = await this.marksOverlay.injectMarks(wc, { includeOffscreen });
+    const marks = await this.scanMarks(wc, { includeOffscreen });
 
     // Wait a brief tick for render paint
     await new Promise((r) => setTimeout(r, 80));

@@ -16,6 +16,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.100] - 2026-10-25
+
+### Fixed
+
+- **`deepOpenRoots` now matches its label.** The lever previously blocked `/dom/facts?deep` and
+  frame deep scans, but the marks scanner still traversed every open shadow root. The marks overlay
+  now takes `deepOpenRoots` from Settings; when off, `find`/`observe` marks stay in the light DOM,
+  while sealed discovery (a separate lever) is unaffected. `test:component` asserts both directions
+  (open-root control found with the lever on, absent with it off).
+
+### Real-world smoke (read-only)
+
+- **Mobalytics** (`https://mobalytics.gg/`): 80 controls, **0** custom-element signatures (React
+  app), 5 blank same-site frames, consent dialog in the main document. Good SPA/control smoke; not a
+  closed-root or component-surface target.
+- **Polymer Shop** (`https://shop.polymer-project.org/`): 16 controls, **16/16** with signatures,
+  2 distinct hosts.
+- **lit.dev**: 66 controls, 6/16 with signatures, 5 distinct hosts.
+- **lit.dev sealed scan**: 0 closed controls, 439 ms, 7 CDP commands; no false positives.
+- Force-open remained off in every smoke run.
+
 ## [1.4.99] - 2026-10-25
 
 ### Added

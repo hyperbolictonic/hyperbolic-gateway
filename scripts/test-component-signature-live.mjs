@@ -33,9 +33,18 @@ const PAGE = `<!doctype html><html><head><title>Component Signature</title></hea
 <pay-widget part="card" exportparts="button:pay-button, label:pay-label" style="--brand:#0af;--radius:8px">
   <button id="pay" onclick="document.documentElement.setAttribute('data-paid','1')">Pay now</button>
 </pay-widget>
+<open-widget></open-widget>
 <script>
 class PayWidget extends HTMLElement {}
 customElements.define('pay-widget', PayWidget);
+class OpenWidget extends HTMLElement {
+  constructor() {
+    super();
+    const root = this.attachShadow({ mode: 'open' });
+    root.innerHTML = '<button id="open-action">Open Shadow Action</button>';
+  }
+}
+customElements.define('open-widget', OpenWidget);
 </script>
 </body></html>`;
 
@@ -125,6 +134,13 @@ async function main() {
       Number(mismatch.recipe?.consecutiveFailures) >= 3,
       `consecutiveFailures=${mismatch.recipe?.consecutiveFailures}`
     );
+
+    const openDefault = await req('/find', 'POST', { name: 'Open Shadow Action' });
+    check('deepOpenRoots on finds controls inside open roots', (openDefault.marks || []).some((m) => m.text === 'Open Shadow Action'), `count=${openDefault.count}`);
+    writeSettings({ shadow: { deepOpenRoots: false } });
+    const openOff = await req('/find', 'POST', { name: 'Open Shadow Action' });
+    check('deepOpenRoots off keeps marks in the light DOM', (openOff.count || 0) === 0, `count=${openOff.count}`);
+    writeSettings();
 
     writeSettings({ shadow: { componentSurface: false } });
     const without = await req('/observe', 'POST', { as: 'components' });

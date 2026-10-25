@@ -398,6 +398,7 @@ The Shadow Walk levers are enforced before work starts, not after:
 | `focus_walk` | `400 TAB_WALK_DISABLED` |
 | `/frames`, frame geometry | `400 FRAMES_DISABLED` |
 | `/dom/facts {deep:true}` | `400 DEEP_OPEN_ROOTS_DISABLED` |
+| marks / `find` / `observe` | `deepOpenRoots:false` keeps them in the light DOM (no error) |
 
 The panel lives in `Settings → SHADOW WALK`; writes go over IPC to
 `data/shadow-walk.json`. `/health` returns a `shadowWalk` block with the active policy, so an agent

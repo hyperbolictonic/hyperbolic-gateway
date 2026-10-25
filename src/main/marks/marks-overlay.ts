@@ -68,8 +68,13 @@ export class MarksOverlay {
    *   fold). Off-screen items are numbered *after* popup and on-screen items so the 99-mark cap
    *   still favours what is visible. Intended for long virtualized result lists; `click_mark`
    *   scrolls the target into view before clicking.
+   * @param opts.deepOpenRoots Traverse open shadow roots (default true). Set false to keep marks
+   *   to the light DOM; the Shadow Walk setting uses this.
    */
-  public async injectMarks(wc: WebContents, opts: { includeOffscreen?: boolean } = {}): Promise<MarkItem[]> {
+  public async injectMarks(
+    wc: WebContents,
+    opts: { includeOffscreen?: boolean; deepOpenRoots?: boolean } = {}
+  ): Promise<MarkItem[]> {
     if (!wc || wc.isDestroyed()) return [];
 
     const currentUrl = wc.getURL();
@@ -78,11 +83,13 @@ export class MarksOverlay {
     // Pass existing static anchors so the injected script can reuse sticky IDs
     const existingAnchors = Object.fromEntries(this.staticAnchorMap.entries());
     const includeOffscreen = opts.includeOffscreen === true;
+    const deepOpenRoots = opts.deepOpenRoots !== false;
 
     const script = `
       (() => {${DEEP_DOM_HELPERS}${COMPONENT_SIGNATURE_HELPERS}
         const existingAnchors = ${JSON.stringify(existingAnchors)};
         const includeOffscreen = ${JSON.stringify(includeOffscreen)};
+        const deepOpenRoots = ${JSON.stringify(deepOpenRoots)};
 
         // Remove existing visual overlay container if present (leave data-mark-id for sticky cache)
         const old = document.getElementById('mark-eleven-som-container');
@@ -284,6 +291,7 @@ export class MarksOverlay {
         const roots = [];
         const collectRoots = (root) => {
           roots.push(root);
+          if (!deepOpenRoots) return;
           for (const el of root.querySelectorAll('*')) {
             if (el.shadowRoot) collectRoots(el.shadowRoot);
           }
