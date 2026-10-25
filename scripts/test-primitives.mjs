@@ -282,7 +282,7 @@ async function main() {
 
     // --- collect_all over the infinite feed ---------------------------------
     const collected = await bridge('/collect', 'POST', { selector: '#feed', step: 600, delay_ms: 200, max_scrolls: 25, max: 40 });
-    check('collect_all scrolls the infinite feed', collected.count === 25, `${collected.count} rows after ${collected.scrolls} scrolls${collected.count === 25 ? '' : ` diag=${JSON.stringify(collected.diag)}`}`);
+    check('collect_all scrolls the infinite feed', collected.count === 25, `${collected.count} rows after ${collected.scrolls} scrolls${collected.count === 25 ? '' : ` diag=${JSON.stringify(collected.diag)} error=${JSON.stringify(collected.error)}`}`);
 
     // --- find ---------------------------------------------------------------
     const found = await bridge('/find', 'POST', { role: 'link', name: 'Alpha Airways' });

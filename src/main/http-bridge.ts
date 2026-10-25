@@ -1265,6 +1265,20 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/focus_walk') {
+        const body = await readBody();
+        const result = await chassis.focusWalk({
+          selector: body?.selector,
+          x: body?.x !== undefined ? Number(body.x) : undefined,
+          y: body?.y !== undefined ? Number(body.y) : undefined,
+          direction: body?.direction === 'backward' ? 'backward' : 'forward',
+          maxSteps: body?.max_steps !== undefined ? Number(body.max_steps) : undefined,
+          restore: body?.restore !== false,
+        });
+        sendJson({ success: true, ...result });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/find') {
         const body = await readBody();
         const data = await chassis.getPrimitives().find({

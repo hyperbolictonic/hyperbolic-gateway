@@ -1602,6 +1602,39 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
   },
   {
+    name: 'focus_walk',
+    description:
+      'Enter a closed shadow root like a keyboard user: focus the host, then send trusted Tab (or Shift+Tab) steps and read the accessibility tree to confirm which inner control actually has focus. Stops when focus leaves the host, the step budget is spent, or focus is lost. Use act(action:"press", text:"Enter") to activate the landed control.',
+    parameters: {
+      selector: z.string().optional().describe('Light-DOM host selector to start from'),
+      x: z.coerce.number().optional().describe('Viewport x of the host (when there is no stable selector)'),
+      y: z.coerce.number().optional().describe('Viewport y of the host'),
+      direction: z.enum(['forward', 'backward']).optional().default('forward').describe('Tab or Shift+Tab'),
+      max_steps: z.coerce.number().optional().default(8).describe('Maximum key presses (1-12)'),
+      restore: z.coerce.boolean().optional().default(true).describe('Return focus to the host if the walk fails'),
+    },
+    endpoint: '/focus_walk',
+    payload: (args) => ({
+      selector: args?.selector,
+      x: args?.x,
+      y: args?.y,
+      direction: args?.direction,
+      max_steps: args?.max_steps,
+      restore: args?.restore,
+    }),
+    format: (data) => {
+      const steps = Array.isArray(data.steps) ? data.steps : [];
+      const rows = steps.map((s: any) => {
+        const label = s.index === 0 ? 'initial' : `#${s.index}`;
+        const cx = Math.round(s.rect.x + s.rect.width / 2);
+        const cy = Math.round(s.rect.y + s.rect.height / 2);
+        return `${label} <${s.role}> "${s.name}" @ (${cx}, ${cy})`;
+      });
+      const median = data.medianStepGapMs !== undefined ? ` median=${data.medianStepGapMs}ms` : '';
+      return `focus_walk — landed=${data.landed} reason=${data.reason} steps=${steps.length}${median}\n${rows.join('\n')}`;
+    },
+  },
+  {
     name: 'act',
     description:
       'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, x/y viewport coordinates, or target_text for controls with no semantics (React cards: a div with a handler three levels up, no role/href/onclick). ' +

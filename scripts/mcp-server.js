@@ -38184,6 +38184,39 @@ ${lines.join("\n")}`;
     }
   },
   {
+    name: "focus_walk",
+    description: 'Enter a closed shadow root like a keyboard user: focus the host, then send trusted Tab (or Shift+Tab) steps and read the accessibility tree to confirm which inner control actually has focus. Stops when focus leaves the host, the step budget is spent, or focus is lost. Use act(action:"press", text:"Enter") to activate the landed control.',
+    parameters: {
+      selector: external_exports.string().optional().describe("Light-DOM host selector to start from"),
+      x: external_exports.coerce.number().optional().describe("Viewport x of the host (when there is no stable selector)"),
+      y: external_exports.coerce.number().optional().describe("Viewport y of the host"),
+      direction: external_exports.enum(["forward", "backward"]).optional().default("forward").describe("Tab or Shift+Tab"),
+      max_steps: external_exports.coerce.number().optional().default(8).describe("Maximum key presses (1-12)"),
+      restore: external_exports.coerce.boolean().optional().default(true).describe("Return focus to the host if the walk fails")
+    },
+    endpoint: "/focus_walk",
+    payload: (args) => ({
+      selector: args?.selector,
+      x: args?.x,
+      y: args?.y,
+      direction: args?.direction,
+      max_steps: args?.max_steps,
+      restore: args?.restore
+    }),
+    format: (data) => {
+      const steps = Array.isArray(data.steps) ? data.steps : [];
+      const rows = steps.map((s) => {
+        const label = s.index === 0 ? "initial" : `#${s.index}`;
+        const cx = Math.round(s.rect.x + s.rect.width / 2);
+        const cy = Math.round(s.rect.y + s.rect.height / 2);
+        return `${label} <${s.role}> "${s.name}" @ (${cx}, ${cy})`;
+      });
+      const median = data.medianStepGapMs !== void 0 ? ` median=${data.medianStepGapMs}ms` : "";
+      return `focus_walk \u2014 landed=${data.landed} reason=${data.reason} steps=${steps.length}${median}
+${rows.join("\n")}`;
+    }
+  },
+  {
     name: "act",
     description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, x/y viewport coordinates, or target_text for controls with no semantics (React cards: a div with a handler three levels up, no role/href/onclick). Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit \u2014 so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths \u2014 never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP \u2192 request_human_intervention). NOT for navigation (use navigate_to) or scrolling (use scroll_page). HUMAN_IN_PROGRESS means a person just used the browser: synthetic input is paused for a short quiet window. Do not retry in a loop \u2014 poll /human/status, wait for idle, then re-observe. Choosing the target is a separate job: when a decision model is configured AND two or more controls plausibly match, prefer observe(as:"components") -> decide -> act(mark_id); when exactly one control matches, find/act is faster and deterministic.',
     parameters: {
@@ -38345,7 +38378,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.4.91";
+var APP_VERSION = "1.4.92";
 
 // src/main/decide/decision-client.ts
 var import_node_fs = __toESM(require("node:fs"), 1);

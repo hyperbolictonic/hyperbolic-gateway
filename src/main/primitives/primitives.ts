@@ -536,7 +536,7 @@ function buildCollectScript(opts: CollectOptions): string {
     };
     walk(root, 0);
     const container = best ? best.node : root;
-    const rows = Array.from(container.children || []).filter(isItem);
+    let rows = Array.from(container.children || []).filter(isItem);
     const target = opts.scroll === 'window' ? (document.scrollingElement || document.documentElement) : container;
     const seen = {}; const out = [];
     const read = () => {

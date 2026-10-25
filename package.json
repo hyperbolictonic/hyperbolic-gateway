@@ -1,6 +1,6 @@
 {
   "name": "kuang-grade-mark-eleven",
-  "version": "1.4.91",
+  "version": "1.4.92",
   "license": "MIT",
   "description": "Stateful Visual Matrix Navigator (Electron Chassis + Focus-Independent Telemetry Engine + Orthogonal Primitive Layer)",
   "main": "dist-electron/main/index.js",
@@ -51,6 +51,7 @@
     "preview": "vite preview",
     "test:dom": "node scripts/test-dom-probe.mjs",
     "test:sealed": "node scripts/test-sealed.mjs",
+    "test:tabwalk": "node scripts/test-tabwalk.mjs",
     "test:human": "node scripts/test-human-activity.mjs",
     "test:recipes": "node scripts/test-recipes.mjs",
     "test:recipe:compile": "node scripts/test-recipe-compile.mjs"

@@ -19,6 +19,7 @@ import { ShieldBreaker, type ShieldDismissResult, type ConsentPolicy } from './s
 import { evaluateInFrames, type FrameEvalOptions, type FrameEvalResult } from './browser/frame-eval.js';
 import { listFrames, type FrameInfo } from './browser/frames.js';
 import { findSealedControls, type SealedFindOptions, type SealedFindResult } from './shadow-walk/ax-controls.js';
+import { runTabWalk, type TabWalkOptions, type TabWalkResult } from './shadow-walk/tab-walk.js';
 import { controlFactsExpression, parseControlFacts, type ControlFacts, type ControlFactsOptions } from './primitives/control-facts.js';
 import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
@@ -1623,6 +1624,15 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     this.addLog('action', `MCP Directive: find(sealed=true${options.name ? `, name="${options.name}"` : ''})`);
     return findSealedControls(wc, { ...options, revision: this.revision });
+  }
+
+  /** Trusted Tab/Shift+Tab walk into a (possibly closed) shadow subtree. */
+  public async focusWalk(options: TabWalkOptions): Promise<TabWalkResult> {
+    const wc = this.getActiveWebContents();
+    this.addLog('action', `MCP Directive: focus_walk(${options.selector || `${options.x},${options.y}`}, ${options.direction || 'forward'})`);
+    const result = await runTabWalk(wc, options, (key) => this.simulator.pressKey(wc, key));
+    this.bumpRevision();
+    return result;
   }
 
   /**

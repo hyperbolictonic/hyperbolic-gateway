@@ -16,6 +16,7 @@ Two different problems that get confused because both "hide" content:
 | `act(x, y)` | ✅ | ✅ (pixels are pixels) | ✅ |
 | `frames` — text | ✅ controls in frames | ✅ via `find(sealed:true)` | ✅ **frame as content** |
 | `frames` — screenshots | ✅ | ✅ (pixels are pixels) | ✅ |
+| `focus_walk` (Tab) | — | ✅ trusted entry + AX confirmation | — |
 | `evaluate` | ✅ | ❌ | ❌ |
 | `evaluate {frames:true}` | ✅ per frame | ✅ when the demonstrated effect is inside the root | ✅ |
 
@@ -118,6 +119,36 @@ How it stays honest:
   and `clear_first` uses trusted Ctrl+A + Delete — which works inside a closed root where page JS
   cannot clear the field. The typing verdict reports `unobservable` rather than falsely claiming
   the value did not change.
+
+### Entering a closed root (focus_walk)
+
+`focus_walk` presses real `Tab`/`Shift+Tab` keys from a light-DOM host and reads the accessibility
+tree after each step to see which inner node actually has focus:
+
+```jsonc
+// POST /focus_walk {"selector": "#checkout-host", "max_steps": 6}
+{
+  "started": true,
+  "landed": true,
+  "reason": "left-host",
+  "steps": [
+    { "index": 1, "role": "button", "name": "Pay now", "rect": { "x": 18, "y": 8, "width": 89, "height": 21 }, "gapMs": 213 },
+    { "index": 2, "role": "textbox", "name": "Card number", "rect": { … }, "gapMs": 198 }
+  ],
+  "medianStepGapMs": 205,
+  "restored": false
+}
+```
+
+- `document.activeElement` retargets to the host for a closed root, so AX is the only honest focus
+  oracle. `RootWebArea` also reports `focused:true`; it is filtered out.
+- Starting focus uses `DOM.focus` with a page-side `focus()` fallback (needed by some
+  `delegatesFocus` hosts).
+- A `delegatesFocus` host is already on its inner control when focused; that appears as `index: 0`.
+- Stops on `left-host`, `max-steps`, `no-focus`, or `not-focusable`.
+- Human cadence: one key event per step, a 90-140 ms dwell, median reported as `medianStepGapMs`.
+- On failure, focus returns to the host (`restored:true`).
+- To activate the landed control, call `act(action:"press", text:"Enter")`.
 
 ### Limits
 
@@ -275,7 +306,17 @@ The delivery plan, the settings levers, and the risk tiers live in
 
 ## Tests
 
-`npm run test:dom` (live bridge) covers the general control/frame surface:
+`npm run test:tabwalk` is the keyboard fixture:
+
+- a closed root with two buttons and an input; trusted Tab enters it and AX confirms each inner
+  control
+- stops when focus leaves the host (`left-host`) or at `max_steps`
+- Enter activates the landed button
+- Shift+Tab goes backward; a failed walk restores focus to the host
+- a `delegatesFocus` host reports the inner control as the initial step
+- median step gap ≥ 80ms (a keyboard user, not a burst)
+
+`npm run test:dom` covers the general control/frame surface:
 
 - a clickable `div` with an inline handler and no role
 - occlusion (covered button), disabled control, hidden input

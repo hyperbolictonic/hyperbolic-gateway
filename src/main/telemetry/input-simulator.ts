@@ -604,19 +604,30 @@ export class HumanizedInputSimulator {
    */
   public async pressKey(webContents: WebContents, key: string): Promise<void> {
     this.ensureInputTarget(webContents);
-    const d = keyDescriptor(key);
+    // `Shift+Tab` (and any other Shift-modified named key) is a real keyboard gesture; keep the
+    // modifier on the CDP event, otherwise Chromium performs a forward Tab instead.
+    const shiftMatch = /^Shift\+(.+)$/i.exec(key);
+    const baseKey = shiftMatch ? shiftMatch[1] : key;
+    const modifiers = shiftMatch ? 8 : 0; // CDP: Alt=1, Ctrl=2, Meta=4, Shift=8
+    const d = keyDescriptor(baseKey);
+    // Enter/Space need their text payload for Chromium to run the default action (activate a
+    // focused button, submit a form); a bare keyDown only updates focus/scroll state.
+    const text = d.key === 'Enter' ? '\r' : d.key === ' ' ? ' ' : undefined;
     const downViaCdp = await this.cdp(webContents, 'Input.dispatchKeyEvent', {
       type: 'keyDown',
       key: d.key,
       code: d.code,
       windowsVirtualKeyCode: d.vk,
       nativeVirtualKeyCode: d.vk,
+      modifiers,
+      ...(text !== undefined ? { text, unmodifiedText: text } : {}),
     });
     this.lastInputTransport = downViaCdp ? 'cdp' : 'native';
     if (!downViaCdp) {
       webContents.sendInputEvent({
         type: 'keyDown',
-        keyCode: key,
+        keyCode: baseKey,
+        modifiers: shiftMatch ? ['shift'] : undefined,
       });
     }
     await sleep(40 + Math.random() * 30);
@@ -626,11 +637,13 @@ export class HumanizedInputSimulator {
       code: d.code,
       windowsVirtualKeyCode: d.vk,
       nativeVirtualKeyCode: d.vk,
+      modifiers,
     });
     if (!downViaCdp) {
       webContents.sendInputEvent({
         type: 'keyUp',
-        keyCode: key,
+        keyCode: baseKey,
+        modifiers: shiftMatch ? ['shift'] : undefined,
       });
     }
     this.reporter?.onKey?.(key, 50);

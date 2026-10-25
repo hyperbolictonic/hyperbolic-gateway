@@ -16,6 +16,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.92] - 2026-10-25
+
+### Added
+
+- **`focus_walk` — enter a closed shadow root like a keyboard user.** `POST /focus_walk` (MCP
+  `focus_walk`) focuses a light-DOM host, sends trusted `Tab`/`Shift+Tab` steps, and reads the
+  accessibility tree after each step to confirm which inner control actually has focus.
+  - Stops on `left-host`, `max-steps`, `no-focus`, or `not-focusable`; reports `landed`, `restored`
+    and `medianStepGapMs`.
+  - One real key event per step with a 90-140 ms dwell; no bursts, no page-side focus injection in
+    the normal path. A `delegatesFocus` host appears as the initial (`index: 0`) step.
+  - `DOM.focus` with a page-side `focus()` fallback for hosts that reject the CDP command; focus
+    returns to the host when the walk fails.
+  - `RootWebArea` also claims `focused:true`; it is filtered so the result names the control the
+    user is actually on.
+  - Works with the existing `act(action:"press", text:"Enter")` to activate the landed control.
+- `scripts/test-tabwalk.mjs` (`npm run test:tabwalk`): closed root entry, stop conditions, Enter
+  activation, Shift+Tab failure + restore, `delegatesFocus`, and human cadence.
+
+### Fixed
+
+- **`pressKey` now carries Shift and text.** `Shift+Tab` sends the Shift modifier; without it
+  Chromium performs a forward Tab. Enter/Space include their text payload so a focused button is
+  actually activated.
+- **`collect_all` no longer throws `Assignment to constant variable`.** The injected collector
+  declared `rows` as `const` and reassigned it after each scroll (introduced in 1.4.78); it is a
+  `let` again. `test:primitives` is back to 37/37.
+
 ## [1.4.91] - 2026-10-25
 
 ### Added

@@ -95,7 +95,7 @@ The invariant is testable, not aspirational — the metrics registry already cou
 | `act(x, y)` | ✅ today | ✅ today | ✅ today |
 | `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ❌ |
 | type / press | ✅ today | ✅ today (coordinate click focuses inside) | ✅ today |
-| `focus_walk` (Tab) | — | ✅ **P2** | — |
+| `focus_walk` (Tab) | — | ✅ **today** | — |
 | component signature | ✅ **P4** | ✅ **P4** (host surface only) | ✅ **P4** |
 | `observe` text from closed roots | — | ❌ (AX has names, not bodies) | ❌ |
 
@@ -236,7 +236,7 @@ it asks.
   frame fixture proves the session path and offset composition.
 - Docs: matrix row, `SHADOW_DOM_AND_FRAMES.md` closed-root section.
 
-### P2 — `1.4.92` Tab walk (`focus_walk`)
+### P2 — `1.4.92` Tab walk (`focus_walk`) — **shipped**
 
 - `src/main/shadow-walk/tab-walk.ts`: start from a host (mark/selector/point), dispatch trusted
   `Tab` / `Shift+Tab`, read the focused AX node after each step (`focused:true`), stop at the step
