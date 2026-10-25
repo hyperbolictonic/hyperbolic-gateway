@@ -34,7 +34,7 @@ This is the plan for what a closed root hides, and for the levers that are allow
 | `act(x, y)` | ✅ today | ✅ **P1** | ✅ today |
 | `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ❌ |
 | type / press | ✅ today | ✅ **P1** (coordinate click focuses inside) | ✅ today |
-| `focus_walk` (Tab) | — | ✅ **P3** | — |
+| `focus_walk` (Tab) | — | ✅ **P2** | — |
 | component signature | ✅ **P4** | ✅ **P4** (host surface only) | ✅ **P4** |
 | `observe` text from closed roots | — | ❌ (AX has names, not bodies) | ❌ |
 
@@ -128,7 +128,17 @@ it asks.
   value; **the page's own `shadowRoot` probe still returns null** (we changed nothing).
 - Docs: matrix row, `SHADOW_DOM_AND_FRAMES.md` closed-root section.
 
-### P2 — `1.4.91` Settings surface + enforcement
+### P2 — `1.4.91` Tab walk (`focus_walk`)
+
+- `src/main/shadow-walk/tab-walk.ts`: start from a host (mark/selector/point), dispatch trusted
+  `Tab` / `Shift+Tab`, read the focused AX node after each step (`focused:true`), stop at the step
+  limit or when focus leaves the host's AX subtree.
+- Returns `{steps:[{index, role, name, rect}], landed, restored}`. `restore:true` returns focus to
+  the start on failure. Human-like by construction: it is a keyboard user.
+- Tests: step into a `delegatesFocus` closed root, confirm the focused node is the inner button,
+  `Enter` activates it; limit and restore verified.
+
+### P3 — `1.4.92` Settings surface + enforcement
 
 - `src/main/shadow-walk/settings.ts` (load/save/validate, defaults above) + IPC in `index.ts` /
   `preload`; no HTTP write route.
@@ -138,16 +148,6 @@ it asks.
   `focus_walk` → `TAB_WALK_DISABLED`; master off → `SHADOW_WALK_DISABLED`.
 - `bridge_health.shadowWalk` status.
 - Tests: persistence, master kill switch, structured refusals, contract test for new routes.
-
-### P3 — `1.4.92` Tab walk (`focus_walk`)
-
-- `src/main/shadow-walk/tab-walk.ts`: start from a host (mark/selector/point), dispatch trusted
-  `Tab` / `Shift+Tab`, read the focused AX node after each step (`focused:true`), stop at the step
-  limit or when focus leaves the host's AX subtree.
-- Returns `{steps:[{index, role, name, rect}], landed, restored}`. `restore:true` returns focus to
-  the start on failure. Human-like by construction: it is a keyboard user.
-- Tests: step into a `delegatesFocus` closed root, confirm the focused node is the inner button,
-  `Enter` activates it; limit and restore verified.
 
 ### P4 — `1.4.93` Component fingerprints + recipe anchors
 
@@ -191,7 +191,7 @@ partition; not an actuation path.
 src/main/shadow-walk/
   settings.ts            defaults, validation, IPC-backed store
   ax-controls.ts         AX tree → control facts + live rects (P1)
-  tab-walk.ts            trusted Tab stepping + AX focus confirmation (P3)
+  tab-walk.ts            trusted Tab stepping + AX focus confirmation (P2)
   component-signature.ts host exported surface → stable signature (P4)
   force-open.ts          document-start patch, per-tab (P5)
   README.md              subsystem reference
@@ -219,7 +219,7 @@ rects, DPR-aware cropping), `primitives.ts` (`find`/`act`), `recipes` (signature
 ## Rollout
 
 Each phase: `npx tsc --noEmit`, `npm run test:mcp:contract`, `npm run check:no-local-paths`, its own
-live suite, changelog entry, tag. The settings tab ships in P2, after two capabilities exist, so no
+live suite, changelog entry, tag. The settings tab ships in P3, after both read paths exist, so no
 lever is a dead switch for a release.
 
 ---
