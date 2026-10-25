@@ -96,7 +96,7 @@ The invariant is testable, not aspirational — the metrics registry already cou
 | `act(mark_id)` | ✅ today | ❌ (AX results carry coordinates, not ids) | ❌ |
 | type / press | ✅ today | ✅ today (coordinate click focuses inside) | ✅ today |
 | `focus_walk` (Tab) | — | ✅ **today** | — |
-| component signature | ✅ **P4** | ✅ **P4** (host surface only) | ✅ **P4** |
+| component signature | ✅ today (host surface) | ❌ not attached to sealed results yet | ❌ not attached |
 | `observe` text from closed roots | — | ❌ (AX has names, not bodies) | ❌ |
 
 `act(mark_id)` inside a closed root is deliberately not planned: an id implies a DOM handle we do
@@ -166,9 +166,9 @@ it asks.
 Shipped in 1.4.93:
 
 - `Settings → SHADOW WALK` with a master switch, the implemented Shadow DOM levers (sealed discovery,
-  deep open roots, Tab walk + step/restore), and the iframe levers (geometry, controls, screenshots,
-  max frames/controls/screenshot side). Tier badges are visible: `SAFE` for read-only paths,
-  `VISIBLE` for the Tab walk, `RISKY` reserved for force-open.
+  component signatures, deep open roots, Tab walk + step/restore), and the iframe levers (geometry,
+  controls, screenshots, max frames/controls/screenshot side). Tier badges are visible: `SAFE` for
+  read-only paths, `VISIBLE` for the Tab walk, `RISKY` reserved for force-open.
 - `data/shadow-walk.json`, read on every guarded call and written atomically over IPC. `RESET
   DEFAULTS` restores the shipped policy.
 - Structured refusals: `SHADOW_WALK_DISABLED`, `SEALED_DISABLED`, `TAB_WALK_DISABLED`,
@@ -276,7 +276,7 @@ reserves the `RISKY` badge for P5.
 - `bridge_health.shadowWalk` status.
 - Tests: persistence, master kill switch, structured refusals, contract test for new routes.
 
-### P4 — `1.4.94` Component fingerprints + recipe anchors
+### P4 — `1.4.94` Component fingerprints + recipe anchors — **shipped**
 
 - `src/main/shadow-walk/component-signature.ts`: `{tag, defined, part[], exportparts, cssVars[]}`
   read from the **host** (page-visible by design) → `signature` string + short hash. Attached to
@@ -290,6 +290,10 @@ reserves the `RISKY` badge for P5.
   and `constructed` when present. Low hit rate on bundled apps; built only behind the lever.
 - Tests: signature stable across re-render, changes when `part` names change; recipe replays after a
   re-skin and retires after a structural change.
+- **Shipped in 1.4.94.** Signatures are on `find` marks and `observe(as:"components")`, drive
+  transcripts carry them, and recipes verify them before acting. `SIGNATURE_MISMATCH` retires the
+  recipe immediately; `SIGNATURE_UNAVAILABLE` is reported when the lever is off. `partHighlight` and
+  `cdpStyleMatch` remain off and are **not built yet** — force-open is the remaining phase.
 
 ### P5 — `1.4.95` Force-open patch (RISKY, last)
 

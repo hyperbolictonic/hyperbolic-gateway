@@ -13,6 +13,8 @@ export interface DriveStepLike {
   operation: string;
   target?: number | string;
   targetName?: string;
+  /** Component anchor captured from the host's exported surface. */
+  signature?: string;
   ok?: boolean;
   note?: string;
 }
@@ -49,13 +51,13 @@ export function compileDriveSteps(steps: DriveStepLike[], options: CompileOption
     if (!target) continue;
 
     if (step.operation === 'click' || step.operation === 'select') {
-      out.push({ action: 'click', target });
+      out.push({ action: 'click', target, ...(step.signature ? { signature: step.signature } : {}) });
       continue;
     }
     if (step.operation === 'type_text') {
       const value = valueFor(step, options.values);
       if (value === undefined) continue;
-      out.push({ action: 'type', target, value });
+      out.push({ action: 'type', target, value, ...(step.signature ? { signature: step.signature } : {}) });
       continue;
     }
     // scroll / wait / done / blocked are not replayable actions

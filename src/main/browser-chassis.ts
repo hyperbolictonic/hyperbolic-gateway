@@ -256,6 +256,7 @@ export class BrowserChassis {
       clickElement: (selector, coords) => this.clickElement(selector, coords),
       typeText: (text, selector, opts) => this.typeText(text, selector, opts),
       findSealed: (opts) => this.findSealed(opts),
+      componentSurfaceEnabled: () => this.componentSurfaceEnabled(),
       insertText: (text) => this.simulator.insertText(this.getActiveWebContents(), text),
       pasteText: (text) => this.simulator.pasteText(this.getActiveWebContents(), text),
       moveMouseTo: (target) => this.moveMouse(target),
@@ -1637,6 +1638,11 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     this.addLog('action', `MCP Directive: find(sealed=true${options.name ? `, name="${options.name}"` : ''})`);
     return findSealedControls(wc, { ...options, revision: this.revision });
+  }
+
+  /** Whether component signatures are allowed by Settings → Shadow Walk. */
+  public componentSurfaceEnabled(): boolean {
+    return loadShadowWalkSettings().shadow.componentSurface;
   }
 
   /** Trusted Tab/Shift+Tab walk into a (possibly closed) shadow subtree. */

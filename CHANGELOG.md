@@ -16,6 +16,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.4.94] - 2026-10-25
+
+### Added
+
+- **Component signatures.** `find` marks and `observe(as:"components")` now carry the nearest
+  custom-element host's exported surface:
+  `{tag, defined, part[], exportparts[], cssVars[], signature}`. Attributes are normalised and
+  sorted before a short djb2 hash, so attribute order and re-renders do not change the identity;
+  a renamed part or changed export mapping does. Read from the host only — page-visible by design.
+  Controlled by `componentSurface` in Settings → Shadow Walk; off removes the field.
+- **Recipe anchors.** `DriveStep` and `RecipeStep` carry an optional `signature`; `drive →
+  save_recipe` preserves it and replay verifies it before acting.
+  - Matching surface: the step proceeds as before.
+  - Changed surface: `409 SIGNATURE_MISMATCH` and immediate retirement (not three silent retries).
+  - `componentSurface` off: `409 SIGNATURE_UNAVAILABLE`, no click and no retirement.
+- `scripts/test-component-signature-live.mjs` (`npm run test:component`, 9 checks) covers observe/
+  find attachment, replay, structural mismatch/retirement and the disabled-surface case;
+  `npm run test:component:unit` covers normalisation and hash stability (3 checks).
+- The recipe compiler test now asserts a signature is carried into the recipe and omitted when the
+  target has no host.
+
+### Fixed
+
+- **Target-text resolves on a hidden/occluded window.** `textTargetExpression` clipped candidate
+  rects to `window.innerWidth/innerHeight`; a hidden tab reports `0`, so `act(target_text)` returned
+  `NO_TARGET` even though marks resolved. It now falls back to the document box, like the mark
+  scanner. This was caught by the recipe replay suite after a restart.
+
+### Not built yet
+
+- `partHighlight` and `cdpStyleMatch` remain off. Force-open is the last phase (`1.4.95`).
+- Sealed and iframe results do not carry component signatures yet; the host surface is available
+  only for page-visible targets.
+
 ## [1.4.93] - 2026-10-25
 
 ### Added

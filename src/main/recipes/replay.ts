@@ -19,6 +19,8 @@ export interface RecipeRunner {
     clearFirst?: boolean;
   }): Promise<unknown>;
   waitFor(conditions: Array<Record<string, unknown>>, options?: { timeoutMs?: number }): Promise<{ ok: boolean }>;
+  /** Resolve the target's component anchor before acting. */
+  componentSignature?(targetText: string): Promise<{ signature?: string; tag?: string; error?: string }>;
 }
 
 export interface ReplayStepResult {
@@ -26,6 +28,7 @@ export interface ReplayStepResult {
   step: RecipeStep;
   ok: boolean;
   ms: number;
+  code?: string;
   error?: string;
 }
 
@@ -34,6 +37,7 @@ export interface ReplayResult {
   recipeId: string;
   steps: ReplayStepResult[];
   failedAt?: number;
+  code?: string;
   message: string;
   ms: number;
 }
@@ -51,6 +55,33 @@ export async function replayRecipe(
   for (const [index, step] of recipe.steps.entries()) {
     const stepStarted = Date.now();
     try {
+      if (step.signature) {
+        if (!runner.componentSignature) {
+          throw Object.assign(new Error('SIGNATURE_UNAVAILABLE: this runner cannot verify component anchors'), {
+            code: 'SIGNATURE_UNAVAILABLE',
+          });
+        }
+        const current = await runner.componentSignature(step.target);
+        if (!current?.signature) {
+          throw Object.assign(
+            new Error(
+              current?.error === 'disabled'
+                ? 'SIGNATURE_UNAVAILABLE: component signatures are off in Settings → Shadow Walk'
+                : `SIGNATURE_MISMATCH: could not resolve the component surface for "${step.target}"`
+            ),
+            { code: current?.error === 'disabled' ? 'SIGNATURE_UNAVAILABLE' : 'SIGNATURE_MISMATCH' }
+          );
+        }
+        if (current.signature !== step.signature) {
+          throw Object.assign(
+            new Error(
+              `SIGNATURE_MISMATCH: expected ${step.signature}, found ${current.signature} for "${step.target}" — the component's exported surface changed`
+            ),
+            { code: 'SIGNATURE_MISMATCH' }
+          );
+        }
+      }
+
       const action = step.action === 'type' ? 'type' : 'click';
       const pending = runner.act({
         targetText: step.target,
@@ -71,12 +102,14 @@ export async function replayRecipe(
       steps.push({ index, step, ok: true, ms: Date.now() - stepStarted });
     } catch (err: any) {
       const message = String(err?.message || err);
-      steps.push({ index, step, ok: false, ms: Date.now() - stepStarted, error: message });
+      const code = typeof err?.code === 'string' ? err.code : undefined;
+      steps.push({ index, step, ok: false, ms: Date.now() - stepStarted, code, error: message });
       return {
         status: 'failed',
         recipeId: recipe.id,
         steps,
         failedAt: index,
+        code,
         message: `Stopped at step ${index + 1}/${recipe.steps.length}: ${message}`,
         ms: Date.now() - started,
       };

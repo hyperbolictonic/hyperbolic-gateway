@@ -51,6 +51,8 @@ export interface PrimitivesHost {
   typeMark(id: number, text: string, opts?: { secret?: boolean; clearFirst?: boolean }): Promise<string>;
   /** Closed-shadow-root discovery. Optional so test hosts can omit the CDP surface. */
   findSealed?(opts: SealedFindOptions): Promise<SealedFindResult>;
+  /** Whether component signatures may be attached to find/observe results. */
+  componentSurfaceEnabled?(): boolean;
   clickElement(selector?: string, coordinates?: { x: number; y: number }): Promise<string>;
   typeText(text: string, selector?: string, opts?: { clearFirst?: boolean }): Promise<string>;
   /** CDP text insertion — no key events. Fallback when keystrokes are provably ignored. */
@@ -767,6 +769,7 @@ export class Primitives {
       // mark collection as `som`, so web components are included. Mark ids stay valid, so a
       // decision ("click #8") executes through `act(mark_id)`.
       const marks = await this.host.injectMarks({ includeOffscreen: opts.includeOffscreen === true });
+      const componentOn = this.host.componentSurfaceEnabled?.() !== false;
       const components = marks.map((m) => ({
         id: m.id,
         role: (m.role || m.tag).toLowerCase(),
@@ -778,6 +781,7 @@ export class Primitives {
         region: m.region || 'page',
         regionName: m.regionName,
         rect: m.rect,
+        ...(componentOn && m.component ? { signature: m.component.signature, component: m.component } : {}),
       }));
       const text = this.componentsText(components);
       return this.pageText(as, revision, info, text, opts, { components, count: components.length });
@@ -914,6 +918,21 @@ export class Primitives {
 
   // ---- find / act ----------------------------------------------------------
 
+  public async componentSignatureForTarget(targetText: string): Promise<{ signature?: string; tag?: string; error?: string }> {
+    if (this.host.componentSurfaceEnabled?.() === false) return { error: 'disabled' };
+    const raw = await this.host
+      .evaluate(textTargetExpression(targetText, { max: 1, componentSurface: true }))
+      .catch(() => null);
+    const match = parseTextTargets(raw).matches[0];
+    if (!match?.component) return { error: 'not-found' };
+    return { signature: match.component.signature, tag: match.component.tag };
+  }
+
+  /** Replay-runner name; see {@link RecipeRunner.componentSignature}. */
+  public async componentSignature(targetText: string): Promise<{ signature?: string; tag?: string; error?: string }> {
+    return this.componentSignatureForTarget(targetText);
+  }
+
   public async find(opts: FindOptions = {}): Promise<any> {
     // Sealed discovery is guarded before marks are injected: a refused call must not mutate the
     // page first. It is also independent of the mark table, so doing it first is cheaper on refusal.
@@ -937,6 +956,7 @@ export class Primitives {
     }
 
     const marks = await this.host.injectMarks({ includeOffscreen: opts.includeOffscreen !== false });
+    const componentOn = this.host.componentSurfaceEnabled?.() !== false;
     let selectorIds: Set<number> | null = null;
     if (opts.selector) {
       const ids: number[] = await this.host
@@ -1006,10 +1026,15 @@ export class Primitives {
     });
 
     const text = [lines.join('\n'), sealedLines.join('\n')].filter(Boolean).join('\n');
+    const markRows = limited.map((m) => {
+      const row: any = { ...m, facts: factsById.get(m.id) };
+      if (!componentOn) delete row.component;
+      return row;
+    });
     const result: any = {
       count: limited.length,
       total: filtered.length,
-      marks: limited.map((m) => ({ ...m, facts: factsById.get(m.id) })),
+      marks: markRows,
       text,
     };
     if (sealedInfo) {

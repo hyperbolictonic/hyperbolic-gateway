@@ -20,6 +20,8 @@ export interface RecipeStep {
   value?: string;
   /** wait_for conditions asserted after the step. */
   expect?: Array<Record<string, unknown>>;
+  /** Component anchor (`tag:hash`) captured from the host's exported surface. */
+  signature?: string;
 }
 
 export interface Recipe {
@@ -129,11 +131,17 @@ export function saveRecipe(input: SaveRecipeInput): { ok: boolean; recipe?: Reci
       errors.push(`step ${i + 1}: type steps need a value`);
       continue;
     }
+    const signature = typeof raw.signature === 'string' ? raw.signature.trim() : '';
+    if (signature && signature.length > 120) {
+      errors.push(`step ${i + 1}: signature is too long`);
+      continue;
+    }
     steps.push({
       action: raw.action,
       target,
       value: raw.action === 'type' ? String(raw.value) : undefined,
       expect: Array.isArray(raw.expect) ? raw.expect.slice(0, 5) : undefined,
+      ...(signature ? { signature } : {}),
     });
   }
   if (errors.length) return { ok: false, errors };
@@ -184,6 +192,17 @@ export function recordResult(id: string, ok: boolean): Recipe | null {
   } else {
     recipe.consecutiveFailures += 1;
   }
+  persist(store);
+  return recipe;
+}
+
+/** A structural change is not a flaky miss: retire immediately instead of burning three attempts. */
+export function retireRecipe(id: string): Recipe | null {
+  const store = loadRecipes();
+  const recipe = store.recipes.find((r) => r.id === id);
+  if (!recipe) return null;
+  recipe.attempts += 1;
+  recipe.consecutiveFailures = RETIRE_AFTER_FAILURES;
   persist(store);
   return recipe;
 }

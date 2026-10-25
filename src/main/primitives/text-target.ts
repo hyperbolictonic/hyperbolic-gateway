@@ -11,6 +11,7 @@
  * framework attached. Deterministic, no layout guessing.
  */
 import type { WebContents } from 'electron';
+import { COMPONENT_SIGNATURE_HELPERS, type ComponentSurface } from '../shadow-walk/component-signature.js';
 
 export interface TextTargetOptions {
   /** Exact (trimmed) match instead of substring. Default false. */
@@ -19,6 +20,8 @@ export interface TextTargetOptions {
   caseSensitive?: boolean;
   /** Maximum candidates to return (default 8). */
   max?: number;
+  /** Also return the nearest custom-element host's exported surface. */
+  componentSurface?: boolean;
 }
 
 export interface TextTargetMatch {
@@ -30,6 +33,8 @@ export interface TextTargetMatch {
   height: number;
   /** Index among the returned matches (0 = first in document order). */
   index: number;
+  /** Present when `componentSurface: true` and the target sits under a custom element. */
+  component?: ComponentSurface;
 }
 
 export interface TextTargetResult {
@@ -54,11 +59,16 @@ export function textTargetExpression(query: string, options: TextTargetOptions =
   };
   return `(() => {
     const opts = ${JSON.stringify(opts)};
+    ${options.componentSurface === true ? COMPONENT_SIGNATURE_HELPERS : ''}
     const raw = opts.query.replace(/\\s+/g, ' ').trim();
     const needle = opts.caseSensitive ? raw : raw.toLowerCase();
     if (!needle) return { query: raw, matches: [], unique: false };
     const matches = [];
     const seen = new Set();
+    // A hidden/minimized window reports innerWidth/innerHeight 0. Falling back to the document box
+    // keeps target-text resolution working in background automation (marks already do this).
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
     const els = document.querySelectorAll(${JSON.stringify(`${TAGS},input,textarea,select`)});
     for (const el of els) {
       if (matches.length >= opts.max) break;
@@ -88,9 +98,9 @@ export function textTargetExpression(query: string, options: TextTargetOptions =
       seen.add(key);
       // Visible portion centre (tall elements can extend past the viewport).
       const left = Math.max(rect.left, 0);
-      const right = Math.min(rect.right, window.innerWidth);
+      const right = vw > 0 ? Math.min(rect.right, vw) : rect.right;
       const top = Math.max(rect.top, 0);
-      const bottom = Math.min(rect.bottom, window.innerHeight);
+      const bottom = vh > 0 ? Math.min(rect.bottom, vh) : rect.bottom;
       if (right <= left || bottom <= top) continue;
       matches.push({
         text: text.slice(0, 80),
@@ -100,6 +110,7 @@ export function textTargetExpression(query: string, options: TextTargetOptions =
         width: Math.round(rect.width),
         height: Math.round(rect.height),
         index: matches.length,
+        component: ${options.componentSurface === true ? '(kqComponentSurface(el) || undefined)' : 'undefined'},
       });
     }
     return { query: raw, matches, unique: matches.length === 1 };

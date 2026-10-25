@@ -39,6 +39,19 @@ check('dry-run plans are never compiled', dryRun.length === 0);
 const idMatch = compileDriveSteps([{ operation: 'type_text', target: 9, targetName: 'Search', ok: true }], { values: { '9': 'flights' } });
 check('a value can be recovered by component id', idMatch[0]?.value === 'flights', idMatch[0]?.value);
 
+const withSignature = compileDriveSteps(
+  [{ operation: 'click', target: 1, targetName: 'Pay now', signature: 'pay-widget:deadbeef', ok: true }],
+  {}
+);
+check(
+  'a component signature is carried into the recipe',
+  withSignature[0]?.signature === 'pay-widget:deadbeef',
+  withSignature[0]?.signature
+);
+
+const noSignature = compileDriveSteps([{ operation: 'click', target: 2, targetName: 'Plain', ok: true }], {});
+check('plain steps carry no signature field', noSignature[0] && !('signature' in noSignature[0]), JSON.stringify(noSignature[0]));
+
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${failed.length === 0 ? 'ALL CHECKS PASSED' : `${failed.length} CHECK(S) FAILED`} (${results.length} total)`);
 process.exit(failed.length === 0 ? 0 : 1);

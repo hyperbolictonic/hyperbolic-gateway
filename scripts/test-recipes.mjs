@@ -48,6 +48,9 @@ async function main() {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}/settings`;
 
+  await call('/window/visibility', 'POST', { visible: true });
+  await sleep(300);
+
   const results = [];
   const check = (name, ok, detail) => {
     results.push({ name, ok });

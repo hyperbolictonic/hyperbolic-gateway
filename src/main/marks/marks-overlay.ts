@@ -1,6 +1,9 @@
 import type { WebContents } from 'electron';
 import { DEEP_DOM_HELPERS } from '../primitives/dom-targeting.js';
 
+import type { ComponentSurface } from '../shadow-walk/component-signature.js';
+import { COMPONENT_SIGNATURE_HELPERS } from '../shadow-walk/component-signature.js';
+
 export interface MarkItem {
   id: number;
   tag: string;
@@ -19,6 +22,8 @@ export interface MarkItem {
   regionName?: string;
   rect: { x: number; y: number; width: number; height: number };
   center: { x: number; y: number };
+  /** Component surface when the control belongs to a custom-element host. */
+  component?: ComponentSurface;
 }
 
 export class MarksOverlay {
@@ -72,7 +77,7 @@ export class MarksOverlay {
     const includeOffscreen = opts.includeOffscreen === true;
 
     const script = `
-      (() => {${DEEP_DOM_HELPERS}
+      (() => {${DEEP_DOM_HELPERS}${COMPONENT_SIGNATURE_HELPERS}
         const existingAnchors = ${JSON.stringify(existingAnchors)};
         const includeOffscreen = ${JSON.stringify(includeOffscreen)};
 
@@ -457,6 +462,7 @@ export class MarksOverlay {
               x: Math.round(rect.left + rect.width / 2),
               y: Math.round(rect.top + rect.height / 2),
             },
+            component: kqComponentSurface(el) || undefined,
           });
         }
 

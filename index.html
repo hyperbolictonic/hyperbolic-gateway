@@ -453,6 +453,10 @@
               <input id="shadow-deep-open" type="checkbox" class="toggle toggle-sm toggle-primary" />
             </label>
             <label class="flex items-center justify-between gap-3 py-1.5">
+              <span class="text-xs">Component signatures <span class="text-base-content/50">— host part/exportparts/custom properties</span></span>
+              <input id="shadow-component-surface" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            </label>
+            <label class="flex items-center justify-between gap-3 py-1.5">
               <span class="text-xs">Tab walk <span class="badge badge-warning badge-xs font-mono">VISIBLE</span>
                 <span class="text-base-content/50">— moves focus like a keyboard user</span></span>
               <input id="shadow-tab-walk" type="checkbox" class="toggle toggle-sm toggle-warning" />
@@ -509,7 +513,7 @@
             <span>Force-open (<code class="font-mono">attachShadow</code> patch) is not built yet. It ships last (1.4.95), stays off by default, needs a confirm, and is detectable by the page.</span>
           </div>
           <div class="alert alert-ghost alert-sm font-mono text-[11px]">
-            <span>Clone Lab is a proposal only; no lever yet. Component signatures are the next phase.</span>
+            <span>Component signatures are live on find/observe (page-visible hosts). Clone Lab is a proposal only; no lever yet.</span>
           </div>
 
           <div class="flex flex-wrap items-center gap-2 border-t border-base-100 pt-3">

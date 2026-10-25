@@ -32,6 +32,8 @@ export interface DriveStep {
   operation: string;
   target?: number;
   targetName?: string;
+  /** Component anchor from the host's exported surface. */
+  signature?: string;
   /** Characters typed — never the text itself. */
   typedChars?: number;
   ok: boolean;
@@ -197,6 +199,7 @@ export async function driveTask(primitives: Primitives, opts: DriveOptions): Pro
     const targetId = targetAnswer?.choice !== undefined ? Number(targetAnswer.choice) : undefined;
     const component = targetId !== undefined ? components.find((c) => Number(c.id) === targetId) : undefined;
     const targetName = component?.name;
+    const signature = component?.signature;
 
     if (operation === 'done') {
       return { status: 'done', goal: opts.goal, steps, message: 'The model reports the goal is satisfied.', url, title, durationMs: Date.now() - started };
@@ -245,7 +248,7 @@ export async function driveTask(primitives: Primitives, opts: DriveOptions): Pro
     }
 
     if (opts.dryRun) {
-      steps.push({ step, operation, target: Number(component.id), targetName, typedChars: text?.length, ok: true, note: 'dry run' });
+      steps.push({ step, operation, target: Number(component.id), targetName, signature, typedChars: text?.length, ok: true, note: 'dry run' });
       return {
         status: 'needs_agent',
         goal: opts.goal,
@@ -274,6 +277,7 @@ export async function driveTask(primitives: Primitives, opts: DriveOptions): Pro
       operation,
       target: Number(component.id),
       targetName,
+      signature,
       typedChars: text?.length,
       ok,
       urlChanged,

@@ -94,6 +94,7 @@ export interface ShadowWalkRefusal {
 export interface ShadowWalkStatus {
   enabled: boolean;
   axSealed: boolean;
+  componentSurface: boolean;
   tabWalk: boolean;
   tabWalkMaxSteps: number;
   tabWalkRestoreFocus: boolean;
@@ -221,6 +222,7 @@ export function shadowWalkStatus(settings: ShadowWalkSettings = loadShadowWalkSe
   return {
     enabled: settings.enabled,
     axSealed: settings.shadow.axSealed,
+    componentSurface: settings.shadow.componentSurface,
     tabWalk: settings.shadow.tabWalk,
     tabWalkMaxSteps: settings.shadow.tabWalkMaxSteps,
     tabWalkRestoreFocus: settings.shadow.tabWalkRestoreFocus,

@@ -17,6 +17,7 @@ Two different problems that get confused because both "hide" content:
 | `frames` — text | ✅ controls in frames | ✅ via `find(sealed:true)` | ✅ **frame as content** |
 | `frames` — screenshots | ✅ | ✅ (pixels are pixels) | ✅ |
 | `focus_walk` (Tab) | — | ✅ trusted entry + AX confirmation | — |
+| component signature | ✅ find/observe (host surface) | ❌ sealed results | ❌ frame results |
 | `evaluate` | ✅ | ❌ | ❌ |
 | `evaluate {frames:true}` | ✅ per frame | ✅ when the demonstrated effect is inside the root | ✅ |
 
@@ -149,6 +150,36 @@ tree after each step to see which inner node actually has focus:
 - Human cadence: one key event per step, a 90-140 ms dwell, median reported as `medianStepGapMs`.
 - On failure, focus returns to the host (`restored:true`).
 - To activate the landed control, call `act(action:"press", text:"Enter")`.
+
+### Component signatures (1.4.94)
+
+A mark from `find`/`observe(as:"components")` carries the nearest custom-element host's exported
+surface:
+
+```jsonc
+{
+  "tag": "pay-widget",
+  "defined": true,
+  "part": ["card"],
+  "exportparts": ["button:pay-button", "label:pay-label"],
+  "cssVars": ["--brand", "--radius"],
+  "signature": "pay-widget:3640e0c6"
+}
+```
+
+`part`, `exportparts` and the custom-property names are sorted and normalised before the hash, so
+attribute order and re-renders do not change the signature. A renamed part or a different exported
+surface does.
+
+Recipes store the signature on a step. Replay verifies it **before** acting:
+
+- unchanged surface → the step proceeds
+- changed surface → `409 SIGNATURE_MISMATCH`, and the recipe is retired immediately instead of
+  burning three attempts
+- `componentSurface` off in Settings → `409 SIGNATURE_UNAVAILABLE` (not a silent click)
+
+Limits: signatures are read from the **host**, so they cover page-visible targets. Sealed and
+iframe results do not carry them yet; `partHighlight` and `cdpStyleMatch` are not built.
 
 ### Limits
 
@@ -297,8 +328,9 @@ pierced DOM + box model, coordinates instead of ids). The remaining gap is **sta
    After that, `find`/`observe` can merge frame controls and `act(mark_id)` becomes as stable for an
    iframe as it is for the main document. `observe(markdown)` needs the same merge at the markdown
    level, which is why it is a separate step.
-2. **Component fingerprints and force-open** are the later Shadow Walk phases; both are described in
-   [`SHADOW_WALK.md`](./SHADOW_WALK.md), including why force-open is the one detectably risky lever.
+2. **Force-open** is the last Shadow Walk phase and the one detectably risky lever; it is described in
+   [`SHADOW_WALK.md`](./SHADOW_WALK.md). Component signatures now ship for page-visible targets;
+   sealed/iframe results do not carry them yet. `partHighlight` and `cdpStyleMatch` are not built.
 
 Coordinates stay the contract for sealed content: an id would imply a DOM handle that does not exist.
 The delivery plan, the settings levers, and the risk tiers live in

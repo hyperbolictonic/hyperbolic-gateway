@@ -7,7 +7,7 @@ import { shadowWalkStatus } from './shadow-walk/settings.js';
 import { runDecision, decisionStatus } from './decide/decision-client.js';
 import { decideGuarded } from './decide/decision-guard.js';
 import { driveTask } from './drive/driver.js';
-import { loadRecipes, recipesFor, saveRecipe, deleteRecipe, recordResult } from './recipes/recipe-store.js';
+import { loadRecipes, recipesFor, saveRecipe, deleteRecipe, recordResult, retireRecipe } from './recipes/recipe-store.js';
 import { replayRecipe, type RecipeRunner } from './recipes/replay.js';
 import { compileDriveSteps } from './recipes/compile.js';
 import { summary, snapshot, resetMetrics } from './metrics.js';
@@ -212,6 +212,15 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
             const result = await replayRecipe(chassis.getPrimitives() as unknown as RecipeRunner, target, {
               expectTimeoutMs: body?.expect_timeout_ms !== undefined ? Number(body.expect_timeout_ms) : undefined,
             });
+            if (result.code === 'SIGNATURE_MISMATCH') {
+              const retired = retireRecipe(target.id);
+              sendJson({ success: false, code: 'SIGNATURE_MISMATCH', error: result.message, result, recipe: retired }, 409);
+              return;
+            }
+            if (result.code === 'SIGNATURE_UNAVAILABLE') {
+              sendJson({ success: false, code: 'SIGNATURE_UNAVAILABLE', error: result.message, result }, 409);
+              return;
+            }
             const updated = recordResult(target.id, result.status === 'ok');
             sendJson({ success: result.status === 'ok', result, recipe: updated });
             return;
