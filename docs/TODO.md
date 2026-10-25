@@ -223,3 +223,24 @@ Things that are unit-tested or bridge-tested but **not yet verified end-to-end a
 - **`recipe` replay across a page change.** Retirement is wired (3 consecutive failures) but only
   exercised once.
 
+### [ ] 18. Clone Lab (proposal — do not build yet)
+
+- **Priority:** P3 (safe content reading, not actuation)
+- **Why:** some closed-root components are easier to *understand* when the risky patch can run
+  somewhere disposable. A clone is the right place for the sledgehammer, and the wrong place to
+  expect clicks.
+- **Shape:** a read-only analysis pass in an **ephemeral partition** — load the same URL in a hidden
+  webContents with `attachShadow` forced open at document start, same viewport/DPR, no credentials.
+  Walk the now-open roots, report roles/names/text/structure. Never actuate; never write to the live
+  session; discard on close.
+- **Rejected for now:** a truly *offline* flat render. With scripts off, the components never call
+  `attachShadow`, so there is nothing to open; with scripts on, it needs the network and becomes a
+  second live load. Slot flattening and scoped-CSS rewriting are their own project and lose fidelity.
+- **Open questions before building:** ephemeral partition vs cached assets; auth'd pages; whether a
+  structural fingerprint from the clone is worth mapping back to live rects (probably not — live CDP
+  already has exact geometry).
+- **Decision test:** only build it when a real site defeats AX + focus walk *and* the content is
+  valuable enough to justify a second load.
+
+Plan and lever design: [`docs/SHADOW_WALK.md`](./SHADOW_WALK.md).
+

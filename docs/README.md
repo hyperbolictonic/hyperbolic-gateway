@@ -10,6 +10,7 @@ Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade 
 - [BUILDING.md](./BUILDING.md) — Installers, CI, signing, auto-update and the release policy.
 - [CONTROL_LAYER.md](./CONTROL_LAYER.md) — **Targeting, consent and human takeover**: control facts, text anchoring, frame evaluation, consent policy, takeover arbitration, input pacing.
 - [SHADOW_DOM_AND_FRAMES.md](./SHADOW_DOM_AND_FRAMES.md) — **What Kuang can see and click**: open vs closed shadow roots, iframe execution contexts, the isolated-world gotcha, and what to do when a control is sealed.
+- [SHADOW_WALK.md](./SHADOW_WALK.md) — **Sealed-content plan**: closed-root discovery via the accessibility tree, focus walk, component signatures, the Shadow Walk settings tab, and the tiered risk levers.
 - [DECISION_MODELS.md](./DECISION_MODELS.md) — The optional `decide` / `drive` decision layer.
 - [KUANG_WRAP.md](./KUANG_WRAP.md) - The second MCP server for saved REST wrappers and response recipes. S1 (store, executor, bridge, `kuang-wrap`) and S2 (host-bound `safeStorage` credentials, Settings → Wrappers, audit) are implemented.
 - [RESEARCH_STEALTH.md](./RESEARCH_STEALTH.md) - Settings → Research: isolated research session, proxy, engine chain, cooldowns, delays, hidden-view activation, and challenge backoff.

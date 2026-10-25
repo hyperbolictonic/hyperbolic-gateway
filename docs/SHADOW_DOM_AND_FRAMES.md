@@ -214,6 +214,9 @@ The two remaining closed cells are not magic, and neither needs a new subsystem:
 Both are opt-in paths for content that cannot be reached otherwise, and both keep the rule that a
 decision which cannot be verified is reported rather than guessed.
 
+The delivery plan, the settings levers, and the risk tiers live in
+[`SHADOW_WALK.md`](./SHADOW_WALK.md).
+
 ## Tests
 
 `npm run test:dom` (live bridge) covers both:
@@ -235,6 +238,6 @@ web-component fixture is an obvious next test.
 ## See also
 
 - [CONTROL_LAYER.md](./CONTROL_LAYER.md) — targeting, consent policy, takeover, pacing
-- [SHADOW_DOM_AND_FRAMES.md](./SHADOW_DOM_AND_FRAMES.md) — what Kuang can see and click through shadow roots and iframes
+- [SHADOW_WALK.md](./SHADOW_WALK.md) — the plan for closed roots and the Shadow Walk settings levers
 - [`src/main/input/README.md`](../src/main/input/README.md) — human takeover
 - [`src/main/browser/README.md`](../src/main/browser/README.md) — frame evaluation API and bounds
