@@ -347,8 +347,9 @@ frame's top-level rect is added before the humanized click.
 
 ## What remains
 
-Remaining work is the **Clone Lab proposal** ([`TODO.md`](./TODO.md) item 18). The read/observe/
-extract/target paths now cover main documents, open/closed roots, same-site frames and OOPIFs.
+Remaining work is the **Clone Lab proposal** ([`TODO.md`](./TODO.md) item 18), parked by decision —
+the read/observe/extract/target paths now cover main documents, open/closed roots, same-site frames
+and OOPIFs.
 
 Force-open is the one detectably risky path: off by default, opt-in per run, confirmed in Settings,
 and called out by a red chip. See [`SHADOW_WALK.md`](./SHADOW_WALK.md).

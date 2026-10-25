@@ -223,9 +223,9 @@ Things that are unit-tested or bridge-tested but **not yet verified end-to-end a
 - **`recipe` replay across a page change.** Retirement is wired (3 consecutive failures) but only
   exercised once.
 
-### [ ] 18. Clone Lab (proposal — do not build yet)
+### [ ] 18. Clone Lab (proposal — parked)
 
-- **Priority:** P3 (safe content reading, not actuation)
+- **Priority:** parked (2026-10-25) — revisit only if the read paths prove insufficient.
 - **Why:** some closed-root components are easier to *understand* when the risky patch can run
   somewhere disposable. A clone is the right place for the sledgehammer, and the wrong place to
   expect clicks.

@@ -16,6 +16,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.0] - 2026-10-25
+
+The Shadow Walk milestone. The 1.4.9x series built the subsystem; this release calls the plan
+complete and makes iframe content first-class end to end. No breaking API changes.
+
+### Highlights
+
+- **Closed roots**: AX discovery, coordinate acts, trusted Tab entry, offscreen sealed tokens,
+  cache/rate limits, no value leakage.
+- **Iframes**: same-site and OOPIF discovery, geometry, controls, screenshots, 100+ frame mark ids,
+  and frame-aware `observe`/`extract`.
+- **Components**: stable host signatures on main, sealed and frame results; recipe anchors with
+  `SIGNATURE_MISMATCH` retirement.
+- **Settings**: Shadow Walk panel with enforced tiers, structured refusals, and
+  `bridge_health.shadowWalk`.
+- **Force-open**: the one detectably risky lever, off by default, confirmed, chipped, and
+  detectable by design.
+- **Polish**: `partHighlight`, `cdpStyleMatch`, and target-text resolution on hidden windows.
+
+### Verification
+
+- All live suites green: `test:dom`, `test:sealed`, `test:framemarks`, `test:component`,
+  `test:tabwalk`, `test:forceopen`, `test:shadow`, `test:primitives`, `test:recipes`.
+- Unit suites green: component signatures, settings, part-highlight, recipe compile.
+- `tsc --noEmit`, `test:mcp:contract`, and `check:no-local-paths` pass.
+- Real-world smoke: Mobalytics (SPA/controls), Polymer Shop and lit.dev (signatures), lit.dev
+  sealed scan (no false positives).
+
+The only remaining Shadow Walk item is the **Clone Lab proposal** (`docs/TODO.md` item 18),
+parked by decision — design-only, no code planned.
+
 ## [1.4.103] - 2026-10-25
 
 ### Added
