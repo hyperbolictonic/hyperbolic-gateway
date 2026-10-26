@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.8] - 2026-10-26
+
+### Added
+
+- **Visible update indicators.** A header badge now shows `CHECKING UPDATE`, `UPDATE vX`,
+  `DOWNLOADING N%`, `RESTART vX`, or `UPDATE FAILED`; the existing bottom banner still shows the
+  longer messages and Restart action. Clicking the ready header badge restarts and installs.
+
+### Changed
+
+- Updates now **relaunch the app after installation**. Explicit Restart uses
+  `autoRunAppAfterInstall`; if the app is quit while an update is ready, a `before-quit` handler
+  installs it and launches the new version instead of leaving the user on the old build.
+
 ## [1.5.7] - 2026-10-26
 
 ### Added

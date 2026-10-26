@@ -226,11 +226,13 @@ download against the sha512 in that file.
 // main: after app.whenReady()
 import { autoUpdater } from 'electron-updater';
 autoUpdater.autoDownload = true;          // Windows/Linux: download in background
-autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.autoInstallOnAppQuit = false; // install explicitly, or from before-quit below
+autoUpdater.autoRunAppAfterInstall = true;
 autoUpdater.allowPrerelease = false;      // stable channel
 autoUpdater.on('update-available', (info) => hud.send('app:update-available', info.version));
 autoUpdater.on('download-progress', (p) => hud.send('app:update-progress', Math.round(p.percent)));
 autoUpdater.on('update-downloaded', () => hud.send('app:update-ready'));   // HUD offers "Restart"
+app.on('before-quit', (event) => { if (ready && !installing) { event.preventDefault(); quitAndInstall(false, true); } });
 app.whenReady().then(() => setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 30_000));
 setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
 ```
