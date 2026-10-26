@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.9] - 2026-10-26
+
+### Fixed
+
+- Auto-update installs now use electron-updater's **silent + force-run** path. The update applies
+  without a separate installer window and relaunches the app, including when installation starts
+  from the quit handler. The header badge and Restart action remain the manual path.
+
 ## [1.5.8] - 2026-10-26
 
 ### Added

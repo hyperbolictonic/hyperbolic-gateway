@@ -116,7 +116,7 @@ export function installUpdate(): boolean {
   quitUpdateStarted = true;
   setImmediate(() => {
     try {
-      autoUpdater.quitAndInstall(false, true);
+      autoUpdater.quitAndInstall(true, true);
     } catch {
       // If install fails the app simply stays open on the old version.
       quitUpdateStarted = false;

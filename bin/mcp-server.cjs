@@ -38400,7 +38400,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.5.8";
+var APP_VERSION = "1.5.9";
 
 // src/main/decide/decision-client.ts
 var import_node_fs2 = __toESM(require("node:fs"), 1);
