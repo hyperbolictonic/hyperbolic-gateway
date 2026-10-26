@@ -322,7 +322,8 @@ function formatManifest(data: any, cap: number = GENERATED_TOOL_CAP): string {
           : ' · tool (over cap: call wrap_run)';
     }
     const verified = wrapper.lastVerified ? ` · verified ${String(wrapper.lastVerified).slice(0, 10)}` : ' · never verified';
-    return `${wrapper.id} — ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ', mutating' : ''})${required}${secret}${tool}${verified}`;
+    const methods = Array.isArray(wrapper.methods) && wrapper.methods.length ? wrapper.methods.join('/') : wrapper.method;
+    return `${wrapper.id} — ${wrapper.name} (${methods} ${wrapper.host}${wrapper.mutating ? ', mutating' : ''})${required}${secret}${tool}${verified}`;
   });
 
   const header = `### Wrappers (${wrappers.length}) · generated ${exposedIds.size}/${cap}`;

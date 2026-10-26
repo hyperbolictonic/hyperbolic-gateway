@@ -294,6 +294,52 @@ test('raw path is URL-only, not headers or query/body templates', () => {
   assert.throws(() => buildRequest(wrapper, { path: 'a/b' }), /only allowed in request\.url/i);
 });
 
+test('multi-method wrappers expose a method enum and default to the primary', () => {
+  const validation = validateWrapper({
+    schemaVersion: 1,
+    id: 'proxy.multi',
+    name: 'Proxy multi',
+    request: {
+      method: 'GET',
+      methods: ['GET', 'POST'],
+      url: 'https://api.example.com/api/proxy/{{path|raw}}',
+    },
+    inputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string' } },
+      required: ['path'],
+      additionalProperties: false,
+    },
+  });
+  assert.equal(validation.ok, true);
+  assert.deepEqual(validation.wrapper.request.methods, ['GET', 'POST']);
+  assert.deepEqual(validation.wrapper.inputSchema.properties.method.enum, ['GET', 'POST']);
+  assert.equal(validateArgs(validation.wrapper.inputSchema, { path: 'a/b', method: 'POST' }).ok, true);
+
+  const defaulted = buildRequest(validation.wrapper, { path: 'a/b' });
+  assert.equal(defaulted.method, 'GET');
+  assert.equal(defaulted.url, 'https://api.example.com/api/proxy/a/b');
+
+  const overridden = buildRequest(validation.wrapper, { path: 'a/b', method: 'post' });
+  assert.equal(overridden.method, 'POST');
+  assert.throws(
+    () => buildRequest(validation.wrapper, { path: 'a/b', method: 'DELETE' }),
+    /not allowed/i,
+  );
+});
+
+test('a method array is accepted as shorthand for methods', () => {
+  const validation = validateWrapper({
+    schemaVersion: 1,
+    id: 'proxy.array',
+    name: 'Proxy array',
+    request: { method: ['GET', 'HEAD'], url: 'https://api.example.com/health' },
+  });
+  assert.equal(validation.ok, true);
+  assert.deepEqual(validation.wrapper.request.methods, ['GET', 'HEAD']);
+  assert.equal(validation.wrapper.request.method, 'GET');
+});
+
 test('omits missing optional values and repeats query arrays', () => {
   const validation = validateWrapper(listWrapper());
   const built = buildRequest(validation.wrapper, { city: 'New York', tags: ['a', 'b'] });

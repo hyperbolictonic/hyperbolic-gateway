@@ -341,6 +341,7 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
   "description": "Current conditions for a city.",
   "request": {
     "method": "GET",
+    "methods": ["GET", "POST"],
     "url": "https://api.example.com/v1/weather",
     "query": { "q": "{{city}}" },
     "headers": { "Accept": "application/json" },
@@ -377,6 +378,11 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
   modifier for multi-segment paths: it preserves `/`, encodes each segment, and rejects `.`/`..`,
   empty segments, backslashes, and control characters. Normal `{{name}}` remains a single encoded
   segment.
+- `request.method` is the default method. Add `request.methods` (or use an array for
+  `request.method`) to allow several methods on one wrapper. A generated `method` input is then
+  added to the effective schema as an enum, and callers choose `method: "POST"` in `args`; omitting
+  it uses the primary/default. A body is only allowed when at least one allowed method can carry
+  one (not GET/HEAD-only). `mutating` defaults to true when any allowed method is a write method.
 - `auth` is a **secret name**, never a value. Main resolves it at request time
   and refuses unless the URL host is one of the secret's human-authored
   `allowedHosts`. Wrappers may not set credential-shaped headers

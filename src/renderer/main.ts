@@ -17,6 +17,20 @@ const agentStatusBadge = document.getElementById('agent-status-badge') as HTMLEl
 const activeActionText = document.getElementById('active-action-text') as HTMLElement;
 const harvestBtn = document.getElementById('harvest-btn') as HTMLButtonElement;
 const copyConstructBtn = document.getElementById('copy-construct-btn') as HTMLButtonElement;
+const chassisVersionBadge = document.getElementById('chassis-version');
+const aboutVersion = document.getElementById('about-version');
+
+function renderAppVersion(version: string | undefined) {
+  if (!version) return;
+  if (chassisVersionBadge) chassisVersionBadge.textContent = `CHASSIS v${version}`;
+  if (aboutVersion) aboutVersion.textContent = `v${version}`;
+  document.title = `Kuang Grade Mark Eleven v${version} // Cyberdeck`;
+}
+
+void window.electronAPI
+  ?.getConnectInfo?.()
+  .then((info) => renderAppVersion(info?.version))
+  .catch(() => undefined);
 
 // Stat elements
 const statCoords = document.getElementById('stat-coords') as HTMLElement;
@@ -1345,6 +1359,23 @@ if (settingsBtn && settingsModal) {
   const wrapFieldUrlEl = document.getElementById('settings-wrap-field-url') as HTMLInputElement;
   const wrapFieldAuthEl = document.getElementById('settings-wrap-field-auth') as HTMLSelectElement;
   const wrapFieldMutatingEl = document.getElementById('settings-wrap-field-mutating') as HTMLInputElement;
+
+  function selectedWrapMethods(): string[] {
+    return Array.from(wrapFieldMethodEl.selectedOptions).map((option) => option.value);
+  }
+
+  function setWrapMethods(methods: string[]): void {
+    const wanted = new Set(methods.length ? methods : ['GET']);
+    for (const option of Array.from(wrapFieldMethodEl.options)) {
+      option.selected = wanted.has(option.value);
+    }
+  }
+
+  function wrapperMethods(wrapper: any): string[] {
+    const methods = Array.isArray(wrapper?.request?.methods) ? wrapper.request.methods : [];
+    if (methods.length) return methods.map((method: string) => String(method).toUpperCase());
+    return [String(wrapper?.request?.method || 'GET').toUpperCase()];
+  }
   const wrapCredentialPanelEl = document.getElementById('settings-wrap-credential-panel') as HTMLElement;
   const wrapCredentialNameEl = document.getElementById('settings-wrap-credential-name') as HTMLInputElement;
   const wrapCredentialValueEl = document.getElementById('settings-wrap-credential-value') as HTMLInputElement;
@@ -1425,7 +1456,7 @@ if (settingsBtn && settingsModal) {
       id.textContent = wrapper.id;
       const meta = document.createElement('div');
       meta.className = 'font-mono text-[10px] text-base-content/50 truncate';
-      meta.textContent = `${wrapper.name} · ${wrapper.request?.method || 'GET'} ${safeHostLabel(wrapper.request?.url)}`;
+      meta.textContent = `${wrapper.name} · ${wrapperMethods(wrapper).join('/')} ${safeHostLabel(wrapper.request?.url)}`;
       button.append(id, meta);
       button.addEventListener('click', () => selectWrapWrapper(wrapper.id));
       wrapWrapperListEl.append(button);
@@ -1520,7 +1551,7 @@ if (settingsBtn && settingsModal) {
       selectedWrapperId = wrapper.id;
       wrapWrapperHeadingEl.textContent = 'EDIT WRAPPER';
       wrapWrapperTitleEl.textContent = wrapper.id;
-      const bits = [wrapper.request?.method || 'GET'];
+      const bits = [wrapperMethods(wrapper).join('/')];
       if (wrapper.mutating) bits.push('mutating');
       if (wrapper.request?.auth) bits.push(`secret: ${wrapper.request.auth}`);
       wrapWrapperBadgeEl.textContent = bits.join(' · ');
@@ -1531,7 +1562,7 @@ if (settingsBtn && settingsModal) {
       wrapFieldIdEl.disabled = true;
       wrapperIdTouched = true;
       wrapFieldDescriptionEl.value = wrapper.description || '';
-      wrapFieldMethodEl.value = wrapper.request?.method || 'GET';
+      setWrapMethods(wrapperMethods(wrapper));
       wrapFieldUrlEl.value = wrapper.request?.url || '';
       wrapFieldMutatingEl.checked = Boolean(wrapper.mutating);
       wrapFieldInputSchemaEl.value = prettyJson(wrapper.inputSchema || DEFAULT_INPUT_SCHEMA);
@@ -1553,7 +1584,7 @@ if (settingsBtn && settingsModal) {
       wrapFieldIdEl.disabled = false;
       wrapperIdTouched = false;
       wrapFieldDescriptionEl.value = '';
-      wrapFieldMethodEl.value = 'GET';
+      setWrapMethods(['GET']);
       wrapFieldUrlEl.value = '';
       wrapFieldMutatingEl.checked = false;
       wrapFieldInputSchemaEl.value = prettyJson(DEFAULT_INPUT_SCHEMA);
@@ -1825,7 +1856,8 @@ if (settingsBtn && settingsModal) {
   });
 
   wrapFieldMethodEl.addEventListener('change', () => {
-    wrapFieldMutatingEl.checked = !['GET', 'HEAD'].includes(wrapFieldMethodEl.value);
+    const methods = selectedWrapMethods();
+    wrapFieldMutatingEl.checked = methods.some((method) => !['GET', 'HEAD'].includes(method));
   });
 
   wrapFieldAuthEl.addEventListener('change', updateCredentialPanel);
@@ -1868,13 +1900,14 @@ if (settingsBtn && settingsModal) {
     const name = wrapFieldNameEl.value.trim();
     const id = wrapFieldIdEl.value.trim();
     const url = wrapFieldUrlEl.value.trim();
-    const method = wrapFieldMethodEl.value;
+    const methods = selectedWrapMethods();
     const description = wrapFieldDescriptionEl.value.trim();
 
     const errors: string[] = [];
     if (!name) errors.push('Name is required.');
     if (!id) errors.push('ID is required.');
     if (!url) errors.push('URL is required.');
+    if (methods.length === 0) errors.push('Select at least one HTTP method.');
 
     const inputSchemaResult = readJsonField(wrapFieldInputSchemaEl, 'Input schema', DEFAULT_INPUT_SCHEMA);
     const queryResult = readJsonField(wrapFieldQueryEl, 'Query template');
@@ -1898,6 +1931,12 @@ if (settingsBtn && settingsModal) {
     const responseValue = responseResult.ok ? responseResult.value : undefined;
 
     const original = selectedWrapperId ? wrapWrappers.find((wrapper) => wrapper.id === selectedWrapperId) : undefined;
+    const preferred = original?.request?.method;
+    const primaryMethod =
+      typeof preferred === 'string' && methods.includes(preferred.toUpperCase())
+        ? preferred.toUpperCase()
+        : methods[0];
+    const orderedMethods = [primaryMethod, ...methods.filter((method) => method !== primaryMethod)];
     let auth = wrapFieldAuthEl.value;
 
     wrapWrapperSaveEl.disabled = true;
@@ -1935,7 +1974,8 @@ if (settingsBtn && settingsModal) {
         updateCredentialPanel();
       }
 
-      const request: Record<string, unknown> = { method, url };
+      const request: Record<string, unknown> = { method: primaryMethod, url };
+      if (orderedMethods.length > 1) request.methods = orderedMethods;
       if (auth && auth !== '__new__') request.auth = auth;
       if (queryValue !== undefined) request.query = queryValue;
       if (headersValue !== undefined) request.headers = headersValue;

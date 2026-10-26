@@ -35,7 +35,10 @@ export interface WrapInputSchema {
 }
 
 export interface WrapRequest {
+  /** Primary/default method. */
   method: WrapMethod;
+  /** Allowed methods when the wrapper accepts more than one; `method` is the default. */
+  methods?: WrapMethod[];
   /** Absolute URL; path/query placeholders use `{{name}}`. In the URL only, `{{name|raw}}` preserves slash-separated path segments. */
   url: string;
   query?: Record<string, unknown>;
@@ -70,6 +73,7 @@ export interface WrapManifestEntry {
   name: string;
   description?: string;
   method: WrapMethod;
+  methods?: WrapMethod[];
   host: string;
   mutating: boolean;
   required: string[];

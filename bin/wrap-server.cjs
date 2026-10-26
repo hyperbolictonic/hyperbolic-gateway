@@ -36600,7 +36600,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.5.6";
+var APP_VERSION = "1.5.7";
 
 // src/mcp/wrap-tool-schema.ts
 function wrapInputToZodShape(schema) {
@@ -36940,7 +36940,8 @@ function formatManifest(data, cap = GENERATED_TOOL_CAP) {
       tool = cap === 0 ? " \xB7 tool (disabled: KUANG_WRAP_MAX_TOOLS=0)" : exposedIds.has(String(wrapper.id)) ? " \xB7 tool" : " \xB7 tool (over cap: call wrap_run)";
     }
     const verified = wrapper.lastVerified ? ` \xB7 verified ${String(wrapper.lastVerified).slice(0, 10)}` : " \xB7 never verified";
-    return `${wrapper.id} \u2014 ${wrapper.name} (${wrapper.method} ${wrapper.host}${wrapper.mutating ? ", mutating" : ""})${required2}${secret}${tool}${verified}`;
+    const methods = Array.isArray(wrapper.methods) && wrapper.methods.length ? wrapper.methods.join("/") : wrapper.method;
+    return `${wrapper.id} \u2014 ${wrapper.name} (${methods} ${wrapper.host}${wrapper.mutating ? ", mutating" : ""})${required2}${secret}${tool}${verified}`;
   });
   const header = `### Wrappers (${wrappers.length}) \xB7 generated ${exposedIds.size}/${cap}`;
   return `${header}

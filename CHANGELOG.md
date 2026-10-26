@@ -16,6 +16,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.7] - 2026-10-26
+
+### Added
+
+- **Wrappers can allow multiple HTTP methods.** In the wrapper editor, Ctrl/Cmd-click the Method
+  list to select more than one method. The first/primary method remains the default; callers can
+  pass `method: "POST"` (or any allowed method) in `args`. A `method` enum is added to the wrapper's
+  effective input schema automatically, so generated MCP tools expose it. Existing single-method
+  wrappers are unchanged.
+- `request.methods` accepts an array, and `request.method` accepts an array as shorthand.
+
+### Fixed
+
+- **The header version badge was hardcoded `CHASSIS v1.0`.** It now reads the real
+  `APP_VERSION` from the main process and shows e.g. `CHASSIS v1.5.7`. The About dialog shows the
+  same version, and the window title includes it. `/health` remains the machine-readable source.
+
+### Notes
+
+- If `npm` is used instead of pnpm, optional native dependencies can be skipped (npm issue #4828),
+  producing errors such as `Cannot find native binding`. Use `pnpm install --frozen-lockfile`; the
+  packaging and development docs already require pnpm.
+
 ## [1.5.6] - 2026-10-26
 
 ### Added

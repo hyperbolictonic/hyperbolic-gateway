@@ -68,10 +68,18 @@ const FORBIDDEN_HEADERS = new Set([
 
 export function buildRequest(wrapper: WrapWrapper, args: Record<string, unknown>): BuiltRequest {
   const request = wrapper.request;
-  const method = String(request.method || 'GET').toUpperCase() as WrapMethod;
+  const allowedMethods = request.methods?.length ? request.methods : [request.method];
+  const requested =
+    request.methods && request.methods.length > 1 && args.method !== undefined
+      ? String(args.method).toUpperCase()
+      : request.method;
+  const method = requested as WrapMethod;
 
-  if (!METHODS.has(method)) {
-    throw new BuildRequestError('INVALID_METHOD', `Unsupported method "${method}".`);
+  if (!METHODS.has(method) || !allowedMethods.includes(method)) {
+    throw new BuildRequestError(
+      'METHOD_NOT_ALLOWED',
+      `Method "${requested}" is not allowed; use one of ${allowedMethods.join(', ')}.`,
+    );
   }
 
   const rawUrl = interpolateText(request.url, args, true, true);

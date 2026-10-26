@@ -20,7 +20,7 @@
           <img src="/assets/mark-eleven.png" class="w-6 h-6 object-contain drop-shadow" alt="Mark Eleven Logo" />
           <span class="text-sm tracking-widest uppercase">MARK ELEVEN</span>
         </div>
-        <div class="badge badge-neutral text-xs font-mono">CHASSIS v1.0</div>
+        <div id="chassis-version" class="badge badge-neutral text-xs font-mono">CHASSIS</div>
         <div class="flex items-center gap-2 pl-2 border-l border-base-100">
           <span id="connection-status-dot" class="status status-success status-xs"></span>
           <span id="agent-status-badge" class="badge badge-accent badge-sm font-mono tracking-tight">IDLE</span>
@@ -938,7 +938,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-3">
         <fieldset class="fieldset">
           <legend class="fieldset-legend font-mono text-xs">Method</legend>
-          <select id="settings-wrap-field-method" class="select select-sm w-full font-mono text-xs">
+          <select id="settings-wrap-field-method" class="select select-sm w-full font-mono text-xs" multiple size="6">
             <option value="GET">GET</option>
             <option value="POST">POST</option>
             <option value="PUT">PUT</option>
@@ -946,6 +946,7 @@
             <option value="DELETE">DELETE</option>
             <option value="HEAD">HEAD</option>
           </select>
+          <p class="label font-mono text-[10px]">Select one method, or Ctrl/Cmd-click to allow several. The first selected method is the default.</p>
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend font-mono text-xs">URL</legend>
@@ -1076,7 +1077,7 @@
               </h3>
             </div>
             <p class="text-xs font-mono text-base-content/60 mt-1">
-              Stateful Visual Matrix Navigator • Ono-Sendai Cyberdeck Construct
+              Stateful Visual Matrix Navigator • Ono-Sendai Cyberdeck Construct • <span id="about-version">v—</span>
             </p>
           </div>
           <form method="dialog">

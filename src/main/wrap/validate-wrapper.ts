@@ -108,11 +108,63 @@ export function validateWrapper(input: unknown): WrapperValidation {
   if (typeof description === 'string' && description.trim()) wrapper.description = description.trim();
   if (response) wrapper.response = response;
   if (mutating !== undefined) wrapper.mutating = mutating;
-  else wrapper.mutating = !['GET', 'HEAD'].includes(request.method);
+  else {
+    const methods = request.methods?.length ? request.methods : [request.method];
+    wrapper.mutating = methods.some((method) => !['GET', 'HEAD'].includes(method));
+  }
   if (typeof source.lastVerified === 'string') wrapper.lastVerified = source.lastVerified;
   if (typeof source.notes === 'string') wrapper.notes = source.notes;
 
+  if (request.methods && request.methods.length > 1) {
+    const properties = { ...(inputSchema.properties || {}) };
+    const existing = properties.method;
+    properties.method = {
+      ...(existing && typeof existing === 'object' ? existing : {}),
+      type: 'string',
+      enum: request.methods,
+      description:
+        existing?.description ||
+        `HTTP method for this call (allowed: ${request.methods.join(', ')}; default: ${request.method}).`,
+    };
+    inputSchema.properties = properties;
+  }
+
   return { ok: true, wrapper, errors: [] };
+}
+
+function normalizeMethods(
+  source: Record<string, unknown>,
+  errors: string[],
+): { primary: WrapMethod; methods: WrapMethod[] } | null {
+  const raw: unknown[] = [];
+  if (Array.isArray(source.method)) raw.push(...source.method);
+  else if (source.method !== undefined) raw.push(source.method);
+  if (Array.isArray(source.methods)) raw.push(...source.methods);
+  else if (source.methods !== undefined) errors.push('request.methods must be an array of HTTP methods');
+  if (raw.length === 0) raw.push('GET');
+
+  const methods: WrapMethod[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') {
+      errors.push('request.methods entries must be strings');
+      continue;
+    }
+    const method = item.trim().toUpperCase() as WrapMethod;
+    if (!METHODS.has(method)) {
+      errors.push(`request.methods contains an unsupported method "${item}"`);
+      continue;
+    }
+    if (!methods.includes(method)) methods.push(method);
+  }
+  if (methods.length === 0) return null;
+
+  let primary = methods[0];
+  if (typeof source.method === 'string') {
+    const requested = source.method.trim().toUpperCase() as WrapMethod;
+    if (methods.includes(requested)) primary = requested;
+    else errors.push('request.method must be one of request.methods');
+  }
+  return { primary, methods };
 }
 
 function normalizeRequest(input: unknown, errors: string[]): WrapRequest | undefined {
@@ -132,10 +184,9 @@ function normalizeRequest(input: unknown, errors: string[]): WrapRequest | undef
     }
   }
 
-  const method = String(source.method || 'GET').toUpperCase() as WrapMethod;
-  if (!METHODS.has(method)) {
-    errors.push('request.method must be GET, POST, PUT, PATCH, DELETE, or HEAD');
-  }
+  const methodInfo = normalizeMethods(source, errors);
+  const methods = methodInfo?.methods || [];
+  const primaryMethod = methodInfo?.primary || 'GET';
 
   const url = typeof source.url === 'string' ? source.url.trim() : '';
   if (!url) {
@@ -181,7 +232,8 @@ function normalizeRequest(input: unknown, errors: string[]): WrapRequest | undef
   let body: unknown;
   if (source.body !== undefined) {
     body = source.body;
-    if (method === 'GET' || method === 'HEAD') errors.push(`request.body is not allowed on ${method}`);
+    const bodyMethods = methods.filter((method) => method !== 'GET' && method !== 'HEAD');
+    if (bodyMethods.length === 0) errors.push(`request.body is not allowed on ${methods.join('/')}`);
     try {
       JSON.stringify(body);
     } catch {
@@ -209,9 +261,10 @@ function normalizeRequest(input: unknown, errors: string[]): WrapRequest | undef
     }
   }
 
-  if (!METHODS.has(method) || !url) return undefined;
+  if (!methodInfo || !url) return undefined;
 
-  const request: WrapRequest = { method, url };
+  const request: WrapRequest = { method: primaryMethod, url };
+  if (methods.length > 1) request.methods = methods;
   if (query) request.query = query;
   if (headers) request.headers = headers;
   if (source.body !== undefined) request.body = body;
