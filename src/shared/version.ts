@@ -5,4 +5,4 @@
  * operators in several places (MCP `initialize`, the HTTP `/health` probe, HAR
  * `creator`, etc.) so those never drift from the shipped build.
  */
-export const APP_VERSION = '1.5.5';
+export const APP_VERSION = '1.5.6';

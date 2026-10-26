@@ -253,6 +253,47 @@ test('maps flat arguments to a deterministic POST body', () => {
   });
 });
 
+test('raw path preserves slash-separated segments and encodes each segment', () => {
+  const wrapper = {
+    schemaVersion: 1,
+    id: 'proxy.get',
+    name: 'Proxy GET',
+    request: { method: 'GET', url: 'https://api.example.com/api/proxy/{{path|raw}}' },
+    inputSchema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
+  };
+  const built = buildRequest(wrapper, { path: '/my path/v1.2/ü' });
+  assert.equal(
+    built.url,
+    'https://api.example.com/api/proxy/my%20path/v1.2/%C3%BC',
+  );
+});
+
+test('raw path rejects traversal, empty segments, and backslashes', () => {
+  const wrapper = {
+    schemaVersion: 1,
+    id: 'proxy.get',
+    name: 'Proxy GET',
+    request: { method: 'GET', url: 'https://api.example.com/api/proxy/{{path|raw}}' },
+  };
+  assert.throws(() => buildRequest(wrapper, { path: 'a/../b' }), /raw path/i);
+  assert.throws(() => buildRequest(wrapper, { path: 'a//b' }), /raw path/i);
+  assert.throws(() => buildRequest(wrapper, { path: 'a\\\\b' }), /raw path/i);
+});
+
+test('raw path is URL-only, not headers or query/body templates', () => {
+  const wrapper = {
+    schemaVersion: 1,
+    id: 'proxy.get',
+    name: 'Proxy GET',
+    request: {
+      method: 'GET',
+      url: 'https://api.example.com/api/proxy',
+      headers: { 'X-Path': '{{path|raw}}' },
+    },
+  };
+  assert.throws(() => buildRequest(wrapper, { path: 'a/b' }), /only allowed in request\.url/i);
+});
+
 test('omits missing optional values and repeats query arrays', () => {
   const validation = validateWrapper(listWrapper());
   const built = buildRequest(validation.wrapper, { city: 'New York', tags: ['a', 'b'] });

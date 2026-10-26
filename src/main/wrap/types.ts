@@ -36,7 +36,7 @@ export interface WrapInputSchema {
 
 export interface WrapRequest {
   method: WrapMethod;
-  /** Absolute URL; path/query placeholders use `{{name}}`. */
+  /** Absolute URL; path/query placeholders use `{{name}}`. In the URL only, `{{name|raw}}` preserves slash-separated path segments. */
   url: string;
   query?: Record<string, unknown>;
   headers?: Record<string, string>;

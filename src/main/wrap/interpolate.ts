@@ -34,7 +34,20 @@ export interface BuiltRequest {
 
 const WHOLE_PLACEHOLDER = /^\{\{\s*([^{}]+?)\s*\}\}$/;
 const PLACEHOLDER = /\{\{\s*([^{}]+?)\s*\}\}/g;
+const RAW_PATH_SUFFIX = /^(.*?)\s*\|\s*raw$/i;
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
+
+interface Placeholder {
+  name: string;
+  rawPath: boolean;
+}
+
+function parsePlaceholder(expression: string): Placeholder {
+  const trimmed = expression.trim();
+  const raw = trimmed.match(RAW_PATH_SUFFIX);
+  if (raw && raw[1].trim()) return { name: raw[1].trim(), rawPath: true };
+  return { name: trimmed, rawPath: false };
+}
 
 const FORBIDDEN_HEADERS = new Set([
   'host',
@@ -61,7 +74,7 @@ export function buildRequest(wrapper: WrapWrapper, args: Record<string, unknown>
     throw new BuildRequestError('INVALID_METHOD', `Unsupported method "${method}".`);
   }
 
-  const rawUrl = interpolateText(request.url, args, true);
+  const rawUrl = interpolateText(request.url, args, true, true);
   if (!rawUrl || rawUrl.includes('{{')) {
     throw new BuildRequestError('UNRESOLVED_TEMPLATE', `The URL still contains a placeholder: "${rawUrl}".`);
   }
@@ -198,29 +211,95 @@ function appendForm(params: URLSearchParams, key: string, value: unknown): void 
   params.append(key, stringifyForTemplate(value));
 }
 
-function interpolateText(template: string, args: Record<string, unknown>, encode: boolean): string {
+function interpolateText(
+  template: string,
+  args: Record<string, unknown>,
+  encode: boolean,
+  allowRawPath = false,
+): string {
   if (typeof template !== 'string') return '';
 
   const whole = template.match(WHOLE_PLACEHOLDER);
   if (whole) {
-    const value = getArg(args, whole[1]);
+    const placeholder = parsePlaceholder(whole[1]);
+    if (placeholder.rawPath && !allowRawPath) {
+      throw new BuildRequestError(
+        'INVALID_TEMPLATE',
+        'The "|raw" path modifier is only allowed in request.url.',
+      );
+    }
+    const value = getArg(args, placeholder.name);
     if (value === undefined || value === null) return '';
-    return encode ? encodeURIComponent(stringifyForTemplate(value)) : stringifyForTemplate(value);
+    return placeholder.rawPath
+      ? encodeRawPath(value)
+      : encode
+        ? encodeURIComponent(stringifyForTemplate(value))
+        : stringifyForTemplate(value);
   }
 
-  return template.replace(PLACEHOLDER, (_match, path: string) => {
-    const value = getArg(args, path.trim());
+  return template.replace(PLACEHOLDER, (_match, expression: string) => {
+    const placeholder = parsePlaceholder(expression);
+    if (placeholder.rawPath && !allowRawPath) {
+      throw new BuildRequestError(
+        'INVALID_TEMPLATE',
+        'The "|raw" path modifier is only allowed in request.url.',
+      );
+    }
+    const value = getArg(args, placeholder.name);
     if (value === undefined || value === null) return '';
-    return encode ? encodeURIComponent(stringifyForTemplate(value)) : stringifyForTemplate(value);
+    return placeholder.rawPath
+      ? encodeRawPath(value)
+      : encode
+        ? encodeURIComponent(stringifyForTemplate(value))
+        : stringifyForTemplate(value);
   });
+}
+
+/**
+ * Preserve slash-separated path segments while encoding each segment. Raw paths are relative:
+ * leading/trailing slashes are ignored, `.`/`..` segments are rejected, and backslashes/control
+ * characters are refused before URL construction.
+ */
+function encodeRawPath(value: unknown): string {
+  const raw = stringifyForTemplate(value);
+  if (!raw) throw new BuildRequestError('INVALID_PATH', 'The raw path is empty.');
+  if (raw.includes('\\') || /[\u0000-\u001f\u007f]/.test(raw)) {
+    throw new BuildRequestError('INVALID_PATH', 'The raw path contains a forbidden character.');
+  }
+
+  const normalized = raw.replace(/^\/+|\/+$/g, '');
+  const segments = normalized.split('/');
+  if (!normalized || segments.some((segment) => !segment || segment === '.' || segment === '..')) {
+    throw new BuildRequestError(
+      'INVALID_PATH',
+      'The raw path must not contain empty, "." or ".." segments.',
+    );
+  }
+  return segments.map((segment) => encodeURIComponent(segment)).join('/');
 }
 
 export function interpolateValue(value: unknown, args: Record<string, unknown>): unknown {
   if (typeof value === 'string') {
     const whole = value.match(WHOLE_PLACEHOLDER);
-    if (whole) return getArg(args, whole[1]);
-    return value.replace(PLACEHOLDER, (_match, path: string) => {
-      const resolved = getArg(args, path.trim());
+    if (whole) {
+      const placeholder = parsePlaceholder(whole[1]);
+      if (placeholder.rawPath) {
+        throw new BuildRequestError(
+          'INVALID_TEMPLATE',
+          'The "|raw" path modifier is only allowed in request.url.',
+        );
+      }
+      return getArg(args, placeholder.name);
+    }
+    return value.replace(PLACEHOLDER, (_match, expression: string) => {
+      const placeholder = parsePlaceholder(expression);
+      if (placeholder.rawPath) {
+        throw new BuildRequestError(
+          'INVALID_TEMPLATE',
+          'The "|raw" path modifier is only allowed in request.url.',
+        );
+      }
+      const resolved = getArg(args, placeholder.name);
       return resolved === undefined || resolved === null ? '' : stringifyForTemplate(resolved);
     });
   }

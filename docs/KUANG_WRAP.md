@@ -274,6 +274,7 @@ optional note.
 | `"{{q}}"` in `query` | string | URL-encoded |
 | `"{{tag}}"` in `query` | array | repeated `tag=a&tag=b` |
 | `"{{value}}"` in `headers` | string | value only; header names are fixed |
+| `"{{path\|raw}}"` in `url` | string | slash-separated path: each segment encoded, `/` preserved; `.`, `..`, empty segments and backslashes rejected |
 
 No expressions, no `eval`, no model-generated JSON. If an API truly needs a
 free-form body (for example an Elasticsearch query DSL), the wrapper opts in
@@ -372,7 +373,10 @@ A wrapper is a small JSON document. `request` is executed; `response` is a
 ```
 
 - `{{name}}` interpolation in `url`, `query`, and `headers` is limited to
-  validated input properties. There is no expression language.
+  validated input properties. There is no expression language. `{{path|raw}}` is a URL-only
+  modifier for multi-segment paths: it preserves `/`, encodes each segment, and rejects `.`/`..`,
+  empty segments, backslashes, and control characters. Normal `{{name}}` remains a single encoded
+  segment.
 - `auth` is a **secret name**, never a value. Main resolves it at request time
   and refuses unless the URL host is one of the secret's human-authored
   `allowedHosts`. Wrappers may not set credential-shaped headers

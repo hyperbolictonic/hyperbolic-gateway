@@ -16,6 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.6] - 2026-10-26
+
+### Added
+
+- **Raw multi-segment URL paths in Kuang Wrap.** A wrapper can now use
+  `{{path|raw}}` in `request.url`:
+
+  ```json
+  "url": "http://localhost:3000/api/proxy/{{path|raw}}"
+  ```
+
+  The value keeps `/` as path separators and encodes each segment, so
+  `my path/v1/items` becomes `my%20path/v1/items` rather than one `%2F`-encoded segment.
+  Normal `{{name}}` interpolation is unchanged. Raw paths are URL-only, must be relative,
+  and reject `.`/`..`, empty segments, backslashes, and control characters. The Settings →
+  Wrappers URL help and the advanced template docs describe the modifier.
+
 ## [1.5.5] - 2026-10-26
 
 ### Fixed
