@@ -37,6 +37,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { detectSensitiveGate } from './sensitive-gate.js';
+import { dataPath } from '../data-paths.js';
 
 export type DecisionProtocol = 'typesafe' | 'local-onnx';
 
@@ -77,7 +78,7 @@ export interface DecisionResult {
   error?: { code: DecisionFailureCode; message: string; hint?: string; status?: number };
 }
 
-const CONFIG_FILE = path.join(process.cwd(), 'data', 'decision.json');
+const CONFIG_FILE = dataPath('decision.json');
 
 function readConfigFile(): Partial<DecisionConfig> | null {
   try {

@@ -15,6 +15,7 @@ import {
   setEmbeddingProvider,
 } from './embedder.js';
 import { chunkMarkdown, extractDomain } from './chunker.js';
+import { dataPath } from '../data-paths.js';
 
 export interface PageHistoryRow {
   id: string;
@@ -149,7 +150,7 @@ export class CortexDB {
   private storageDir: string;
 
   constructor(customStorageDir?: string) {
-    this.storageDir = customStorageDir || path.join(process.cwd(), 'data', 'cortex');
+    this.storageDir = customStorageDir || dataPath('cortex');
   }
 
   public async initialize(): Promise<void> {

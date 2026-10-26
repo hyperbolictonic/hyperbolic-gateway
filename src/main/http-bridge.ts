@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { BrowserChassis } from './browser-chassis.js';
 import { APP_VERSION } from '../shared/version.js';
 import { shadowWalkStatus } from './shadow-walk/settings.js';
+import { dataPath } from './data-paths.js';
 import { runDecision, decisionStatus } from './decide/decision-client.js';
 import { decideGuarded } from './decide/decision-guard.js';
 import { driveTask } from './drive/driver.js';
@@ -42,7 +43,7 @@ function logBridge(message: string, isError = false) {
     console.log(`[Cyberdeck Bridge ${timestamp}] ${message}`);
   }
   try {
-    const logDir = path.resolve(process.cwd(), 'data', 'logs');
+    const logDir = dataPath('logs');
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
@@ -1360,7 +1361,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           pattern: body?.pattern,
         });
         if (body?.save) {
-          const dir = path.resolve(process.cwd(), 'data', 'har');
+          const dir = dataPath('har');
           if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
           const file = path.join(dir, `har_${Date.now()}.har`);
           fs.writeFileSync(file, JSON.stringify(har, null, 2));

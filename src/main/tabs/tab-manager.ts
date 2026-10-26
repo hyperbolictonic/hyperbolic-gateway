@@ -43,6 +43,8 @@ export class TabManager {
     const candidates = [
       path.join(__dirname, '../../public/welcome.html'),
       path.join(__dirname, '../../dist/welcome.html'),
+      path.join(__dirname, '../../../public/welcome.html'),
+      path.join(__dirname, '../../../dist/welcome.html'),
       path.join(process.cwd(), 'public/welcome.html'),
       path.join(process.cwd(), 'dist/welcome.html'),
     ];

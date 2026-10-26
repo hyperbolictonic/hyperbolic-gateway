@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Session, WebContents, CookiesSetDetails } from 'electron';
+import { dataPath } from '../data-paths.js';
 
 export interface SessionSnapshot {
   name: string;
@@ -16,7 +17,7 @@ export class SessionVault {
   private sessionsDir: string;
 
   constructor() {
-    this.sessionsDir = path.join(process.cwd(), 'data', 'sessions');
+    this.sessionsDir = dataPath('sessions');
     if (!fs.existsSync(this.sessionsDir)) {
       fs.mkdirSync(this.sessionsDir, { recursive: true });
     }

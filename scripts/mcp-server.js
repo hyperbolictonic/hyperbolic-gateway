@@ -7187,12 +7187,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs3, exportName) {
+    function addFormats(ajv, list, fs4, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs3[f]);
+        ajv.addFormat(f, fs4[f]);
     }
     module2.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -7207,7 +7207,7 @@ __export(bridge_server_exports, {
   normalizeIncomingParams: () => normalizeIncomingParams
 });
 module.exports = __toCommonJS(bridge_server_exports);
-var import_node_fs2 = __toESM(require("node:fs"), 1);
+var import_node_fs3 = __toESM(require("node:fs"), 1);
 var import_node_path2 = __toESM(require("node:path"), 1);
 
 // node_modules/zod/v4/classic/external.js
@@ -38400,16 +38400,89 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.5.4";
+var APP_VERSION = "1.5.5";
 
 // src/main/decide/decision-client.ts
+var import_node_fs2 = __toESM(require("node:fs"), 1);
+
+// src/main/data-paths.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
+var import_node_os = __toESM(require("node:os"), 1);
+var import_node_module = require("node:module");
 var import_node_path = __toESM(require("node:path"), 1);
-var CONFIG_FILE = import_node_path.default.join(process.cwd(), "data", "decision.json");
+var import_meta = {};
+var require2 = typeof __filename === "string" ? (0, import_node_module.createRequire)(__filename) : (0, import_node_module.createRequire)(import_meta.url);
+function packagedUserDataDir() {
+  try {
+    const electron = require2("electron");
+    if (electron?.app?.isPackaged && typeof electron.app.getPath === "function") {
+      return electron.app.getPath("userData");
+    }
+  } catch {
+  }
+  return null;
+}
+function migrateLegacyData(target, legacy) {
+  if (import_node_path.default.resolve(target) === import_node_path.default.resolve(legacy)) return;
+  if (!import_node_fs.default.existsSync(legacy) || import_node_fs.default.existsSync(target)) return;
+  const markers = ["cortex", "sessions", "recipes.json", "shadow-walk.json", "input-profile.json", "decision.json"];
+  if (!markers.some((name) => import_node_fs.default.existsSync(import_node_path.default.join(legacy, name)))) return;
+  try {
+    import_node_fs.default.mkdirSync(import_node_path.default.dirname(target), { recursive: true });
+    import_node_fs.default.cpSync(legacy, target, { recursive: true, force: false, errorOnExist: false });
+  } catch {
+  }
+}
+function ensureWritable(candidate) {
+  try {
+    import_node_fs.default.mkdirSync(candidate, { recursive: true });
+    import_node_fs.default.accessSync(candidate, import_node_fs.default.constants.W_OK);
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+var cachedRoot = null;
+function dataRoot() {
+  if (cachedRoot) return cachedRoot;
+  const override = process.env.KUANG_DATA_DIR?.trim();
+  if (override) {
+    cachedRoot = import_node_path.default.resolve(override);
+    import_node_fs.default.mkdirSync(cachedRoot, { recursive: true });
+    return cachedRoot;
+  }
+  const userData = packagedUserDataDir();
+  if (userData) {
+    const target = import_node_path.default.join(userData, "data");
+    migrateLegacyData(target, import_node_path.default.join(process.cwd(), "data"));
+    const writable = ensureWritable(target);
+    if (writable) {
+      cachedRoot = writable;
+      return cachedRoot;
+    }
+  }
+  const cwdData = ensureWritable(import_node_path.default.join(process.cwd(), "data"));
+  if (cwdData) {
+    cachedRoot = cwdData;
+    return cachedRoot;
+  }
+  const temporary = ensureWritable(import_node_path.default.join(import_node_os.default.tmpdir(), "kuang-data"));
+  if (temporary) {
+    cachedRoot = temporary;
+    return cachedRoot;
+  }
+  throw new Error("No writable runtime data directory is available.");
+}
+function dataPath(...segments) {
+  return import_node_path.default.join(dataRoot(), ...segments);
+}
+
+// src/main/decide/decision-client.ts
+var CONFIG_FILE = dataPath("decision.json");
 function readConfigFile() {
   try {
-    if (!import_node_fs.default.existsSync(CONFIG_FILE)) return null;
-    const parsed = JSON.parse(import_node_fs.default.readFileSync(CONFIG_FILE, "utf8"));
+    if (!import_node_fs2.default.existsSync(CONFIG_FILE)) return null;
+    const parsed = JSON.parse(import_node_fs2.default.readFileSync(CONFIG_FILE, "utf8"));
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
@@ -38452,7 +38525,7 @@ var STDERR_HARD_CAP_BYTES = 16 * 1024;
 var LOG_DIR = import_node_path2.default.resolve(process.cwd(), "data", "logs");
 var logDirReady = false;
 try {
-  import_node_fs2.default.mkdirSync(LOG_DIR, { recursive: true });
+  import_node_fs3.default.mkdirSync(LOG_DIR, { recursive: true });
   logDirReady = true;
 } catch {
 }
@@ -38464,7 +38537,7 @@ function flushLogQueue() {
   logFlushing = true;
   const batch = logQueue.join("");
   logQueue = [];
-  import_node_fs2.default.appendFile(import_node_path2.default.join(LOG_DIR, "mcp-server.log"), batch, () => {
+  import_node_fs3.default.appendFile(import_node_path2.default.join(LOG_DIR, "mcp-server.log"), batch, () => {
     logFlushing = false;
     if (logQueue.length > 0) flushLogQueue();
   });
@@ -38474,7 +38547,7 @@ function flushLogSync() {
   const batch = logQueue.join("");
   logQueue = [];
   try {
-    import_node_fs2.default.appendFileSync(import_node_path2.default.join(LOG_DIR, "mcp-server.log"), batch);
+    import_node_fs3.default.appendFileSync(import_node_path2.default.join(LOG_DIR, "mcp-server.log"), batch);
   } catch {
   }
 }
@@ -38868,7 +38941,7 @@ ${text}`;
       const manifestPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "okf.json");
       let text = "{}";
       try {
-        text = import_node_fs2.default.readFileSync(manifestPath, "utf8");
+        text = import_node_fs3.default.readFileSync(manifestPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/manifest", mimeType: "application/json", text }] };
@@ -38885,7 +38958,7 @@ ${text}`;
       const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "selector_and_som_recipes.md");
       let text = "";
       try {
-        text = import_node_fs2.default.readFileSync(docPath, "utf8");
+        text = import_node_fs3.default.readFileSync(docPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/partitions/selector-and-som", mimeType: "text/markdown", text }] };
@@ -38902,7 +38975,7 @@ ${text}`;
       const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "captcha_and_anti_bot_strategies.md");
       let text = "";
       try {
-        text = import_node_fs2.default.readFileSync(docPath, "utf8");
+        text = import_node_fs3.default.readFileSync(docPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/partitions/captcha-and-anti-bot", mimeType: "text/markdown", text }] };
@@ -38919,7 +38992,7 @@ ${text}`;
       const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "browser_navigation_playbook.md");
       let text = "";
       try {
-        text = import_node_fs2.default.readFileSync(docPath, "utf8");
+        text = import_node_fs3.default.readFileSync(docPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/partitions/browser-navigation", mimeType: "text/markdown", text }] };
@@ -38936,7 +39009,7 @@ ${text}`;
       const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "primitives_and_workflows.md");
       let text = "";
       try {
-        text = import_node_fs2.default.readFileSync(docPath, "utf8");
+        text = import_node_fs3.default.readFileSync(docPath, "utf8");
       } catch {
       }
       return { contents: [{ uri: "mark-eleven://okf/partitions/primitives-and-workflows", mimeType: "text/markdown", text }] };

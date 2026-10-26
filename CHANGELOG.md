@@ -16,6 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.5] - 2026-10-26
+
+### Fixed
+
+- **Installed app crashed when the working directory was not writable** with an error creating
+  `data/downloads`. Runtime data is now resolved through one helper: packaged builds use
+  Electron’s `userData` directory, development keeps the repo-local `data/`, and
+  `KUANG_DATA_DIR` overrides both. Existing packaged data is copied from the old working-directory
+  location on first launch when possible.
+- Moved downloads, Cortex/LanceDB, recipes, sessions, scripts, screenshots, HAR/logs, decision and
+  input settings, the action ledger, and Shadow Walk settings onto that writable root. A read-only
+  install or shortcut working directory can no longer crash the main process before the window
+  opens.
+- The helper also works inside the bundled CommonJS MCP servers (`esbuild` cannot use
+  `import.meta.url`). Standalone MCP processes launched from a read-only cwd fall back to the
+  system temp directory instead of failing during import.
+- Added `test:data-paths` and a CI step covering the writable data path.
+
 ## [1.5.4] - 2026-10-26
 
 ### Fixed

@@ -17,8 +17,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { dataPath } from '../data-paths.js';
 
-export const SHADOW_WALK_SETTINGS_FILE = path.join(process.cwd(), 'data', 'shadow-walk.json');
+export const SHADOW_WALK_SETTINGS_FILE = dataPath('shadow-walk.json');
 
 export interface ShadowWalkSettings {
   schemaVersion: 1;

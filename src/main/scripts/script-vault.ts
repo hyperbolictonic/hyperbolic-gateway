@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { WebContents } from 'electron';
 import { cortex, type ScriptItem } from '../cortex/cortex-db.js';
+import { dataPath } from '../data-paths.js';
 
 export interface SavedScriptMeta {
   name: string;
@@ -17,7 +18,7 @@ export class ScriptVault {
   private scriptsDir: string;
 
   constructor() {
-    this.scriptsDir = path.join(process.cwd(), 'data', 'scripts');
+    this.scriptsDir = dataPath('scripts');
     if (!fs.existsSync(this.scriptsDir)) {
       fs.mkdirSync(this.scriptsDir, { recursive: true });
     }

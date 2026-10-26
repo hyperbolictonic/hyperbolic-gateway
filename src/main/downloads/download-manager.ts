@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Session, DownloadItem, WebContents } from 'electron';
 import { cortex } from '../cortex/cortex-db.js';
+import { dataPath } from '../data-paths.js';
 
 export interface DownloadRecord {
   id: string;
@@ -22,7 +23,7 @@ export class DownloadManager {
   private onDownloadCompleteCallbacks: Array<(record: DownloadRecord) => void> = [];
 
   constructor() {
-    this.downloadsDir = path.join(process.cwd(), 'data', 'downloads');
+    this.downloadsDir = dataPath('downloads');
     if (!fs.existsSync(this.downloadsDir)) {
       fs.mkdirSync(this.downloadsDir, { recursive: true });
     }

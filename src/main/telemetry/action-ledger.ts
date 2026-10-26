@@ -14,6 +14,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { dataPath } from '../data-paths.js';
 
 /** Typed facts about the form control an action addressed. */
 export interface FieldFacts {
@@ -110,7 +111,7 @@ export class ActionLedger {
   private readonly maxBytes: number;
 
   constructor(private opts: ActionLedgerOptions = {}) {
-    this.file = path.join(opts.dir || path.join(process.cwd(), 'data'), 'transitions.jsonl');
+    this.file = path.join(opts.dir || dataPath(), 'transitions.jsonl');
     this.maxBytes = opts.maxBytes ?? 5 * 1024 * 1024;
   }
 

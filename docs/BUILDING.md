@@ -40,7 +40,12 @@ Windows (x64), Linux (x64) and macOS (Apple Silicon) artefacts; publishing is au
 5. **Runtime is untested off Windows.** Specifically: Linux tray needs `libappindicator`; macOS tray icons
    want a template image for dark mode; CDP typing sends `windowsVirtualKeyCode` (Chromium also honours
    `key`/`text`, so it should work, but it is unverified); HIL "bring window to front" is Windows-centric.
-6. **No signing.** Unsigned macOS builds are refused by Gatekeeper; Windows shows a SmartScreen warning.
+6. **Runtime state lives in `userData`, not the install directory.** `src/main/data-paths.ts`
+   resolves downloads, Cortex, logs, recipes, sessions and settings to Electron's `userData/data`
+   in packaged builds (repo `data/` in development). This matters because Windows may start the
+   installed executable with a read-only working directory; writing relative to `process.cwd()`
+   crashes the main process before the window exists. `KUANG_DATA_DIR` overrides the root for tests.
+7. **No signing.** Unsigned macOS builds are refused by Gatekeeper; Windows shows a SmartScreen warning.
 
 ---
 

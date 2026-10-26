@@ -12,6 +12,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { dataPath } from '../data-paths.js';
 
 export interface InputProfile {
   /** Pointer speed used to derive the glide budget for a given distance. */
@@ -35,7 +36,7 @@ const BOUNDS: Record<keyof InputProfile, { min: number; max: number }> = {
   clickDwellMs: { min: 0, max: 300 },
 };
 
-const CONFIG_FILE = path.join(process.cwd(), 'data', 'input-profile.json');
+const CONFIG_FILE = dataPath('input-profile.json');
 
 function clamp(key: keyof InputProfile, value: number): number {
   const { min, max } = BOUNDS[key];

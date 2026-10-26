@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { WebContents } from 'electron';
 import TurndownService from 'turndown';
+import { dataPath } from '../data-paths.js';
 
 export interface RenderedSnapshotOptions {
   format?: 'ax_tree' | 'markdown' | 'html' | 'unrendered_html';
@@ -99,7 +100,7 @@ export class RenderedSnapshotEngine {
 
     let filePath: string | undefined;
     if (options.saveToDisk) {
-      const snapshotsDir = path.join(process.cwd(), 'data', 'snapshots');
+      const snapshotsDir = dataPath('snapshots');
       if (!fs.existsSync(snapshotsDir)) {
         fs.mkdirSync(snapshotsDir, { recursive: true });
       }

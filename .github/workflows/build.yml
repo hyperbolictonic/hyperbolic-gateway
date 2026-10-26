@@ -77,6 +77,9 @@ jobs:
       - name: MCP contract test (offline)
         run: node scripts/test-mcp-contract.mjs
 
+      - name: Runtime data path test
+        run: node scripts/test-data-paths.mjs
+
       # electron-builder captures its file tree before beforePack, so prune the native runtimes
       # explicitly for the target platform before packaging.
       - name: Prune native deps for target

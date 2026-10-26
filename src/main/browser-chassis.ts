@@ -15,6 +15,7 @@ import { targetBoxScript, focusControlScript, DEEP_DOM_HELPERS, type TargetBox }
 import { detectHostBrowserProfile, type HostBrowserProfile } from './telemetry/host-fingerprint.js';
 import { TabManager, type TabInstance } from './tabs/tab-manager.js';
 import { cortex, CortexDB } from './cortex/cortex-db.js';
+import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
 import { ShieldBreaker, type ShieldDismissResult, type ConsentPolicy } from './shield/shield-breaker.js';
 import { evaluateInFrames, type FrameEvalOptions, type FrameEvalResult } from './browser/frame-eval.js';
 import { listFrames, type FrameInfo } from './browser/frames.js';
@@ -31,7 +32,7 @@ import {
   type ForceOpenDetection,
 } from './shadow-walk/force-open.js';
 import { controlFactsExpression, parseControlFacts, type ControlFacts, type ControlFactsOptions } from './primitives/control-facts.js';
-import { DownloadManager, type DownloadRecord } from './downloads/download-manager.js';
+import { dataPath } from './data-paths.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
 import {
   NetworkInterceptor,
@@ -245,7 +246,7 @@ export class BrowserChassis {
     // (data/transitions.jsonl). This is the dataset a runner-side decision model learns from;
     // it never leaves the machine and never stores typed text.
     this.actionLedger = new ActionLedger({
-      dir: path.join(process.cwd(), 'data'),
+      dir: dataPath(),
       log: (level, msg) => this.addLog(level, msg),
     });
 
@@ -1441,7 +1442,7 @@ export class BrowserChassis {
   }
 
   public getScreenshotsDir(): string {
-    const dir = path.resolve(process.cwd(), 'data', 'screenshots');
+    const dir = dataPath('screenshots');
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -2103,7 +2104,7 @@ export class BrowserChassis {
 
       case 'download_file': {
         if (!params.sourceId) throw new Error('Missing "sourceId" (filename) for source "download_file"');
-        const downloadsDir = path.join(process.cwd(), 'data', 'downloads');
+        const downloadsDir = dataPath('downloads');
         const filePath = path.join(downloadsDir, path.basename(params.sourceId));
         if (!fs.existsSync(filePath)) {
           throw new Error(`Downloaded file not found: ${params.sourceId}`);

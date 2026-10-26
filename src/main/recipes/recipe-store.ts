@@ -11,6 +11,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { dataPath } from '../data-paths.js';
 
 export interface RecipeStep {
   action: 'click' | 'type';
@@ -43,7 +44,7 @@ export interface RecipeStore {
   recipes: Recipe[];
 }
 
-const FILE = path.join(process.cwd(), 'data', 'recipes.json');
+const FILE = dataPath('recipes.json');
 const MAX_RECIPES = 200;
 const RETIRE_AFTER_FAILURES = 3;
 
