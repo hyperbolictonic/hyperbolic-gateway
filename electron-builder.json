@@ -24,9 +24,16 @@
   "asar": true,
   "asarUnpack": [
     "**/*.node",
+    "**/*.dll",
+    "**/*.dylib",
+    "**/*.so*",
     "**/@lancedb/**",
+    "**/onnxruntime-node/**",
+    "**/@img/**",
+    "**/sharp/**",
     "bin/**/*"
   ],
+  "afterPack": "scripts/verify-pack.cjs",
   "npmRebuild": false,
   "win": {
     "target": [
@@ -59,11 +66,11 @@
     "target": [
       {
         "target": "dmg",
-        "arch": ["x64", "arm64"]
+        "arch": ["arm64"]
       },
       {
         "target": "zip",
-        "arch": ["x64", "arm64"]
+        "arch": ["arm64"]
       }
     ],
     "icon": "public/assets/mark-eleven.png",

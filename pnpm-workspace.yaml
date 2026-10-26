@@ -3,3 +3,6 @@ allowBuilds:
   onnxruntime-node: true
   protobufjs: true
   sharp: true
+# electron-builder needs a flat production tree; pnpm's isolated store leaves peer deps
+# (apache-arrow, @opentelemetry/api) outside the asar.
+nodeLinker: hoisted

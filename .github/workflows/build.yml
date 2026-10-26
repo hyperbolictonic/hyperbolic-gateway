@@ -50,7 +50,7 @@ jobs:
             platform: win
           - os: ubuntu-latest
             platform: linux
-          - os: macos-latest
+          - os: macos-14
             platform: mac
     runs-on: ${{ matrix.os }}
     steps:
@@ -76,6 +76,18 @@ jobs:
       # catches the most common breakage before packaging.
       - name: MCP contract test (offline)
         run: node scripts/test-mcp-contract.mjs
+
+      # electron-builder captures its file tree before beforePack, so prune the native runtimes
+      # explicitly for the target platform before packaging.
+      - name: Prune native deps for target
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            win) PLATFORM=win32; ARCH=x64 ;;
+            linux) PLATFORM=linux; ARCH=x64 ;;
+            mac) PLATFORM=darwin; ARCH=arm64 ;;
+          esac
+          TARGET_PLATFORM=$PLATFORM TARGET_ARCH=$ARCH node scripts/prune-pack.cjs
 
       # electron-builder resolves/downloads the correct Electron for the target platform. It used to
       # be pinned to node_modules/electron/dist, which does not exist on a pnpm CI checkout.

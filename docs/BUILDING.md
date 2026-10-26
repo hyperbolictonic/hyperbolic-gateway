@@ -3,8 +3,8 @@
 **Status:** scoping (2026-10-21) · **Related:** [`DECISION_MODELS.md`](./DECISION_MODELS.md), [`../CHANGELOG.md`](../CHANGELOG.md), [`../electron-builder.json`](../electron-builder.json)
 
 This document covers three things that are easy to conflate: **producing** installers on each platform, **publishing**
-them to GitHub Releases, and **updating** an installed copy from those releases. Today only the first is
-configured, and only for Windows in practice.
+them to GitHub Releases, and **updating** an installed copy from those releases. The build workflow produces
+Windows (x64), Linux (x64) and macOS (Apple Silicon) artefacts; publishing is automated from those jobs.
 
 ---
 
@@ -13,28 +13,34 @@ configured, and only for Windows in practice.
 | piece | state |
 | :--- | :--- |
 | `win` targets (nsis, portable, zip, x64) | configured, **built and used** |
-| `mac` targets (dmg, zip, x64 + arm64) | configured, **never built** |
-| `linux` targets (AppImage, deb, tar.gz, x64) | configured, **never built** |
+| `mac` targets (dmg, zip, arm64) | configured, **built in CI**; Intel Macs unsupported (see §1 blockers) |
+| `linux` targets (AppImage, deb, tar.gz, x64) | configured, **built in CI** |
 | icon | `public/assets/mark-eleven.png`, 1024×1024 — usable for `.icns`/`.ico` conversion |
 | runtime platform branches | `host-fingerprint.ts` handles `darwin`/`linux`; `index.ts` has macOS window-all-closed |
-| CI | only `pages.yml` — no build workflow |
+| CI | `.github/workflows/build.yml` (guard → platform matrix → publish) |
 | signing | none |
-| auto-update | none |
+| auto-update | Windows + Linux configured; macOS deferred until signing |
 
-### Blockers to fix before any non-Windows artefact is trustworthy
+### Packaging invariants
 
-1. ~~**`electronDist` is pinned to the host**~~ — **fixed.** After the first CI run: the pin pointed at
-   `node_modules/electron/dist`, which **does not exist on a pnpm checkout**, so packaging failed on Windows
-   too. Removed; electron-builder now resolves/downloads the correct Electron for the target platform.
-2. **Native deps are host-only.** Only `@lancedb/lancedb-win32-x64-msvc` is installed. A macOS/Linux package
-   would ship without the `.node` binary and Cortex would crash on first use. Each platform must install
-   its own (CI does this naturally; cross-building from Windows does not).
+1. **The pnpm linker is hoisted.** `pnpm-workspace.yaml` sets `nodeLinker: hoisted`; electron-builder
+   does not follow pnpm's isolated peer symlinks. `apache-arrow` is also a **direct** dependency:
+   it is a peer of LanceDB, and a package that is only a peer is not collected into the production
+   tree. The same applies to `@opentelemetry/api` and `reflect-metadata` (transitive through
+   LanceDB); the afterPack check verifies all three.
+2. **Native deps are per-target, not host-only.** CI installs on each runner, then
+   `scripts/prune-pack.cjs` keeps only the target OS/arch. `scripts/verify-pack.cjs` runs after
+   packing and fails the build if any critical JS module, LanceDB/ONNX/sharp native binary, or the
+   unpacked MCP server is missing.
 3. **macOS `dmg` cannot be built on Windows**, and `AppImage`/`deb` realistically need Linux (`fpm`).
-   `build:dist:all` on one machine will not produce three platforms — it needs a CI matrix.
-4. **Runtime is untested off Windows.** Specifically: Linux tray needs `libappindicator`; macOS tray icons
+   `build:dist:all` on one machine will not produce three platforms — use the CI matrix.
+4. **Intel Macs are not supported.** LanceDB 0.40 publishes `lancedb-darwin-arm64` but not
+   `lancedb-darwin-x64`; an x64 build would install and then crash in Cortex. The macOS targets and
+   runner are arm64 only.
+5. **Runtime is untested off Windows.** Specifically: Linux tray needs `libappindicator`; macOS tray icons
    want a template image for dark mode; CDP typing sends `windowsVirtualKeyCode` (Chromium also honours
    `key`/`text`, so it should work, but it is unverified); HIL "bring window to front" is Windows-centric.
-5. **No signing.** Unsigned macOS builds are refused by Gatekeeper; Windows shows a SmartScreen warning.
+6. **No signing.** Unsigned macOS builds are refused by Gatekeeper; Windows shows a SmartScreen warning.
 
 ---
 
@@ -43,7 +49,7 @@ configured, and only for Windows in practice.
 | platform | artefacts | notes |
 | :--- | :--- | :--- |
 | Windows | `*-Setup-<ver>.exe` (NSIS, per-user, choose dir), `*-Portable-<ver>.exe`, `*.zip` | NSIS supports auto-update; **portable cannot self-update** (document it) |
-| macOS | `*.dmg` (distribution), `*.zip` (required for updates) | x64 + arm64; universal is possible but doubles size |
+| macOS | `*.dmg` (distribution), `*.zip` (required for updates) | **arm64 only**; universal/x64 is not buildable with LanceDB 0.40 |
 | Linux | `*.AppImage` (auto-updatable), `*.deb`, `*.tar.gz` | only AppImage supports in-place updates |
 
 Naming: keep `artifactName` explicit so the updater and humans agree — e.g.
@@ -83,7 +89,7 @@ jobs:
             platform: win
           - os: ubuntu-latest
             platform: linux
-          - os: macos-latest
+          - os: macos-14
             platform: mac
     runs-on: ${{ matrix.os }}
     steps:
@@ -93,6 +99,15 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - name: Prune native deps for target
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            win) PLATFORM=win32; ARCH=x64 ;;
+            linux) PLATFORM=linux; ARCH=x64 ;;
+            mac) PLATFORM=darwin; ARCH=arm64 ;;
+          esac
+          TARGET_PLATFORM=$PLATFORM TARGET_ARCH=$ARCH node scripts/prune-pack.cjs
       - name: Package
         run: pnpm exec electron-builder --${{ matrix.platform }} --publish never
         env:
@@ -113,7 +128,12 @@ jobs:
 Notes:
 
 - `pnpm install --frozen-lockfile` is required — the repo uses pnpm (`pnpm-lock.yaml`), and **npm fails** on a
-  `patch:` protocol in the dependency tree.
+  `patch:` protocol in the dependency tree. The workspace forces `nodeLinker: hoisted`; do not revert it
+  to the isolated linker without re-checking `apache-arrow` and the other LanceDB peers inside
+  `app.asar`.
+- The prune step must run **before** electron-builder. electron-builder captures its dependency file
+  tree early, so a `beforePack` hook is too late. `afterPack` then runs
+  `scripts/verify-pack.cjs` for every platform; a missing runtime fails the build instead of shipping.
 - `latest*.yml` files must be uploaded alongside the binaries: they are the update feed metadata
   (version, sha512, size, blockmap).
 - Builds are slow (~8–12 min each); caching pnpm + Electron helps.
@@ -264,12 +284,13 @@ with artefacts.
   the target OS/arch (LanceDB ships per-platform packages; CI installs the right one automatically).
 - **macOS notarisation** fails on hardened-runtime entitlements (JIT, unsigned memory) — Electron needs the usual
   set; test notarisation on a throwaway build before publishing.
-- **AppImage + `asarUnpack`** for `**/*.node`, `**/@lancedb/**` and `bin/**/*` is already handled, but confirm the
+- **AppImage + `asarUnpack`** now covers `**/*.node`, `**/*.dll`, `**/*.dylib`, `**/*.so*`,
+  `**/@lancedb/**`, `**/onnxruntime-node/**`, `**/sharp/**`, `**/@img/**` and `bin/**/*`. Confirm the
   unpacked tree exists in the AppImage (`squashfs-root/resources/app.asar.unpacked`). `bin/` must be unpacked
   because MCP clients execute `bin/mcp-server.cjs` with an external runtime (bundled Electron-as-Node or system
   Node); a file inside `app.asar` cannot be run that way. The app then copies that file to
   `userData/bin/mcp-server.cjs` for generated client configs, because the `resources/` path is temporary under
   portable and AppImage builds.
-- **GitHub asset limits**: 2 GiB per file; our artefacts are far below that, but a universal macOS build plus
-  Chromium approaches ~200 MB.
+- **GitHub asset limits**: 2 GiB per file. The Windows payload is ~0.8 GB (mostly the LanceDB native
+  library), so it fits; do not reintroduce whole-platform native trees or a Hugging Face model cache.
 - **Update feed and four-part tags** — see §7. This is the one that will silently break things if forgotten.

@@ -16,6 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.3] - 2026-10-26
+
+### Fixed
+
+- **The installed app failed to start Cortex** with `Cannot find module 'apache-arrow'`.
+  `apache-arrow` is a peer of LanceDB, so pnpm's isolated linker never placed it in the production
+  tree electron-builder packages. The app now declares it directly and the workspace uses
+  `nodeLinker: hoisted`, which keeps the LanceDB peer closure (`apache-arrow`,
+  `@opentelemetry/api`, `reflect-metadata`) inside `app.asar`.
+- **Native runtimes were unpacked incompletely.** `asarUnpack` now covers the whole
+  `@lancedb`, `onnxruntime-node`, `sharp`, and `@img` directories (`.node`, `.dll`, `.dylib`,
+  `.so*`), not just the top-level `.node` files.
+- **Broken installers can no longer be published.** `scripts/verify-pack.cjs` runs after every
+  package and fails the build if a critical JS dependency, LanceDB/ONNX/sharp native binary, or the
+  unpacked MCP server is missing.
+
+### Changed
+
+- Packaging prunes the build machine's Hugging Face model cache and duplicate optional
+  ONNX/sharp/LanceDB trees before electron-builder runs. The Windows unpacked payload dropped from
+  ~1.1 GB to ~0.8 GB, and a downloaded model can never be shipped by accident.
+- **macOS builds are Apple Silicon (`arm64`) only.** LanceDB 0.40 does not publish a
+  `darwin-x64` native package; Intel Mac builds would install and then crash in Cortex. The CI
+  macOS job now uses an arm64 runner.
+- CI prunes native dependencies for each target explicitly before packaging, then runs the same
+  afterPack verifier used locally.
+
 ## [1.5.2] - 2026-10-26
 
 ### Added
