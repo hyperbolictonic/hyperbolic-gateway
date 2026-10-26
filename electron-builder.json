@@ -19,7 +19,9 @@
     "dist-electron/**/*",
     "bin/**/*",
     "public/**/*",
-    "package.json"
+    "package.json",
+    "!node_modules/@lancedb/lancedb/node_modules/**",
+    "!**/.cache/**"
   ],
   "asar": true,
   "asarUnpack": [

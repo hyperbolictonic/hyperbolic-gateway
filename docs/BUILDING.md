@@ -131,9 +131,12 @@ Notes:
   `patch:` protocol in the dependency tree. The workspace forces `nodeLinker: hoisted`; do not revert it
   to the isolated linker without re-checking `apache-arrow` and the other LanceDB peers inside
   `app.asar`.
-- The prune step must run **before** electron-builder. electron-builder captures its dependency file
+- **The prune step must run *before* electron-builder.** electron-builder captures its dependency file
   tree early, so a `beforePack` hook is too late. `afterPack` then runs
   `scripts/verify-pack.cjs` for every platform; a missing runtime fails the build instead of shipping.
+- `electron-builder.json#files` also excludes `node_modules/@lancedb/lancedb/node_modules/**` (a
+  duplicate optional embedding tree electron-builder re-adds) and `**/.cache/**` (models downloaded
+  on the build machine). Without those exclusions the Windows payload carries ~184 MB of dead code.
 - `latest*.yml` files must be uploaded alongside the binaries: they are the update feed metadata
   (version, sha512, size, blockmap).
 - Builds are slow (~8–12 min each); caching pnpm + Electron helps.

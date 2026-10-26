@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.4] - 2026-10-26
+
+### Fixed
+
+- **The Windows installer carried a duplicate 184 MB LanceDB embedding tree** and the pnpm
+  virtual-store model cache. electron-builder re-adds that optional tree even after
+  `scripts/prune-pack.cjs`; `files` now excludes
+  `node_modules/@lancedb/lancedb/node_modules/**` and `**/.cache/**`. The unpacked payload drops
+  from ~596 MB to ~412 MB, and the installer no longer leaves a long-path file behind on uninstall.
+
 ## [1.5.3] - 2026-10-26
 
 ### Fixed
