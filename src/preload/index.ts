@@ -33,6 +33,7 @@ export interface ElectronAPI {
   recallMemory: (query: string, options?: any) => Promise<any[]>;
   getHistory: (options?: any) => Promise<any[]>;
   clearHistory: (olderThan?: string) => Promise<{ success: boolean }>;
+  suggestUrls: (query: string, options?: any) => Promise<any[]>;
   addBookmark: (bookmark: any) => Promise<any>;
   listBookmarks: (options?: any) => Promise<any[]>;
   deleteBookmark: (urlOrId: string) => Promise<boolean>;
@@ -155,6 +156,7 @@ const api: ElectronAPI = {
   recallMemory: (query: string, options?: any) => ipcRenderer.invoke('cortex:recall', query, options),
   getHistory: (options?: any) => ipcRenderer.invoke('cortex:get-history', options),
   clearHistory: (olderThan?: string) => ipcRenderer.invoke('cortex:clear-history', olderThan),
+  suggestUrls: (query: string, options?: any) => ipcRenderer.invoke('cortex:suggest-urls', query, options),
   addBookmark: (bookmark: any) => ipcRenderer.invoke('cortex:add-bookmark', bookmark),
   listBookmarks: (options?: any) => ipcRenderer.invoke('cortex:list-bookmarks', options),
   deleteBookmark: (urlOrId: string) => ipcRenderer.invoke('cortex:delete-bookmark', urlOrId),

@@ -16,6 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.5.2] - 2026-10-26
+
+### Added
+
+- **URL-bar history suggestions.** Typing in the address bar opens a keyboard-navigable dropdown
+  backed by Cortex: lexical matches over history/bookmarks immediately, then a debounced semantic
+  recall pass. Entries show title, URL and a `saved`/`semantic`/`history` badge. `↑/↓`, Enter and
+  Escape work; recent entries appear on focus.
+- Cortex is prewarmed at startup so the first suggestion does not pay table initialization.
+- `GET /cortex/suggest?q=&semantic=false|true` and IPC `cortex:suggest-urls` for the same hybrid
+  ranking.
+
+### Fixed
+
+- **Bookmark star** is now a proper SVG with filled/unfilled state, `aria-pressed`, and a
+  request-sequence guard so a slow check cannot overwrite the current page's state. The previous
+  text-glyph version was fragile across themes/fonts.
+
 ## [1.5.1] - 2026-10-25
 
 ### Fixed

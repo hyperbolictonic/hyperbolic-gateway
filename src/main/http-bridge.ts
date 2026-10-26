@@ -761,6 +761,16 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         return;
       }
 
+      if (req.method === 'GET' && pathname === '/cortex/suggest') {
+        const cortex = chassis.getCortex();
+        const query = url.searchParams.get('q') || '';
+        const limit = url.searchParams.get('limit') ? parseInt(url.searchParams.get('limit')!, 10) : undefined;
+        const semantic = url.searchParams.get('semantic') !== 'false';
+        const suggestions = await cortex.suggestUrls(query, { limit, semantic });
+        sendJson({ success: true, suggestions });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/cortex/history/clear') {
         const body = await readBody();
         const cortex = chassis.getCortex();

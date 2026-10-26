@@ -56,6 +56,16 @@ export interface HistoryItem {
   visitedAt: string;
 }
 
+export interface UrlSuggestion {
+  url: string;
+  title: string;
+  domain: string;
+  visitedAt?: string;
+  sources: Array<'history' | 'bookmark' | 'semantic'>;
+  score: number;
+  snippet?: string;
+}
+
 export interface BookmarkItem {
   id: string;
   url: string;
@@ -404,6 +414,103 @@ export class CortexDB {
 
     return Array.from(urlMap.values())
       .sort((a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime())
+      .slice(0, limit);
+  }
+
+  /**
+   * URL-bar suggestions: lexical history/bookmarks plus optional semantic recall.
+   *
+   * The renderer asks for lexical results immediately and a semantic pass after a short debounce,
+   * so typing does not pay the embedding cost on every keystroke.
+   */
+  public async suggestUrls(
+    query: string,
+    options: { limit?: number; semantic?: boolean } = {}
+  ): Promise<UrlSuggestion[]> {
+    await this.initialize();
+    const limit = Math.max(1, Math.min(options.limit ?? 8, 12));
+    const q = String(query || '').trim().toLowerCase();
+    const tokens = q.split(/\s+/).filter(Boolean);
+
+    const history = await this.getHistory({ limit: 500 }).catch(() => []);
+    const bookmarks = await this.listBookmarks({ limit: 500 }).catch(() => []);
+    const byUrl = new Map<string, UrlSuggestion>();
+
+    const add = (
+      item: { url: string; title?: string; domain?: string; visitedAt?: string },
+      source: 'history' | 'bookmark' | 'semantic',
+      score: number,
+      snippet?: string
+    ) => {
+      if (!item.url) return;
+      const existing = byUrl.get(item.url);
+      if (existing) {
+        if (!existing.sources.includes(source)) existing.sources.push(source);
+        existing.score = Math.max(existing.score, score);
+        if (!existing.snippet && snippet) existing.snippet = snippet;
+        if (!existing.visitedAt && item.visitedAt) existing.visitedAt = item.visitedAt;
+        return;
+      }
+      byUrl.set(item.url, {
+        url: item.url,
+        title: item.title || extractDomain(item.url) || item.url,
+        domain: item.domain || extractDomain(item.url) || '',
+        visitedAt: item.visitedAt,
+        sources: [source],
+        score,
+        snippet,
+      });
+    };
+
+    const recency = (value?: string) => {
+      const t = value ? Date.parse(value) : 0;
+      return Number.isFinite(t) ? t : 0;
+    };
+
+    const lexicalScore = (url: string, title: string, domain: string): number => {
+      if (!q) return 0;
+      const u = url.toLowerCase();
+      const t = title.toLowerCase();
+      const d = domain.toLowerCase();
+      const hay = `${u} ${t} ${d}`;
+      if (!hay.includes(q) && !tokens.every((token) => hay.includes(token))) return 0;
+      let score = 10;
+      if (u.startsWith(q)) score += 100;
+      else if (u.includes(q)) score += 50;
+      if (d.startsWith(q)) score += 60;
+      if (t.startsWith(q)) score += 70;
+      else if (t.includes(q)) score += 35;
+      for (const token of tokens) if (hay.includes(token)) score += 8;
+      return score;
+    };
+
+    for (const item of history) {
+      const score = q ? lexicalScore(item.url, item.title, item.domain) : 10;
+      if (score) add(item, 'history', score + Math.min(5, recency(item.visitedAt) / 1e15));
+    }
+
+    for (const item of bookmarks) {
+      const domain = extractDomain(item.url) || '';
+      const score = q ? lexicalScore(item.url, item.title, domain) : 20;
+      if (score) {
+        add({ url: item.url, title: item.title, domain, visitedAt: item.createdAt }, 'bookmark', score + 15);
+      }
+    }
+
+    if (q && options.semantic === true) {
+      const recalled = await this.recall(q, { limit: 8 }).catch(() => []);
+      for (const item of recalled) {
+        add(
+          { url: item.url, title: item.title, domain: item.domain, visitedAt: item.visitedAt },
+          'semantic',
+          25 + Math.round((item.score || 0) * 20),
+          item.snippet
+        );
+      }
+    }
+
+    return [...byUrl.values()]
+      .sort((a, b) => b.score - a.score || recency(b.visitedAt) - recency(a.visitedAt))
       .slice(0, limit);
   }
 

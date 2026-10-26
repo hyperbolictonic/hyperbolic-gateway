@@ -335,6 +335,9 @@ async function createWindow() {
   // initial tab. Current documents are untouched; the patch lands on the next navigation.
   void chassis.applyShadowWalkSettings();
 
+  // Warm Cortex so the first URL-bar suggestion does not pay table initialization on a keystroke.
+  void chassis.getCortex().initialize().catch(() => undefined);
+
   // Handle external navigation
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);

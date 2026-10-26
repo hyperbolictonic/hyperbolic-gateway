@@ -810,6 +810,9 @@ export class BrowserChassis {
     ipcMain.handle('cortex:recall', async (_, query: string, options?: any) => {
       return await cortex.recall(query, options);
     });
+    ipcMain.handle('cortex:suggest-urls', async (_, query: string, options?: any) => {
+      return await cortex.suggestUrls(String(query || ''), options || {});
+    });
     ipcMain.handle('cortex:get-history', async (_, options?: any) => {
       return await cortex.getHistory(options);
     });
