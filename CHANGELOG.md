@@ -16,6 +16,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.6.1] - 2026-10-27
+
+The documentation and presentation release. It carries the refreshed in-app
+start page, the new icon, and the first developer/API guide published in the
+standard Open Knowledge Format.
+
+### Added
+
+- **Developer documentation as a standard OKF v0.2 bundle** under `developer/`:
+  MCP setup, runtime architecture, security model, browser and REST APIs,
+  bridge routes, wrapper and recipe formats, error codes, and worked examples.
+- **Developer and Docs links** in the in-app start page navigation.
+- The Pages site now publishes both readable HTML and the raw OKF Markdown.
+- The transparent **HyperGateway3** mark is wired into the app and installer
+  icon configuration.
+
+### Changed
+
+- The public documentation set is curated to actual documentation. Internal
+  field notes, plans, handoffs, and TODO documents are no longer published as
+  manual pages; links to them go back to the repository.
+- The in-app manual is the concise one-page start page, with developer details
+  and the legacy Kuang section kept at the bottom.
+
+### Compatibility
+
+- The app identity, `appId`, macOS bundle identity, package directory, userData
+  path, wrapper storage, and update feed remain unchanged for in-place upgrades.
+- The legacy `kuang` / `kuang-wrap` MCP labels and `KUANG_*` environment aliases
+  remain available.
+
 ## [1.6.0] - 2026-10-27
 
 The rebrand release. The desktop application is now **Hyperbolic Gateway**, with
