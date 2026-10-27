@@ -6,6 +6,17 @@ on:
     paths:
       - 'site/**'
       - 'public/welcome.html'
+      - 'public/assets/**'
+      - 'docs/**'
+      - 'kuang_docs/**'
+      - 'packages/**'
+      - 'src/**/README.md'
+      - 'scripts/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'TODO_RESEARCH_CRAWL.md'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
