@@ -102,7 +102,7 @@ function layout(page, body) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
-  <title>${page.title} — Hyperbolic Gateway</title>
+  <title>${page.title.includes('Hyperbolic Gateway') ? page.title : `${page.title} — Hyperbolic Gateway`}</title>
   <link rel="stylesheet" href="${prefix}assets/docs.css" />
 </head>
 <body>
