@@ -12,6 +12,14 @@ handoffs are intentionally not published here; links to them go back to the repo
 - [Packaging notes](./PACKAGING.html) — distribution-specific notes.
 - [Changelog](../CHANGELOG.html) — every shipped release.
 
+## Developer documentation
+
+- [Developer guide](../developer/index.html) — the standard OKF v0.2 bundle for API and integration work.
+- [Connect an MCP client](../developer/getting-started/mcp-clients.html) — `hb-browser`, `hb-rest`, bundled runtime and environment variables.
+- [Browser MCP API](../developer/api/browser-mcp.html) — tool groups, resources and call shape.
+- [REST MCP API](../developer/api/rest-mcp.html) — meta-tools, generated tools and result shapes.
+- [Wrapper format](../developer/formats/wrapper-format.html) and [recipe format](../developer/formats/recipe-format.html).
+
 ## Hyperbolic Browser
 
 - [Architecture](./CODEBASE.html) — system maps, call paths and subsystem findings.

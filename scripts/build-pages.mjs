@@ -28,10 +28,37 @@ const pageDocs = [
   'kuang_docs/partitions/primitives_and_workflows.md',
   'kuang_docs/partitions/selector_and_som_recipes.md',
 ];
-const files = pageDocs.map((file) => path.join(root, file)).filter((file) => fs.existsSync(file));
+
+function walkMarkdown(dir) {
+  const result = [];
+  if (!fs.existsSync(dir)) return result;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) result.push(...walkMarkdown(full));
+    else if (entry.isFile() && entry.name.endsWith('.md')) result.push(path.relative(root, full).split(path.sep).join('/'));
+  }
+  return result;
+}
+
+pageDocs.push(...walkMarkdown(path.join(root, 'developer')));
+const files = pageDocs
+  .map((file) => path.join(root, file))
+  .filter((file) => fs.existsSync(file) && path.basename(file) !== 'log.md');
+
+function frontmatterOf(markdown) {
+  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (!match) return { body: markdown, title: null };
+  const titleMatch = match[1].match(/^title:\s*["']?(.+?)["']?\s*$/m);
+  return {
+    body: markdown.slice(match[0].length),
+    title: titleMatch ? titleMatch[1].trim() : null,
+  };
+}
 
 function titleOf(markdown, fallback) {
-  const match = markdown.match(/^#\s+(.+)$/m);
+  const parsed = frontmatterOf(markdown);
+  if (parsed.title) return parsed.title;
+  const match = parsed.body.match(/^#\s+(.+)$/m);
   return match ? match[1].replace(/[*_`]/g, '').trim() : fallback;
 }
 
@@ -48,12 +75,13 @@ function prefixFor(output) {
 const pageInfo = new Map();
 for (const file of files) {
   const markdown = fs.readFileSync(file, 'utf8');
+  const parsed = frontmatterOf(markdown);
   const output = outputFor(file);
   pageInfo.set(output, {
     file,
     output,
-    title: titleOf(markdown, path.basename(file, '.md')),
-    markdown,
+    title: parsed.title || titleOf(markdown, path.basename(file, '.md')),
+    markdown: parsed.body,
   });
 }
 
@@ -61,7 +89,9 @@ function rewriteLinks(html, page) {
   const sourceDir = path.dirname(page.file);
   return html.replace(/href="(?!https?:|mailto:|#)([^"]+)"/g, (match, href) => {
     const [pathname, hash = ''] = String(href).split('#');
-    const targetFile = path.resolve(sourceDir, pathname);
+    const targetFile = pathname.startsWith('/')
+      ? path.join(root, pathname.slice(1))
+      : path.resolve(sourceDir, pathname);
     const targetOutput = outputFor(targetFile);
     if (pathname.endsWith('.md')) {
       if (!pageInfo.has(targetOutput)) {
@@ -85,12 +115,39 @@ const sidebar = [...pageInfo.values()]
   .filter((page) => page.output.startsWith('docs/') && page.output !== 'docs/index.html')
   .sort((a, b) => a.title.localeCompare(b.title));
 
+const developerOrder = [
+  'developer/index.html',
+  'developer/getting-started/index.html',
+  'developer/getting-started/installation.html',
+  'developer/getting-started/mcp-clients.html',
+  'developer/getting-started/first-session.html',
+  'developer/architecture/index.html',
+  'developer/architecture/runtime.html',
+  'developer/architecture/security.html',
+  'developer/api/index.html',
+  'developer/api/browser-mcp.html',
+  'developer/api/rest-mcp.html',
+  'developer/api/bridge-http.html',
+  'developer/formats/index.html',
+  'developer/formats/wrapper-format.html',
+  'developer/formats/recipe-format.html',
+  'developer/formats/errors.html',
+  'developer/examples/index.html',
+  'developer/examples/browser-session.html',
+  'developer/examples/rest-wrapper.html',
+];
+
+const developerSidebar = [...pageInfo.values()]
+  .filter((page) => page.output.startsWith('developer/') && page.output !== 'developer/index.html')
+  .sort((a, b) => developerOrder.indexOf(a.output) - developerOrder.indexOf(b.output));
+
 function layout(page, body) {
   const prefix = prefixFor(page.output);
   const nav = [
     ['Home', `${prefix}index.html`],
     ['Manual', `${prefix}manual.html`],
     ['Docs', `${prefix}docs/`],
+    ['Developer', `${prefix}developer/`],
     ['Overview', `${prefix}README.html`],
     ['Changelog', `${prefix}CHANGELOG.html`],
     ['GitHub', repoUrl],
@@ -121,6 +178,9 @@ function layout(page, body) {
       <a class="${page.output === 'CHANGELOG.html' ? 'active' : ''}" href="${prefix}CHANGELOG.html">Changelog</a>
       <div class="side-title">Guides &amp; reference</div>
       ${sidebar.map((item) => `<a class="${item.output === page.output ? 'active' : ''}" href="${prefix}${item.output}">${item.title}</a>`).join('')}
+      <div class="side-title">Developer</div>
+      <a class="${page.output === 'developer/index.html' ? 'active' : ''}" href="${prefix}developer/">Developer guide</a>
+      ${developerSidebar.map((item) => `<a class="${item.output === page.output ? 'active' : ''}" href="${prefix}${item.output}">${item.title}</a>`).join('')}
     </aside>
     <main class="content">
       <div class="source-link"><a href="${repoUrl}/blob/main/${path.relative(root, page.file).split(path.sep).join('/')}">View source on GitHub</a></div>
@@ -143,6 +203,7 @@ fs.mkdirSync(path.join(out, 'public', 'assets'), { recursive: true });
 fs.cpSync(path.join(root, 'public', 'assets'), path.join(out, 'public', 'assets'), { recursive: true });
 fs.mkdirSync(path.join(out, 'docs', 'assets'), { recursive: true });
 fs.cpSync(path.join(root, 'docs', 'assets'), path.join(out, 'docs', 'assets'), { recursive: true });
+fs.cpSync(path.join(root, 'developer'), path.join(out, 'developer'), { recursive: true });
 fs.mkdirSync(path.join(out, 'kuang_docs'), { recursive: true });
 fs.copyFileSync(path.join(root, 'kuang_docs', 'okf.json'), path.join(out, 'kuang_docs', 'okf.json'));
 if (fs.existsSync(path.join(root, 'LICENSE'))) fs.copyFileSync(path.join(root, 'LICENSE'), path.join(out, 'LICENSE'));
@@ -160,7 +221,7 @@ for (const page of pageInfo.values()) {
   }
 }
 
-const sitemap = ['index.html', 'manual.html', 'README.html', 'CHANGELOG.html', 'docs/index.html', ...sidebar.map((item) => item.output)];
+const sitemap = ['index.html', 'manual.html', 'README.html', 'CHANGELOG.html', 'docs/index.html', 'developer/index.html', ...sidebar.map((item) => item.output), ...developerSidebar.map((item) => item.output)];
 fs.writeFileSync(path.join(out, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${[...new Set(sitemap)].map((item) => `  <url><loc>${pagesRoot}/${item}</loc><changefreq>weekly</changefreq></url>`).join('\n')}

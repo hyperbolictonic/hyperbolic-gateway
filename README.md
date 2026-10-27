@@ -695,6 +695,7 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
 
 ## 📚 Documentation & Knowledge (OKF)
 
+- **[`developer/`](./developer/index.md)** — the standard **OKF v0.2** developer bundle: MCP setup, browser and REST APIs, wrapper/recipe formats, and examples.
 - **[`CHANGELOG.md`](./CHANGELOG.md)** — release history and migration-relevant changes.
 - **[`docs/`](./docs/README.md)** — the documentation hub: concept lore, subsystem specs, field notes, and the abstraction roadmap.
 - **[`docs/PROPOSED_ABSTRACTIONS.md`](./docs/PROPOSED_ABSTRACTIONS.md)** — the primitive-layer design and its status (A1–A6, B, C, D).
