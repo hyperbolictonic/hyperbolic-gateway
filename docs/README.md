@@ -13,6 +13,7 @@ Welcome to the documentation repository for **Hyperbolic Gateway** (*Hyperbolic 
 - [SHADOW_WALK.md](./SHADOW_WALK.md) — **Sealed-content plan**: closed-root discovery via the accessibility tree, focus walk, component signatures, the Shadow Walk settings tab, and the tiered risk levers.
 - [DECISION_MODELS.md](./DECISION_MODELS.md) — The optional `decide` / `drive` decision layer.
 - [KUANG_WRAP.md](./KUANG_WRAP.md) - Compatibility stub; see [HYPERBOLIC_REST.md](./HYPERBOLIC_REST.md) for the second MCP server (saved REST wrappers and response recipes, `hb-rest`).
+- [AUTH_MD_COMPATIBILITY.md](./AUTH_MD_COMPATIBILITY.md) - Agent-side AUTH.md discovery, browser consent/claim flow, and Research availability enumeration (research, not implemented).
 - [RESEARCH_STEALTH.md](./RESEARCH_STEALTH.md) - Settings → Research: isolated research session, proxy, engine chain, cooldowns, delays, hidden-view activation, and challenge backoff.
 - [concept.md](./concept.md) — The foundational concept, design philosophy, and lore behind Hyperbolic Gateway.
 - [TODO.md](./TODO.md) — Agent capability roadmap, prioritized from foundational utilities to high-bandwidth cognitive features and biomechanical kinematics.
