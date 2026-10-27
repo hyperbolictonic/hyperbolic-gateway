@@ -7,18 +7,28 @@ const out = path.join(root, '_site');
 const repoUrl = 'https://github.com/hyperbolictonic/hyperbolic-gateway';
 const pagesRoot = 'https://hyperbolictonic.github.io/hyperbolic-gateway';
 
-const markdownRoots = ['docs', 'kuang_docs', 'packages', 'src', 'scripts', '.agents'];
-const markdownFiles = [];
-
-function walk(dir) {
-  if (!fs.existsSync(dir)) return;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === '.git') continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) walk(full);
-    else if (entry.isFile() && entry.name.endsWith('.md')) markdownFiles.push(full);
-  }
-}
+const pageDocs = [
+  'README.md',
+  'CHANGELOG.md',
+  'docs/README.md',
+  'docs/BUILDING.md',
+  'docs/CODEBASE.md',
+  'docs/CONTROL_LAYER.md',
+  'docs/DECISION_MODELS.md',
+  'docs/EMBEDDING_PROVIDERS.md',
+  'docs/HYPERBOLIC_REST.md',
+  'docs/KUANG_WRAP.md',
+  'docs/PACKAGING.md',
+  'docs/RESEARCH_STEALTH.md',
+  'docs/SHADOW_DOM_AND_FRAMES.md',
+  'docs/SHADOW_WALK.md',
+  'docs/concept.md',
+  'kuang_docs/partitions/browser_navigation_playbook.md',
+  'kuang_docs/partitions/captcha_and_anti_bot_strategies.md',
+  'kuang_docs/partitions/primitives_and_workflows.md',
+  'kuang_docs/partitions/selector_and_som_recipes.md',
+];
+const files = pageDocs.map((file) => path.join(root, file)).filter((file) => fs.existsSync(file));
 
 function titleOf(markdown, fallback) {
   const match = markdown.match(/^#\s+(.+)$/m);
@@ -35,17 +45,6 @@ function prefixFor(output) {
   return '../'.repeat(output.split('/').length - 1);
 }
 
-const files = [
-  path.join(root, 'README.md'),
-  path.join(root, 'CHANGELOG.md'),
-  path.join(root, 'TODO_RESEARCH_CRAWL.md'),
-  ...markdownRoots.flatMap((dir) => {
-    markdownFiles.length = 0;
-    walk(path.join(root, dir));
-    return markdownFiles.slice();
-  }),
-].filter((file) => fs.existsSync(file));
-
 const pageInfo = new Map();
 for (const file of files) {
   const markdown = fs.readFileSync(file, 'utf8');
@@ -58,8 +57,28 @@ for (const file of files) {
   });
 }
 
-function rewriteLinks(html) {
-  return html.replace(/href="(?!https?:|mailto:|#)([^"]+?)\.md(#[^"]*)?"/g, 'href="$1.html$2"');
+function rewriteLinks(html, page) {
+  const sourceDir = path.dirname(page.file);
+  return html.replace(/href="(?!https?:|mailto:|#)([^"]+)"/g, (match, href) => {
+    const [pathname, hash = ''] = String(href).split('#');
+    const targetFile = path.resolve(sourceDir, pathname);
+    const targetOutput = outputFor(targetFile);
+    if (pathname.endsWith('.md')) {
+      if (!pageInfo.has(targetOutput)) {
+        const rel = path.relative(root, targetFile).split(path.sep).join('/');
+        return `href="${repoUrl}/blob/main/${rel}${hash ? `#${hash}` : ''}"`;
+      }
+      const relative = path.posix.relative(path.posix.dirname(page.output), targetOutput);
+      return `href="${relative}${hash ? `#${hash}` : ''}"`;
+    }
+    const siteCandidate = path.resolve(out, pathname.replace(/^\//, ''));
+    if (siteCandidate.startsWith(out + path.sep) && fs.existsSync(siteCandidate)) return match;
+    if (/(\.json|\.mjs|\.cjs|\.js|\.ts|\.yml|\.yaml|\.toml)$/.test(pathname) && fs.existsSync(targetFile)) {
+      const rel = path.relative(root, targetFile).split(path.sep).join('/');
+      return `href="${repoUrl}/blob/main/${rel}${hash ? `#${hash}` : ''}"`;
+    }
+    return match;
+  });
 }
 
 const sidebar = [...pageInfo.values()]
@@ -120,13 +139,18 @@ fs.mkdirSync(out, { recursive: true });
 fs.cpSync(path.join(root, 'site'), out, { recursive: true });
 fs.mkdirSync(path.join(out, 'assets'), { recursive: true });
 fs.cpSync(path.join(root, 'public', 'assets'), path.join(out, 'assets'), { recursive: true });
+fs.mkdirSync(path.join(out, 'public', 'assets'), { recursive: true });
+fs.cpSync(path.join(root, 'public', 'assets'), path.join(out, 'public', 'assets'), { recursive: true });
 fs.mkdirSync(path.join(out, 'docs', 'assets'), { recursive: true });
 fs.cpSync(path.join(root, 'docs', 'assets'), path.join(out, 'docs', 'assets'), { recursive: true });
+fs.mkdirSync(path.join(out, 'kuang_docs'), { recursive: true });
+fs.copyFileSync(path.join(root, 'kuang_docs', 'okf.json'), path.join(out, 'kuang_docs', 'okf.json'));
+if (fs.existsSync(path.join(root, 'LICENSE'))) fs.copyFileSync(path.join(root, 'LICENSE'), path.join(out, 'LICENSE'));
 fs.copyFileSync(path.join(root, 'public', 'welcome.html'), path.join(out, 'manual.html'));
 fs.writeFileSync(path.join(out, 'assets', 'docs.css'), docsCss);
 
 for (const page of pageInfo.values()) {
-  const html = rewriteLinks(marked.parse(page.markdown, { gfm: true, breaks: false }));
+  const html = rewriteLinks(marked.parse(page.markdown, { gfm: true, breaks: false }), page);
   const target = path.join(out, page.output);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const rendered = layout(page, html);
