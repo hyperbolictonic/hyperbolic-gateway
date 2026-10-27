@@ -28,14 +28,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install docs dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Assemble site
-        run: |
-          mkdir -p _site
-          cp -r site/. _site/
-          # The Cyberdeck manual ships with the app; serve it verbatim as a static page.
-          cp public/welcome.html _site/manual.html
-          mkdir -p _site/assets
-          cp -r public/assets/. _site/assets/
+        run: pnpm build:pages
           ls -la _site
 
       - uses: actions/configure-pages@v5
