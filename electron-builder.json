@@ -52,7 +52,7 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/assets/mark-eleven.png"
+    "icon": "public/assets/brand/hyperbolic-gateway-primary.png"
   },
   "nsis": {
     "oneClick": false,
@@ -76,7 +76,7 @@
         "arch": ["arm64"]
       }
     ],
-    "icon": "public/assets/mark-eleven.png",
+    "icon": "public/assets/brand/hyperbolic-gateway-primary.png",
     "category": "public.app-category.developer-tools"
   },
   "linux": {
@@ -94,7 +94,7 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/assets/mark-eleven.png",
+    "icon": "public/assets/brand/hyperbolic-gateway-primary.png",
     "category": "Development"
   }
 }

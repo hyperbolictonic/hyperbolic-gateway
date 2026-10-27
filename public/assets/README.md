@@ -1,14 +1,20 @@
-# 🎨 Kuang Grade Mark Eleven — Tactical Brand Assets
+# 🎨 Hyperbolic Gateway — Brand Assets
 
-This directory stores the official graphical emblems, icons, and visual insignia for the Kuang Grade Mark Eleven Cyberdeck.
+This directory stores the official graphical emblems and icons for **Hyperbolic Gateway**.
 
----
+## Current brand
 
-## 🛡️ Asset Catalog
+1. **`brand/hyperbolic-gateway-primary.png`** — primary 1024×1024 app/installer icon (generated from `HyperGateway2.jpg`).
+2. **`brand/Hypergateway1.jpg`** — alternate H-mark artwork (2400×1792, baked checkerboard background).
+3. **`brand/HyperGateway2.jpg`** — master square source for the primary icon (2048×2048).
 
-1. **`ono-sendai.png`**:
-   The **Ono-Sendai Cyberspace 7** cyberdeck emblem. Features the cyan neon heptagon and matrix wireframe aesthetics inspired by Gibson's Sprawl trilogy.
-2. **`kuang-grade.png`**:
-   The **Kuang Grade 11** military-grade Icebreaker crest. Emblazoned with the kanji 狂 (*Kuang* / wild intensity) surrounded by ultraviolet tactical armor plates.
-3. **`mark-eleven.png`**:
-   The **Mark Eleven (XI)** tactical targeting circle emblem with radial reticles and electric cyan glow. Represents the DOM downsampling and telemetry navigation engine.
+## Legacy assets
+
+The original Kuang Grade / Mark Eleven emblems are retained for historical and compatibility
+purposes:
+
+- `ono-sendai.png` — Ono-Sendai Cyberspace 7 emblem
+- `kuang-grade.png` — original Kuang Grade crest
+- `mark-eleven.png` — original Mark Eleven tactical emblem
+
+These are not the current product identity.
