@@ -219,7 +219,7 @@ Use **`electron-updater`** (6.x). It reads the `latest*.yml` feed that electron-
 download against the sha512 in that file.
 
 ```json
-"publish": [{ "provider": "github", "owner": "hyperbolictonic", "repo": "kuang-grade-mark-leven" }]
+"publish": [{ "provider": "github", "owner": "hyperbolictonic", "repo": "hyperbolic-gateway" }]
 ```
 
 ```ts

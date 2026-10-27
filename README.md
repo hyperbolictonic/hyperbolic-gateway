@@ -66,7 +66,7 @@ where you already run it — local or remote — and Hyperbolic Gateway supplies
 > [!IMPORTANT]
 > **RESEARCH PURPOSES ONLY**: This software is provided strictly for educational, testing, and local AI agent research purposes. It is **not intended for malicious use**, automated credential stuffing, unauthorized exploitation, or violating third-party websites' Terms of Service. Users are responsible for complying with all applicable laws and terms.
 
-**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/kuang-grade-mark-eleven/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Hyperbolic Gateway.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
+**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/hyperbolic-gateway/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Hyperbolic Gateway.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
 
 <a id="sec-a-punk-ethos-diy-alternative-to-browser-use-play" name="sec-a-punk-ethos-diy-alternative-to-browser-use-play"></a>
 

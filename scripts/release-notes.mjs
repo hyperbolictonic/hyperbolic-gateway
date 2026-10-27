@@ -24,7 +24,7 @@ const heading = new RegExp(`^## \\[${escaped}\\]`, 'm');
 const match = heading.exec(changelog);
 
 const footer =
-  '\n\n**Full changelog:** https://github.com/hyperbolictonic/kuang-grade-mark-eleven/blob/main/CHANGELOG.md';
+  '\n\n**Full changelog:** https://github.com/hyperbolictonic/hyperbolic-gateway/blob/main/CHANGELOG.md';
 
 if (!match) {
   console.log(`Release ${tag}. See CHANGELOG.md for details.${footer}`);
