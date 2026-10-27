@@ -1,4 +1,4 @@
-# Decision Models & Kuang — where a "Jev-style" head fits
+# Decision Models & Hyperbolic Gateway — where a "Jev-style" head fits
 
 **Status:** positioning note + substrate (2026-10-20) · **Related:** [`../TODO_RESEARCH_CRAWL.md`](../TODO_RESEARCH_CRAWL.md), [`PROPOSED_ABSTRACTIONS.md`](./PROPOSED_ABSTRACTIONS.md)
 
@@ -17,24 +17,24 @@ open-ended reasoning and generation.
 
 ## The rule
 
-> **Kuang surfaces typed facts and evidence. The decision maker lives above it.**
+> **Hyperbolic Gateway surfaces typed facts and evidence. The decision maker lives above it.**
 
-Kuang is an MCP **tool surface**, not an agent framework. A runner-side decision model wins precisely where
+Hyperbolic Gateway is an MCP **tool surface**, not an agent framework. A runner-side decision model wins precisely where
 it replaces an LLM *turn*; a model buried inside the browser server would only move the choice, because the
 agent still had to spend a turn to ask for it. So:
 
 - **In the runner** (e.g. Eve / agent-orcha): *epistemic* decisions — what is the goal, which tool family,
   is the task done, which of N candidate actions next, when to hand over to a human. This is where a Jev-style
   head belongs, and where gains in latency and cost actually materialise.
-- **In Kuang**: *perception and mechanics* — did the click land, is the target stale, is this field already
+- **In Hyperbolic Gateway**: *perception and mechanics* — did the click land, is the target stale, is this field already
   filled, which wait condition fits. These must run inside a tool call at sub-100 ms, are invisible to the
   agent, and are already implemented as deterministic heuristics (e.g. `typeMark` re-resolves and re-clicks
   once if the target didn't take focus; `act` emits triage hints on a failed `await_conditions`).
 
-Kuang therefore does **not** ship a policy model, and should not: it would add a heavyweight, network-bound
+Hyperbolic Gateway therefore does **not** ship a policy model, and should not: it would add a heavyweight, network-bound
 dependency to a local-first tool, hard-code today's decision taxonomy, and hide decisions from the agent.
 
-## What Kuang provides for a decision layer
+## What Hyperbolic Gateway provides for a decision layer
 
 Everything below is already emitted, typed, and observable from the tool result:
 
@@ -83,7 +83,7 @@ it separates *did something* from *did nothing* — the exact distinction a tria
 ## Guardrails
 
 - **Advisory, not silent.** Return the decision *and its confidence*, keep the deterministic path as the
-  fallback for low confidence, and never let Kuang mutate on a model's say-so. This is the same call already
+  fallback for low confidence, and never let Hyperbolic Gateway mutate on a model's say-so. This is the same call already
   made twice: `llm_surface` recommends a surface rather than fetching it, and `act` returns a delta rather
   than retrying behind the agent's back.
 - **Discriminative limits.** It can only choose from the options given, cannot explain itself, and degrades
@@ -126,7 +126,7 @@ with **no model bundled**: `kev-0.6b` (Qwen3-0.6B, 0.34 GB) by default, or `open
 ### Local model status — measured, not assumed
 
 `scripts/bench-decision-model.mjs` runs four realistic page states (empty password + a dead submit, an
-already-signed-in page, a cookie banner, a CAPTCHA) using the exact payload Kuang sends — a goal plus the
+already-signed-in page, a cookie banner, a CAPTCHA) using the exact payload Hyperbolic Gateway sends — a goal plus the
 component list, with target options restricted by each component's `actions`. Run it against the configured
 backend (`--bridge`) or a local model (`kev-0.6b cpu`):
 
@@ -192,12 +192,12 @@ there is no prose path in it at all. So the split is:
 ```
 Jev (decide)      → operation = "type_text", target = "8"     a decision
 the agent (LLM)   → the string to type                        generation, over MCP
-Kuang (act)       → focus, keys, verify (typing.landed)        execution + proof
+Hyperbolic Gateway (act)       → focus, keys, verify (typing.landed)        execution + proof
 ```
 
-This is deliberate: Kuang ships **no text-generation model**. jev-ultrafast embeds a small LLM
+This is deliberate: Hyperbolic Gateway ships **no text-generation model**. jev-ultrafast embeds a small LLM
 (`mercury-2.5` in its example) because it owns the whole loop; here the loop lives in the agent, which
-already has a model. That keeps Kuang local-first and key-free, and keeps the words under the agent's
+already has a model. That keeps Hyperbolic Gateway local-first and key-free, and keeps the words under the agent's
 control. In practice: `decide` says *which* field and *that* typing is next; the agent supplies the text
 via `act(mark_id, action:"type", text:"…")`.
 
@@ -235,17 +235,17 @@ last rung of the same ladder: **model → eliminate + retry → deterministic ch
 
 | signal | who decides | why |
 | :--- | :--- | :--- |
-| **Deterministic gate** — age-verification or CAPTCHA copy is present | **Kuang → human** (hard stop, auto HIL) | A compliance boundary is not a judgement call. Kuang raises the hand-off itself and returns 409. |
+| **Deterministic gate** — age-verification or CAPTCHA copy is present | **Hyperbolic Gateway → human** (hard stop, auto HIL) | A compliance boundary is not a judgement call. Hyperbolic Gateway raises the hand-off itself and returns 409. |
 | Model answers `blocked`, but no gate copy matches | **the agent** | "Blocked" may be a login wall, a paywall, a dead end, or a badly-classified normal page. The agent can see the goal and the site; it decides, and may call `request_human_intervention` itself. The result carries a hint saying exactly that. |
 | Anything else | **the agent** | Normal loop. |
 
 So the rule is: **if it cannot be *determined* that a human is required, it goes to the agent, not the human.**
-Kuang only spends a human's attention on a boundary it can name and quote.
+Hyperbolic Gateway only spends a human's attention on a boundary it can name and quote.
 
 ### Sensitive gates — age verification and CAPTCHA are never the model's call
 
 Some walls are not obstacles to route around. Confirming an age, solving a CAPTCHA, or asserting "I am
-human" is a statement **only a person can make**, so Kuang checks for them *before* any model is asked:
+human" is a statement **only a person can make**, so Hyperbolic Gateway checks for them *before* any model is asked:
 
 ```
 state contains age-gate copy ("verify your age/birthday", "birthday to continue",
@@ -267,7 +267,7 @@ The same applies to CAPTCHA / "verify you are human" copy. Three properties matt
 - **It is narrow.** A `Date of birth` field in a signup form is ordinary data entry and does **not** match;
   only gate copy does. That false-positive case is a test too.
 
-When a decision loop sees `HUMAN_REQUIRED`, it must stop and notify a human. Kuang now does the notifying
+When a decision loop sees `HUMAN_REQUIRED`, it must stop and notify a human. Hyperbolic Gateway now does the notifying
 itself: the gate opens a HIL request for the page (reason + matched lines), throttled to one per URL per
 five minutes and skipped while another request is open. In the HUD that is the `alert-warning` banner,
 anchored bottom-right so it never covers the page the human must act on.
@@ -281,7 +281,7 @@ the state, with the `TypeSafe-Danger-Zone-Images: true` header.
 
 **Known limitation (2026-10): the OpenCode gateway does not forward headers.** TypeSafe needs
 `TypeSafe-Danger-Zone-Images: true`; `opencode.ai/inference/...` drops it (verified with a direct request:
-the same 400 with and without the header). Kuang therefore **disables the attachment when the configured
+the same 400 with and without the header). Hyperbolic Gateway therefore **disables the attachment when the configured
 endpoint is `opencode.ai`** and reports
 `screenshot: "disabled: the OpenCode gateway does not forward TypeSafe headers — images only work against
 api.typesafe.ai"`. Screenshots work today only when `url` points at `api.typesafe.ai` with a TypeSafe key.
@@ -327,7 +327,7 @@ paths use the same guard, the same verification and the same ledger.
 
 ### Guard + elimination — what happens when the model is wrong
 
-A decision is only acted on if it passes deterministic checks Kuang can make without judgement:
+A decision is only acted on if it passes deterministic checks Hyperbolic Gateway can make without judgement:
 
 | check | rejects when |
 | :--- | :--- |
@@ -355,4 +355,4 @@ step did not work, so re-observe and try the next candidate, then hand over to a
 5. The ledger records what the policy chose *and* whether it worked, which is the data to evaluate it with.
 
 Nothing the model returns is ever turned into a selector, a coordinate or a script: it picks a component
-id, and Kuang addresses, executes and verifies it.
+id, and Hyperbolic Gateway addresses, executes and verifies it.

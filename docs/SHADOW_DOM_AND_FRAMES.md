@@ -1,4 +1,4 @@
-# Shadow DOM & iframes — what Kuang can see and click
+# Shadow DOM & iframes — what Hyperbolic Gateway can see and click
 
 Two different problems that get confused because both "hide" content:
 

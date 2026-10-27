@@ -1,4 +1,4 @@
-# Mark Eleven — Abstractions & Additions (build todo)
+# Hyperbolic Gateway — Abstractions & Additions (build todo)
 
 Created 2026-10-18 alongside `FIELD_NOTES_2026-10-18.md` / `FIX_PLAN_2026-10-18.md`.
 

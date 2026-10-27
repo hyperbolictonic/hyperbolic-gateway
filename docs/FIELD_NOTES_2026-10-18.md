@@ -1,4 +1,4 @@
-# Field Notes — Kuang / Mark Eleven MCP
+# Field Notes — Hyperbolic Gateway / Hyperbolic Gateway MCP
 
 **Run:** Skyscanner round-trip fares, London → Malé, first week of November 2026
 **Date:** 2026-10-18

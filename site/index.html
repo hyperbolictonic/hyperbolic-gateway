@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kuang Grade Mark Eleven — a self-hosted MCP browser agent</title>
+    <title>Hyperbolic Gateway — a self-hosted MCP browser agent</title>
     <meta
       name="description"
       content="A web browser your AI can drive. Self-hosted MCP browser agent running a real Chromium with humanlike input, persistent local memory, and no cloud, API keys or telemetry. A DIY alternative to browser-use, Playwright agents and hosted browser clouds."
@@ -13,16 +13,16 @@
       name="keywords"
       content="MCP, model context protocol, browser agent, browser automation, browser-use alternative, playwright agent, self-hosted, local-first, ai agents, llm tools, web scraping, web research, electron, chromium"
     />
-    <link rel="canonical" href="https://hyperbolictonic.github.io/kuang-grade-mark-eleven/" />
+    <link rel="canonical" href="https://hyperbolictonic.github.io/hyperbolic-gateway/" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Kuang Grade Mark Eleven — a self-hosted MCP browser agent" />
+    <meta property="og:title" content="Hyperbolic Gateway — a self-hosted MCP browser agent" />
     <meta
       property="og:description"
       content="A real Chromium your LLM can drive. Local-first, no cloud, no API keys, no telemetry. A DIY alternative to browser-use, Playwright agents and hosted browser clouds."
     />
-    <meta property="og:url" content="https://hyperbolictonic.github.io/kuang-grade-mark-eleven/" />
+    <meta property="og:url" content="https://hyperbolictonic.github.io/hyperbolic-gateway/" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Kuang Grade Mark Eleven — MCP browser agent" />
+    <meta name="twitter:title" content="Hyperbolic Gateway — MCP browser agent" />
     <meta
       name="twitter:description"
       content="Self-hosted browser agent over MCP. Real Chromium, humanlike input, local memory. No cloud, no API keys, no telemetry."
@@ -267,7 +267,7 @@
     <header>
       <div class="wrap hero">
         <div class="kicker">MCP · Self-hosted · Local-first</div>
-        <h1>Kuang Grade Mark Eleven</h1>
+        <h1>Hyperbolic Gateway</h1>
         <p class="sub">
           <strong>A web browser your AI can drive.</strong> It runs a real, visible Chromium on your own machine and
           speaks <strong>MCP</strong>, so it drops into whatever agent runner and whichever model you already use — local
@@ -275,8 +275,8 @@
         </p>
         <div class="cta">
           <a class="btn primary" href="./manual.html">Read the manual</a>
-          <a class="btn" href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven">Source on GitHub</a>
-          <a class="btn" href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/releases">Releases</a>
+          <a class="btn" href="https://github.com/hyperbolictonic/hyperbolic-gateway">Source on GitHub</a>
+          <a class="btn" href="https://github.com/hyperbolictonic/hyperbolic-gateway/releases">Releases</a>
         </div>
       </div>
     </header>
@@ -318,7 +318,7 @@
           <thead>
             <tr>
               <th>Property</th>
-              <th>Kuang Grade Mark Eleven</th>
+              <th>Hyperbolic Gateway</th>
               <th>Browser clouds / hosted agents</th>
             </tr>
           </thead>
@@ -371,8 +371,8 @@
       <div class="wrap">
         <h2>Install</h2>
         <h3>1. Run the app</h3>
-        <pre><code>git clone https://github.com/hyperbolictonic/kuang-grade-mark-eleven.git
-cd kuang-grade-mark-eleven
+        <pre><code>git clone https://github.com/hyperbolictonic/hyperbolic-gateway.git
+cd hyperbolic-gateway
 pnpm install
 pnpm dev          # or: pnpm run build &amp;&amp; pnpm start</code></pre>
 
@@ -382,9 +382,10 @@ pnpm dev          # or: pnpm run build &amp;&amp; pnpm start</code></pre>
         </p>
         <pre><code>{
   "mcpServers": {
-    "mark-eleven": {
+    "hb-browser": {
       "command": "node",
-      "args": ["C:/path/to/kuang-grade-mark-eleven/bin/mcp-server.cjs"]
+      "args": ["C:/path/to/hyperbolic-gateway/bin/mcp-server.cjs"],
+      "env": { "HB_BRIDGE_URL": "http://127.0.0.1:4111" }
     }
   }
 }</code></pre>
@@ -437,14 +438,14 @@ pnpm dev          # or: pnpm run build &amp;&amp; pnpm start</code></pre>
             <h3>Docs</h3>
             <p>Architecture, the primitive layer, field notes from hardening real SPAs, and the roadmap.</p>
             <p style="margin-top: 10px">
-              <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/tree/main/docs">Browse docs →</a>
+              <a href="https://github.com/hyperbolictonic/hyperbolic-gateway/tree/main/docs">Browse docs →</a>
             </p>
           </div>
           <div class="card">
             <h3>Changelog</h3>
             <p>Release history and migration-relevant changes, newest first.</p>
             <p style="margin-top: 10px">
-              <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/blob/main/CHANGELOG.md">Read the changelog →</a>
+              <a href="https://github.com/hyperbolictonic/hyperbolic-gateway/blob/main/CHANGELOG.md">Read the changelog →</a>
             </p>
           </div>
         </div>
@@ -454,14 +455,14 @@ pnpm dev          # or: pnpm run build &amp;&amp; pnpm start</code></pre>
     <footer>
       <div class="wrap">
         <div class="links">
-          <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven">GitHub</a>
-          <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/issues">Issues</a>
+          <a href="https://github.com/hyperbolictonic/hyperbolic-gateway">GitHub</a>
+          <a href="https://github.com/hyperbolictonic/hyperbolic-gateway/issues">Issues</a>
           <a href="./manual.html">Manual</a>
-          <a href="https://github.com/hyperbolictonic/kuang-grade-mark-eleven/blob/main/LICENSE">MIT Licence</a>
+          <a href="https://github.com/hyperbolictonic/hyperbolic-gateway/blob/main/LICENSE">MIT Licence</a>
         </div>
         <p>
-          Kuang Grade Mark Eleven — built by one developer, for people who would rather own the tool. Named after the
-          icebreaker in William Gibson's <em>Neuromancer</em>; the code has nothing to do with it.
+          Hyperbolic Gateway — built by one developer, for people who would rather own the tool. Inspired by the
+          icebreaker in William Gibson's <em>Neuromancer</em> and later rebranded; the code is independent of it.
         </p>
       </div>
     </footer>
@@ -470,14 +471,14 @@ pnpm dev          # or: pnpm run build &amp;&amp; pnpm start</code></pre>
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "Kuang Grade Mark Eleven",
-        "alternateName": "Mark Eleven",
+        "name": "Hyperbolic Gateway",
+        "alternateName": "Hyperbolic Browser",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Windows",
         "description": "A self-hosted MCP browser agent: a real Chromium your LLM can drive, with humanlike input, local persistent memory, and no cloud dependency.",
-        "url": "https://hyperbolictonic.github.io/kuang-grade-mark-eleven/",
-        "codeRepository": "https://github.com/hyperbolictonic/kuang-grade-mark-eleven",
-        "license": "https://github.com/hyperbolictonic/kuang-grade-mark-eleven/blob/main/LICENSE",
+        "url": "https://hyperbolictonic.github.io/hyperbolic-gateway/",
+        "codeRepository": "https://github.com/hyperbolictonic/hyperbolic-gateway",
+        "license": "https://github.com/hyperbolictonic/hyperbolic-gateway/blob/main/LICENSE",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" }
       }
     </script>

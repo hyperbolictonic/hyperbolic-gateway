@@ -317,7 +317,7 @@ Rules for this workflow:
   next action depends on new content.
 - `act` returns evidence. Read `ok`, `delta` and `target` before you continue.
 - Use `find` or a mark ID when the DOM is complex. Do not guess generated class names.
-- If the site shows a CAPTCHA or an age gate, stop. Call `request_human_intervention`, or let Kuang raise
+- If the site shows a CAPTCHA or an age gate, stop. Call `request_human_intervention`, or let Hyperbolic Gateway raise
   the hand-off. Do not retry the form.
 - Use `evaluate_javascript` only when the primitives cannot express the read or the action.
 

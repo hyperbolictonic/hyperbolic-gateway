@@ -2,7 +2,7 @@
 
 **Status:** root-caused findings + fix plan · **Related:** [`FIELD_NOTES_2026-10-18.md`](./FIELD_NOTES_2026-10-18.md) (the "dropped click" family), [`DECISION_MODELS.md`](./DECISION_MODELS.md) (the ledger and field facts this run exercised for the first time on a hostile page).
 
-**The run:** a real account creation on reddit.com — email → emailed 6-digit code → username/password → birthday + confirm → onboarding → logged-in feed. Driven entirely through Kuang's own MCP tools, on a site with an invisible reCAPTCHA, a `js_challenge`, and **every form control inside shadow DOM**. Nothing synthetic about it.
+**The run:** a real account creation on reddit.com — email → emailed 6-digit code → username/password → birthday + confirm → onboarding → logged-in feed. Driven entirely through Hyperbolic Gateway's own MCP tools, on a site with an invisible reCAPTCHA, a `js_challenge`, and **every form control inside shadow DOM**. Nothing synthetic about it.
 
 Labels: **[PROVEN]** = observed, with evidence quoted. **[LIKELY]** = mechanism identified in source but not yet instrumented. **[TO CONFIRM]** = needs a measurement.
 
@@ -76,7 +76,7 @@ The human typed it and moved on. Correct outcome — but the tool never said "I 
 
 ## 3. The pattern behind all of it
 
-> **Kuang acts, then declares success, without verifying that anything happened.**
+> **Hyperbolic Gateway acts, then declares success, without verifying that anything happened.**
 
 `typeText` returns a cheerful summary regardless of outcome. Three separate defects (2.1 ASCII VK, 2.2 host targeting, 2.3 component ignores keys) all surface as *the same lie*: success with no effect. This is the same family as the 2026-10-18 "dropped click" note and the `clear_first` append bug — the tool's failure mode is silence, not error.
 

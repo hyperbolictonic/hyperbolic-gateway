@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://hyperbolictonic.github.io/kuang-grade-mark-eleven/sitemap.xml
+Sitemap: https://hyperbolictonic.github.io/hyperbolic-gateway/sitemap.xml

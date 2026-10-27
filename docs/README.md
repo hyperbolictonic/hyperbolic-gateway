@@ -9,7 +9,7 @@ Welcome to the documentation repository for **Hyperbolic Gateway** (*Hyperbolic 
 - [CODEBASE.md](./CODEBASE.md) — Architecture lowdown: system maps, call paths, findings, optimisations, and an airline-search walkthrough.
 - [BUILDING.md](./BUILDING.md) — Installers, CI, signing, auto-update and the release policy.
 - [CONTROL_LAYER.md](./CONTROL_LAYER.md) — **Targeting, consent and human takeover**: control facts, text anchoring, frame evaluation, consent policy, takeover arbitration, input pacing.
-- [SHADOW_DOM_AND_FRAMES.md](./SHADOW_DOM_AND_FRAMES.md) — **What Kuang can see and click**: open vs closed shadow roots, iframe execution contexts, the isolated-world gotcha, and what to do when a control is sealed.
+- [SHADOW_DOM_AND_FRAMES.md](./SHADOW_DOM_AND_FRAMES.md) — **What Hyperbolic Gateway can see and click**: open vs closed shadow roots, iframe execution contexts, the isolated-world gotcha, and what to do when a control is sealed.
 - [SHADOW_WALK.md](./SHADOW_WALK.md) — **Sealed-content plan**: closed-root discovery via the accessibility tree, focus walk, component signatures, the Shadow Walk settings tab, and the tiered risk levers.
 - [DECISION_MODELS.md](./DECISION_MODELS.md) — The optional `decide` / `drive` decision layer.
 - [KUANG_WRAP.md](./KUANG_WRAP.md) - Compatibility stub; see [HYPERBOLIC_REST.md](./HYPERBOLIC_REST.md) for the second MCP server (saved REST wrappers and response recipes, `hb-rest`).
@@ -21,7 +21,7 @@ Welcome to the documentation repository for **Hyperbolic Gateway** (*Hyperbolic 
 - [FIX_PLAN_2026-10-18.md](./FIX_PLAN_2026-10-18.md) — The remediation plan those findings produced.
 - [PACKAGING.md](./PACKAGING.md) — Distribution and installer notes.
 - [Root README.md](../README.md) — System overview, the 62-tool MCP reference, and architecture principles.
-- [Plugin Skill Reference](../.agents/plugins/mark-eleven/skills/mark-eleven/SKILL.md) — Operational instructions for LLM agents utilizing Mark Eleven.
+- [Plugin Skill Reference](../.agents/plugins/mark-eleven/skills/mark-eleven/SKILL.md) — Operational instructions for LLM agents utilizing Hyperbolic Gateway.
 - [OKF Bundle (kuang_docs)](../kuang_docs/okf.json) — Playbook/reference partitions exposed as MCP resources (`mark-eleven://okf/…`).
 
 ---

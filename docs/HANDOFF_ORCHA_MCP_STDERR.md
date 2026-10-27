@@ -1,17 +1,17 @@
-# Handoff — Kuang ↔ Orcha MCP stdio reliability ("kuang goes away")
+# Handoff — Hyperbolic Gateway ↔ Orcha MCP stdio reliability ("kuang goes away")
 
 **Audience:** the agent working in the Agent Orcha repository
-**Author:** Kuang-side session (read-only inspection of the Orcha tree; no files there were modified)
+**Author:** Hyperbolic Gateway-side session (read-only inspection of the Orcha tree; no files there were modified)
 **Date:** 2026-10-19
 
 ---
 
 ## 0. TL;DR
 
-1. Orcha's reported failure chain is **real and reproduced** for the headline link: an **undrained stderr pipe stalls the Kuang child**. I proved it live (call ~157 of 600 hard-stalls with stderr unread; 601/601 succeed when drained). Details in §2.
+1. Orcha's reported failure chain is **real and reproduced** for the headline link: an **undrained stderr pipe stalls the Hyperbolic Gateway child**. I proved it live (call ~157 of 600 hard-stalls with stderr unread; 601/601 succeed when drained). Details in §2.
 2. **However, the Orcha working tree already contains the fix** (stderr is drained, reconnect/backoff, last-known-good tools). The line numbers in the diagnosis no longer match the code on disk. So step 0 for the Orcha agent is: **confirm what is actually deployed/built**, not re-fix what's already there. See §4.
-3. Two of the observed Kuang-side symptoms in the logs are **not** explained by the stderr theory and need separate attention: an idle child being **recycled on a ~61-minute timer**, and **4–10 concurrent `mcp-server.cjs` children** competing for one browser session. See §3.
-4. **Applied (Kuang side).** Kuang no longer depends on the client draining stderr: per-call logs
+3. Two of the observed Hyperbolic Gateway-side symptoms in the logs are **not** explained by the stderr theory and need separate attention: an idle child being **recycled on a ~61-minute timer**, and **4–10 concurrent `mcp-server.cjs` children** competing for one browser session. See §3.
+4. **Applied (Hyperbolic Gateway side).** Hyperbolic Gateway no longer depends on the client draining stderr: per-call logs
    go to the file only, stderr carries a short boot banner, writes are backpressure-aware and
    hard-capped, a wedged Cyberdeck can no longer hang a tool forever, and stdin EOF shuts the
    child down cleanly. Rebuilt as `bin/mcp-server.cjs`; all 14 MCP regression checks pass. See §6.
@@ -20,7 +20,7 @@
 
 ## 1. Topology (who spawns what)
 
-Two independent spawn paths point at the same Kuang bundle:
+Two independent spawn paths point at the same Hyperbolic Gateway bundle:
 
 - **OpenCode plugin** — `.agents\plugins\mark-eleven\mcp_config.json` runs
   `node -e "…require('<repo>/bin/mcp-server.cjs')"`.
@@ -55,7 +55,7 @@ Spawn `bin/mcp-server.cjs` with `stdio: ['pipe','pipe','pipe']`, run `initialize
 Variant A stops answering JSON-RPC entirely and never recovers; Variant B is monotonic and clean.
 
 ### Why it fills so fast
-Kuang logs **3–4 stderr lines per tool call** (`logMcp` → `console.error`, plus the extra
+Hyperbolic Gateway logs **3–4 stderr lines per tool call** (`logMcp` → `console.error`, plus the extra
 `tools/call` line at `bin/mcp-server.cjs:38247`). Measured cost:
 
 - **≈ 519 bytes of stderr per tool call** (311,599 B ÷ 600 calls).
@@ -65,7 +65,7 @@ A 64 KB OS pipe buffer therefore fills after **~125 tool calls** — i.e. a norm
 The child then blocks/queues on stderr and the JSON-RPC channel goes dead while the HTTP bridge
 stays up.
 
-### Corroboration in Kuang's own logs
+### Corroboration in Hyperbolic Gateway's own logs
 `data/logs/mcp-server.log` shows `[Tool Dispatch]` → `[HTTP Forward]` → `[Tool Success]` lines per
 call right up until activity stops, with **no** shutdown/EPIPE/exception line — consistent with a
 child that is still alive but no longer being serviced.
@@ -87,7 +87,7 @@ deltas:      61.1 min    61.2 min    61.1 min        61.1 min
 Across those ~13 hours the log contains **only 6 boot pairs (12 lines) and zero tool dispatches**:
 
 ```
-6 x "Initializing Mark Eleven MCP Server over stdio..."
+6 x "Initializing Hyperbolic Gateway MCP Server over stdio..."
 6 x "Connected to stdio transport. Listening for JSON-RPC messages."
 ```
 
@@ -123,7 +123,7 @@ Read on 2026-10-19; the diagnosis cites older line numbers. Current code:
 | Liveness ping | `ensureAlive()` (idle > 30 s → `client.ping({timeout:5s})`) | **Present** |
 | Never cache an empty/failed tool list as good | `listToolsForServer()` + `pool.lastGoodTools` | **Present** — failures return last-good or throw |
 | Distinct short TTL for failures | `ToolRegistryService.ts:63` `MCP_FAILURE_TTL_MS = 30000` | **Present** |
-| `hasKuang` gating of generic web tools | `ToolRegistryService.ts:475`, `:510`, `:521-524` | **Present** — with `mcpRecentlyDegraded` handling |
+| `hasHyperbolic Gateway` gating of generic web tools | `ToolRegistryService.ts:475`, `:510`, `:521-524` | **Present** — with `mcpRecentlyDegraded` handling |
 
 ### Verification checklist for the Orcha agent
 1. **Is the running server actually this build?** `tsconfig.tsbuildinfo`/`next dev` can serve stale
@@ -198,10 +198,10 @@ const call = (name, args, ms) => new Promise((resolve) => {
 
 ---
 
-## 6. Kuang-side hardening (APPLIED)
+## 6. Hyperbolic Gateway-side hardening (APPLIED)
 
 Orcha's contract is correct: a well-behaved MCP server must not depend on the client draining
-stderr. Kuang no longer makes stderr a load-bearing pipe. Implemented in
+stderr. Hyperbolic Gateway no longer makes stderr a load-bearing pipe. Implemented in
 `src/mcp/bridge-server.ts` and rebuilt into `bin/mcp-server.cjs`:
 
 1. **Per-call logs go to the file only.** `logMcp()` writes `data/logs/mcp-server.log` through a
@@ -238,8 +238,8 @@ child reaping / single-flight across processes (§3b).
 
 - Stall repro: Variant A `responses=158, timeouts=4, firstTimeoutAt=157, stderrBytesRead=0`;
   Variant B `responses=601, timeouts=0, stderrBytesRead=311599`.
-- Kuang stderr sources: `bin/mcp-server.cjs:37779` (`logMcp`), `:38247` (tools/call + args).
-- Kuang resilience guards: `src/mcp/bridge-server.ts:25-50`, `:55-59`.
+- Hyperbolic Gateway stderr sources: `bin/mcp-server.cjs:37779` (`logMcp`), `:38247` (tools/call + args).
+- Hyperbolic Gateway resilience guards: `src/mcp/bridge-server.ts:25-50`, `:55-59`.
 - Respawn cadence + idle windows: `data/logs/mcp-server.log` (inits listed in §3a).
 - Live child inventory: `Get-CimInstance Win32_Process` scan in §3b.
 - HTTP bridge health during the same window (app never went down): `data/logs/http-bridge.log`.

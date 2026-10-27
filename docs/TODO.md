@@ -1,4 +1,4 @@
-# 📋 Kuang Grade Mark Eleven — Agent Roadmap & TODO
+# 📋 Hyperbolic Gateway — Agent Roadmap & TODO
 
 This roadmap outlines upcoming agentic capabilities, prioritized from **least exciting / foundational functional utilities** (cookie negotiation, form batching) to **high-bandwidth cognitive features** (network stream interception, Set-of-Marks visual grounding).
 

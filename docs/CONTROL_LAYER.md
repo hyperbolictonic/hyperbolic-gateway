@@ -1,6 +1,6 @@
 # Control layer — targeting, consent, human takeover
 
-How Kuang decides **what** to click, **how** to answer a consent wall, and **when to stop** because a
+How Hyperbolic Gateway decides **what** to click, **how** to answer a consent wall, and **when to stop** because a
 person took over. These pieces share one principle: describe the page once, then act on the
 description — never guess from a selector that happens to exist.
 
