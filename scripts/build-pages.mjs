@@ -7,7 +7,7 @@ const out = path.join(root, '_site');
 const repoUrl = 'https://github.com/hyperbolictonic/hyperbolic-gateway';
 const pagesRoot = 'https://hyperbolictonic.github.io/hyperbolic-gateway';
 
-const markdownRoots = ['docs', 'kuang_docs', 'packages'];
+const markdownRoots = ['docs', 'kuang_docs', 'packages', 'src', 'scripts', '.agents'];
 const markdownFiles = [];
 
 function walk(dir) {
@@ -38,6 +38,7 @@ function prefixFor(output) {
 const files = [
   path.join(root, 'README.md'),
   path.join(root, 'CHANGELOG.md'),
+  path.join(root, 'TODO_RESEARCH_CRAWL.md'),
   ...markdownRoots.flatMap((dir) => {
     markdownFiles.length = 0;
     walk(path.join(root, dir));
