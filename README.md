@@ -1,18 +1,18 @@
 <p align="center">
   <img src="public/assets/ono-sendai.png" width="30%" alt="Ono-Sendai Cyberspace 7" />
   &nbsp;&nbsp;
-  <img src="public/assets/kuang-grade.png" width="30%" alt="Kuang Grade Icebreaker" />
+  <img src="public/assets/kuang-grade.png" width="30%" alt="Hyperbolic Browser" />
   &nbsp;&nbsp;
-  <img src="public/assets/mark-eleven.png" width="30%" alt="Mark Eleven Tactical Core" />
+  <img src="public/assets/mark-eleven.png" width="30%" alt="Hyperbolic Rest" />
 </p>
 
-# ⚡ Kuang Grade Mark Eleven
+# ⚡ Hyperbolic Gateway
 
 > *"I'll hack the Gibson"*  
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.4.5-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-1.6.0-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-62%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -27,9 +27,9 @@
 - **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
 - **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
-- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (63 advertised)](#sec-standardized-semantic-mcp-tools-63-advertised) · [REST wrappers](#sec-rest-wrappers-kuang-wrap)
+- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (63 advertised)](#sec-standardized-semantic-mcp-tools-63-advertised) · [REST wrappers](#sec-rest-wrappers-hb-rest)
 - **Building on it** — [Architecture lowdown](./docs/CODEBASE.md) · [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
-- **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Control layer: targeting, consent, human takeover](./docs/CONTROL_LAYER.md) · [Shadow DOM & iframes: what Kuang can see and click](./docs/SHADOW_DOM_AND_FRAMES.md) · [Shadow Walk: sealed-content plan](./docs/SHADOW_WALK.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
+- **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Control layer: targeting, consent, human takeover](./docs/CONTROL_LAYER.md) · [Shadow DOM & iframes: what Hyperbolic Gateway can see and click](./docs/SHADOW_DOM_AND_FRAMES.md) · [Shadow Walk: sealed-content plan](./docs/SHADOW_WALK.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 - **Release notes** — [What shipped](#sec-release-notes) · [All releases](./CHANGELOG.md)
 - **Lore** — [Neuromancer inspiration](#sec-neuromancer-inspiration-cyberpunk-canon)
 
@@ -39,11 +39,11 @@
 
 ## 🕶️ What it is
 
-**Kuang Grade Mark Eleven is a visible, stateful web browser that any MCP agent can drive.**
+**Hyperbolic Gateway is a visible, stateful web browser that any MCP agent can drive.**
 
-Most agent browsers are a library you integrate, or a cloud you rent. Kuang is a desktop application you
+Most agent browsers are a library you integrate, or a cloud you rent. **Hyperbolic Gateway** is a desktop application you
 own: a real Chromium window on your machine, controlled over the Model Context Protocol. Your agent runs
-where you already run it — local or remote — and Kuang supplies the browser, the input, and the memory.
+where you already run it — local or remote — and Hyperbolic Gateway supplies the browser, the input, and the memory.
 
 - **A real browser, not a simulation.** Visible Chromium with hardware acceleration, persistent cookies,
   real tabs, downloads, and a human-sized viewport. No headless fingerprint.
@@ -56,17 +56,17 @@ where you already run it — local or remote — and Kuang supplies the browser,
 - **Self-hosted by construction.** `stdio` MCP plus a localhost bridge. No account, no dashboard, and no
   telemetry leaving the machine.
 
-![Kuang Grade Mark Eleven driving a real Chromium window](docs/assets/demo.webp)
+![Hyperbolic Gateway driving a real Chromium window](docs/assets/demo.webp)
 
 <sub>[Open the MP4](docs/assets/demo.mp4) if your browser does not animate WebP.</sub>
 
 > [!WARNING]
-> **EXPERIMENTAL PROTOTYPE**: Kuang Grade Mark Eleven is currently under active, experimental development. Tool contracts, telemetry tuning, and database schemas may evolve rapidly. Built for developers experimenting with multimodal local AI agents.
+> **EXPERIMENTAL PROTOTYPE**: Hyperbolic Gateway is currently under active, experimental development. Tool contracts, telemetry tuning, and database schemas may evolve rapidly. Built for developers experimenting with multimodal local AI agents.
 
 > [!IMPORTANT]
 > **RESEARCH PURPOSES ONLY**: This software is provided strictly for educational, testing, and local AI agent research purposes. It is **not intended for malicious use**, automated credential stuffing, unauthorized exploitation, or violating third-party websites' Terms of Service. Users are responsible for complying with all applicable laws and terms.
 
-**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/kuang-grade-mark-eleven/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Kuang Grade Mark Eleven.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
+**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/kuang-grade-mark-eleven/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Hyperbolic Gateway.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
 
 <a id="sec-a-punk-ethos-diy-alternative-to-browser-use-play" name="sec-a-punk-ethos-diy-alternative-to-browser-use-play"></a>
 
@@ -74,13 +74,13 @@ where you already run it — local or remote — and Kuang supplies the browser,
 
 Most "AI browser" tooling today is a **library you integrate, or a cloud you rent**. [`browser-use`](https://github.com/browser-use/browser-use) is a popular MIT-licensed Python framework that drives Playwright *with its own agent loop* (plus an optional hosted cloud); Playwright / Puppeteer / Selenium are general-purpose drivers where **you** write the loop; and managed browser clouds run a remote Chromium and bill per session. They're good tools — this isn't a rivalry, it's a different **shape**.
 
-**Kuang Grade Mark Eleven is the other road:** a single, self-hosted **desktop app you own** (Electron, no account, no dashboard). It runs a **real, visible Chromium** on your own machine and speaks **MCP** over `stdio` (+ a localhost bridge), so it drops into whatever agent runner and whichever model you already use — **local or remote, with no cloud account, no API key, no seat pricing, and no telemetry leaving your box.**
+**Hyperbolic Gateway is the other road:** a single, self-hosted **desktop app you own** (Electron, no account, no dashboard). It runs a **real, visible Chromium** on your own machine and speaks **MCP** over `stdio` (+ a localhost bridge), so it drops into whatever agent runner and whichever model you already use — **local or remote, with no cloud account, no API key, no seat pricing, and no telemetry leaving your box.**
 
 That's the punk ethos: **one operator, one machine, a tool you can read, fork and keep.** Built by one person, not a company. No VC, no roadmap-by-committee, no dashboard.
 
 ### How it differs, honestly
 
-| | `browser-use` (Python / Playwright) | Playwright · Puppeteer agents | Hosted browser clouds | **Kuang Grade Mark Eleven** |
+| | `browser-use` (Python / Playwright) | Playwright · Puppeteer agents | Hosted browser clouds | **Hyperbolic Gateway** |
 | :--- | :--- | :--- | :--- | :--- |
 | **Shape** | Library **with its own agent loop** | Driver — you write the loop | Managed remote browser | **MCP server** any MCP client can call |
 | **Browser** | Playwright Chromium (often headless) | Playwright / Puppeteer | Remote Chromium | **Visible Chromium** (`headless: false`) in an Electron chassis |
@@ -145,7 +145,7 @@ No. It's an experimental project by one developer — expect rough edges and thi
 Yes — MIT-licensed and entirely local. But note the shape: this is a *tool surface*, not an agent framework. If you want a Python framework that owns the loop, `browser-use` is the right tool; if you want a self-hosted browser that *your own* agent drives, this is it.
 
 **Can I use it with Claude Desktop, Cursor, or a local LLM?**
-Yes. It's an MCP server, so any MCP client works — point your client at `bin/mcp-server.cjs` and the `kuang` tool namespace appears.
+Yes. It's an MCP server, so any MCP client works - point your client at `bin/mcp-server.cjs` and the `hb-browser` tool namespace appears (legacy `kuang` alias still works).
 
 **Does it need a cloud account, API key, or per-session billing?**
 No. There is no cloud tier. The only network calls are the ones your agent makes to the pages it visits (plus, optionally, a search engine via `search_web`).
@@ -170,7 +170,7 @@ No — it's an experimental prototype for local AI research. That's rather the p
 ---
 
 ### 🎯 Core Architecture Principles
-1. **100% Real Browser Chassis:** No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Mark Eleven runs a full-fledged, visible Chromium instance (`headless: false`) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
+1. **100% Real Browser Chassis:** No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Hyperbolic Browser runs a full-fledged, visible Chromium instance (`headless: false`) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
 2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can act directly by coordinate, selector, or mark badge (`act`).
 3. **Full Developer Console & Script Execution:** Gives the agent full console access (`get_console_logs`) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (`evaluate_javascript`) to interact with complex SPAs.
 4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches **real input events over the Chrome DevTools Protocol** (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `mouseWheel`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence. CDP delivery is **focus-independent** — it lands even when another application owns the OS foreground — with `webContents.sendInputEvent` kept only as a fallback.
@@ -219,7 +219,7 @@ Two real-desktop failure modes are handled explicitly so long harvests and HIL f
 
 ## 🧩 Orthogonal Primitive Layer
 
-The older tool list is being consolidated onto **a few orthogonal verbs** — one observation model, one action model, one wait model — with the flat tools becoming projections. All primitives run on the TIER-1 humanlike path (real input events; no page DOM mutation beyond Mark Eleven's own `data-mark-id` stamp).
+The older tool list is being consolidated onto **a few orthogonal verbs** - one observation model, one action model, one wait model - with the flat tools becoming projections. All primitives run on the TIER-1 humanlike path (real input events; no page DOM mutation beyond Hyperbolic Browser's own `data-mark-id` stamp).
 
 | Primitive | Job | Replaces |
 | :--- | :--- | :--- |
@@ -273,7 +273,7 @@ The older tool list is being consolidated onto **a few orthogonal verbs** — on
 
 ## 🧠 LanceDB Persistent Cortex & Semantic Recall
 
-Mark Eleven features an embedded, serverless vector database (**LanceDB**) combined with Tantivy-powered Full-Text Search (BM25) stored locally under `./data/cortex/`.
+Hyperbolic Gateway features an embedded, serverless vector database (**LanceDB**) combined with Tantivy-powered Full-Text Search (BM25) stored locally under `./data/cortex/`.
 
 - **Auto-Harvest on Navigation:** Every web page visited is automatically chunked, embedded, and indexed into the `page_history` table in the background.
 - **Hybrid Semantic Recall:** Models can invoke `recall_memory` to execute hybrid vector + BM25 search across past research sessions, retrieving verbatim snippets, page titles, and relevance match scores.
@@ -356,7 +356,7 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 - **Settings → Recording:** enable/disable, output directory with **BROWSE…**, capture interval, playback fps, max width and bitrate; finished files are listed with **COPY PATH**.
 - **Agent access is a separate, human-only switch:** *"Let agents use the recording tools"* removes `record_start`, `record_stop` and `list_recordings` from `tools/list` and makes the bridge refuse them with `RECORDING_TOOLS_DISABLED`. Only the Settings panel can flip it — no tool or HTTP route writes that flag.
 - **Programmatic hand-off:** `record_start` → `record_stop` returns the absolute `.webm` path (plus size, frames and speed-up), and `list_recordings` lists recent files newest-first. That path is a plain string you can type into a file-upload field; if the field only opens a native picker, hand it to a human.
-- **Why a path matters:** upload forms usually cannot be driven by setting a value — the browser requires a real file selection. Kuang gives the agent (or the human) the exact file to choose instead of guessing.
+- **Why a path matters:** upload forms usually cannot be driven by setting a value - the browser requires a real file selection. Hyperbolic Gateway gives the agent (or the human) the exact file to choose instead of guessing.
 
 ---
 
@@ -530,20 +530,20 @@ Mark Eleven features an embedded, serverless vector database (**LanceDB**) combi
 
 ---
 
-<a id="sec-rest-wrappers-kuang-wrap" name="sec-rest-wrappers-kuang-wrap"></a>
+<a id="sec-rest-wrappers-hb-rest" name="sec-rest-wrappers-hb-rest"></a>
 
-## 🔌 REST wrappers (`kuang-wrap`)
+## 🔌 REST wrappers (`hb-rest`)
 
 A **second, separate MCP server** for turning a REST endpoint into a saved, typed tool. It is
-deliberately not mixed into the browser server: `kuang-wrap` ships its own binary, its own stdio
+deliberately not mixed into the browser server: `hb-rest` ships its own binary, its own stdio
 process, its own config entry and its own bridge token.
 
 | | Browser | REST wrappers |
 | :--- | :--- | :--- |
 | Binary | `bin/mcp-server.cjs` | `bin/wrap-server.cjs` |
-| Server name | `kuang` | `kuang-wrap` |
-| Surface | 63 browser tools | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` (configurable via `KUANG_WRAP_MAX_TOOLS`) |
-| Env | — | `KUANG_WRAP_TOKEN_FILE` |
+| Server name | `hb-browser` (legacy: `kuang`) | `hb-rest` (legacy: `kuang-wrap`) |
+| Surface | 63 browser tools | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` (configurable via `HB_WRAP_MAX_TOOLS` or legacy `KUANG_WRAP_MAX_TOOLS`) |
+| Env | `HB_BRIDGE_URL` (legacy: `KUANG_BRIDGE_URL`) | `HB_WRAP_TOKEN_FILE` (legacy: `KUANG_WRAP_TOKEN_FILE`) |
 
 **What it is for:** agent access to JSON APIs (dashboards, internal tools, SaaS). The wrapper
 author — human or agent — defines the request once: method, URL, typed arguments, a response
@@ -556,9 +556,9 @@ keychain (`safeStorage`), injected only on an approved host, and never enter the
 
 ```jsonc
 // Settings → MCP Clients → REST wrappers generates an entry like this
-{ "mcpServers": { "kuang-wrap": {
+{ "mcpServers": { "hb-rest": {
   "command": "node", "args": ["<path-to-repo>/bin/wrap-server.cjs"],
-  "env": { "KUANG_WRAP_TOKEN_FILE": "<userData>/wrap/token" } } } }
+  "env": { "HB_WRAP_TOKEN_FILE": "<userData>/wrap/token" } } } }
 ```
 
 Meta-tools: `wrap_list`, `wrap_get`, `wrap_secret_list`, `wrap_derive`, `wrap_create`,
@@ -570,7 +570,7 @@ Meta-tools: `wrap_list`, `wrap_get`, `wrap_secret_list`, `wrap_derive`, `wrap_cr
 > returns `AUTH_REQUIRED`) · `exposeAsTool` has no Settings control · 40-tool cap · DNS-rebinding
 > residual risk · the token URL is outside `allowedHosts`. The full, blunt breakdown — what works,
 > what doesn't, what is untested, what is risky — is
-> [docs/KUANG_WRAP.md](./docs/KUANG_WRAP.md#honest-status-what-works-what-doesnt-what-is-untested-what-is-risky).
+> [docs/HYPERBOLIC_REST.md](./docs/HYPERBOLIC_REST.md#honest-status-what-works-what-doesnt-what-is-untested-what-is-risky).
 
 Tests: `npm run test:wrap` (50 offline) · `npm run test:wrap:mcp` (11 lifecycle) ·
 `npm run test:wrap:live` (46 against DummyJSON).
@@ -588,7 +588,7 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 | **`docs/`** | [docs/CODEBASE.md](./docs/CODEBASE.md) | Architecture lowdown, field notes, decision-model notes, build and packaging docs. |
 | **`scripts/`** | [scripts/README.md](./scripts/README.md) | Test harnesses, release helpers (`check-release-tag`, `release-notes`), the MCP bundle build, and one-off tools. |
 | **`public/`** | [public/README.md](./public/README.md) | Static web root and the built-in offline Cyberdeck Manual (`welcome.html`). |
-| **`public/assets/`** | [public/assets/README.md](./public/assets/README.md) | Tactical high-resolution brand insignia (Ono-Sendai 7, Kuang Grade, Mark Eleven). |
+| **`public/assets/`** | [public/assets/README.md](./public/assets/README.md) | Tactical high-resolution brand insignia (legacy asset names retained for compatibility). |
 | **`src/`** | [src/README.md](./src/README.md) | Root source directory organizing process-isolated TypeScript modules. |
 | **`src/main/`** | [src/main/README.md](./src/main/README.md) | Electron main process, `BrowserChassis` coordinator, and HTTP bridge (`:4111`). |
 | **`src/main/cortex/`** | [src/main/cortex/README.md](./src/main/cortex/README.md) | Embedded LanceDB vector database, 128-d embedder, chunker, and hybrid semantic recall. |
@@ -626,9 +626,9 @@ pnpm dev
 ```
 
 > **One bridge per port.** Dev and installed builds share the default bridge port **4111**
-> (`KUANG_BRIDGE_PORT` overrides it). They also have separate single-instance locks, so both *can* run at
+> (`HB_BRIDGE_PORT` overrides it). They also have separate single-instance locks, so both *can* run at
 > once — and the second one's bridge fails with `EADDRINUSE`, leaving the MCP tools pointed at the other
-> window. Close one, or run the second with `KUANG_BRIDGE_PORT=4112` and set `KUANG_BRIDGE_URL` for its
+> window. Close one, or run the second with `HB_BRIDGE_PORT=4112` and set `HB_BRIDGE_URL` for its
 > MCP server to match.
 
 ### Production Build & Launch
@@ -644,7 +644,7 @@ OpenCode, Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Google Antigra
 Zed, and the generic `mcpServers` shape. It fills in the absolute server path and bridge port, and offers two
 runtimes:
 
-- **Bundled** (default) — runs the server on Kuang's own Electron runtime with `ELECTRON_RUN_AS_NODE=1`, so
+- **Bundled** (default) - runs the server on Hyperbolic Gateway's own Electron runtime with `ELECTRON_RUN_AS_NODE=1`, so
   **Node does not need to be installed**. Installed builds unpack `bin/` out of the asar precisely so this works.
 - **System Node** — `node bin/mcp-server.cjs`, requiring Node 20+ on `PATH`.
 
@@ -652,8 +652,8 @@ A minimal Claude-style entry looks like this (the tab generates the real paths):
 ```json
 {
   "mcpServers": {
-    "kuang": {
-      "command": "<path-to-app>/Kuang Grade Mark Eleven.exe",
+    "hb-browser": {
+      "command": "<path-to-app>/Hyperbolic Gateway.exe",
       "args": ["<userData>\\bin\\mcp-server.cjs"],
       "env": { "ELECTRON_RUN_AS_NODE": "1" }
     }
@@ -661,8 +661,8 @@ A minimal Claude-style entry looks like this (the tab generates the real paths):
 }
 ```
 > **Note:** the Cyberdeck must be running (`pnpm run dev` or `pnpm start`) so the stdio server can reach the
-> browser instance on `http://127.0.0.1:4111`. If you run on another port with `KUANG_BRIDGE_PORT`, set
-> `KUANG_BRIDGE_URL` for the MCP server — the generated snippet includes it automatically. Installed builds copy
+> browser instance on `http://127.0.0.1:4111`. If you run on another port with `HB_BRIDGE_PORT`, set
+> `HB_BRIDGE_URL` for the MCP server — the generated snippet includes it automatically. Installed builds copy
 > the server into `userData/bin/` (refreshed on update), because `resources/` is temporary for portable and
 > AppImage builds.
 
@@ -743,8 +743,10 @@ This project is licensed under the [MIT License](LICENSE) © 2026 hyperbolictoni
 
 In William Gibson's genre-defining cyberpunk masterpiece *Neuromancer*, console cowboys Case and the ROM personality construct of the Dixie Flatline jack into the Matrix using an **Ono-Sendai Cyberspace 7** deck. Their ultimate weapon: the **Kuang Grade Mark Eleven**—a mythical military-grade icebreaker designed to slice through the impenetrable corporate ICE surrounding the Tessier-Ashpool mainframe.
 
-**Kuang Grade Mark Eleven** channels this lineage:
-- **Piercing the Modern Web's "ICE":** Headless automation (Puppeteer, Playwright) is routinely flagged and blocked by Cloudflare, Datadome, and behavioral bot sensors. Mark Eleven provides a tactile, visible Chromium cyberdeck that operates with authentic human telemetry.
+**Hyperbolic Gateway** began as a project inspired by that fictional lineage, then was rebranded to its current name. The quote and the original Kuang Grade Mark Eleven reference are preserved here as inspiration; Hyperbolic Gateway is an independent project and is not affiliated with William Gibson, *Neuromancer*, or the fictional device.
+
+It carries that inspiration into the modern web:
+- **Piercing the Modern Web's "ICE":** Headless automation (Puppeteer, Playwright) is routinely flagged and blocked by Cloudflare, Datadome, and behavioral bot sensors. Hyperbolic Browser provides a tactile, visible Chromium cyberdeck that operates with authentic human telemetry.
 - **The Ghost Cursor as Neural Trodes:** Dispatches organic cubic Bézier pointer movement and Gaussian typing cadences, behaving like an authentic human operator seated at the console.
 - **The LanceDB Cortex as ROM Personality Construct:** Provides persistent semantic recall and memory traces so your local AI agent retains research context and bookmarks across browsing sessions.
 

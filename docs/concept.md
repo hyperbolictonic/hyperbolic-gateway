@@ -1,4 +1,4 @@
-# ⚡ Project Manifesto: Mark Eleven
+# ⚡ Project Manifesto: Hyperbolic Gateway
 
 > **System Designation:** Stateful Visual Matrix Navigator (Electron Chassis + Pure Node.js Telemetry Engine)
 > **Design Thesis:** An unrestricted, stateful web-browsing gateway for LLM Agents that replaces legacy headless data scrapers with human-like visual interaction and clean data harvesting.
@@ -7,9 +7,9 @@
 
 ## 🧭 1. The Core Concept
 
-**Mark Eleven** is an interactive, stateful web-browsing Model Context Protocol (MCP) server that empowers an LLM Agent to break out of its enclosed training data and operate the live, open web.
+**Hyperbolic Gateway** is an interactive, stateful web-browsing Model Context Protocol (MCP) server that empowers an LLM Agent to break out of its enclosed training data and operate the live, open web.
 
-Instead of navigating the internet as a background process fetching raw strings of chaotic HTML, Mark Eleven launches a **fully active, visible Chromium browser instance** directly on the user’s desktop. The AI Agent doesn't merely read text; it experiences web platforms like a human operator—navigating, scrolling, clicking buttons, filling forms, and observing the live rendering state of the web.
+Instead of navigating the internet as a background process fetching raw strings of chaotic HTML, Hyperbolic Gateway launches a **fully active, visible Chromium browser instance** directly on the user's desktop. The AI Agent doesn't merely read text; it experiences web platforms like a human operator—navigating, scrolling, clicking buttons, filling forms, and observing the live rendering state of the web.
 
 When a payload needs to be ingested, the system downsamples the active DOM into an ultra-clean, token-efficient Markdown file, allowing the AI to read dense pages without blowing through its context window limits.
 
@@ -17,11 +17,11 @@ When a payload needs to be ingested, the system downsamples the active DOM into 
 
 ## 👁️ 2. The Inspiration
 
-The project draws its name and creative aesthetic from **William Gibson’s seminal cyberpunk masterpiece, _Neuromancer_**.
+The project originally drew its name and creative aesthetic from **William Gibson’s seminal cyberpunk masterpiece, _Neuromancer_**. It has since been rebranded to **Hyperbolic Gateway**, with **Hyperbolic Browser** and **Hyperbolic Rest** as its components.
 
-In the _Sprawl_ trilogy, the **Kuang Grade Mark Eleven** is a legendary, military-grade icebreaker designed to penetrate the toughest, most heavily fortified corporate data fortresses inside the Matrix.
+In the _Sprawl_ trilogy, the **Kuang Grade Mark Eleven** is a legendary, military-grade icebreaker designed to penetrate the toughest, most heavily fortified corporate data fortresses inside the Matrix. That fictional device remains the project’s inspiration; Hyperbolic Gateway is an independent project and is not affiliated with William Gibson or _Neuromancer_.
 
-Project Mark Eleven maps this sci-fi concept onto modern software architecture:
+Hyperbolic Gateway maps this sci-fi concept onto modern software architecture:
 
 - To an LLM confined to its offline training weights, a tool that lets it pierce the open web and dynamically bypass corporate anti-bot systems is functionally the ultimate icebreaker.
 - The browser window acts as the **Cyberdeck**, translating the global network into a visual space the AI can navigate.

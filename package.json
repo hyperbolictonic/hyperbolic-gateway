@@ -1,8 +1,8 @@
 {
   "name": "kuang-grade-mark-eleven",
-  "version": "1.5.9",
+  "version": "1.6.0",
   "license": "MIT",
-  "description": "Stateful Visual Matrix Navigator (Electron Chassis + Focus-Independent Telemetry Engine + Orthogonal Primitive Layer)",
+  "description": "Hyperbolic Gateway — stateful browser and REST gateway for agents (Hyperbolic Browser + Hyperbolic Rest).",
   "main": "dist-electron/main/index.js",
   "type": "module",
   "scripts": {

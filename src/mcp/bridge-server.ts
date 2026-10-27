@@ -8,7 +8,7 @@ import { formatMark } from './format-mark.js';
 import { APP_VERSION } from '../shared/version.js';
 import { decisionStatus } from '../main/decide/decision-client.js';
 
-const BRIDGE_URL = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
+const BRIDGE_URL = process.env.HB_BRIDGE_URL || process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
 
 // --- Diagnostics policy ------------------------------------------------------
 // stdout is the JSON-RPC lifeline; stderr is diagnostics only. A client that
@@ -24,11 +24,11 @@ const BRIDGE_URL = process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111';
 //
 // Env: KUANG_MCP_LOG=0 (no file log), KUANG_MCP_STDERR=0 (no stderr),
 //      KUANG_MCP_STDERR=verbose (per-call stderr, debugging only).
-const LOG_TO_FILE = process.env.KUANG_MCP_LOG !== '0';
+const LOG_TO_FILE = (process.env.HB_MCP_LOG ?? process.env.KUANG_MCP_LOG) !== '0';
 const STDERR_MODE: 'off' | 'boot' | 'verbose' =
-  process.env.KUANG_MCP_STDERR === '0'
+  (process.env.HB_MCP_STDERR ?? process.env.KUANG_MCP_STDERR) === '0'
     ? 'off'
-    : process.env.KUANG_MCP_STDERR === 'verbose'
+    : (process.env.HB_MCP_STDERR ?? process.env.KUANG_MCP_STDERR) === 'verbose'
       ? 'verbose'
       : 'boot';
 const STDERR_HARD_CAP_BYTES = 16 * 1024;
@@ -113,7 +113,7 @@ function logMcp(message: string, level: LogLevel = 'call'): void {
     flushLogQueue();
   }
   if (STDERR_MODE === 'verbose' || (STDERR_MODE === 'boot' && level !== 'call')) {
-    writeStderr(`[Mark Eleven MCP ${timestamp}] ${message}`);
+    writeStderr(`[Hyperbolic Browser MCP ${timestamp}] ${message}`);
   }
 }
 
@@ -164,13 +164,13 @@ process.on('uncaughtException', (err: any) => {
 const MAX_TEXT_CHARS = 60000;
 function clampText(text: string): string {
   if (typeof text !== 'string' || text.length <= MAX_TEXT_CHARS) return text;
-  return `${text.slice(0, MAX_TEXT_CHARS)}\n\n... [Mark Eleven MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
+  return `${text.slice(0, MAX_TEXT_CHARS)}\n\n... [Hyperbolic Browser MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
 }
 
 // Ceiling on any single bridge round-trip. Generous enough for HIL waits and
 // long navigations, but guarantees a wedged Cyberdeck cannot hang a tool forever.
 const BRIDGE_TIMEOUT_MS = (() => {
-  const raw = Number(process.env.KUANG_BRIDGE_TIMEOUT_MS);
+  const raw = Number(process.env.HB_BRIDGE_TIMEOUT_MS ?? process.env.KUANG_BRIDGE_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 300_000;
 })();
 
@@ -268,7 +268,7 @@ const IMAGE_TOOLS = new Set([
 
 export async function createBridgeMcpServer() {
   const server = new McpServer({
-    name: 'kuang-grade-mark-eleven',
+    name: 'hb-browser',
     version: APP_VERSION,
   });
 
@@ -410,7 +410,7 @@ export async function createBridgeMcpServer() {
           content: [
             {
               type: 'text',
-              text: `[Mark Eleven MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`,
+              text: `[Hyperbolic Browser MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`,
             },
           ],
         };
@@ -658,7 +658,7 @@ Rules of thumb:
   // Built-in help tool
   server.tool(
     'help',
-    'Returns a categorized guide, cheatsheet, and workflow tips for all available Mark Eleven MCP tools (served directly in OKF).',
+    'Returns a categorized guide, cheatsheet, and workflow tips for all available Hyperbolic Browser MCP tools (served directly in OKF).',
     {
       category: z.enum([
         'all',
@@ -891,7 +891,7 @@ export function normalizeIncomingParams(params: any): Record<string, any> {
 }
 
 async function start() {
-  logMcp('Initializing Mark Eleven MCP Server over stdio...', 'boot');
+  logMcp('Initializing Hyperbolic Browser MCP Server over stdio...', 'boot');
   const server = await createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -938,7 +938,7 @@ async function start() {
 }
 
 start().catch((err) => {
-  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`, 'error');
+  logMcp(`Fatal Hyperbolic Browser MCP Server Error: ${err?.stack || err}`, 'error');
   flushLogSync();
   process.exit(1);
 });

@@ -128,8 +128,8 @@ export class WrapExecutor {
     this.store = store;
     this.fetchImpl = options.fetchImpl || globalThis.fetch.bind(globalThis);
     this.resolveHost = options.resolveHost;
-    this.allowPrivateHosts = options.allowPrivateHosts ?? process.env.KUANG_WRAP_ALLOW_PRIVATE === '1';
-    this.allowHttp = options.allowHttp ?? process.env.KUANG_WRAP_ALLOW_HTTP === '1';
+    this.allowPrivateHosts = options.allowPrivateHosts ?? (process.env.HB_WRAP_ALLOW_PRIVATE ?? process.env.KUANG_WRAP_ALLOW_PRIVATE) === '1';
+    this.allowHttp = options.allowHttp ?? (process.env.HB_WRAP_ALLOW_HTTP ?? process.env.KUANG_WRAP_ALLOW_HTTP) === '1';
     this.maxRedirects = clampInt(options.maxRedirects ?? 5, 0, 10);
     this.maxResponseBytes = clampInt(options.maxResponseBytes ?? 5_000_000, 1_000, 10_000_000);
     this.maxResultChars = clampInt(options.maxResultChars ?? 50_000, 1_000, 200_000);

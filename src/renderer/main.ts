@@ -24,7 +24,7 @@ function renderAppVersion(version: string | undefined) {
   if (!version) return;
   if (chassisVersionBadge) chassisVersionBadge.textContent = `CHASSIS v${version}`;
   if (aboutVersion) aboutVersion.textContent = `v${version}`;
-  document.title = `Kuang Grade Mark Eleven v${version} // Cyberdeck`;
+  document.title = `Hyperbolic Gateway v${version} // Cyberdeck`;
 }
 
 void window.electronAPI
@@ -1315,7 +1315,7 @@ if (settingsBtn && settingsModal) {
     }
   });
 
-  // Kuang Wrap secrets: write-only from this panel.
+  // Hyperbolic Rest secrets: write-only from this panel.
   const wrapWarningEl = document.getElementById('settings-wrap-warning') as HTMLElement;
   const wrapFormEl = document.getElementById('settings-wrap-secret-form') as HTMLFormElement;
   const wrapNameEl = document.getElementById('settings-wrap-name') as HTMLInputElement;
@@ -2229,7 +2229,7 @@ if (settingsBtn && settingsModal) {
 
 // ---- MCP client snippets (Settings → MCP Clients) ------------------------------------------
 type ConnectRuntime = 'bundled' | 'node';
-type ConnectServer = 'kuang' | 'wrap';
+type ConnectServer = 'browser' | 'wrap' | 'legacy-browser' | 'legacy-wrap';
 
 interface ConnectInfo {
   platform: string;
@@ -2265,14 +2265,25 @@ const connectCopyEl = document.getElementById('connect-copy') as HTMLButtonEleme
 
 let connectInfo: ConnectInfo | null = null;
 
-const serverName = (server: ConnectServer) => (server === 'wrap' ? 'kuang-wrap' : 'kuang');
+const serverName = (server: ConnectServer) =>
+  server === 'wrap'
+    ? 'hb-rest'
+    : server === 'legacy-wrap'
+      ? 'kuang-wrap'
+      : server === 'legacy-browser'
+        ? 'kuang'
+        : 'hb-browser';
+
+const isWrapServer = (server: ConnectServer) => server === 'wrap' || server === 'legacy-wrap';
+const isLegacyServer = (server: ConnectServer) => server === 'legacy-browser' || server === 'legacy-wrap';
 
 function runtimeParts(info: ConnectInfo, runtime: ConnectRuntime, server: ConnectServer) {
   const env: Record<string, string> = {};
+  const legacy = isLegacyServer(server);
   if (runtime === 'bundled') env.ELECTRON_RUN_AS_NODE = '1';
-  if (info.bridgePort !== 4111) env.KUANG_BRIDGE_URL = info.bridgeUrl;
-  if (server === 'wrap') env.KUANG_WRAP_TOKEN_FILE = info.wrapTokenFile;
-  const serverPath = server === 'wrap' ? info.wrapServerPath : info.serverPath;
+  if (info.bridgePort !== 4111) env[legacy ? 'KUANG_BRIDGE_URL' : 'HB_BRIDGE_URL'] = info.bridgeUrl;
+  if (isWrapServer(server)) env[legacy ? 'KUANG_WRAP_TOKEN_FILE' : 'HB_WRAP_TOKEN_FILE'] = info.wrapTokenFile;
+  const serverPath = isWrapServer(server) ? info.wrapServerPath : info.serverPath;
   return runtime === 'bundled'
     ? { command: info.runtimePath, args: [serverPath], env }
     : { command: 'node', args: [serverPath], env };
@@ -2426,7 +2437,7 @@ function renderConnect() {
   if (!connectInfo || !connectClientEl || !connectSnippetEl) return;
   const client = CONNECT_CLIENTS.find((item) => item.id === connectClientEl.value) || CONNECT_CLIENTS[0];
   const runtime = (connectRuntimeEl?.value === 'node' ? 'node' : 'bundled') as ConnectRuntime;
-  const server = (connectServerEl?.value === 'wrap' ? 'wrap' : 'kuang') as ConnectServer;
+  const server = (connectServerEl?.value || 'browser') as ConnectServer;
 
   if (connectClientNameEl) connectClientNameEl.textContent = client.label;
   if (connectFileEl) connectFileEl.textContent = client.file(connectInfo);
@@ -2434,8 +2445,11 @@ function renderConnect() {
 
   const notes: string[] = [];
   if (client.note) notes.push(client.note);
-  if (server === 'wrap') {
-    notes.push('Kuang Wrap exposes only `wrap_*` tools; the Cyberdeck must be running so the bridge can reach the wrapper store.');
+  if (isWrapServer(server)) {
+    notes.push('Hyperbolic Rest exposes only `wrap_*` tools; the Cyberdeck must be running so the bridge can reach the wrapper store.');
+  }
+  if (isLegacyServer(server)) {
+    notes.push('Legacy alias: existing configs keep working, but new configs should use hb-browser or hb-rest.');
   }
   notes.push(
     runtime === 'bundled'
@@ -2445,10 +2459,10 @@ function renderConnect() {
   notes.push(
     connectInfo.bridgePort === 4111
       ? 'The Cyberdeck must already be running; the bridge listens on the default port 4111.'
-      : `KUANG_BRIDGE_URL=${connectInfo.bridgeUrl} is included because this instance uses port ${connectInfo.bridgePort}.`
+      : `${isLegacyServer(server) ? 'KUANG' : 'HB'}_BRIDGE_URL=${connectInfo.bridgeUrl} is included because this instance uses port ${connectInfo.bridgePort}.`
   );
-  const serverPath = server === 'wrap' ? connectInfo.wrapServerPath : connectInfo.serverPath;
-  const serverExists = server === 'wrap' ? connectInfo.wrapServerExists : connectInfo.serverExists;
+  const serverPath = isWrapServer(server) ? connectInfo.wrapServerPath : connectInfo.serverPath;
+  const serverExists = isWrapServer(server) ? connectInfo.wrapServerExists : connectInfo.serverExists;
   if (!serverExists) notes.push(`⚠ MCP server not found at ${serverPath} — run npm run build:mcp.`);
   if (connectNoteEl) connectNoteEl.textContent = notes.join(' ');
 }

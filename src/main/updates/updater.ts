@@ -44,7 +44,7 @@ function setState(next: Partial<UpdateState>): void {
 /** Why updates are unavailable in this build, or null when they are enabled. */
 export function updaterDisabledReason(): string | null {
   if (!app.isPackaged) return 'development build';
-  if (process.env.KUANG_DISABLE_UPDATER === '1') return 'KUANG_DISABLE_UPDATER=1';
+  if ((process.env.HB_DISABLE_UPDATER ?? process.env.KUANG_DISABLE_UPDATER) === '1') return 'HB_DISABLE_UPDATER=1';
   if (process.platform === 'darwin') return 'macOS build is unsigned — Squirrel.Mac will not apply updates';
   return null;
 }

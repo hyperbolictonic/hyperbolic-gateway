@@ -98,7 +98,7 @@ export class HilManager {
     try {
       if (Notification.isSupported()) {
         const notif = new Notification({
-          title: options.title || 'Kuang Grade Mark Eleven',
+          title: options.title || 'Hyperbolic Gateway',
           body: options.message,
           icon: this.resolveIcon(),
           urgency: options.urgency || 'normal',
@@ -164,7 +164,7 @@ export class HilManager {
 
     // 1. Desktop Notification
     this.sendNotification({
-      title: '⚠️ Action Required: Kuang Grade Cyberdeck',
+      title: '⚠️ Action Required: Hyperbolic Gateway Cyberdeck',
       message: `${options.reason} (Window brought to front for input)`,
       urgency: 'critical',
       sound: true,

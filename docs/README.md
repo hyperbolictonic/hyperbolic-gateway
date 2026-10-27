@@ -1,6 +1,6 @@
-# 📚 Kuang Grade Mark Eleven — Documentation Hub
+# 📚 Hyperbolic Gateway — Documentation Hub
 
-Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade Eleven is a Web Browser for your Local AI*).
+Welcome to the documentation repository for **Hyperbolic Gateway** (*Hyperbolic Browser + Hyperbolic Rest for your Local AI*).
 
 ---
 
@@ -12,9 +12,9 @@ Welcome to the documentation repository for **Kuang Grade Mark Eleven** (*Grade 
 - [SHADOW_DOM_AND_FRAMES.md](./SHADOW_DOM_AND_FRAMES.md) — **What Kuang can see and click**: open vs closed shadow roots, iframe execution contexts, the isolated-world gotcha, and what to do when a control is sealed.
 - [SHADOW_WALK.md](./SHADOW_WALK.md) — **Sealed-content plan**: closed-root discovery via the accessibility tree, focus walk, component signatures, the Shadow Walk settings tab, and the tiered risk levers.
 - [DECISION_MODELS.md](./DECISION_MODELS.md) — The optional `decide` / `drive` decision layer.
-- [KUANG_WRAP.md](./KUANG_WRAP.md) - The second MCP server for saved REST wrappers and response recipes. S1 (store, executor, bridge, `kuang-wrap`) and S2 (host-bound `safeStorage` credentials, Settings → Wrappers, audit) are implemented.
+- [KUANG_WRAP.md](./KUANG_WRAP.md) - Compatibility stub; see [HYPERBOLIC_REST.md](./HYPERBOLIC_REST.md) for the second MCP server (saved REST wrappers and response recipes, `hb-rest`).
 - [RESEARCH_STEALTH.md](./RESEARCH_STEALTH.md) - Settings → Research: isolated research session, proxy, engine chain, cooldowns, delays, hidden-view activation, and challenge backoff.
-- [concept.md](./concept.md) — The foundational concept, design philosophy, and lore behind the Kuang Grade Mark Eleven Cyberdeck.
+- [concept.md](./concept.md) — The foundational concept, design philosophy, and lore behind Hyperbolic Gateway.
 - [TODO.md](./TODO.md) — Agent capability roadmap, prioritized from foundational utilities to high-bandwidth cognitive features and biomechanical kinematics.
 - [PROPOSED_ABSTRACTIONS.md](./PROPOSED_ABSTRACTIONS.md) — The orthogonal primitive layer (observe/act/wait_for/…) design, status (A1–A6, B, C, D), and verification record.
 - [FIELD_NOTES_2026-10-18.md](./FIELD_NOTES_2026-10-18.md) — Root-caused field findings from hardening the TIER-1 harvest path on real SPAs.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.hyperbolictonic.kuang-grade-mark-eleven",
-  "productName": "Kuang Grade Mark Eleven",
+  "productName": "Hyperbolic Gateway",
   "copyright": "Copyright © 2026 HyperbolicTonic",
   "publish": [
     {
@@ -59,7 +59,8 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Kuang Grade Mark Eleven // Cyberdeck"
+    "shortcutName": "Hyperbolic Gateway // Cyberdeck",
+    "include": "scripts/nsis-rebrand.nsh"
   },
   "portable": {
     "artifactName": "${productName}-Portable-${version}.${ext}"

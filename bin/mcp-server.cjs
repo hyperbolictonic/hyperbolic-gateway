@@ -38400,7 +38400,7 @@ var TOOL_TIERS = {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.5.9";
+var APP_VERSION = "1.6.0";
 
 // src/main/decide/decision-client.ts
 var import_node_fs2 = __toESM(require("node:fs"), 1);
@@ -38445,7 +38445,7 @@ function ensureWritable(candidate) {
 var cachedRoot = null;
 function dataRoot() {
   if (cachedRoot) return cachedRoot;
-  const override = process.env.KUANG_DATA_DIR?.trim();
+  const override = (process.env.HB_DATA_DIR ?? process.env.KUANG_DATA_DIR)?.trim();
   if (override) {
     cachedRoot = import_node_path.default.resolve(override);
     import_node_fs.default.mkdirSync(cachedRoot, { recursive: true });
@@ -38518,9 +38518,9 @@ function decisionStatus() {
 }
 
 // src/mcp/bridge-server.ts
-var BRIDGE_URL = process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111";
-var LOG_TO_FILE = process.env.KUANG_MCP_LOG !== "0";
-var STDERR_MODE = process.env.KUANG_MCP_STDERR === "0" ? "off" : process.env.KUANG_MCP_STDERR === "verbose" ? "verbose" : "boot";
+var BRIDGE_URL = process.env.HB_BRIDGE_URL || process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111";
+var LOG_TO_FILE = (process.env.HB_MCP_LOG ?? process.env.KUANG_MCP_LOG) !== "0";
+var STDERR_MODE = (process.env.HB_MCP_STDERR ?? process.env.KUANG_MCP_STDERR) === "0" ? "off" : (process.env.HB_MCP_STDERR ?? process.env.KUANG_MCP_STDERR) === "verbose" ? "verbose" : "boot";
 var STDERR_HARD_CAP_BYTES = 16 * 1024;
 var LOG_DIR = import_node_path2.default.resolve(process.cwd(), "data", "logs");
 var logDirReady = false;
@@ -38590,7 +38590,7 @@ function logMcp(message, level = "call") {
     flushLogQueue();
   }
   if (STDERR_MODE === "verbose" || STDERR_MODE === "boot" && level !== "call") {
-    writeStderr(`[Mark Eleven MCP ${timestamp}] ${message}`);
+    writeStderr(`[Hyperbolic Browser MCP ${timestamp}] ${message}`);
   }
 }
 var stdoutClosed = false;
@@ -38628,10 +38628,10 @@ function clampText(text) {
   if (typeof text !== "string" || text.length <= MAX_TEXT_CHARS) return text;
   return `${text.slice(0, MAX_TEXT_CHARS)}
 
-... [Mark Eleven MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
+... [Hyperbolic Browser MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
 }
 var BRIDGE_TIMEOUT_MS = (() => {
-  const raw = Number(process.env.KUANG_BRIDGE_TIMEOUT_MS);
+  const raw = Number(process.env.HB_BRIDGE_TIMEOUT_MS ?? process.env.KUANG_BRIDGE_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 3e5;
 })();
 async function callBridge(endpoint, method = "GET", body = null) {
@@ -38704,7 +38704,7 @@ var IMAGE_TOOLS = /* @__PURE__ */ new Set([
 ]);
 async function createBridgeMcpServer() {
   const server = new McpServer({
-    name: "kuang-grade-mark-eleven",
+    name: "hb-browser",
     version: APP_VERSION
   });
   const recordingToolsAvailable = await recordingToolsAllowed();
@@ -38809,7 +38809,7 @@ ${text}`;
           content: [
             {
               type: "text",
-              text: `[Mark Eleven MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`
+              text: `[Hyperbolic Browser MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`
             }
           ]
         };
@@ -39049,7 +39049,7 @@ Rules of thumb:
   );
   server.tool(
     "help",
-    "Returns a categorized guide, cheatsheet, and workflow tips for all available Mark Eleven MCP tools (served directly in OKF).",
+    "Returns a categorized guide, cheatsheet, and workflow tips for all available Hyperbolic Browser MCP tools (served directly in OKF).",
     {
       category: external_exports.enum([
         "all",
@@ -39293,7 +39293,7 @@ function normalizeIncomingParams(params) {
   return normalized;
 }
 async function start() {
-  logMcp("Initializing Mark Eleven MCP Server over stdio...", "boot");
+  logMcp("Initializing Hyperbolic Browser MCP Server over stdio...", "boot");
   const server = await createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -39338,7 +39338,7 @@ async function start() {
   }
 }
 start().catch((err) => {
-  logMcp(`Fatal Mark Eleven MCP Server Error: ${err?.stack || err}`, "error");
+  logMcp(`Fatal Hyperbolic Browser MCP Server Error: ${err?.stack || err}`, "error");
   flushLogSync();
   process.exit(1);
 });

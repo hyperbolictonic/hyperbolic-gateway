@@ -31,7 +31,7 @@ export interface WrapBridge {
   executor: WrapExecutor;
   secrets: SecretStore;
   audit: WrapAuditLog;
-  /** Rotated on each app start; the MCP side reads it from `KUANG_WRAP_TOKEN_FILE`. */
+  /** Rotated on each app start; the MCP side reads it from `HB_WRAP_TOKEN_FILE` (legacy `KUANG_WRAP_TOKEN_FILE`). */
   token: string;
 }
 
@@ -147,7 +147,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         const info = chassis.getPageInfo();
         sendJson({
           status: 'ok',
-          app: 'kuang-grade-mark-eleven',
+          app: 'hyperbolic-gateway',
           version: APP_VERSION,
           revision: chassis.getRevision(),
           capabilities: chassis.getCapabilities(),
@@ -1403,10 +1403,10 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
         return;
       }
 
-      // ---- Kuang Wrap -------------------------------------------------------------------------
+      // ---- Hyperbolic Rest ------------------------------------------------------------------
       if (pathname.startsWith('/wrap/')) {
         if (!wrap) {
-          sendJson({ success: false, error: 'Kuang Wrap is not initialised.', code: 'WRAP_UNAVAILABLE' }, 503);
+          sendJson({ success: false, error: 'Hyperbolic Rest is not initialised.', code: 'WRAP_UNAVAILABLE' }, 503);
           return;
         }
 
@@ -1414,7 +1414,7 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           sendJson(
             {
               success: false,
-              error: 'Unauthorized. Set KUANG_WRAP_TOKEN_FILE to the app-generated token file.',
+              error: 'Unauthorized. Set HB_WRAP_TOKEN_FILE (or KUANG_WRAP_TOKEN_FILE) to the app-generated token file.',
               code: 'UNAUTHORIZED',
             },
             401
@@ -1616,14 +1616,14 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
     const message = inUse
       ? `Port ${port} is already in use — another Cyberdeck (dev or installed) is probably running. ` +
         'Only one bridge can own a port: close the other instance, or start this one with ' +
-        'KUANG_BRIDGE_PORT=<other port> and point the MCP server at it with KUANG_BRIDGE_URL.'
+        'HB_BRIDGE_PORT=<other port> and point the MCP server at it with HB_BRIDGE_URL.'
       : `HTTP Bridge server error on port ${port}: ${err?.message || err}`;
     logBridge(message, true);
     chassis.addLog('warn', message);
   });
 
   server.listen(port, '127.0.0.1', () => {
-    logBridge(`\n======================================================\n 🚀 KUANG GRADE MARK ELEVEN // CYBERDECK HTTP BRIDGE\n Active at: http://127.0.0.1:${port}\n Live directive logging enabled.\n======================================================\n`);
+    logBridge(`\n======================================================\n 🚀 HYPERBOLIC GATEWAY // CYBERDECK HTTP BRIDGE\n Active at: http://127.0.0.1:${port}\n Live directive logging enabled.\n======================================================\n`);
     chassis.addLog('info', `Autonomous Bridge active at http://127.0.0.1:${port}`);
   });
 

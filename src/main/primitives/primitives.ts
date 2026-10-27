@@ -1711,7 +1711,7 @@ export class Primitives {
     return {
       log: {
         version: '1.2',
-        creator: { name: 'Mark Eleven Cyberdeck', version: APP_VERSION },
+        creator: { name: 'Hyperbolic Gateway Cyberdeck', version: APP_VERSION },
         pages: [{ startedDateTime: new Date().toISOString(), id: 'page_1', title: info.title || '', pageTimings: {} }],
         entries,
       },

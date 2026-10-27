@@ -36600,7 +36600,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.5.9";
+var APP_VERSION = "1.6.0";
 
 // src/mcp/wrap-tool-schema.ts
 function wrapInputToZodShape(schema) {
@@ -36707,15 +36707,15 @@ function generatedToolName(id, taken = /* @__PURE__ */ new Set()) {
 }
 
 // src/mcp/wrap-server.ts
-var BRIDGE_URL = (process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111").replace(/\/$/, "");
+var BRIDGE_URL = (process.env.HB_BRIDGE_URL || process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111").replace(/\/$/, "");
 var BRIDGE_TIMEOUT_MS = (() => {
-  const raw = Number(process.env.KUANG_WRAP_TIMEOUT_MS);
+  const raw = Number(process.env.HB_WRAP_TIMEOUT_MS ?? process.env.KUANG_WRAP_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 9e4;
 })();
-var TOKEN_FILE = process.env.KUANG_WRAP_TOKEN_FILE || "";
-var STATIC_TOKEN = process.env.KUANG_WRAP_TOKEN || process.env.KUANG_BRIDGE_TOKEN || "";
+var TOKEN_FILE = process.env.HB_WRAP_TOKEN_FILE || process.env.HB_WRAP_TOKEN_FILE || "";
+var STATIC_TOKEN = process.env.HB_WRAP_TOKEN || process.env.KUANG_WRAP_TOKEN || process.env.HB_BRIDGE_TOKEN || process.env.KUANG_BRIDGE_TOKEN || "";
 var GENERATED_TOOL_CAP = (() => {
-  const raw = Number(process.env.KUANG_WRAP_MAX_TOOLS);
+  const raw = Number(process.env.HB_WRAP_MAX_TOOLS ?? process.env.HB_WRAP_MAX_TOOLS);
   if (!Number.isFinite(raw) || raw < 0) return 40;
   return Math.min(Math.floor(raw), 200);
 })();
@@ -36740,8 +36740,8 @@ function currentWrapToken() {
     return "";
   }
 }
-var LOG_TO_FILE = process.env.KUANG_MCP_LOG !== "0";
-var STDERR_MODE = process.env.KUANG_MCP_STDERR === "0" || process.env.KUANG_WRAP_STDERR === "0" ? "off" : "boot";
+var LOG_TO_FILE = (process.env.HB_MCP_LOG ?? process.env.KUANG_MCP_LOG) !== "0";
+var STDERR_MODE = (process.env.HB_MCP_STDERR ?? process.env.KUANG_MCP_STDERR) === "0" || (process.env.HB_WRAP_STDERR ?? process.env.KUANG_WRAP_STDERR) === "0" ? "off" : "boot";
 var LOG_DIR = import_node_path.default.resolve(process.cwd(), "data", "logs");
 var logDirReady = false;
 try {
@@ -36768,7 +36768,7 @@ function logWrap(message, level = "call") {
     });
   }
   if (STDERR_MODE === "boot" && level !== "call") {
-    writeStderr(`[Kuang Wrap ${timestamp}] ${message}`);
+    writeStderr(`[Hyperbolic Rest ${timestamp}] ${message}`);
   }
 }
 var stdoutClosed = false;
@@ -36804,7 +36804,7 @@ function clampText(text) {
   if (typeof text !== "string" || text.length <= MAX_TEXT_CHARS) return text;
   return `${text.slice(0, MAX_TEXT_CHARS)}
 
-... [Kuang Wrap: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
+... [Hyperbolic Rest: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
 }
 async function callBridge(endpoint, method = "GET", body) {
   const token = currentWrapToken();
@@ -36836,7 +36836,7 @@ async function callBridge(endpoint, method = "GET", body) {
   }
   if (response.status === 401) {
     throw new Error(
-      token ? "The Cyberdeck rejected the Kuang Wrap bridge token. An app restart rotates it; restart the MCP client or update KUANG_WRAP_TOKEN_FILE." : "Kuang Wrap needs a bridge token. Add KUANG_WRAP_TOKEN_FILE to this server\u2019s config (Settings \u2192 MCP Clients \u2192 REST wrappers)."
+      token ? "The Cyberdeck rejected the Hyperbolic Rest bridge token. An app restart rotates it; restart the MCP client or update HB_WRAP_TOKEN_FILE." : "Hyperbolic Rest needs a bridge token. Add HB_WRAP_TOKEN_FILE to this server\u2019s config (Settings \u2192 MCP Clients \u2192 REST wrappers)."
     );
   }
   return { ok: response.ok, status: response.status, data };
@@ -36937,7 +36937,7 @@ function formatManifest(data, cap = GENERATED_TOOL_CAP) {
     const secret = wrapper.secret ? ` \xB7 secret: ${wrapper.secret}` : "";
     let tool = "";
     if (wrapper.exposeAsTool) {
-      tool = cap === 0 ? " \xB7 tool (disabled: KUANG_WRAP_MAX_TOOLS=0)" : exposedIds.has(String(wrapper.id)) ? " \xB7 tool" : " \xB7 tool (over cap: call wrap_run)";
+      tool = cap === 0 ? " \xB7 tool (disabled: HB_WRAP_MAX_TOOLS=0)" : exposedIds.has(String(wrapper.id)) ? " \xB7 tool" : " \xB7 tool (over cap: call wrap_run)";
     }
     const verified = wrapper.lastVerified ? ` \xB7 verified ${String(wrapper.lastVerified).slice(0, 10)}` : " \xB7 never verified";
     const methods = Array.isArray(wrapper.methods) && wrapper.methods.length ? wrapper.methods.join("/") : wrapper.method;
@@ -36954,11 +36954,11 @@ function generatedWarning(wrapper, sync) {
   if (sync.cap === 0) {
     return `
 
-\u26A0 ${id} is not registered as a generated tool: KUANG_WRAP_MAX_TOOLS=0 disables generated tools. Call it with wrap_run, or raise the cap.`;
+\u26A0 ${id} is not registered as a generated tool: HB_WRAP_MAX_TOOLS=0 disables generated tools. Call it with wrap_run, or raise the cap.`;
   }
   return `
 
-\u26A0 ${id} is not registered as a generated tool: the ${sync.cap}-tool cap is full (the first ${sync.cap} exposed wrappers by id win). Call it with wrap_run, or set KUANG_WRAP_MAX_TOOLS higher.`;
+\u26A0 ${id} is not registered as a generated tool: the ${sync.cap}-tool cap is full (the first ${sync.cap} exposed wrappers by id win). Call it with wrap_run, or set HB_WRAP_MAX_TOOLS higher.`;
 }
 function formatSecrets(data) {
   const secrets = Array.isArray(data?.secrets) ? data.secrets : [];
@@ -36984,11 +36984,11 @@ function toolError(text) {
 }
 function bridgeFailure(err) {
   logWrap(`Bridge error: ${err?.message || err}`, "error");
-  return toolError(`[Kuang Wrap] ${err?.message || err}`);
+  return toolError(`[Hyperbolic Rest] ${err?.message || err}`);
 }
 async function createWrapMcpServer() {
   const server = new McpServer({
-    name: "kuang-wrap",
+    name: "hb-rest",
     version: APP_VERSION
   });
   const generated = /* @__PURE__ */ new Map();
@@ -37133,7 +37133,7 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
   );
   server.tool(
     "wrap_create",
-    "Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it. Set `exposeAsTool: true` to register a generated `wrap_<id>` tool (capped by KUANG_WRAP_MAX_TOOLS, default 40).",
+    "Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it. Set `exposeAsTool: true` to register a generated `wrap_<id>` tool (capped by HB_WRAP_MAX_TOOLS, default 40).",
     {
       wrapper: external_exports.record(external_exports.string(), external_exports.unknown()).describe("Complete wrapper object. Use flat input arguments, not URL or header JSON.")
     },
@@ -37270,14 +37270,14 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
   return server;
 }
 async function start() {
-  logWrap("Initializing Kuang Wrap MCP Server over stdio...", "boot");
+  logWrap("Initializing Hyperbolic Rest MCP Server over stdio...", "boot");
   const server = await createWrapMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logWrap("Connected to stdio transport. Listening for JSON-RPC messages.", "boot");
 }
 start().catch((err) => {
-  logWrap(`Fatal Kuang Wrap MCP Server Error: ${err?.stack || err}`, "error");
+  logWrap(`Fatal Hyperbolic Rest MCP Server Error: ${err?.stack || err}`, "error");
   process.exit(1);
 });
 // Annotate the CommonJS export names for ESM import in node:

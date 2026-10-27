@@ -61,7 +61,7 @@ let cachedRoot: string | null = null;
 export function dataRoot(): string {
   if (cachedRoot) return cachedRoot;
 
-  const override = process.env.KUANG_DATA_DIR?.trim();
+  const override = (process.env.HB_DATA_DIR ?? process.env.KUANG_DATA_DIR)?.trim();
   if (override) {
     cachedRoot = path.resolve(override);
     fs.mkdirSync(cachedRoot, { recursive: true });

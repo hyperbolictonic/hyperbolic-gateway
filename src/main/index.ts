@@ -57,7 +57,7 @@ if (!gotTheLock) {
 let mainWindow: BrowserWindow | null = null;
 const chassis = new BrowserChassis();
 
-const configuredPort = Number(process.env.KUANG_BRIDGE_PORT);
+const configuredPort = Number(process.env.HB_BRIDGE_PORT ?? process.env.KUANG_BRIDGE_PORT);
 const bridgePort = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 4111;
 
 /**
@@ -173,11 +173,11 @@ ipcMain.handle('recording:save', (_event, buffer: ArrayBuffer, frames: number) =
 ipcMain.on('recording:ready', () => readyRecording());
 ipcMain.on('recording:failed', (_event, message: string) => failRecording(String(message || 'Recording failed.')));
 
-// Kuang Wrap secrets are written only here, from the Settings renderer. No
+// Hyperbolic Rest secrets are written only here, from the Settings renderer. No
 // bridge route or MCP tool can create, read, or bind a credential value.
 ipcMain.handle('wrap:secrets:list', () => {
   if (!activeWrapSecrets) {
-    return { available: false, warning: 'Kuang Wrap is not ready yet.', secrets: [] };
+    return { available: false, warning: 'Hyperbolic Rest is not ready yet.', secrets: [] };
   }
   return {
     available: activeWrapSecrets.available(),
@@ -187,12 +187,12 @@ ipcMain.handle('wrap:secrets:list', () => {
 });
 
 ipcMain.handle('wrap:secrets:set', (_event, input: any) => {
-  if (!activeWrapSecrets) return { ok: false, errors: ['Kuang Wrap is not ready yet.'] };
+  if (!activeWrapSecrets) return { ok: false, errors: ['Hyperbolic Rest is not ready yet.'] };
   return activeWrapSecrets.set(input || {});
 });
 
 ipcMain.handle('wrap:secrets:delete', (_event, name: string) => {
-  if (!activeWrapSecrets) return { ok: false, errors: ['Kuang Wrap is not ready yet.'] };
+  if (!activeWrapSecrets) return { ok: false, errors: ['Hyperbolic Rest is not ready yet.'] };
   const deleted = activeWrapSecrets.delete(String(name || ''));
   return deleted ? { ok: true, errors: [] } : { ok: false, errors: [`No secret named "${name || ''}".`] };
 });
@@ -246,14 +246,14 @@ ipcMain.handle('wrap:wrappers:list', () => {
 });
 
 ipcMain.handle('wrap:wrappers:save', (_event, wrapper: any) => {
-  if (!activeWrapStore) return { ok: false, errors: ['Kuang Wrap is not ready yet.'] };
+  if (!activeWrapStore) return { ok: false, errors: ['Hyperbolic Rest is not ready yet.'] };
   const id = typeof wrapper?.id === 'string' ? wrapper.id : '';
   const exists = Boolean(id && activeWrapStore.get(id));
   return exists ? activeWrapStore.update(wrapper) : activeWrapStore.create(wrapper);
 });
 
 ipcMain.handle('wrap:wrappers:delete', (_event, id: string) => {
-  if (!activeWrapStore) return { ok: false, errors: ['Kuang Wrap is not ready yet.'] };
+  if (!activeWrapStore) return { ok: false, errors: ['Hyperbolic Rest is not ready yet.'] };
   const wrapperId = String(id || '');
   const deleted = activeWrapStore.delete(wrapperId);
   return deleted ? { ok: true, errors: [] } : { ok: false, errors: [`No wrapper named "${wrapperId}".`] };
@@ -286,7 +286,7 @@ onRecordingStatus((state) => {
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
-    title: 'Kuang Grade Mark Eleven // Cyberdeck',
+    title: 'Hyperbolic Gateway // Cyberdeck',
     width: 1440,
     height: 900,
     minWidth: 1024,

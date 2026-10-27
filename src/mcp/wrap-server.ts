@@ -1,5 +1,5 @@
 /**
- * Kuang Wrap — a second stdio MCP server for saved REST wrappers.
+ * Hyperbolic Rest — a second stdio MCP server for saved REST wrappers.
  *
  * It is deliberately stateless: every tool call becomes one HTTP request to the
  * Cyberdeck bridge, which owns the wrapper store and the outbound policy. That
@@ -27,21 +27,26 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { APP_VERSION } from '../shared/version.js';
 import { generatedToolName, wrapInputToZodShape } from './wrap-tool-schema.js';
 
-const BRIDGE_URL = (process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111').replace(/\/$/, '');
+const BRIDGE_URL = (process.env.HB_BRIDGE_URL || process.env.KUANG_BRIDGE_URL || 'http://127.0.0.1:4111').replace(/\/$/, '');
 const BRIDGE_TIMEOUT_MS = (() => {
-  const raw = Number(process.env.KUANG_WRAP_TIMEOUT_MS);
+  const raw = Number(process.env.HB_WRAP_TIMEOUT_MS ?? process.env.KUANG_WRAP_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 90_000;
 })();
-const TOKEN_FILE = process.env.KUANG_WRAP_TOKEN_FILE || '';
-const STATIC_TOKEN = process.env.KUANG_WRAP_TOKEN || process.env.KUANG_BRIDGE_TOKEN || '';
+const TOKEN_FILE = process.env.HB_WRAP_TOKEN_FILE || process.env.HB_WRAP_TOKEN_FILE || '';
+const STATIC_TOKEN =
+  process.env.HB_WRAP_TOKEN ||
+  process.env.KUANG_WRAP_TOKEN ||
+  process.env.HB_BRIDGE_TOKEN ||
+  process.env.KUANG_BRIDGE_TOKEN ||
+  '';
 
 /**
  * How many generated `wrap_<id>` tools may be registered at once. This is a model-context
- * budget, not an MCP limit (the protocol has no tool cap). `KUANG_WRAP_MAX_TOOLS=0` disables
+ * budget, not an MCP limit (the protocol has no tool cap). `HB_WRAP_MAX_TOOLS=0` disables
  * generated tools entirely; the ten meta-tools keep working.
  */
 const GENERATED_TOOL_CAP = (() => {
-  const raw = Number(process.env.KUANG_WRAP_MAX_TOOLS);
+  const raw = Number(process.env.HB_WRAP_MAX_TOOLS ?? process.env.HB_WRAP_MAX_TOOLS);
   if (!Number.isFinite(raw) || raw < 0) return 40;
   return Math.min(Math.floor(raw), 200);
 })();
@@ -74,9 +79,12 @@ function currentWrapToken(): string {
 // stdout is the JSON-RPC lifeline. Diagnostics go to a file; stderr gets a
 // short boot banner only. A client that never drains stderr must not be able
 // to wedge the server.
-const LOG_TO_FILE = process.env.KUANG_MCP_LOG !== '0';
+const LOG_TO_FILE = (process.env.HB_MCP_LOG ?? process.env.KUANG_MCP_LOG) !== '0';
 const STDERR_MODE: 'off' | 'boot' =
-  process.env.KUANG_MCP_STDERR === '0' || process.env.KUANG_WRAP_STDERR === '0' ? 'off' : 'boot';
+  (process.env.HB_MCP_STDERR ?? process.env.KUANG_MCP_STDERR) === '0' ||
+  (process.env.HB_WRAP_STDERR ?? process.env.KUANG_WRAP_STDERR) === '0'
+    ? 'off'
+    : 'boot';
 const LOG_DIR = path.resolve(process.cwd(), 'data', 'logs');
 let logDirReady = false;
 try {
@@ -106,7 +114,7 @@ function logWrap(message: string, level: 'boot' | 'call' | 'error' = 'call'): vo
     });
   }
   if (STDERR_MODE === 'boot' && level !== 'call') {
-    writeStderr(`[Kuang Wrap ${timestamp}] ${message}`);
+    writeStderr(`[Hyperbolic Rest ${timestamp}] ${message}`);
   }
 }
 
@@ -145,7 +153,7 @@ process.on('uncaughtException', (err: any) => {
 const MAX_TEXT_CHARS = 60_000;
 function clampText(text: string): string {
   if (typeof text !== 'string' || text.length <= MAX_TEXT_CHARS) return text;
-  return `${text.slice(0, MAX_TEXT_CHARS)}\n\n... [Kuang Wrap: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
+  return `${text.slice(0, MAX_TEXT_CHARS)}\n\n... [Hyperbolic Rest: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
 }
 
 interface BridgeResponse {
@@ -189,8 +197,8 @@ async function callBridge(endpoint: string, method: 'GET' | 'POST' = 'GET', body
   if (response.status === 401) {
     throw new Error(
       token
-        ? 'The Cyberdeck rejected the Kuang Wrap bridge token. An app restart rotates it; restart the MCP client or update KUANG_WRAP_TOKEN_FILE.'
-        : 'Kuang Wrap needs a bridge token. Add KUANG_WRAP_TOKEN_FILE to this server’s config (Settings → MCP Clients → REST wrappers).',
+        ? 'The Cyberdeck rejected the Hyperbolic Rest bridge token. An app restart rotates it; restart the MCP client or update HB_WRAP_TOKEN_FILE.'
+        : 'Hyperbolic Rest needs a bridge token. Add HB_WRAP_TOKEN_FILE to this server’s config (Settings → MCP Clients → REST wrappers).',
     );
   }
 
@@ -316,7 +324,7 @@ function formatManifest(data: any, cap: number = GENERATED_TOOL_CAP): string {
     let tool = '';
     if (wrapper.exposeAsTool) {
       tool = cap === 0
-        ? ' · tool (disabled: KUANG_WRAP_MAX_TOOLS=0)'
+        ? ' · tool (disabled: HB_WRAP_MAX_TOOLS=0)'
         : exposedIds.has(String(wrapper.id))
           ? ' · tool'
           : ' · tool (over cap: call wrap_run)';
@@ -340,9 +348,9 @@ function generatedWarning(wrapper: any, sync: { cap: number; exposed: string[] }
   if (sync.exposed.includes(id)) return '';
 
   if (sync.cap === 0) {
-    return `\n\n⚠ ${id} is not registered as a generated tool: KUANG_WRAP_MAX_TOOLS=0 disables generated tools. Call it with wrap_run, or raise the cap.`;
+    return `\n\n⚠ ${id} is not registered as a generated tool: HB_WRAP_MAX_TOOLS=0 disables generated tools. Call it with wrap_run, or raise the cap.`;
   }
-  return `\n\n⚠ ${id} is not registered as a generated tool: the ${sync.cap}-tool cap is full (the first ${sync.cap} exposed wrappers by id win). Call it with wrap_run, or set KUANG_WRAP_MAX_TOOLS higher.`;
+  return `\n\n⚠ ${id} is not registered as a generated tool: the ${sync.cap}-tool cap is full (the first ${sync.cap} exposed wrappers by id win). Call it with wrap_run, or set HB_WRAP_MAX_TOOLS higher.`;
 }
 
 function formatSecrets(data: any): string {
@@ -370,12 +378,12 @@ function toolError(text: string) {
 
 function bridgeFailure(err: any) {
   logWrap(`Bridge error: ${err?.message || err}`, 'error');
-  return toolError(`[Kuang Wrap] ${err?.message || err}`);
+  return toolError(`[Hyperbolic Rest] ${err?.message || err}`);
 }
 
 export async function createWrapMcpServer() {
   const server = new McpServer({
-    name: 'kuang-wrap',
+    name: 'hb-rest',
     version: APP_VERSION,
   });
 
@@ -552,7 +560,7 @@ export async function createWrapMcpServer() {
 
   server.tool(
     'wrap_create',
-    'Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it. Set `exposeAsTool: true` to register a generated `wrap_<id>` tool (capped by KUANG_WRAP_MAX_TOOLS, default 40).',
+    'Save a new REST wrapper. Supply the complete wrapper object: id, name, request (method, url, optional query/headers/body templates, optional auth secret name), inputSchema (game-facing arguments), and response (recipe). Never include a credential value; request.auth is a name only, and only a human can create it. Set `exposeAsTool: true` to register a generated `wrap_<id>` tool (capped by HB_WRAP_MAX_TOOLS, default 40).',
     {
       wrapper: z.record(z.string(), z.unknown()).describe('Complete wrapper object. Use flat input arguments, not URL or header JSON.'),
     },
@@ -700,7 +708,7 @@ export async function createWrapMcpServer() {
 }
 
 async function start() {
-  logWrap('Initializing Kuang Wrap MCP Server over stdio...', 'boot');
+  logWrap('Initializing Hyperbolic Rest MCP Server over stdio...', 'boot');
   const server = await createWrapMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -708,6 +716,6 @@ async function start() {
 }
 
 start().catch((err) => {
-  logWrap(`Fatal Kuang Wrap MCP Server Error: ${err?.stack || err}`, 'error');
+  logWrap(`Fatal Hyperbolic Rest MCP Server Error: ${err?.stack || err}`, 'error');
   process.exit(1);
 });
