@@ -143,6 +143,8 @@ const developerSidebar = [...pageInfo.values()]
 
 function layout(page, body) {
   const prefix = prefixFor(page.output);
+  const rawRel = path.relative(root, page.file).split(path.sep).join('/');
+  const rawHref = path.posix.relative(path.posix.dirname(page.output), rawRel);
   const nav = [
     ['Home', `${prefix}index.html`],
     ['Manual', `${prefix}manual.html`],
@@ -160,6 +162,7 @@ function layout(page, body) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
   <title>${page.title.includes('Hyperbolic Gateway') ? page.title : `${page.title} — Hyperbolic Gateway`}</title>
+  <link rel="alternate" type="text/markdown" href="${rawHref}" />
   <link rel="stylesheet" href="${prefix}assets/docs.css" />
 </head>
 <body>
@@ -183,7 +186,7 @@ function layout(page, body) {
       ${developerSidebar.map((item) => `<a class="${item.output === page.output ? 'active' : ''}" href="${prefix}${item.output}">${item.title}</a>`).join('')}
     </aside>
     <main class="content">
-      <div class="source-link"><a href="${repoUrl}/blob/main/${path.relative(root, page.file).split(path.sep).join('/')}">View source on GitHub</a></div>
+      <div class="source-link"><a href="${rawHref}">Markdown</a> · <a href="${repoUrl}/blob/main/${rawRel}">View source on GitHub</a></div>
       ${body}
       <footer class="page-footer"><a href="${prefix}index.html">Home</a> · <a href="${prefix}docs/">Documentation</a> · <a href="${repoUrl}">GitHub</a></footer>
     </main>
@@ -209,6 +212,12 @@ fs.copyFileSync(path.join(root, 'kuang_docs', 'okf.json'), path.join(out, 'kuang
 if (fs.existsSync(path.join(root, 'LICENSE'))) fs.copyFileSync(path.join(root, 'LICENSE'), path.join(out, 'LICENSE'));
 fs.copyFileSync(path.join(root, 'public', 'welcome.html'), path.join(out, 'manual.html'));
 fs.writeFileSync(path.join(out, 'assets', 'docs.css'), docsCss);
+
+for (const page of pageInfo.values()) {
+  const rawTarget = path.join(out, path.relative(root, page.file));
+  fs.mkdirSync(path.dirname(rawTarget), { recursive: true });
+  fs.copyFileSync(page.file, rawTarget);
+}
 
 for (const page of pageInfo.values()) {
   const html = rewriteLinks(marked.parse(page.markdown, { gfm: true, breaks: false }), page);
