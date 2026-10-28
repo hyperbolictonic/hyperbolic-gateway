@@ -30843,12 +30843,14 @@ var McpHttpHost = class {
   path;
   maxSessions;
   sessionEvictionGraceMs;
+  stateless;
   maxRequestBodyBytes;
   enableJsonResponse;
   allowSse;
   sessionIdGenerator;
   logger;
   sessions;
+  statelessInFlight = /* @__PURE__ */ new Set();
   options;
   server = null;
   creatingSessions = 0;
@@ -30858,6 +30860,7 @@ var McpHttpHost = class {
     this.path = normalizePath(options.path);
     this.maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS;
     this.sessionEvictionGraceMs = options.sessionEvictionGraceMs ?? DEFAULT_SESSION_EVICTION_GRACE_MS;
+    this.stateless = options.stateless ?? false;
     this.maxRequestBodyBytes = options.maxRequestBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
     this.enableJsonResponse = options.enableJsonResponse ?? true;
     this.allowSse = options.allowSse ?? false;
@@ -30897,7 +30900,7 @@ var McpHttpHost = class {
       server.listen(this.options.port, this.host);
     });
     this.server = server;
-    this.sessions.start();
+    if (!this.stateless) this.sessions.start();
     server.on("error", (error62) => {
       this.log("server_error", { message: error62.message });
     });
@@ -30907,6 +30910,13 @@ var McpHttpHost = class {
     this.sessions.stop();
     const sessions = this.sessions.values();
     await Promise.allSettled(sessions.map((session) => this.closeSession(session)));
+    await Promise.allSettled(
+      [...this.statelessInFlight].map(async (entry) => {
+        await entry.transport.close().catch(() => void 0);
+        await entry.server.close().catch(() => void 0);
+      })
+    );
+    this.statelessInFlight.clear();
     const server = this.server;
     this.server = null;
     if (!server) return;
@@ -30924,7 +30934,7 @@ var McpHttpHost = class {
       host: this.host,
       port,
       path: this.path,
-      sessions: this.sessions.size
+      sessions: this.stateless ? 0 : this.sessions.size
     };
   }
   log(event, detail) {
@@ -30979,16 +30989,22 @@ var McpHttpHost = class {
     }
   }
   isAllowedMethod(method) {
+    if (this.stateless) return method === "POST";
     if (method === "POST" || method === "DELETE") return true;
     return this.allowSse && method === "GET";
   }
   allowedMethods() {
+    if (this.stateless) return "POST";
     return this.allowSse ? "GET, POST, DELETE" : "POST, DELETE";
   }
   async handlePost(request, response) {
     const body = await readJsonBody(request, this.maxRequestBodyBytes);
     const sessionId = headerValue(request.headers["mcp-session-id"]);
     this.logRpcRequest(body, sessionId);
+    if (this.stateless) {
+      await this.handleStatelessPost(request, response, body);
+      return;
+    }
     if (!sessionId) {
       if (!isInitializeMessage(body)) {
         this.log("session_rejected", {
@@ -31063,6 +31079,36 @@ var McpHttpHost = class {
         idleMs
       });
       await this.closeSession(oldest);
+    }
+  }
+  async handleStatelessPost(request, response, body) {
+    const server = await this.options.createServer();
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: void 0,
+      enableJsonResponse: this.enableJsonResponse,
+      maxRequestBodySize: this.maxRequestBodyBytes
+    });
+    transport.onerror = (error62) => {
+      this.log("transport_error", { message: error62.message, stateless: true });
+    };
+    const entry = { server, transport };
+    this.statelessInFlight.add(entry);
+    let cleaned = false;
+    const cleanup = async () => {
+      if (cleaned) return;
+      cleaned = true;
+      this.statelessInFlight.delete(entry);
+      await transport.close().catch(() => void 0);
+      await server.close().catch(() => void 0);
+    };
+    response.once("finish", () => void cleanup());
+    response.once("close", () => void cleanup());
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(request, response, body);
+    } catch (error62) {
+      await cleanup();
+      throw error62;
     }
   }
   async handleDelete(request, response) {
@@ -42483,6 +42529,7 @@ async function main() {
   const idleTimeoutMs = positiveInteger(process.env.HB_REMOTE_IDLE_MS, DEFAULT_IDLE_TIMEOUT_MS2);
   const maxRequestBodyBytes = positiveInteger(process.env.HB_REMOTE_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES2);
   const authMode = process.env.HB_REMOTE_AUTH_MODE === "oauth" ? "oauth" : "bearer";
+  const stateless = process.env.HB_REMOTE_STATEFUL !== "1";
   const redirectHosts = (process.env.HB_OAUTH_REDIRECT_HOSTS || "").split(",").map((host2) => host2.trim().toLowerCase()).filter(Boolean);
   const oauth = authMode === "oauth" ? (() => {
     const clientFile = process.env.HB_OAUTH_CLIENT_FILE?.trim();
@@ -42509,6 +42556,7 @@ async function main() {
     } : {},
     enableJsonResponse: true,
     allowSse: false,
+    stateless,
     maxSessions,
     idleTimeoutMs,
     maxRequestBodyBytes,
@@ -42518,6 +42566,7 @@ async function main() {
   logRemote("gateway_listening", {
     url: `http://${host}:${gateway.status().port}${pathName}`,
     authMode,
+    stateless,
     maxSessions,
     idleTimeoutMs
   });

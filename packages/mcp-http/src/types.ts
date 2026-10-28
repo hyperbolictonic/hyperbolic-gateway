@@ -34,9 +34,14 @@ export interface McpHttpHostOptions {
   authChallenge?: (request: IncomingMessage) => string | undefined;
   /** Return direct JSON responses instead of SSE for POSTs. Default true. */
   enableJsonResponse?: boolean;
-  /** Allow GET SSE streams. Default false, and required for Quick Tunnel mode. */
+  /** Allow GET SSE streams. Default false. */
   allowSse?: boolean;
-  /** Maximum concurrent sessions. Default 8. */
+  /**
+   * Create a fresh server and transport per POST with no Mcp-Session-Id.
+   * This removes session caps/expiry at the cost of no per-session MCP state.
+   */
+  stateless?: boolean;
+  /** Maximum concurrent sessions in stateful mode. Default 8. */
   maxSessions?: number;
   /** Idle session lifetime. Default 15 minutes. */
   idleTimeoutMs?: number;

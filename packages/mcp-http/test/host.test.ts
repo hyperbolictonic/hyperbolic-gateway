@@ -76,6 +76,38 @@ test('accepts a real MCP client and serves a tool call', async () => {
   }
 });
 
+test('serves a real MCP client in stateless mode', async () => {
+  const host = createMcpHttpHost({
+    port: 0,
+    path: '/mcp',
+    createServer: createTestServer,
+    authorize: createBearerAuthorizer(() => TOKEN),
+    enableJsonResponse: true,
+    allowSse: false,
+    stateless: true,
+  });
+  await host.start();
+  const url = new URL(`http://127.0.0.1:${host.status().port}/mcp`);
+  const client = new Client({ name: 'mcp-http-stateless-test', version: '0.1.0' });
+  const transport = new StreamableHTTPClientTransport(url, {
+    requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
+  });
+
+  try {
+    await client.connect(transport);
+    const tools = await client.listTools();
+    assert.deepEqual(tools.tools.map((tool) => tool.name), ['echo']);
+    assert.equal(host.status().sessions, 0);
+
+    const result = await client.callTool({ name: 'echo', arguments: { text: 'stateless' } });
+    const content = result.content as Array<{ type: string; text?: string }>;
+    assert.equal(content[0].text, 'stateless');
+  } finally {
+    await client.close();
+    await host.stop();
+  }
+});
+
 test('does not expose non-MCP paths', async () => {
   const host = createMcpHttpHost({
     port: 0,

@@ -145,8 +145,9 @@ and `src/main/remote/service.ts`.
 | `HB_REMOTE_PORT` | Loopback port. Default `4112`. |
 | `HB_REMOTE_HOST` | Loopback bind address. Default `127.0.0.1`. |
 | `HB_REMOTE_PATH` | MCP path. Default `/mcp/browser`. |
-| `HB_REMOTE_MAX_SESSIONS` | Concurrent session cap. Default `4`. |
-| `HB_REMOTE_IDLE_MS` | Idle session timeout. Default 15 minutes. |
+| `HB_REMOTE_STATEFUL` | Set to `1` to use stateful MCP sessions. Default is stateless, so no session cap or session expiry applies. |
+| `HB_REMOTE_MAX_SESSIONS` | Concurrent session cap in stateful mode. Default `8`. |
+| `HB_REMOTE_IDLE_MS` | Idle session timeout in stateful mode. Default 15 minutes. |
 | `HB_REMOTE_MAX_BODY_BYTES` | POST body cap. Default 1 MiB. |
 | `HB_REMOTE_LOG_FILE` | JSONL diagnostics path. |
 | `HB_CLOUDFLARED_PATH` | Optional explicit path to the `cloudflared` executable. |

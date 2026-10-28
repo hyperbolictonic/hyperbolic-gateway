@@ -120,12 +120,17 @@ export class McpHttpHost {
   private readonly path: string;
   private readonly maxSessions: number;
   private readonly sessionEvictionGraceMs: number;
+  private readonly stateless: boolean;
   private readonly maxRequestBodyBytes: number;
   private readonly enableJsonResponse: boolean;
   private readonly allowSse: boolean;
   private readonly sessionIdGenerator: () => string;
   private readonly logger: McpHttpLogger;
   private readonly sessions: McpSessionStore;
+  private readonly statelessInFlight = new Set<{
+    server: McpServer;
+    transport: StreamableHTTPServerTransport;
+  }>();
   private readonly options: McpHttpHostOptions;
   private server: http.Server | null = null;
   private creatingSessions = 0;
@@ -137,6 +142,7 @@ export class McpHttpHost {
     this.maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS;
     this.sessionEvictionGraceMs =
       options.sessionEvictionGraceMs ?? DEFAULT_SESSION_EVICTION_GRACE_MS;
+    this.stateless = options.stateless ?? false;
     this.maxRequestBodyBytes = options.maxRequestBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
     this.enableJsonResponse = options.enableJsonResponse ?? true;
     this.allowSse = options.allowSse ?? false;
@@ -178,7 +184,7 @@ export class McpHttpHost {
     });
 
     this.server = server;
-    this.sessions.start();
+    if (!this.stateless) this.sessions.start();
     server.on('error', (error) => {
       this.log('server_error', { message: error.message });
     });
@@ -189,6 +195,13 @@ export class McpHttpHost {
     this.sessions.stop();
     const sessions = this.sessions.values();
     await Promise.allSettled(sessions.map((session) => this.closeSession(session)));
+    await Promise.allSettled(
+      [...this.statelessInFlight].map(async (entry) => {
+        await entry.transport.close().catch(() => undefined);
+        await entry.server.close().catch(() => undefined);
+      }),
+    );
+    this.statelessInFlight.clear();
     const server = this.server;
     this.server = null;
     if (!server) return;
@@ -207,7 +220,7 @@ export class McpHttpHost {
       host: this.host,
       port,
       path: this.path,
-      sessions: this.sessions.size,
+      sessions: this.stateless ? 0 : this.sessions.size,
     };
   }
 
@@ -270,11 +283,13 @@ export class McpHttpHost {
   }
 
   private isAllowedMethod(method: string | undefined): boolean {
+    if (this.stateless) return method === 'POST';
     if (method === 'POST' || method === 'DELETE') return true;
     return this.allowSse && method === 'GET';
   }
 
   private allowedMethods(): string {
+    if (this.stateless) return 'POST';
     return this.allowSse ? 'GET, POST, DELETE' : 'POST, DELETE';
   }
 
@@ -282,6 +297,10 @@ export class McpHttpHost {
     const body = await readJsonBody(request, this.maxRequestBodyBytes);
     const sessionId = headerValue(request.headers['mcp-session-id']);
     this.logRpcRequest(body, sessionId);
+    if (this.stateless) {
+      await this.handleStatelessPost(request, response, body);
+      return;
+    }
     if (!sessionId) {
       if (!isInitializeMessage(body)) {
         this.log('session_rejected', {
@@ -372,6 +391,42 @@ export class McpHttpHost {
         idleMs,
       });
       await this.closeSession(oldest);
+    }
+  }
+
+  private async handleStatelessPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    body: unknown,
+  ): Promise<void> {
+    const server = await this.options.createServer();
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: this.enableJsonResponse,
+      maxRequestBodySize: this.maxRequestBodyBytes,
+    });
+    transport.onerror = (error) => {
+      this.log('transport_error', { message: error.message, stateless: true });
+    };
+    const entry = { server, transport };
+    this.statelessInFlight.add(entry);
+    let cleaned = false;
+    const cleanup = async (): Promise<void> => {
+      if (cleaned) return;
+      cleaned = true;
+      this.statelessInFlight.delete(entry);
+      await transport.close().catch(() => undefined);
+      await server.close().catch(() => undefined);
+    };
+    response.once('finish', () => void cleanup());
+    response.once('close', () => void cleanup());
+
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(request, response, body);
+    } catch (error) {
+      await cleanup();
+      throw error;
     }
   }
 

@@ -69,6 +69,7 @@ async function main(): Promise<void> {
   const idleTimeoutMs = positiveInteger(process.env.HB_REMOTE_IDLE_MS, DEFAULT_IDLE_TIMEOUT_MS);
   const maxRequestBodyBytes = positiveInteger(process.env.HB_REMOTE_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
   const authMode = process.env.HB_REMOTE_AUTH_MODE === 'oauth' ? 'oauth' : 'bearer';
+  const stateless = process.env.HB_REMOTE_STATEFUL !== '1';
   const redirectHosts = (process.env.HB_OAUTH_REDIRECT_HOSTS || '')
     .split(',')
     .map((host) => host.trim().toLowerCase())
@@ -106,6 +107,7 @@ async function main(): Promise<void> {
       : {}),
     enableJsonResponse: true,
     allowSse: false,
+    stateless,
     maxSessions,
     idleTimeoutMs,
     maxRequestBodyBytes,
@@ -116,6 +118,7 @@ async function main(): Promise<void> {
   logRemote('gateway_listening', {
     url: `http://${host}:${gateway.status().port}${pathName}`,
     authMode,
+    stateless,
     maxSessions,
     idleTimeoutMs,
   });

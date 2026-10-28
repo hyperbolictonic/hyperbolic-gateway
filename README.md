@@ -686,7 +686,7 @@ All suites run against the live Cyberdeck on `http://127.0.0.1:4111` (start the 
 | `npm run test:primitives`     | Offline primitives (25 checks)   | `wait_for`, `extract`, `observe` budget/cursor, `collect_all`, `find`+`act`+delta, `expect`, `page_state`/`diff`, `bridge_health` capabilities. |
 | `npm run test:mcp:primitives` | MCP stdio primitives (14 checks) | The same primitives through a real MCP client — tool schemas, viewport gating, `find`→`act`, contexts, `focus_window`.                          |
 | `npm run test:focus`          | Focus independence (4 checks)    | Hands the OS foreground to another app (Notepad) and asserts typing/clicks/wheel still land **and** that `input.transport === 'cdp'`.           |
-| `npm run test:mcp-http`       | MCP HTTP host (4 checks)         | Bearer auth, session handling, a real MCP client tool call, non-MCP path rejection, and idle expiry.                                            |
+| `npm run test:mcp-http`       | MCP HTTP host (6 checks)         | Bearer auth, stateful and stateless MCP clients, session eviction, non-MCP path rejection, and idle expiry.                                       |
 | `npm run test:cloudflared-tunnel` | Named tunnel manager (3 checks) | Registration parse, startup timeout, process failure, and clean shutdown using a fake cloudflared fixture. |
 | `npm run test:cloudflared`    | cloudflared manager (4 checks)   | Release selection, SHA-256 verification, atomic managed install, checksum rejection, unsupported-platform errors, and pure-Node macOS tar extraction. |
 | `npm run test:mcp-oauth`      | MCP OAuth server (4 checks)      | Discovery metadata, forwarded HTTPS origin, authorization code + PKCE, token/refresh, bad verifier and disallowed redirect rejection. |

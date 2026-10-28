@@ -6,7 +6,7 @@ It owns:
 
 - the loopback HTTP listener
 - bearer-token authorization boundary
-- session registry, cap and idle expiry
+- optional stateless mode, or stateful sessions with a cap and idle expiry
 - direct JSON responses or optional SSE
 - graceful shutdown
 
