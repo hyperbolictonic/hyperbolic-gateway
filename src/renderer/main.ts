@@ -2697,7 +2697,7 @@ async function loadRemotePanel(): Promise<void> {
     renderRemoteStatus(status);
     renderTunnelStatus(status.tunnel);
     renderCloudflaredStatus(status.cloudflared);
-    if (remoteTunnelEnabledEl) remoteTunnelEnabledEl.disabled = !status.running;
+    if (remoteTunnelEnabledEl) remoteTunnelEnabledEl.disabled = false;
     if (status.error || status.tunnel?.error || status.cloudflared?.error) {
       showRemoteResult('error', (status.error || status.tunnel?.error || status.cloudflared?.error || '').slice(-800));
     }
@@ -2784,21 +2784,33 @@ remoteTunnelEnabledEl?.addEventListener('change', async () => {
   if (!remoteTunnelEnabledEl) return;
   const desired = remoteTunnelEnabledEl.checked;
   remoteTunnelEnabledEl.disabled = true;
-  showRemoteResult('info', desired ? 'Starting the named tunnel…' : 'Stopping the named tunnel…');
+  showRemoteResult('info', desired ? 'Saving tunnel configuration…' : 'Stopping the named tunnel…');
+  let succeeded = false;
   try {
+    if (desired) {
+      const hostname = remoteTunnelHostnameEl?.value.trim() || '';
+      const token = remoteTunnelTokenEl?.value.trim() || undefined;
+      const saved = await window.electronAPI?.setRemoteTunnelConfig(hostname, token);
+      if (!saved?.ok) {
+        remoteTunnelEnabledEl.checked = false;
+        showRemoteResult('error', saved?.error || 'Save the public hostname and tunnel token first.');
+        return;
+      }
+    }
     const result = await window.electronAPI?.setRemoteTunnelEnabled(desired);
     if (!result?.ok) {
       remoteTunnelEnabledEl.checked = !desired;
       showRemoteResult('error', result?.error || 'Could not change the named tunnel.');
-    } else {
-      showRemoteResult('success', desired ? 'Named tunnel is running. The config now uses the public URL.' : 'Named tunnel stopped. The config uses the loopback URL.');
+      return;
     }
+    succeeded = true;
+    showRemoteResult('success', desired ? 'Named tunnel is running. The config now uses the public URL.' : 'Named tunnel stopped. The config uses the loopback URL.');
   } catch (err: any) {
     remoteTunnelEnabledEl.checked = !desired;
     showRemoteResult('error', `Could not change the named tunnel: ${err?.message || err}`);
   } finally {
     remoteTunnelEnabledEl.disabled = false;
-    await loadRemotePanel();
+    if (succeeded) await loadRemotePanel();
   }
 });
 
@@ -2806,18 +2818,21 @@ remoteTunnelSaveEl?.addEventListener('click', async () => {
   const hostname = remoteTunnelHostnameEl?.value.trim() || '';
   const token = remoteTunnelTokenEl?.value.trim() || undefined;
   remoteTunnelSaveEl.disabled = true;
+  showRemoteResult('info', 'Saving tunnel configuration…');
+  let succeeded = false;
   try {
     const result = await window.electronAPI?.setRemoteTunnelConfig(hostname, token);
     if (!result?.ok) {
       showRemoteResult('error', result?.error || 'Could not save the tunnel configuration.');
-    } else {
-      showRemoteResult('success', 'Tunnel configuration saved.');
+      return;
     }
+    succeeded = true;
+    showRemoteResult('success', 'Tunnel configuration saved.');
   } catch (err: any) {
     showRemoteResult('error', `Could not save the tunnel configuration: ${err?.message || err}`);
   } finally {
     remoteTunnelSaveEl.disabled = false;
-    await loadRemotePanel();
+    if (succeeded) await loadRemotePanel();
   }
 });
 

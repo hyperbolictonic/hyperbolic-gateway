@@ -357,7 +357,13 @@ export class RemoteService {
       return this.status();
     }
     if (!this.child) {
-      throw new Error('Start the remote gateway before enabling the named tunnel.');
+      this.enabled = true;
+      try {
+        await this.startChild();
+      } catch (error) {
+        this.enabled = false;
+        throw error;
+      }
     }
     if (!this.tunnelHostname) {
       throw new Error('Set a public hostname and tunnel token first.');
