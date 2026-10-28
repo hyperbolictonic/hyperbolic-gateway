@@ -755,6 +755,8 @@ export class BrowserChassis {
     ipcMain.handle('chassis:get-state', () => this.state);
     ipcMain.handle('chassis:get-latest-construct', () => this.latestConstruct);
     ipcMain.handle('chassis:get-logs', () => this.logs);
+    ipcMain.handle('chassis:resume-human', () => this.resumeHuman());
+    ipcMain.handle('chassis:get-human-status', () => this.getHumanStatus());
 
     ipcMain.handle('chassis:navigate', async (_, url: string) => {
       await this.navigateTo(url);

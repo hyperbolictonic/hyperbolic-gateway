@@ -30705,6 +30705,14 @@ var McpSessionStore = class {
   get(id) {
     return this.sessions.get(id);
   }
+  /** Least-recently-used session, used to reclaim capacity without a hard 429. */
+  oldest() {
+    let oldest;
+    for (const session of this.sessions.values()) {
+      if (!oldest || session.lastUsedAt < oldest.lastUsedAt) oldest = session;
+    }
+    return oldest;
+  }
   add(session) {
     if (!session.id) throw new Error("cannot register a session without an id");
     if (this.sessions.size >= this.maxSessions) {
@@ -30748,8 +30756,9 @@ var McpSessionStore = class {
 };
 
 // packages/mcp-http/src/host.ts
-var DEFAULT_MAX_SESSIONS = 4;
+var DEFAULT_MAX_SESSIONS = 8;
 var DEFAULT_IDLE_TIMEOUT_MS = 15 * 6e4;
+var DEFAULT_SESSION_EVICTION_GRACE_MS = 3e4;
 var DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
 var DEFAULT_HOST = "127.0.0.1";
 var HttpError = class extends Error {
@@ -30833,6 +30842,7 @@ var McpHttpHost = class {
   host;
   path;
   maxSessions;
+  sessionEvictionGraceMs;
   maxRequestBodyBytes;
   enableJsonResponse;
   allowSse;
@@ -30847,6 +30857,7 @@ var McpHttpHost = class {
     this.host = options.host || DEFAULT_HOST;
     this.path = normalizePath(options.path);
     this.maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS;
+    this.sessionEvictionGraceMs = options.sessionEvictionGraceMs ?? DEFAULT_SESSION_EVICTION_GRACE_MS;
     this.maxRequestBodyBytes = options.maxRequestBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
     this.enableJsonResponse = options.enableJsonResponse ?? true;
     this.allowSse = options.allowSse ?? false;
@@ -30977,12 +30988,26 @@ var McpHttpHost = class {
   async handlePost(request, response) {
     const body = await readJsonBody(request, this.maxRequestBodyBytes);
     const sessionId = headerValue(request.headers["mcp-session-id"]);
+    this.logRpcRequest(body, sessionId);
     if (!sessionId) {
       if (!isInitializeMessage(body)) {
+        this.log("session_rejected", {
+          reason: "initialize_required",
+          activeSessions: this.sessions.size
+        });
         sendRpcError(response, 400, -32600, "An initialize message is required to create a session");
         return;
       }
       if (this.sessions.size + this.creatingSessions >= this.maxSessions) {
+        await this.evictIdleForCapacity();
+      }
+      if (this.sessions.size + this.creatingSessions >= this.maxSessions) {
+        this.log("session_rejected", {
+          reason: "capacity",
+          maxSessions: this.maxSessions,
+          activeSessions: this.sessions.size,
+          creatingSessions: this.creatingSessions
+        });
         sendRpcError(response, 429, -32e3, "Too many remote sessions");
         return;
       }
@@ -31003,11 +31028,42 @@ var McpHttpHost = class {
     }
     const session = this.sessions.get(sessionId);
     if (!session) {
+      this.log("session_unknown", { sessionId, activeSessions: this.sessions.size });
       sendRpcError(response, 404, -32001, "Unknown or expired session");
       return;
     }
     this.sessions.touch(session);
     await session.transport.handleRequest(request, response, body);
+  }
+  logRpcRequest(body, sessionId) {
+    if (!body || typeof body !== "object" || Array.isArray(body)) return;
+    const method = body.method;
+    if (typeof method !== "string") return;
+    const params = body.params;
+    const tool = method === "tools/call" && typeof params?.name === "string" ? params.name : void 0;
+    const protocolVersion = method === "initialize" && typeof params?.protocolVersion === "string" ? params.protocolVersion : void 0;
+    const clientName = method === "initialize" && typeof params?.clientInfo?.name === "string" ? params.clientInfo.name : void 0;
+    this.log("rpc_request", {
+      method,
+      ...tool ? { tool } : {},
+      ...protocolVersion ? { protocolVersion } : {},
+      ...clientName ? { clientName } : {},
+      sessionId: sessionId || null
+    });
+  }
+  async evictIdleForCapacity() {
+    while (this.sessions.size + this.creatingSessions >= this.maxSessions) {
+      const oldest = this.sessions.oldest();
+      if (!oldest) return;
+      const idleMs = Date.now() - oldest.lastUsedAt;
+      if (idleMs < this.sessionEvictionGraceMs) return;
+      this.log("session_evicted", {
+        sessionId: oldest.id,
+        reason: "capacity",
+        idleMs
+      });
+      await this.closeSession(oldest);
+    }
   }
   async handleDelete(request, response) {
     const sessionId = headerValue(request.headers["mcp-session-id"]);
@@ -31017,6 +31073,7 @@ var McpHttpHost = class {
     }
     const session = this.sessions.get(sessionId);
     if (!session) {
+      this.log("session_unknown", { sessionId, activeSessions: this.sessions.size });
       sendRpcError(response, 404, -32001, "Unknown or expired session");
       return;
     }
@@ -31031,6 +31088,7 @@ var McpHttpHost = class {
     }
     const session = this.sessions.get(sessionId);
     if (!session) {
+      this.log("session_unknown", { sessionId, activeSessions: this.sessions.size });
       sendRpcError(response, 404, -32001, "Unknown or expired session");
       return;
     }
@@ -40637,11 +40695,27 @@ ${lines.join("\n")}`;
   },
   {
     name: "get_human_intervention_status",
-    description: "Inspects current human intervention state and request history.",
+    description: "Inspects pending Human-In-The-Loop (HIL) requests. This does not report the passive human-takeover window; use get_human_activity for that.",
     parameters: {},
     endpoint: "/hil/active",
     method: "GET",
     format: (data) => JSON.stringify(data, null, 2)
+  },
+  {
+    name: "get_human_activity",
+    description: "Reports whether a person is currently using the browser and therefore blocking synthetic input (HUMAN_IN_PROGRESS). Returns active, remaining pause time, and the last human event.",
+    parameters: {},
+    endpoint: "/human/status",
+    method: "GET",
+    format: (data) => JSON.stringify(data, null, 2)
+  },
+  {
+    name: "resume_agent",
+    description: "Clears a passive human-takeover pause so the agent may act again. Use only when the human confirms they are done, or when a HUMAN_IN_PROGRESS block is a stale false positive. This does not resolve a pending request_human_intervention; use resolve_human_intervention for HIL.",
+    parameters: {},
+    endpoint: "/human/resume",
+    method: "POST",
+    format: (data) => JSON.stringify({ success: data?.success !== false, resumed: data?.resumed !== false }, null, 2)
   },
   {
     name: "send_notification",
@@ -42159,6 +42233,8 @@ Rules of thumb:
 - set_window_visibility(visible?, focus?): Shows/restores the window (and focuses it by default) or hides it to the system tray.
 - configure_system_tray(close_to_tray?): Configures close-to-tray background mode.
 - request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.
+- get_human_activity(): Reports the passive human-takeover window that blocks synthetic input (distinct from HIL requests).
+- resume_agent(): Clears that passive takeover window after the human confirms they are done. It does not resolve a pending HIL request.
 - send_notification(title, message, urgency?, sound?): Sends native OS notification.`
         };
         return { content: [{ type: "text", text: docs[category] || "Category not found." }] };
@@ -42354,7 +42430,7 @@ function readOAuthClient(file2) {
 // src/mcp/remote-server.ts
 var DEFAULT_PORT = 4112;
 var DEFAULT_PATH = "/mcp/browser";
-var DEFAULT_MAX_SESSIONS2 = 4;
+var DEFAULT_MAX_SESSIONS2 = 8;
 var DEFAULT_IDLE_TIMEOUT_MS2 = 15 * 6e4;
 var DEFAULT_MAX_BODY_BYTES2 = 1024 * 1024;
 var LOG_FILE = process.env.HB_REMOTE_LOG_FILE || import_node_path3.default.resolve(process.cwd(), "data", "logs", "remote-server.log");

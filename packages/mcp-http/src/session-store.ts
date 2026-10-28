@@ -46,6 +46,15 @@ export class McpSessionStore {
     return this.sessions.get(id);
   }
 
+  /** Least-recently-used session, used to reclaim capacity without a hard 429. */
+  oldest(): McpHttpSession | undefined {
+    let oldest: McpHttpSession | undefined;
+    for (const session of this.sessions.values()) {
+      if (!oldest || session.lastUsedAt < oldest.lastUsedAt) oldest = session;
+    }
+    return oldest;
+  }
+
   add(session: McpHttpSession): void {
     if (!session.id) throw new Error('cannot register a session without an id');
     if (this.sessions.size >= this.maxSessions) {

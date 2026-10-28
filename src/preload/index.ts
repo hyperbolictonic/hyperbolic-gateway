@@ -6,6 +6,8 @@ export interface ElectronAPI {
   getState: () => Promise<ChassisState>;
   getLatestConstruct: () => Promise<HarvestedConstruct | null>;
   getLogs: () => Promise<any[]>;
+  resumeAgent: () => Promise<{ ok: boolean; resumed?: boolean; error?: string }>;
+  getHumanStatus: () => Promise<{ active: boolean; activeForMs: number; last: any }>;
   navigate: (url: string) => Promise<{ success: boolean }>;
   goBack: () => Promise<{ message: string }>;
   goForward: () => Promise<{ message: string }>;
@@ -195,6 +197,14 @@ const api: ElectronAPI = {
   getState: () => ipcRenderer.invoke('chassis:get-state'),
   getLatestConstruct: () => ipcRenderer.invoke('chassis:get-latest-construct'),
   getLogs: () => ipcRenderer.invoke('chassis:get-logs'),
+  resumeAgent: async () => {
+    try {
+      return { ok: true, ...(await ipcRenderer.invoke('chassis:resume-human')) };
+    } catch (error: any) {
+      return { ok: false, error: error?.message || String(error) };
+    }
+  },
+  getHumanStatus: () => ipcRenderer.invoke('chassis:get-human-status'),
   navigate: (url: string) => ipcRenderer.invoke('chassis:navigate', url),
   goBack: () => ipcRenderer.invoke('chassis:go-back'),
   goForward: () => ipcRenderer.invoke('chassis:go-forward'),

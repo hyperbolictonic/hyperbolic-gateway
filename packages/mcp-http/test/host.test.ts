@@ -94,6 +94,48 @@ test('does not expose non-MCP paths', async () => {
   }
 });
 
+test('reclaims the least-recently-used session at capacity', async () => {
+  const host = createMcpHttpHost({
+    port: 0,
+    path: '/mcp',
+    createServer: createTestServer,
+    authorize: createBearerAuthorizer(() => TOKEN),
+    enableJsonResponse: true,
+    allowSse: false,
+    maxSessions: 1,
+    sessionEvictionGraceMs: 0,
+    idleTimeoutMs: 60_000,
+  });
+  await host.start();
+  const url = new URL(`http://127.0.0.1:${host.status().port}/mcp`);
+  const connect = async (): Promise<Client> => {
+    const client = new Client({ name: 'mcp-http-eviction-test', version: '0.1.0' });
+    const transport = new StreamableHTTPClientTransport(url, {
+      requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
+    });
+    await client.connect(transport);
+    return client;
+  };
+
+  let first: Client | undefined;
+  let second: Client | undefined;
+  try {
+    first = await connect();
+    assert.equal(host.status().sessions, 1);
+
+    second = await connect();
+    assert.equal(host.status().sessions, 1);
+
+    const result = await second.callTool({ name: 'echo', arguments: { text: 'second' } });
+    const content = result.content as Array<{ type: string; text?: string }>;
+    assert.equal(content[0].text, 'second');
+  } finally {
+    await first?.close().catch(() => undefined);
+    await second?.close().catch(() => undefined);
+    await host.stop();
+  }
+});
+
 test('session store expires idle sessions and is bounded by its owner', async () => {
   const expired: string[] = [];
   const store = new McpSessionStore(1, 10, async (session) => {

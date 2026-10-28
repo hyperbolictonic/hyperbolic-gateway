@@ -36,10 +36,12 @@ export interface McpHttpHostOptions {
   enableJsonResponse?: boolean;
   /** Allow GET SSE streams. Default false, and required for Quick Tunnel mode. */
   allowSse?: boolean;
-  /** Maximum concurrent sessions. Default 4. */
+  /** Maximum concurrent sessions. Default 8. */
   maxSessions?: number;
   /** Idle session lifetime. Default 15 minutes. */
   idleTimeoutMs?: number;
+  /** How long a session must be idle before it can be evicted at capacity. Default 30 seconds. */
+  sessionEvictionGraceMs?: number;
   /** Maximum POST body. Default 1 MiB. */
   maxRequestBodyBytes?: number;
   /** Override session-id generation for focused tests. */

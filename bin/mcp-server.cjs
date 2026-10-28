@@ -37574,11 +37574,27 @@ ${lines.join("\n")}`;
   },
   {
     name: "get_human_intervention_status",
-    description: "Inspects current human intervention state and request history.",
+    description: "Inspects pending Human-In-The-Loop (HIL) requests. This does not report the passive human-takeover window; use get_human_activity for that.",
     parameters: {},
     endpoint: "/hil/active",
     method: "GET",
     format: (data) => JSON.stringify(data, null, 2)
+  },
+  {
+    name: "get_human_activity",
+    description: "Reports whether a person is currently using the browser and therefore blocking synthetic input (HUMAN_IN_PROGRESS). Returns active, remaining pause time, and the last human event.",
+    parameters: {},
+    endpoint: "/human/status",
+    method: "GET",
+    format: (data) => JSON.stringify(data, null, 2)
+  },
+  {
+    name: "resume_agent",
+    description: "Clears a passive human-takeover pause so the agent may act again. Use only when the human confirms they are done, or when a HUMAN_IN_PROGRESS block is a stale false positive. This does not resolve a pending request_human_intervention; use resolve_human_intervention for HIL.",
+    parameters: {},
+    endpoint: "/human/resume",
+    method: "POST",
+    format: (data) => JSON.stringify({ success: data?.success !== false, resumed: data?.resumed !== false }, null, 2)
   },
   {
     name: "send_notification",
@@ -39096,6 +39112,8 @@ Rules of thumb:
 - set_window_visibility(visible?, focus?): Shows/restores the window (and focuses it by default) or hides it to the system tray.
 - configure_system_tray(close_to_tray?): Configures close-to-tray background mode.
 - request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.
+- get_human_activity(): Reports the passive human-takeover window that blocks synthetic input (distinct from HIL requests).
+- resume_agent(): Clears that passive takeover window after the human confirms they are done. It does not resolve a pending HIL request.
 - send_notification(title, message, urgency?, sound?): Sends native OS notification.`
         };
         return { content: [{ type: "text", text: docs[category] || "Category not found." }] };

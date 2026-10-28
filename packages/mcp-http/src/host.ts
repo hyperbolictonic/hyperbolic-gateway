@@ -9,8 +9,9 @@ import type {
   McpHttpLogger,
 } from './types.ts';
 
-const DEFAULT_MAX_SESSIONS = 4;
+const DEFAULT_MAX_SESSIONS = 8;
 const DEFAULT_IDLE_TIMEOUT_MS = 15 * 60_000;
+const DEFAULT_SESSION_EVICTION_GRACE_MS = 30_000;
 const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
 const DEFAULT_HOST = '127.0.0.1';
 
@@ -118,6 +119,7 @@ export class McpHttpHost {
   private readonly host: string;
   private readonly path: string;
   private readonly maxSessions: number;
+  private readonly sessionEvictionGraceMs: number;
   private readonly maxRequestBodyBytes: number;
   private readonly enableJsonResponse: boolean;
   private readonly allowSse: boolean;
@@ -133,6 +135,8 @@ export class McpHttpHost {
     this.host = options.host || DEFAULT_HOST;
     this.path = normalizePath(options.path);
     this.maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS;
+    this.sessionEvictionGraceMs =
+      options.sessionEvictionGraceMs ?? DEFAULT_SESSION_EVICTION_GRACE_MS;
     this.maxRequestBodyBytes = options.maxRequestBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
     this.enableJsonResponse = options.enableJsonResponse ?? true;
     this.allowSse = options.allowSse ?? false;
@@ -277,12 +281,26 @@ export class McpHttpHost {
   private async handlePost(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const body = await readJsonBody(request, this.maxRequestBodyBytes);
     const sessionId = headerValue(request.headers['mcp-session-id']);
+    this.logRpcRequest(body, sessionId);
     if (!sessionId) {
       if (!isInitializeMessage(body)) {
+        this.log('session_rejected', {
+          reason: 'initialize_required',
+          activeSessions: this.sessions.size,
+        });
         sendRpcError(response, 400, -32600, 'An initialize message is required to create a session');
         return;
       }
       if (this.sessions.size + this.creatingSessions >= this.maxSessions) {
+        await this.evictIdleForCapacity();
+      }
+      if (this.sessions.size + this.creatingSessions >= this.maxSessions) {
+        this.log('session_rejected', {
+          reason: 'capacity',
+          maxSessions: this.maxSessions,
+          activeSessions: this.sessions.size,
+          creatingSessions: this.creatingSessions,
+        });
         sendRpcError(response, 429, -32000, 'Too many remote sessions');
         return;
       }
@@ -305,11 +323,56 @@ export class McpHttpHost {
 
     const session = this.sessions.get(sessionId);
     if (!session) {
+      this.log('session_unknown', { sessionId, activeSessions: this.sessions.size });
       sendRpcError(response, 404, -32001, 'Unknown or expired session');
       return;
     }
     this.sessions.touch(session);
     await session.transport.handleRequest(request, response, body);
+  }
+
+  private logRpcRequest(body: unknown, sessionId: string | undefined): void {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return;
+    const method = (body as { method?: unknown }).method;
+    if (typeof method !== 'string') return;
+    const params = (body as {
+      params?: {
+        name?: unknown;
+        protocolVersion?: unknown;
+        clientInfo?: { name?: unknown; version?: unknown };
+      };
+    }).params;
+    const tool = method === 'tools/call' && typeof params?.name === 'string' ? params.name : undefined;
+    const protocolVersion =
+      method === 'initialize' && typeof params?.protocolVersion === 'string'
+        ? params.protocolVersion
+        : undefined;
+    const clientName =
+      method === 'initialize' && typeof params?.clientInfo?.name === 'string'
+        ? params.clientInfo.name
+        : undefined;
+    this.log('rpc_request', {
+      method,
+      ...(tool ? { tool } : {}),
+      ...(protocolVersion ? { protocolVersion } : {}),
+      ...(clientName ? { clientName } : {}),
+      sessionId: sessionId || null,
+    });
+  }
+
+  private async evictIdleForCapacity(): Promise<void> {
+    while (this.sessions.size + this.creatingSessions >= this.maxSessions) {
+      const oldest = this.sessions.oldest();
+      if (!oldest) return;
+      const idleMs = Date.now() - oldest.lastUsedAt;
+      if (idleMs < this.sessionEvictionGraceMs) return;
+      this.log('session_evicted', {
+        sessionId: oldest.id,
+        reason: 'capacity',
+        idleMs,
+      });
+      await this.closeSession(oldest);
+    }
   }
 
   private async handleDelete(request: IncomingMessage, response: ServerResponse): Promise<void> {
@@ -320,6 +383,7 @@ export class McpHttpHost {
     }
     const session = this.sessions.get(sessionId);
     if (!session) {
+      this.log('session_unknown', { sessionId, activeSessions: this.sessions.size });
       sendRpcError(response, 404, -32001, 'Unknown or expired session');
       return;
     }
@@ -335,6 +399,7 @@ export class McpHttpHost {
     }
     const session = this.sessions.get(sessionId);
     if (!session) {
+      this.log('session_unknown', { sessionId, activeSessions: this.sessions.size });
       sendRpcError(response, 404, -32001, 'Unknown or expired session');
       return;
     }

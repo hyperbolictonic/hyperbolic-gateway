@@ -14,7 +14,26 @@ const urlInput = document.getElementById('url-input') as HTMLInputElement;
 const viewportUrlDisplay = document.getElementById('viewport-url-display') as HTMLElement;
 const viewportLoadingSpinner = document.getElementById('viewport-loading-spinner') as HTMLElement;
 const agentStatusBadge = document.getElementById('agent-status-badge') as HTMLElement;
+const resumeAgentBtn = document.getElementById('resume-agent-btn') as HTMLButtonElement | null;
 const activeActionText = document.getElementById('active-action-text') as HTMLElement;
+
+resumeAgentBtn?.addEventListener('click', async () => {
+  if (!resumeAgentBtn) return;
+  resumeAgentBtn.disabled = true;
+  try {
+    const result = await window.electronAPI?.resumeAgent();
+    if (!result?.ok) {
+      activeActionText.textContent = result?.error || 'Could not resume the agent.';
+      return;
+    }
+    resumeAgentBtn.classList.add('hidden');
+    activeActionText.textContent = 'Human takeover cleared — agent may act again';
+  } catch (error: any) {
+    activeActionText.textContent = `Could not resume the agent: ${error?.message || error}`;
+  } finally {
+    resumeAgentBtn.disabled = false;
+  }
+});
 const harvestBtn = document.getElementById('harvest-btn') as HTMLButtonElement;
 const copyConstructBtn = document.getElementById('copy-construct-btn') as HTMLButtonElement;
 const chassisVersionBadge = document.getElementById('chassis-version');
@@ -637,6 +656,10 @@ function updateState(state: ChassisState) {
     case 'HUMAN_INPUT':
       agentStatusBadge.classList.add('badge-info', 'animate-pulse');
       break;
+  }
+
+  if (resumeAgentBtn) {
+    resumeAgentBtn.classList.toggle('hidden', state.agentStatus !== 'HUMAN_INPUT');
   }
 
   // Update Stats

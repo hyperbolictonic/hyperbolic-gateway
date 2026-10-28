@@ -8,7 +8,7 @@ import { readOAuthClient } from '../main/remote/oauth-client.js';
 
 const DEFAULT_PORT = 4112;
 const DEFAULT_PATH = '/mcp/browser';
-const DEFAULT_MAX_SESSIONS = 4;
+const DEFAULT_MAX_SESSIONS = 8;
 const DEFAULT_IDLE_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
 
