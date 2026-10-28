@@ -40,6 +40,7 @@ function sendJson(response: ServerResponse, status: number, payload: unknown): v
   }
   const body = JSON.stringify(payload);
   response.writeHead(status, {
+    ...response.getHeaders(),
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
@@ -216,6 +217,9 @@ export class McpHttpHost {
 
   private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const requestUrl = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+    if (this.options.handleExtraRequest && await this.options.handleExtraRequest(request, response, requestUrl)) {
+      return;
+    }
     if (requestUrl.pathname !== this.path) {
       sendRpcError(response, 404, -32601, 'Not found');
       return;
@@ -235,6 +239,8 @@ export class McpHttpHost {
 
     const auth = this.options.authorize(request);
     if (!auth) {
+      const challenge = this.options.authChallenge?.(request);
+      if (challenge) response.setHeader('WWW-Authenticate', challenge);
       sendRpcError(response, 401, -32001, 'Unauthorized');
       return;
     }

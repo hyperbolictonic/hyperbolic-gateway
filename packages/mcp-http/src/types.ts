@@ -1,5 +1,11 @@
-import type { IncomingMessage } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+
+export type McpHttpExtraHandler = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+) => boolean | Promise<boolean>;
 
 /** The identity attached to a successful remote request. */
 export interface McpHttpAuth {
@@ -22,6 +28,10 @@ export interface McpHttpHostOptions {
   createServer: () => McpServer | Promise<McpServer>;
   /** Required auth check, run before session creation and body parsing. */
   authorize: McpHttpAuthorize;
+  /** Handle metadata/OAuth/application routes before the MCP path check. */
+  handleExtraRequest?: McpHttpExtraHandler;
+  /** Optional WWW-Authenticate value for a 401 response. */
+  authChallenge?: (request: IncomingMessage) => string | undefined;
   /** Return direct JSON responses instead of SSE for POSTs. Default true. */
   enableJsonResponse?: boolean;
   /** Allow GET SSE streams. Default false, and required for Quick Tunnel mode. */

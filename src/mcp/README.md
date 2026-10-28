@@ -49,8 +49,9 @@ In addition to the 63 advertised tools, `bridge-server.ts` registers **7 MCP res
 ### Remote gateway (Phase 1)
 
 - **[`browser-mcp.ts`](./browser-mcp.ts)**: side-effect-free `createBridgeMcpServer()` factory used by both the stdio entry point and the HTTP gateway.
-- **[`remote-server.ts`](./remote-server.ts)**: builds `bin/remote-server.cjs`, a loopback-only Streamable HTTP MCP process for remote clients. It exposes `/mcp/browser` with bearer auth and never proxies the raw bridge.
+- **[`remote-server.ts`](./remote-server.ts)**: builds `bin/remote-server.cjs`, a loopback-only Streamable HTTP MCP process for remote clients. It exposes `/mcp/browser` with either bearer auth or OAuth 2.0 and never proxies the raw bridge.
 - **[`../../packages/mcp-http`](../../packages/mcp-http/README.md)**: reusable HTTP host, auth helper, session cap and idle expiry. No Electron or Hyperbolic Gateway imports.
+- **[`../../packages/mcp-oauth`](../../packages/mcp-oauth/README.md)**: reusable OAuth 2.1 authorization server for Gemini’s static client flow.
 
 ---
 

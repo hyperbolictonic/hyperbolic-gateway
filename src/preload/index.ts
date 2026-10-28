@@ -84,6 +84,7 @@ export interface ElectronAPI {
     status?: RemoteStatus;
     token?: string;
     config?: string;
+    oauthClient?: { clientId: string; clientSecret: string; createdAt: string };
     error?: string;
   }>;
   setRemoteEnabled: (enabled: boolean) => Promise<{
@@ -117,6 +118,16 @@ export interface ElectronAPI {
     error?: string;
   }>;
   installCloudflared: () => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
+  setRemoteAuthMode: (mode: 'bearer' | 'oauth') => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
+  rotateOAuthClient: () => Promise<{
     ok: boolean;
     status?: RemoteStatus;
     error?: string;
@@ -288,6 +299,8 @@ const api: ElectronAPI = {
   setCloudflaredMode: (mode: 'manual' | 'automatic') => ipcRenderer.invoke('remote:set-cloudflared-mode', mode),
   checkCloudflared: () => ipcRenderer.invoke('remote:check-cloudflared'),
   installCloudflared: () => ipcRenderer.invoke('remote:install-cloudflared'),
+  setRemoteAuthMode: (mode: 'bearer' | 'oauth') => ipcRenderer.invoke('remote:set-auth-mode', mode),
+  rotateOAuthClient: () => ipcRenderer.invoke('remote:rotate-oauth-client'),
   saveRecordingConfig: (config: any) => ipcRenderer.invoke('recording:config:save', config),
   pickRecordingDir: () => ipcRenderer.invoke('recording:pick-dir'),
   startRecording: (name?: string) => ipcRenderer.invoke('recording:start', name),

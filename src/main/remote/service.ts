@@ -5,6 +5,8 @@ import net from 'node:net';
 import path from 'node:path';
 import { createRemoteToken, readRemoteToken, remoteTokenFile } from './token.ts';
 import { findCloudflared } from './cloudflared.ts';
+import { ensureOAuthClient, oauthClientFile, createOAuthClient } from './oauth-client.ts';
+import type { OAuthClientCredentials } from './oauth-client.ts';
 import { CloudflaredManager } from '../../../packages/cloudflared/src/index.ts';
 import type { CloudflaredCheck, CloudflaredUpdateMode } from '../../../packages/cloudflared/src/index.ts';
 import { QuickTunnel } from '../../../packages/quick-tunnel/src/index.ts';
@@ -64,7 +66,9 @@ export class RemoteService {
   private readonly tunnelLogFile: string;
   private readonly cloudflared: CloudflaredManager;
   private readonly settingsPath: string;
+  private readonly oauthClientPath: string;
   private updateMode: CloudflaredUpdateMode;
+  private authMode: 'bearer' | 'oauth';
   private lastCloudflaredCheck: CloudflaredCheck | undefined;
   private cloudflaredError: string | undefined;
 
@@ -75,7 +79,10 @@ export class RemoteService {
     this.tunnelLogFile = path.join(options.dataDir, 'quick-tunnel.log');
     this.cloudflared = new CloudflaredManager({ dataDir: options.dataDir });
     this.settingsPath = path.join(options.dataDir, 'settings.json');
-    this.updateMode = loadRemoteSettings(this.settingsPath).cloudflaredUpdateMode;
+    this.oauthClientPath = oauthClientFile(options.dataDir);
+    const settings = loadRemoteSettings(this.settingsPath);
+    this.updateMode = settings.cloudflaredUpdateMode;
+    this.authMode = settings.authMode;
   }
 
   ensureToken(): string {
@@ -94,6 +101,7 @@ export class RemoteService {
       status: this.status(),
       token: this.getToken(),
       config: this.getConfig(),
+      ...(this.authMode === 'oauth' ? { oauthClient: this.getOAuthClient() } : {}),
     };
   }
 
@@ -120,6 +128,7 @@ export class RemoteService {
       localUrl: this.localUrl(),
       url: this.publicUrl(),
       tokenFile: this.tokenPath,
+      authMode: this.authMode,
       tunnel: this.tunnelStatus(),
       cloudflared: this.cloudflaredStatus(),
       ...(this.lastError ? { error: this.lastError } : {}),
@@ -132,11 +141,56 @@ export class RemoteService {
 
   async setCloudflaredUpdateMode(mode: CloudflaredUpdateMode): Promise<RemoteStatus> {
     this.updateMode = mode === 'automatic' ? 'automatic' : 'manual';
+    this.saveSettings();
+    return this.status();
+  }
+
+  getOAuthClient(): OAuthClientCredentials {
+    return ensureOAuthClient(this.oauthClientPath);
+  }
+
+  async setAuthMode(mode: 'bearer' | 'oauth'): Promise<RemoteStatus> {
+    const next = mode === 'oauth' ? 'oauth' : 'bearer';
+    if (next === this.authMode) return this.status();
+    const wasRunning = Boolean(this.child);
+    if (wasRunning) await this.stopChild();
+    this.authMode = next;
+    if (next === 'oauth') ensureOAuthClient(this.oauthClientPath);
+    this.saveSettings();
+    if (wasRunning) {
+      this.enabled = true;
+      try {
+        await this.startChild();
+      } catch (error) {
+        this.enabled = false;
+        throw error;
+      }
+    }
+    return this.status();
+  }
+
+  async rotateOAuthClient(): Promise<RemoteStatus> {
+    const wasRunning = Boolean(this.child);
+    if (wasRunning) await this.stopChild();
+    createOAuthClient(this.oauthClientPath);
+    if (wasRunning) {
+      this.enabled = true;
+      try {
+        await this.startChild();
+      } catch (error) {
+        this.enabled = false;
+        throw error;
+      }
+    }
+    return this.status();
+  }
+
+  private saveSettings(): void {
     saveRemoteSettings(this.settingsPath, {
       schemaVersion: 1,
       cloudflaredUpdateMode: this.updateMode,
+      authMode: this.authMode,
     });
-    return this.status();
   }
 
   async checkCloudflared(): Promise<RemoteStatus> {
@@ -324,6 +378,7 @@ export class RemoteService {
   private async startChild(): Promise<void> {
     if (this.child) return;
     this.ensureToken();
+    if (this.authMode === 'oauth') ensureOAuthClient(this.oauthClientPath);
     if (!fs.existsSync(this.options.serverPath)) {
       throw new Error(`Remote gateway binary not found: ${this.options.serverPath}`);
     }
@@ -340,6 +395,8 @@ export class RemoteService {
         HB_REMOTE_HOST: '127.0.0.1',
         HB_REMOTE_PATH: '/mcp/browser',
         HB_REMOTE_LOG_FILE: this.logFile,
+        HB_REMOTE_AUTH_MODE: this.authMode,
+        HB_OAUTH_CLIENT_FILE: this.oauthClientPath,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

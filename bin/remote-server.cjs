@@ -7290,12 +7290,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs6, exportName) {
+    function addFormats(ajv, list, fs7, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs6[f]);
+        ajv.addFormat(f, fs7[f]);
     }
     module2.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -7304,7 +7304,7 @@ var require_dist = __commonJS({
 });
 
 // src/mcp/remote-server.ts
-var import_node_fs5 = __toESM(require("node:fs"), 1);
+var import_node_fs6 = __toESM(require("node:fs"), 1);
 var import_node_path3 = __toESM(require("node:path"), 1);
 
 // packages/mcp-http/src/host.ts
@@ -30774,6 +30774,7 @@ function sendJson(response, status, payload) {
   }
   const body = JSON.stringify(payload);
   response.writeHead(status, {
+    ...response.getHeaders(),
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
@@ -30923,6 +30924,9 @@ var McpHttpHost = class {
   }
   async handleRequest(request, response) {
     const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+    if (this.options.handleExtraRequest && await this.options.handleExtraRequest(request, response, requestUrl)) {
+      return;
+    }
     if (requestUrl.pathname !== this.path) {
       sendRpcError(response, 404, -32601, "Not found");
       return;
@@ -30939,6 +30943,8 @@ var McpHttpHost = class {
     }
     const auth = this.options.authorize(request);
     if (!auth) {
+      const challenge = this.options.authChallenge?.(request);
+      if (challenge) response.setHeader("WWW-Authenticate", challenge);
       sendRpcError(response, 401, -32001, "Unauthorized");
       return;
     }
@@ -31131,6 +31137,452 @@ function createBearerAuthorizer(readExpectedToken, subject = "remote") {
     return { subject };
   };
 }
+
+// packages/mcp-oauth/src/oauth.ts
+var import_node_crypto3 = __toESM(require("node:crypto"), 1);
+var DEFAULT_SCOPES = ["mcp"];
+var DEFAULT_REDIRECT_HOSTS = ["oauth-redirect.googleusercontent.com", "gemini.google.com"];
+var AUTH_CODE_TTL_MS = 5 * 6e4;
+var ACCESS_TTL_MS = 60 * 6e4;
+var REFRESH_TTL_MS = 30 * 24 * 60 * 6e4;
+var MAX_BODY_BYTES = 16 * 1024;
+var PKCE_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
+function randomToken(bytes = 32) {
+  return import_node_crypto3.default.randomBytes(bytes).toString("hex");
+}
+function constantTimeEquals(actual, expected) {
+  const left = Buffer.from(actual, "utf8");
+  const right = Buffer.from(expected, "utf8");
+  if (left.length !== right.length) return false;
+  return import_node_crypto3.default.timingSafeEqual(left, right);
+}
+function escapeHtml(value) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+function base64Url(bytes) {
+  return bytes.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function normalizePath2(value) {
+  const withSlash = value.startsWith("/") ? value : `/${value}`;
+  return withSlash.length > 1 ? withSlash.replace(/\/+$/, "") : withSlash;
+}
+function headerValue2(value) {
+  return Array.isArray(value) ? value[0] : value;
+}
+function originOf(request) {
+  const host = headerValue2(request.headers.host);
+  if (!host || /[\r\n]/.test(host)) throw new Error("Missing or invalid Host header");
+  const forwarded = headerValue2(request.headers["x-forwarded-proto"])?.split(",")[0]?.trim();
+  const cfVisitor = headerValue2(request.headers["cf-visitor"]);
+  let cfScheme;
+  if (cfVisitor) {
+    try {
+      cfScheme = String(JSON.parse(cfVisitor).scheme || "").toLowerCase();
+    } catch {
+      cfScheme = void 0;
+    }
+  }
+  const socket = request.socket;
+  const protocol = forwarded === "https" || forwarded === "http" ? forwarded : cfScheme === "https" || request.headers["cf-ray"] ? "https" : socket.encrypted ? "https" : "http";
+  return `${protocol}://${host}`;
+}
+function sendJson2(response, status, payload) {
+  const body = JSON.stringify(payload);
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Length": Buffer.byteLength(body)
+  });
+  response.end(body);
+}
+function sendHtml(response, status, html) {
+  response.writeHead(status, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff"
+  });
+  response.end(html);
+}
+function redirect2(response, location) {
+  response.writeHead(302, { Location: location, "Cache-Control": "no-store" });
+  response.end();
+}
+function readBody(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    let size = 0;
+    let done = false;
+    request.on("data", (chunk) => {
+      if (done) return;
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        done = true;
+        reject(new Error("Request body too large"));
+        request.resume();
+        return;
+      }
+      body += chunk.toString("utf8");
+    });
+    request.on("end", () => {
+      if (done) return;
+      done = true;
+      resolve(body);
+    });
+    request.on("error", (error62) => {
+      if (done) return;
+      done = true;
+      reject(error62);
+    });
+  });
+}
+async function readFields(request) {
+  const body = await readBody(request);
+  if (!body) return {};
+  const contentType3 = String(request.headers["content-type"] || "");
+  if (contentType3.includes("application/json")) {
+    const parsed = JSON.parse(body);
+    const fields = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "string") fields[key] = value;
+    }
+    return fields;
+  }
+  const params = new URLSearchParams(body);
+  return Object.fromEntries(params.entries());
+}
+var McpOAuthServer = class {
+  options;
+  resourcePath;
+  scopes;
+  allowedRedirectHosts;
+  accessTokenTtlMs;
+  refreshTokenTtlMs;
+  pending = /* @__PURE__ */ new Map();
+  codes = /* @__PURE__ */ new Map();
+  access = /* @__PURE__ */ new Map();
+  refresh = /* @__PURE__ */ new Map();
+  timer = null;
+  constructor(options) {
+    this.options = options;
+    this.resourcePath = normalizePath2(options.resourcePath);
+    this.scopes = options.scopes?.length ? [...options.scopes] : DEFAULT_SCOPES;
+    this.allowedRedirectHosts = new Set(options.allowedRedirectHosts || DEFAULT_REDIRECT_HOSTS);
+    this.accessTokenTtlMs = options.accessTokenTtlMs ?? ACCESS_TTL_MS;
+    this.refreshTokenTtlMs = options.refreshTokenTtlMs ?? REFRESH_TTL_MS;
+    this.timer = setInterval(() => this.prune(), 6e4);
+    this.timer.unref();
+  }
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.pending.clear();
+    this.codes.clear();
+    this.access.clear();
+    this.refresh.clear();
+  }
+  authorize(request) {
+    const header = headerValue2(request.headers.authorization);
+    const match = header?.match(/^Bearer\s+(.+)$/i);
+    if (!match) return null;
+    this.prune();
+    const record2 = this.access.get(match[1]);
+    if (!record2) return null;
+    return { subject: `oauth:${record2.clientId}` };
+  }
+  challenge(request) {
+    try {
+      return `Bearer resource_metadata="${originOf(request)}/.well-known/oauth-protected-resource${this.resourcePath}"`;
+    } catch {
+      return void 0;
+    }
+  }
+  async handleRequest(request, response, url2) {
+    if (url2.pathname.startsWith("/.well-known/oauth-protected-resource")) {
+      this.handleResourceMetadata(request, response);
+      return true;
+    }
+    if (url2.pathname === "/.well-known/oauth-authorization-server" || url2.pathname === "/.well-known/openid-configuration") {
+      this.handleAuthorizationServerMetadata(request, response);
+      return true;
+    }
+    if (url2.pathname === "/oauth/authorize") {
+      await this.handleAuthorize(request, response, url2);
+      return true;
+    }
+    if (url2.pathname === "/oauth/token") {
+      await this.handleToken(request, response);
+      return true;
+    }
+    if (url2.pathname === "/oauth/revoke") {
+      await this.handleRevoke(request, response);
+      return true;
+    }
+    return false;
+  }
+  log(event, detail) {
+    try {
+      this.options.logger?.(event, detail);
+    } catch {
+    }
+  }
+  origin(request) {
+    return originOf(request);
+  }
+  handleResourceMetadata(request, response) {
+    const origin = this.origin(request);
+    sendJson2(response, 200, {
+      resource: `${origin}${this.resourcePath}`,
+      authorization_servers: [origin],
+      scopes_supported: this.scopes,
+      bearer_methods_supported: ["header"],
+      resource_name: "Hyperbolic Gateway Remote Browser"
+    });
+  }
+  handleAuthorizationServerMetadata(request, response) {
+    const origin = this.origin(request);
+    sendJson2(response, 200, {
+      issuer: origin,
+      authorization_endpoint: `${origin}/oauth/authorize`,
+      token_endpoint: `${origin}/oauth/token`,
+      revocation_endpoint: `${origin}/oauth/revoke`,
+      response_types_supported: ["code"],
+      grant_types_supported: ["authorization_code", "refresh_token"],
+      code_challenge_methods_supported: ["S256"],
+      token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
+      scopes_supported: this.scopes,
+      resource: `${origin}${this.resourcePath}`
+    });
+  }
+  async handleAuthorize(request, response, url2) {
+    if (request.method === "GET") {
+      const params = url2.searchParams;
+      const error62 = this.validateAuthorize(params);
+      if (error62) {
+        this.log("oauth_authorize_rejected", {
+          error: error62,
+          clientId: params.get("client_id"),
+          redirectUri: params.get("redirect_uri")
+        });
+        sendHtml(response, 400, this.errorPage(error62));
+        return;
+      }
+      const nonce = randomToken(24);
+      this.pending.set(nonce, {
+        clientId: params.get("client_id") || "",
+        redirectUri: params.get("redirect_uri") || "",
+        state: params.get("state") || void 0,
+        scope: this.parseScope(params.get("scope")),
+        codeChallenge: params.get("code_challenge") || "",
+        expiresAt: Date.now() + AUTH_CODE_TTL_MS
+      });
+      sendHtml(response, 200, this.consentPage(nonce, params));
+      return;
+    }
+    if (request.method !== "POST") {
+      sendJson2(response, 405, { error: "method_not_allowed" });
+      return;
+    }
+    const fields = await readFields(request);
+    const pending = this.pending.get(fields.nonce || "");
+    if (!pending || pending.expiresAt < Date.now()) {
+      sendHtml(response, 400, this.errorPage("This authorization request expired. Start again from Gemini."));
+      return;
+    }
+    this.pending.delete(fields.nonce || "");
+    const redirectUrl = new URL(pending.redirectUri);
+    if (pending.state) redirectUrl.searchParams.set("state", pending.state);
+    if (fields.decision !== "approve") {
+      redirectUrl.searchParams.set("error", "access_denied");
+      this.log("oauth_access_denied", { clientId: pending.clientId });
+      redirect2(response, redirectUrl.toString());
+      return;
+    }
+    const code = randomToken(24);
+    this.codes.set(code, { ...pending, code, expiresAt: Date.now() + AUTH_CODE_TTL_MS });
+    redirectUrl.searchParams.set("code", code);
+    this.log("oauth_code_issued", { clientId: pending.clientId });
+    redirect2(response, redirectUrl.toString());
+  }
+  validateAuthorize(params) {
+    if (params.get("client_id") !== this.options.clientId) return "Unknown OAuth client.";
+    if (params.get("response_type") !== "code") return "Only authorization code responses are supported.";
+    const redirectUri = params.get("redirect_uri");
+    if (!redirectUri || !this.allowedRedirect(redirectUri)) return "The redirect URI is not allowed.";
+    const challenge = params.get("code_challenge");
+    if (!challenge || !PKCE_PATTERN.test(challenge)) return "PKCE S256 is required.";
+    if ((params.get("code_challenge_method") || "S256") !== "S256") return "Only PKCE S256 is supported.";
+    const requested = this.parseScope(params.get("scope"));
+    if (requested.some((scope) => !this.scopes.includes(scope))) return "The requested scope is not allowed.";
+    return null;
+  }
+  parseScope(raw) {
+    const requested = (raw || "").split(/\s+/).filter(Boolean);
+    return requested.length ? requested : [...this.scopes];
+  }
+  allowedRedirect(value) {
+    let url2;
+    try {
+      url2 = new URL(value);
+    } catch {
+      return false;
+    }
+    const local = url2.hostname === "127.0.0.1" || url2.hostname === "localhost" || url2.hostname === "[::1]";
+    if (local) return url2.protocol === "http:" || url2.protocol === "https:";
+    return url2.protocol === "https:" && this.allowedRedirectHosts.has(url2.hostname);
+  }
+  async handleToken(request, response) {
+    if (request.method !== "POST") {
+      sendJson2(response, 405, { error: "method_not_allowed" });
+      return;
+    }
+    let fields;
+    try {
+      fields = await readFields(request);
+    } catch {
+      sendJson2(response, 400, { error: "invalid_request" });
+      return;
+    }
+    const client = this.authenticateClient(request, fields);
+    if (!client) {
+      sendJson2(response, 401, { error: "invalid_client" });
+      return;
+    }
+    if (fields.grant_type === "authorization_code") {
+      const record2 = this.codes.get(fields.code || "");
+      if (!record2 || record2.expiresAt < Date.now()) {
+        sendJson2(response, 400, { error: "invalid_grant" });
+        return;
+      }
+      if (record2.clientId !== client || record2.redirectUri !== fields.redirect_uri) {
+        sendJson2(response, 400, { error: "invalid_grant" });
+        return;
+      }
+      const verifier = fields.code_verifier || "";
+      const expected = base64Url(import_node_crypto3.default.createHash("sha256").update(verifier).digest());
+      if (!constantTimeEquals(expected, record2.codeChallenge)) {
+        sendJson2(response, 400, { error: "invalid_grant" });
+        return;
+      }
+      this.codes.delete(record2.code);
+      this.log("oauth_token_issued", { clientId: client, grant: "authorization_code" });
+      sendJson2(response, 200, this.issueTokens(client, record2.scope));
+      return;
+    }
+    if (fields.grant_type === "refresh_token") {
+      const record2 = this.refresh.get(fields.refresh_token || "");
+      if (!record2 || record2.expiresAt < Date.now() || record2.clientId !== client) {
+        sendJson2(response, 400, { error: "invalid_grant" });
+        return;
+      }
+      this.refresh.delete(record2.token);
+      this.log("oauth_token_issued", { clientId: client, grant: "refresh_token" });
+      sendJson2(response, 200, this.issueTokens(client, record2.scope));
+      return;
+    }
+    sendJson2(response, 400, { error: "unsupported_grant_type" });
+  }
+  async handleRevoke(request, response) {
+    if (request.method !== "POST") {
+      sendJson2(response, 405, { error: "method_not_allowed" });
+      return;
+    }
+    const fields = await readFields(request).catch(() => ({}));
+    if (!this.authenticateClient(request, fields)) {
+      sendJson2(response, 401, { error: "invalid_client" });
+      return;
+    }
+    const token = fields.token || "";
+    this.access.delete(token);
+    this.refresh.delete(token);
+    response.writeHead(200, { "Cache-Control": "no-store" });
+    response.end();
+  }
+  authenticateClient(request, fields) {
+    let clientId = fields.client_id || "";
+    let clientSecret = fields.client_secret || "";
+    const header = headerValue2(request.headers.authorization);
+    const basic = header?.match(/^Basic\s+(.+)$/i);
+    if (basic) {
+      try {
+        const decoded = Buffer.from(basic[1], "base64").toString("utf8");
+        const separator = decoded.indexOf(":");
+        if (separator >= 0) {
+          clientId = decodeURIComponent(decoded.slice(0, separator));
+          clientSecret = decodeURIComponent(decoded.slice(separator + 1));
+        }
+      } catch {
+        return null;
+      }
+    }
+    if (!constantTimeEquals(clientId, this.options.clientId)) return null;
+    if (!constantTimeEquals(clientSecret, this.options.clientSecret)) return null;
+    return clientId;
+  }
+  issueTokens(clientId, scope) {
+    const access = randomToken();
+    const refresh = randomToken();
+    const now = Date.now();
+    this.access.set(access, {
+      token: access,
+      clientId,
+      scope,
+      expiresAt: now + this.accessTokenTtlMs
+    });
+    this.refresh.set(refresh, {
+      token: refresh,
+      clientId,
+      scope,
+      expiresAt: now + this.refreshTokenTtlMs
+    });
+    return {
+      access_token: access,
+      token_type: "Bearer",
+      expires_in: Math.floor(this.accessTokenTtlMs / 1e3),
+      refresh_token: refresh,
+      scope: scope.join(" ")
+    };
+  }
+  prune() {
+    const now = Date.now();
+    for (const [key, value] of this.pending) if (value.expiresAt < now) this.pending.delete(key);
+    for (const [key, value] of this.codes) if (value.expiresAt < now) this.codes.delete(key);
+    for (const [key, value] of this.access) if (value.expiresAt < now) this.access.delete(key);
+    for (const [key, value] of this.refresh) if (value.expiresAt < now) this.refresh.delete(key);
+  }
+  consentPage(nonce, params) {
+    const redirectHost = (() => {
+      try {
+        return new URL(params.get("redirect_uri") || "").hostname;
+      } catch {
+        return "unknown client";
+      }
+    })();
+    return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Authorize Hyperbolic Gateway</title>
+<style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}h1{font-size:1.5rem;margin-bottom:.4rem}.card{border:1px solid #243653;border-radius:14px;padding:22px;background:#111a2b}.warn{border-left:3px solid #f59e0b;background:#1f1a12;padding:10px 14px;border-radius:6px;margin:18px 0}.actions{display:flex;gap:10px;margin-top:20px}button{padding:10px 16px;border-radius:8px;border:1px solid #243653;background:#16233a;color:#e6edf7;font-weight:600;cursor:pointer}button.primary{background:#22d3ee;color:#07111d;border-color:transparent}code{color:#a3e635}</style>
+</head><body><div class="card">
+<h1>Authorize Hyperbolic Gateway</h1>
+<p>A remote OAuth client wants to control this Chromium browser and its logged-in sessions.</p>
+<div class="warn">Only approve if you started this connection yourself. Client: <code>${escapeHtml(params.get("client_id") || "")}</code><br>Redirect host: <code>${escapeHtml(redirectHost)}</code></div>
+<form method="post" action="/oauth/authorize">
+<input type="hidden" name="nonce" value="${escapeHtml(nonce)}">
+<input type="hidden" name="client_id" value="${escapeHtml(params.get("client_id") || "")}">
+<input type="hidden" name="redirect_uri" value="${escapeHtml(params.get("redirect_uri") || "")}">
+<input type="hidden" name="state" value="${escapeHtml(params.get("state") || "")}">
+<input type="hidden" name="code_challenge" value="${escapeHtml(params.get("code_challenge") || "")}">
+<input type="hidden" name="code_challenge_method" value="S256">
+<input type="hidden" name="scope" value="${escapeHtml(params.get("scope") || "")}">
+<div class="actions"><button class="primary" name="decision" value="approve" type="submit">Allow access</button><button name="decision" value="deny" type="submit">Cancel</button></div>
+</form></div></body></html>`;
+  }
+  errorPage(message) {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>OAuth error</title><style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}</style></head><body><h1>OAuth error</h1><p>${escapeHtml(message)}</p></body></html>`;
+  }
+};
 
 // src/mcp/browser-mcp.ts
 var import_node_fs3 = __toESM(require("node:fs"), 1);
@@ -41846,6 +42298,26 @@ function readRemoteToken(file2) {
   }
 }
 
+// src/main/remote/oauth-client.ts
+var import_node_fs5 = __toESM(require("node:fs"), 1);
+var CLIENT_ID_PATTERN = /^hg_[a-f0-9]{32}$/i;
+var SECRET_PATTERN = /^[a-f0-9]{64}$/i;
+function readOAuthClient(file2) {
+  try {
+    const parsed = JSON.parse(import_node_fs5.default.readFileSync(file2, "utf8"));
+    if (typeof parsed.clientId !== "string" || typeof parsed.clientSecret !== "string" || !CLIENT_ID_PATTERN.test(parsed.clientId) || !SECRET_PATTERN.test(parsed.clientSecret)) {
+      return void 0;
+    }
+    return {
+      clientId: parsed.clientId,
+      clientSecret: parsed.clientSecret,
+      createdAt: typeof parsed.createdAt === "string" ? parsed.createdAt : (/* @__PURE__ */ new Date()).toISOString()
+    };
+  } catch {
+    return void 0;
+  }
+}
+
 // src/mcp/remote-server.ts
 var DEFAULT_PORT = 4112;
 var DEFAULT_PATH = "/mcp/browser";
@@ -41860,8 +42332,8 @@ function logRemote(event, detail) {
     ...detail ? { ...detail } : {}
   });
   try {
-    import_node_fs5.default.mkdirSync(import_node_path3.default.dirname(LOG_FILE), { recursive: true });
-    import_node_fs5.default.appendFileSync(LOG_FILE, `${line}
+    import_node_fs6.default.mkdirSync(import_node_path3.default.dirname(LOG_FILE), { recursive: true });
+    import_node_fs6.default.appendFileSync(LOG_FILE, `${line}
 `, "utf8");
   } catch {
   }
@@ -41901,12 +42373,29 @@ async function main() {
   const maxSessions = positiveInteger(process.env.HB_REMOTE_MAX_SESSIONS, DEFAULT_MAX_SESSIONS2);
   const idleTimeoutMs = positiveInteger(process.env.HB_REMOTE_IDLE_MS, DEFAULT_IDLE_TIMEOUT_MS2);
   const maxRequestBodyBytes = positiveInteger(process.env.HB_REMOTE_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES2);
+  const authMode = process.env.HB_REMOTE_AUTH_MODE === "oauth" ? "oauth" : "bearer";
+  const oauth = authMode === "oauth" ? (() => {
+    const clientFile = process.env.HB_OAUTH_CLIENT_FILE?.trim();
+    if (!clientFile) throw new Error("HB_OAUTH_CLIENT_FILE is required for OAuth mode");
+    const client = readOAuthClient(clientFile);
+    if (!client) throw new Error("OAuth client credentials are missing or invalid");
+    return new McpOAuthServer({
+      clientId: client.clientId,
+      clientSecret: client.clientSecret,
+      resourcePath: pathName,
+      logger: logRemote
+    });
+  })() : null;
   const gateway = createMcpHttpHost({
     host,
     port,
     path: pathName,
     createServer: createBridgeMcpServer,
-    authorize: createBearerAuthorizer(() => readRemoteToken(tokenFile), "remote-operator"),
+    authorize: oauth ? (request) => oauth.authorize(request) : createBearerAuthorizer(() => readRemoteToken(tokenFile), "remote-operator"),
+    ...oauth ? {
+      handleExtraRequest: (request, response, url2) => oauth.handleRequest(request, response, url2),
+      authChallenge: (request) => oauth.challenge(request)
+    } : {},
     enableJsonResponse: true,
     allowSse: false,
     maxSessions,
@@ -41917,6 +42406,7 @@ async function main() {
   await gateway.start();
   logRemote("gateway_listening", {
     url: `http://${host}:${gateway.status().port}${pathName}`,
+    authMode,
     maxSessions,
     idleTimeoutMs
   });
@@ -41924,6 +42414,7 @@ async function main() {
     logRemote("gateway_stopping", { signal });
     try {
       await gateway.stop();
+      oauth?.stop();
     } catch (error62) {
       logRemote("gateway_stop_error", {
         message: error62 instanceof Error ? error62.message : String(error62)

@@ -2515,6 +2515,16 @@ const remoteCloudflaredModeEl = document.getElementById('settings-remote-cloudfl
 const remoteCloudflaredCheckEl = document.getElementById('settings-remote-cloudflared-check') as HTMLButtonElement | null;
 const remoteCloudflaredInstallEl = document.getElementById('settings-remote-cloudflared-install') as HTMLButtonElement | null;
 const remoteCloudflaredResultEl = document.getElementById('settings-remote-cloudflared-result') as HTMLElement | null;
+const remoteAuthModeEl = document.getElementById('settings-remote-auth-mode') as HTMLSelectElement | null;
+const remoteBearerSectionEl = document.getElementById('settings-remote-bearer-section') as HTMLElement | null;
+const remoteOAuthSectionEl = document.getElementById('settings-remote-oauth-section') as HTMLElement | null;
+const remoteOAuthClientIdEl = document.getElementById('settings-remote-oauth-client-id') as HTMLInputElement | null;
+const remoteOAuthClientSecretEl = document.getElementById('settings-remote-oauth-client-secret') as HTMLInputElement | null;
+const remoteOAuthConfigEl = document.getElementById('settings-remote-oauth-config') as HTMLTextAreaElement | null;
+const remoteCopyOAuthIdEl = document.getElementById('settings-remote-copy-oauth-id') as HTMLButtonElement | null;
+const remoteCopyOAuthSecretEl = document.getElementById('settings-remote-copy-oauth-secret') as HTMLButtonElement | null;
+const remoteCopyOAuthConfigEl = document.getElementById('settings-remote-copy-oauth-config') as HTMLButtonElement | null;
+const remoteRotateOAuthEl = document.getElementById('settings-remote-rotate-oauth') as HTMLButtonElement | null;
 
 function showRemoteResult(kind: 'success' | 'error' | 'info', text: string): void {
   if (!remoteResultEl) return;
@@ -2615,6 +2625,7 @@ async function loadRemotePanel(): Promise<void> {
     if (!result?.ok || !result.status) {
       renderRemoteStatus(undefined);
       renderTunnelStatus(undefined);
+      renderCloudflaredStatus(undefined);
       showRemoteResult('error', result?.error || 'Remote access is not ready yet.');
       return;
     }
@@ -2624,6 +2635,26 @@ async function loadRemotePanel(): Promise<void> {
     remoteTokenEl.value = result.token || '';
     remoteConfigEl.value = result.config || '';
     if (remoteTokenFileEl) remoteTokenFileEl.textContent = status.tokenFile;
+    if (remoteAuthModeEl) remoteAuthModeEl.value = status.authMode;
+    const oauthMode = status.authMode === 'oauth';
+    if (remoteBearerSectionEl) remoteBearerSectionEl.classList.toggle('hidden', oauthMode);
+    if (remoteOAuthSectionEl) remoteOAuthSectionEl.classList.toggle('hidden', !oauthMode);
+    if (remoteRotateEl) remoteRotateEl.classList.toggle('hidden', oauthMode);
+    if (remoteOAuthClientIdEl) remoteOAuthClientIdEl.value = result.oauthClient?.clientId || '';
+    if (remoteOAuthClientSecretEl) remoteOAuthClientSecretEl.value = result.oauthClient?.clientSecret || '';
+    if (remoteOAuthConfigEl) {
+      remoteOAuthConfigEl.value = result.oauthClient
+        ? JSON.stringify(
+            {
+              mcpServerUrl: status.url,
+              clientId: result.oauthClient.clientId,
+              clientSecret: result.oauthClient.clientSecret,
+            },
+            null,
+            2,
+          )
+        : '';
+    }
     renderRemoteStatus(status);
     renderTunnelStatus(status.tunnel);
     renderCloudflaredStatus(status.cloudflared);
@@ -2634,6 +2665,7 @@ async function loadRemotePanel(): Promise<void> {
   } catch (err: any) {
     renderRemoteStatus(undefined);
     renderTunnelStatus(undefined);
+    renderCloudflaredStatus(undefined);
     showRemoteResult('error', `Could not read remote status: ${err?.message || err}`);
   }
 }
@@ -2656,6 +2688,55 @@ remoteEnabledEl?.addEventListener('change', async () => {
     showRemoteResult('error', `Could not change remote access: ${err?.message || err}`);
   } finally {
     remoteEnabledEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteAuthModeEl?.addEventListener('change', async () => {
+  if (!remoteAuthModeEl) return;
+  const mode = remoteAuthModeEl.value === 'oauth' ? 'oauth' : 'bearer';
+  remoteAuthModeEl.disabled = true;
+  try {
+    const result = await window.electronAPI?.setRemoteAuthMode(mode);
+    if (!result?.ok) showRemoteResult('error', result?.error || 'Could not change authentication mode.');
+    else showRemoteResult('success', mode === 'oauth' ? 'OAuth 2.0 mode enabled. Use the client credentials in Gemini’s Advanced features.' : 'Bearer-token mode enabled.');
+  } catch (err: any) {
+    showRemoteResult('error', `Could not change authentication mode: ${err?.message || err}`);
+  } finally {
+    remoteAuthModeEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteCopyOAuthIdEl?.addEventListener('click', async () => {
+  await window.electronAPI?.copyToClipboard(remoteOAuthClientIdEl?.value || '');
+  remoteCopyOAuthIdEl.textContent = 'COPIED';
+  window.setTimeout(() => (remoteCopyOAuthIdEl.textContent = 'COPY'), 1500);
+});
+
+remoteCopyOAuthSecretEl?.addEventListener('click', async () => {
+  await window.electronAPI?.copyToClipboard(remoteOAuthClientSecretEl?.value || '');
+  remoteCopyOAuthSecretEl.textContent = 'COPIED';
+  window.setTimeout(() => (remoteCopyOAuthSecretEl.textContent = 'COPY'), 1500);
+});
+
+remoteCopyOAuthConfigEl?.addEventListener('click', async () => {
+  await window.electronAPI?.copyToClipboard(remoteOAuthConfigEl?.value || '');
+  remoteCopyOAuthConfigEl.textContent = 'COPIED';
+  window.setTimeout(() => (remoteCopyOAuthConfigEl.textContent = 'COPY CONFIG'), 1500);
+});
+
+remoteRotateOAuthEl?.addEventListener('click', async () => {
+  if (!window.confirm('Rotate the OAuth client? Existing Gemini authorizations will stop working.')) return;
+  remoteRotateOAuthEl.disabled = true;
+  try {
+    const result = await window.electronAPI?.rotateOAuthClient();
+    if (!result?.ok) showRemoteResult('error', result?.error || 'Could not rotate the OAuth client.');
+    else showRemoteResult('success', 'OAuth client rotated. Update Gemini with the new credentials.');
+  } catch (err: any) {
+    showRemoteResult('error', `Could not rotate the OAuth client: ${err?.message || err}`);
+  } finally {
+    remoteRotateOAuthEl.disabled = false;
     await loadRemotePanel();
   }
 });

@@ -27,6 +27,7 @@ export interface RemoteStatus {
   localUrl: string;
   url: string;
   tokenFile: string;
+  authMode: 'bearer' | 'oauth';
   tunnel: RemoteTunnelStatus;
   cloudflared: RemoteCloudflaredStatus;
   error?: string;
@@ -36,4 +37,9 @@ export interface RemoteInfo {
   status: RemoteStatus;
   token: string;
   config: string;
+  oauthClient?: {
+    clientId: string;
+    clientSecret: string;
+    createdAt: string;
+  };
 }

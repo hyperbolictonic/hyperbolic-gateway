@@ -926,6 +926,65 @@
           </label>
 
           <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Authentication</legend>
+            <select id="settings-remote-auth-mode" class="select select-sm w-full font-mono text-xs">
+              <option value="bearer">Bearer token</option>
+              <option value="oauth">OAuth 2.0 (Gemini custom app)</option>
+            </select>
+            <p class="label font-mono text-[10px]">Bearer is the default and works with Gemini CLI. OAuth adds discovery and consent for Gemini’s custom Connected App flow.</p>
+          </fieldset>
+
+          <div id="settings-remote-bearer-section" class="space-y-5">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Bearer token</legend>
+              <div class="join w-full">
+                <input id="settings-remote-token" type="password" readonly class="input input-sm join-item flex-1 font-mono text-xs" />
+                <button type="button" id="settings-remote-copy-token" class="btn btn-sm btn-outline join-item font-mono text-xs">COPY</button>
+              </div>
+              <p class="label font-mono text-[10px]">
+                Stored at <code id="settings-remote-token-file" class="font-mono">…</code>. Rotating it disconnects existing clients.
+              </p>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Streamable HTTP client config</legend>
+              <textarea id="settings-remote-config" readonly class="textarea textarea-sm w-full h-40 font-mono text-[11px]"></textarea>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button type="button" id="settings-remote-copy-config" class="btn btn-sm btn-outline font-mono text-xs">COPY CONFIG</button>
+                <button type="button" id="settings-remote-refresh" class="btn btn-sm btn-ghost font-mono text-xs">REFRESH</button>
+              </div>
+            </fieldset>
+          </div>
+
+          <div id="settings-remote-oauth-section" class="hidden space-y-5">
+            <div class="alert alert-info alert-sm font-mono text-[11px]">
+              In Gemini → Connected Apps → Add custom app, enter the MCP URL, then open Advanced features
+              and paste the client ID and secret below. Gemini discovers the OAuth endpoints from the URL.
+            </div>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">OAuth client ID</legend>
+              <div class="join w-full">
+                <input id="settings-remote-oauth-client-id" type="text" readonly class="input input-sm join-item flex-1 font-mono text-xs" />
+                <button type="button" id="settings-remote-copy-oauth-id" class="btn btn-sm btn-outline join-item font-mono text-xs">COPY</button>
+              </div>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">OAuth client secret</legend>
+              <div class="join w-full">
+                <input id="settings-remote-oauth-client-secret" type="password" readonly class="input input-sm join-item flex-1 font-mono text-xs" />
+                <button type="button" id="settings-remote-copy-oauth-secret" class="btn btn-sm btn-outline join-item font-mono text-xs">COPY</button>
+              </div>
+              <p class="label font-mono text-[10px]">Rotating the OAuth client disconnects existing Gemini authorizations.</p>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">OAuth client config</legend>
+              <textarea id="settings-remote-oauth-config" readonly class="textarea textarea-sm w-full h-28 font-mono text-[11px]"></textarea>
+              <button type="button" id="settings-remote-copy-oauth-config" class="btn btn-sm btn-outline font-mono text-xs mt-2">COPY CONFIG</button>
+            </fieldset>
+            <button type="button" id="settings-remote-rotate-oauth" class="btn btn-sm btn-warning font-mono text-xs">ROTATE OAUTH CLIENT</button>
+          </div>
+
+          <fieldset class="fieldset">
             <legend class="fieldset-legend font-mono text-xs">MCP endpoint</legend>
             <input id="settings-remote-url" type="text" readonly class="input input-sm w-full font-mono text-xs" />
             <p class="label font-mono text-[10px]">This becomes the Cloudflare Quick Tunnel URL when the tunnel is running; otherwise it is loopback-only.</p>
@@ -960,26 +1019,6 @@
               first; the app can also install and update the official managed binary.
               Automatic updates apply only to that managed binary, not to a system install.
             </p>
-          </fieldset>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend font-mono text-xs">Bearer token</legend>
-            <div class="join w-full">
-              <input id="settings-remote-token" type="password" readonly class="input input-sm join-item flex-1 font-mono text-xs" />
-              <button type="button" id="settings-remote-copy-token" class="btn btn-sm btn-outline join-item font-mono text-xs">COPY</button>
-            </div>
-            <p class="label font-mono text-[10px]">
-              Stored at <code id="settings-remote-token-file" class="font-mono">…</code>. Rotating it disconnects existing clients.
-            </p>
-          </fieldset>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend font-mono text-xs">Streamable HTTP client config</legend>
-            <textarea id="settings-remote-config" readonly class="textarea textarea-sm w-full h-40 font-mono text-[11px]"></textarea>
-            <div class="mt-2 flex flex-wrap gap-2">
-              <button type="button" id="settings-remote-copy-config" class="btn btn-sm btn-outline font-mono text-xs">COPY CONFIG</button>
-              <button type="button" id="settings-remote-refresh" class="btn btn-sm btn-ghost font-mono text-xs">REFRESH</button>
-            </div>
           </fieldset>
 
           <div class="flex flex-wrap gap-2 border-t border-base-100 pt-4">

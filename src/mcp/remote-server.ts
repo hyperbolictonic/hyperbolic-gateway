@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createBearerAuthorizer, createMcpHttpHost } from '../../packages/mcp-http/src/index.ts';
+import { McpOAuthServer } from '../../packages/mcp-oauth/src/index.ts';
 import { createBridgeMcpServer, flushLogSync } from './browser-mcp.js';
 import { readRemoteToken } from '../main/remote/token.js';
+import { readOAuthClient } from '../main/remote/oauth-client.js';
 
 const DEFAULT_PORT = 4112;
 const DEFAULT_PATH = '/mcp/browser';
@@ -66,13 +68,37 @@ async function main(): Promise<void> {
   const maxSessions = positiveInteger(process.env.HB_REMOTE_MAX_SESSIONS, DEFAULT_MAX_SESSIONS);
   const idleTimeoutMs = positiveInteger(process.env.HB_REMOTE_IDLE_MS, DEFAULT_IDLE_TIMEOUT_MS);
   const maxRequestBodyBytes = positiveInteger(process.env.HB_REMOTE_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
+  const authMode = process.env.HB_REMOTE_AUTH_MODE === 'oauth' ? 'oauth' : 'bearer';
+  const oauth =
+    authMode === 'oauth'
+      ? (() => {
+          const clientFile = process.env.HB_OAUTH_CLIENT_FILE?.trim();
+          if (!clientFile) throw new Error('HB_OAUTH_CLIENT_FILE is required for OAuth mode');
+          const client = readOAuthClient(clientFile);
+          if (!client) throw new Error('OAuth client credentials are missing or invalid');
+          return new McpOAuthServer({
+            clientId: client.clientId,
+            clientSecret: client.clientSecret,
+            resourcePath: pathName,
+            logger: logRemote,
+          });
+        })()
+      : null;
 
   const gateway = createMcpHttpHost({
     host,
     port,
     path: pathName,
     createServer: createBridgeMcpServer,
-    authorize: createBearerAuthorizer(() => readRemoteToken(tokenFile), 'remote-operator'),
+    authorize: oauth
+      ? (request) => oauth.authorize(request)
+      : createBearerAuthorizer(() => readRemoteToken(tokenFile), 'remote-operator'),
+    ...(oauth
+      ? {
+          handleExtraRequest: (request, response, url) => oauth.handleRequest(request, response, url),
+          authChallenge: (request) => oauth.challenge(request),
+        }
+      : {}),
     enableJsonResponse: true,
     allowSse: false,
     maxSessions,
@@ -84,6 +110,7 @@ async function main(): Promise<void> {
   await gateway.start();
   logRemote('gateway_listening', {
     url: `http://${host}:${gateway.status().port}${pathName}`,
+    authMode,
     maxSessions,
     idleTimeoutMs,
   });
@@ -92,6 +119,7 @@ async function main(): Promise<void> {
     logRemote('gateway_stopping', { signal });
     try {
       await gateway.stop();
+      oauth?.stop();
     } catch (error) {
       logRemote('gateway_stop_error', {
         message: error instanceof Error ? error.message : String(error),

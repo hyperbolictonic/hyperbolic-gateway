@@ -38,6 +38,11 @@ try {
   assert.equal(initial.token.length, 64);
   assert.match(initial.config, /"httpUrl"/);
 
+  const oauthMode = await service.setAuthMode('oauth');
+  assert.equal(oauthMode.authMode, 'oauth');
+  assert.ok(service.getInfo().oauthClient?.clientId.startsWith('hg_'));
+  await service.setAuthMode('bearer');
+
   const enabled = await service.setEnabled(true);
   assert.equal(enabled.running, true);
   assert.equal(enabled.url, `http://127.0.0.1:${port}/mcp/browser`);

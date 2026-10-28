@@ -5,6 +5,7 @@ export type { McpHttpSession } from './session-store.ts';
 export type {
   McpHttpAuth,
   McpHttpAuthorize,
+  McpHttpExtraHandler,
   McpHttpHostOptions,
   McpHttpHostStatus,
   McpHttpLogger,

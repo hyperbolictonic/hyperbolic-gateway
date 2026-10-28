@@ -5,11 +5,13 @@ import type { CloudflaredUpdateMode } from '../../../packages/cloudflared/src/in
 export interface RemoteSettings {
   schemaVersion: 1;
   cloudflaredUpdateMode: CloudflaredUpdateMode;
+  authMode: 'bearer' | 'oauth';
 }
 
 const DEFAULT_SETTINGS: RemoteSettings = {
   schemaVersion: 1,
   cloudflaredUpdateMode: 'manual',
+  authMode: 'bearer',
 };
 
 export function loadRemoteSettings(file: string): RemoteSettings {
@@ -18,6 +20,7 @@ export function loadRemoteSettings(file: string): RemoteSettings {
     return {
       schemaVersion: 1,
       cloudflaredUpdateMode: parsed.cloudflaredUpdateMode === 'automatic' ? 'automatic' : 'manual',
+      authMode: parsed.authMode === 'oauth' ? 'oauth' : 'bearer',
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

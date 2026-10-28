@@ -28,6 +28,20 @@ Cloudflare Access remain later work.
 The gateway is never a proxy for the raw bridge. It exposes only its MCP path;
 everything else returns `404`.
 
+## Authentication modes
+
+The Remote panel has an authentication selector, defaulting to **Bearer**.
+
+- **Bearer**: the existing app-generated remote token. Works with Gemini CLI,
+  MCP Inspector, `mcp-remote`, and manual HTTP clients.
+- **OAuth 2.0**: a pre-registered static client for Gemini’s custom Connected
+  App flow. The app generates the client ID and secret; Gemini enters them under
+  Advanced features. The gateway publishes discovery metadata and exposes
+  `/oauth/authorize`, `/oauth/token`, and `/oauth/revoke`.
+
+OAuth mode accepts OAuth access tokens, not the static bearer token. Switching
+modes restarts the gateway but leaves the Quick Tunnel running.
+
 ## Settings → Remote
 
 The Settings panel can start and stop the gateway, start and stop a Quick
@@ -100,7 +114,9 @@ remote MCP client
 ```
 
 The reusable HTTP host and session lifecycle live in
-[`packages/mcp-http`](../../../packages/mcp-http/README.md). The Quick Tunnel
+[`packages/mcp-http`](../../../packages/mcp-http/README.md). The OAuth
+authorization server lives in
+[`packages/mcp-oauth`](../../../packages/mcp-oauth/README.md). The Quick Tunnel
 process lifecycle lives in
 [`packages/quick-tunnel`](../../../packages/quick-tunnel/README.md), and the
 managed `cloudflared` downloader lives in
@@ -114,6 +130,8 @@ and `src/main/remote/service.ts`.
 | --- | --- |
 | `HB_REMOTE_TOKEN_FILE` | Required. Path to the 64-hex-character remote token file. |
 | `HB_BRIDGE_URL` | Local bridge URL. The app passes this automatically. |
+| `HB_REMOTE_AUTH_MODE` | `bearer` (default) or `oauth`. |
+| `HB_OAUTH_CLIENT_FILE` | OAuth client JSON path. Required in `oauth` mode. |
 | `HB_REMOTE_PORT` | Loopback port. Default `4112`. |
 | `HB_REMOTE_HOST` | Loopback bind address. Default `127.0.0.1`; non-loopback values are rejected. |
 | `HB_REMOTE_PATH` | MCP path. Default `/mcp/browser`. |
@@ -127,6 +145,8 @@ The token is read from the file on every request, so rotation does not require
 restarting the gateway. A missing or malformed token produces `401`.
 
 ## Client shape
+
+### Bearer mode
 
 Once the gateway is running and the token is known:
 
@@ -145,6 +165,28 @@ Once the gateway is running and the token is known:
 
 This is the local shape. The Cloudflare Tunnel phase will replace the URL with
 the generated HTTPS tunnel URL.
+
+### OAuth mode
+
+In Gemini’s Connected Apps screen, enter:
+
+- MCP server URL: `https://<tunnel>/mcp/browser`
+- Client ID: the generated OAuth client ID
+- Client secret: the generated OAuth client secret
+
+The gateway serves:
+
+- `/.well-known/oauth-protected-resource/mcp/browser`
+- `/.well-known/oauth-authorization-server`
+- `/oauth/authorize`
+- `/oauth/token`
+- `/oauth/revoke`
+
+It does not advertise dynamic client registration, so Gemini uses the
+credentials entered under Advanced features. Authorization requires explicit
+approval on the local consent page. Access tokens are short-lived and refresh
+tokens rotate on use. OAuth tokens live in the gateway process, so restarting
+the remote gateway requires Gemini to authorize again.
 
 ## Security boundaries
 

@@ -369,6 +369,24 @@ ipcMain.handle('remote:install-cloudflared', async () => {
   }
 });
 
+ipcMain.handle('remote:set-auth-mode', async (_event, mode: 'bearer' | 'oauth') => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.setAuthMode(mode) };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
+ipcMain.handle('remote:rotate-oauth-client', async () => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.rotateOAuthClient() };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
 onRecordingStatus((state) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('recording:status', state);
