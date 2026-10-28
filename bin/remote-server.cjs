@@ -31350,6 +31350,7 @@ var McpOAuthServer = class {
       grant_types_supported: ["authorization_code", "refresh_token"],
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
+      authorization_response_iss_parameter_supported: true,
       scopes_supported: this.scopes,
       resource: `${origin}${this.resourcePath}`
     });
@@ -31404,7 +31405,14 @@ var McpOAuthServer = class {
     const code = randomToken(24);
     this.codes.set(code, { ...pending, code, expiresAt: Date.now() + AUTH_CODE_TTL_MS });
     redirectUrl.searchParams.set("code", code);
-    this.log("oauth_code_issued", { clientId: pending.clientId });
+    redirectUrl.searchParams.set("iss", this.origin(request));
+    this.log("oauth_code_issued", {
+      clientId: pending.clientId,
+      redirectOrigin: redirectUrl.origin,
+      redirectPath: redirectUrl.pathname,
+      stateLength: pending.state?.length || 0,
+      scope: pending.scope.join(" ")
+    });
     redirect2(response, redirectUrl.toString());
   }
   encodePending(pending) {
@@ -31468,22 +31476,27 @@ var McpOAuthServer = class {
     }
     const client = this.authenticateClient(request, fields);
     if (!client) {
+      this.log("oauth_token_invalid_client", { grantType: fields.grant_type || null });
       sendJson2(response, 401, { error: "invalid_client" });
       return;
     }
+    this.log("oauth_token_request", { clientId: client, grantType: fields.grant_type || null });
     if (fields.grant_type === "authorization_code") {
       const record2 = this.codes.get(fields.code || "");
       if (!record2 || record2.expiresAt < Date.now()) {
+        this.log("oauth_token_rejected", { clientId: client, reason: "invalid_or_expired_code" });
         sendJson2(response, 400, { error: "invalid_grant" });
         return;
       }
       if (record2.clientId !== client || record2.redirectUri !== fields.redirect_uri) {
+        this.log("oauth_token_rejected", { clientId: client, reason: "client_or_redirect_mismatch" });
         sendJson2(response, 400, { error: "invalid_grant" });
         return;
       }
       const verifier = fields.code_verifier || "";
       const expected = base64Url(import_node_crypto3.default.createHash("sha256").update(verifier).digest());
       if (!constantTimeEquals(expected, record2.codeChallenge)) {
+        this.log("oauth_token_rejected", { clientId: client, reason: "pkce_mismatch" });
         sendJson2(response, 400, { error: "invalid_grant" });
         return;
       }
@@ -31495,6 +31508,7 @@ var McpOAuthServer = class {
     if (fields.grant_type === "refresh_token") {
       const record2 = this.refresh.get(fields.refresh_token || "");
       if (!record2 || record2.expiresAt < Date.now() || record2.clientId !== client) {
+        this.log("oauth_token_rejected", { clientId: client, reason: "invalid_refresh_token" });
         sendJson2(response, 400, { error: "invalid_grant" });
         return;
       }
