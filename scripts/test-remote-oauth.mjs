@@ -78,12 +78,12 @@ try {
   authorizeUrl.searchParams.set('code_challenge_method', 'S256');
   const page = await fetch(authorizeUrl);
   const html = await page.text();
-  const nonce = html.match(/name="nonce" value="([^"]+)"/)?.[1];
-  assert.ok(nonce);
+  const requestToken = html.match(/name="request" value="([^"]+)"/)?.[1];
+  assert.ok(requestToken);
   const approval = await fetch(`${base}/oauth/authorize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ nonce, decision: 'approve' }),
+    body: new URLSearchParams({ request: requestToken, decision: 'approve' }),
     redirect: 'manual',
   });
   assert.equal(approval.status, 302);

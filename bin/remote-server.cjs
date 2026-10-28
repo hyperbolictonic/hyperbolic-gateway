@@ -31142,7 +31142,7 @@ function createBearerAuthorizer(readExpectedToken, subject = "remote") {
 var import_node_crypto3 = __toESM(require("node:crypto"), 1);
 var DEFAULT_SCOPES = ["mcp"];
 var DEFAULT_REDIRECT_HOSTS = ["oauth-redirect.googleusercontent.com", "gemini.google.com"];
-var AUTH_CODE_TTL_MS = 5 * 6e4;
+var AUTH_CODE_TTL_MS = 10 * 6e4;
 var ACCESS_TTL_MS = 60 * 6e4;
 var REFRESH_TTL_MS = 30 * 24 * 60 * 6e4;
 var MAX_BODY_BYTES = 16 * 1024;
@@ -31260,7 +31260,6 @@ var McpOAuthServer = class {
   allowedRedirectHosts;
   accessTokenTtlMs;
   refreshTokenTtlMs;
-  pending = /* @__PURE__ */ new Map();
   codes = /* @__PURE__ */ new Map();
   access = /* @__PURE__ */ new Map();
   refresh = /* @__PURE__ */ new Map();
@@ -31278,7 +31277,6 @@ var McpOAuthServer = class {
   stop() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.pending.clear();
     this.codes.clear();
     this.access.clear();
     this.refresh.clear();
@@ -31369,16 +31367,16 @@ var McpOAuthServer = class {
         sendHtml(response, 400, this.errorPage(error62));
         return;
       }
-      const nonce = randomToken(24);
-      this.pending.set(nonce, {
+      const pending2 = {
         clientId: params.get("client_id") || "",
         redirectUri: params.get("redirect_uri") || "",
         state: params.get("state") || void 0,
         scope: this.parseScope(params.get("scope")),
         codeChallenge: params.get("code_challenge") || "",
         expiresAt: Date.now() + AUTH_CODE_TTL_MS
-      });
-      sendHtml(response, 200, this.consentPage(nonce, params));
+      };
+      const requestToken = this.encodePending(pending2);
+      sendHtml(response, 200, this.consentPage(requestToken, pending2));
       return;
     }
     if (request.method !== "POST") {
@@ -31386,12 +31384,15 @@ var McpOAuthServer = class {
       return;
     }
     const fields = await readFields(request);
-    const pending = this.pending.get(fields.nonce || "");
+    const pending = this.decodePending(fields.request || "");
     if (!pending || pending.expiresAt < Date.now()) {
+      this.log("oauth_authorize_state_invalid", {
+        requestLength: (fields.request || "").length,
+        expired: Boolean(pending && pending.expiresAt < Date.now())
+      });
       sendHtml(response, 400, this.errorPage("This authorization request expired. Start again from Gemini."));
       return;
     }
-    this.pending.delete(fields.nonce || "");
     const redirectUrl = new URL(pending.redirectUri);
     if (pending.state) redirectUrl.searchParams.set("state", pending.state);
     if (fields.decision !== "approve") {
@@ -31405,6 +31406,26 @@ var McpOAuthServer = class {
     redirectUrl.searchParams.set("code", code);
     this.log("oauth_code_issued", { clientId: pending.clientId });
     redirect2(response, redirectUrl.toString());
+  }
+  encodePending(pending) {
+    const payload = Buffer.from(JSON.stringify(pending), "utf8").toString("base64url");
+    const signature = import_node_crypto3.default.createHmac("sha256", this.options.clientSecret).update(payload).digest("base64url");
+    return `${payload}.${signature}`;
+  }
+  decodePending(token) {
+    const separator = token.lastIndexOf(".");
+    if (separator < 1) return null;
+    const payload = token.slice(0, separator);
+    const signature = token.slice(separator + 1);
+    const expected = import_node_crypto3.default.createHmac("sha256", this.options.clientSecret).update(payload).digest("base64url");
+    if (!constantTimeEquals(signature, expected)) return null;
+    try {
+      const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+      if (!parsed.clientId || !parsed.redirectUri || !parsed.codeChallenge) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
   }
   validateAuthorize(params) {
     if (params.get("client_id") !== this.options.clientId) return "Unknown OAuth client.";
@@ -31547,15 +31568,14 @@ var McpOAuthServer = class {
   }
   prune() {
     const now = Date.now();
-    for (const [key, value] of this.pending) if (value.expiresAt < now) this.pending.delete(key);
     for (const [key, value] of this.codes) if (value.expiresAt < now) this.codes.delete(key);
     for (const [key, value] of this.access) if (value.expiresAt < now) this.access.delete(key);
     for (const [key, value] of this.refresh) if (value.expiresAt < now) this.refresh.delete(key);
   }
-  consentPage(nonce, params) {
+  consentPage(requestToken, pending) {
     const redirectHost = (() => {
       try {
-        return new URL(params.get("redirect_uri") || "").hostname;
+        return new URL(pending.redirectUri).hostname;
       } catch {
         return "unknown client";
       }
@@ -31567,15 +31587,9 @@ var McpOAuthServer = class {
 </head><body><div class="card">
 <h1>Authorize Hyperbolic Gateway</h1>
 <p>A remote OAuth client wants to control this Chromium browser and its logged-in sessions.</p>
-<div class="warn">Only approve if you started this connection yourself. Client: <code>${escapeHtml(params.get("client_id") || "")}</code><br>Redirect host: <code>${escapeHtml(redirectHost)}</code></div>
+<div class="warn">Only approve if you started this connection yourself. Client: <code>${escapeHtml(pending.clientId)}</code><br>Redirect host: <code>${escapeHtml(redirectHost)}</code></div>
 <form method="post" action="/oauth/authorize">
-<input type="hidden" name="nonce" value="${escapeHtml(nonce)}">
-<input type="hidden" name="client_id" value="${escapeHtml(params.get("client_id") || "")}">
-<input type="hidden" name="redirect_uri" value="${escapeHtml(params.get("redirect_uri") || "")}">
-<input type="hidden" name="state" value="${escapeHtml(params.get("state") || "")}">
-<input type="hidden" name="code_challenge" value="${escapeHtml(params.get("code_challenge") || "")}">
-<input type="hidden" name="code_challenge_method" value="S256">
-<input type="hidden" name="scope" value="${escapeHtml(params.get("scope") || "")}">
+<input type="hidden" name="request" value="${escapeHtml(requestToken)}">
 <div class="actions"><button class="primary" name="decision" value="approve" type="submit">Allow access</button><button name="decision" value="deny" type="submit">Cancel</button></div>
 </form></div></body></html>`;
   }

@@ -104,13 +104,13 @@ test('completes authorization code + PKCE, accepts the token, and refreshes', as
     const page = await fetch(authorizeUrl);
     assert.equal(page.status, 200);
     const html = await page.text();
-    const nonce = html.match(/name="nonce" value="([^"]+)"/)?.[1];
-    assert.ok(nonce);
+    const requestToken = html.match(/name="request" value="([^"]+)"/)?.[1];
+    assert.ok(requestToken);
 
     const approval = await fetch(`${base}/oauth/authorize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ nonce, decision: 'approve' }),
+      body: new URLSearchParams({ request: requestToken, decision: 'approve' }),
       redirect: 'manual',
     });
     assert.equal(approval.status, 302);

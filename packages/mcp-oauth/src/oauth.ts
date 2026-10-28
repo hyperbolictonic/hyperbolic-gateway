@@ -25,7 +25,7 @@ interface TokenRecord {
 
 const DEFAULT_SCOPES = ['mcp'];
 const DEFAULT_REDIRECT_HOSTS = ['oauth-redirect.googleusercontent.com', 'gemini.google.com'];
-const AUTH_CODE_TTL_MS = 5 * 60_000;
+const AUTH_CODE_TTL_MS = 10 * 60_000;
 const ACCESS_TTL_MS = 60 * 60_000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60_000;
 const MAX_BODY_BYTES = 16 * 1024;
@@ -173,7 +173,6 @@ export class McpOAuthServer {
   private readonly allowedRedirectHosts: Set<string>;
   private readonly accessTokenTtlMs: number;
   private readonly refreshTokenTtlMs: number;
-  private readonly pending = new Map<string, PendingAuthorization>();
   private readonly codes = new Map<string, AuthorizationRecord>();
   private readonly access = new Map<string, TokenRecord>();
   private readonly refresh = new Map<string, TokenRecord>();
@@ -193,7 +192,6 @@ export class McpOAuthServer {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.pending.clear();
     this.codes.clear();
     this.access.clear();
     this.refresh.clear();
@@ -293,16 +291,16 @@ export class McpOAuthServer {
         sendHtml(response, 400, this.errorPage(error));
         return;
       }
-      const nonce = randomToken(24);
-      this.pending.set(nonce, {
+      const pending: PendingAuthorization = {
         clientId: params.get('client_id') || '',
         redirectUri: params.get('redirect_uri') || '',
         state: params.get('state') || undefined,
         scope: this.parseScope(params.get('scope')),
         codeChallenge: params.get('code_challenge') || '',
         expiresAt: Date.now() + AUTH_CODE_TTL_MS,
-      });
-      sendHtml(response, 200, this.consentPage(nonce, params));
+      };
+      const requestToken = this.encodePending(pending);
+      sendHtml(response, 200, this.consentPage(requestToken, pending));
       return;
     }
 
@@ -312,12 +310,15 @@ export class McpOAuthServer {
     }
 
     const fields = await readFields(request);
-    const pending = this.pending.get(fields.nonce || '');
+    const pending = this.decodePending(fields.request || '');
     if (!pending || pending.expiresAt < Date.now()) {
+      this.log('oauth_authorize_state_invalid', {
+        requestLength: (fields.request || '').length,
+        expired: Boolean(pending && pending.expiresAt < Date.now()),
+      });
       sendHtml(response, 400, this.errorPage('This authorization request expired. Start again from Gemini.'));
       return;
     }
-    this.pending.delete(fields.nonce || '');
     const redirectUrl = new URL(pending.redirectUri);
     if (pending.state) redirectUrl.searchParams.set('state', pending.state);
 
@@ -333,6 +334,28 @@ export class McpOAuthServer {
     redirectUrl.searchParams.set('code', code);
     this.log('oauth_code_issued', { clientId: pending.clientId });
     redirect(response, redirectUrl.toString());
+  }
+
+  private encodePending(pending: PendingAuthorization): string {
+    const payload = Buffer.from(JSON.stringify(pending), 'utf8').toString('base64url');
+    const signature = crypto.createHmac('sha256', this.options.clientSecret).update(payload).digest('base64url');
+    return `${payload}.${signature}`;
+  }
+
+  private decodePending(token: string): PendingAuthorization | null {
+    const separator = token.lastIndexOf('.');
+    if (separator < 1) return null;
+    const payload = token.slice(0, separator);
+    const signature = token.slice(separator + 1);
+    const expected = crypto.createHmac('sha256', this.options.clientSecret).update(payload).digest('base64url');
+    if (!constantTimeEquals(signature, expected)) return null;
+    try {
+      const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as PendingAuthorization;
+      if (!parsed.clientId || !parsed.redirectUri || !parsed.codeChallenge) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
   }
 
   private validateAuthorize(params: URLSearchParams): string | null {
@@ -486,16 +509,15 @@ export class McpOAuthServer {
 
   private prune(): void {
     const now = Date.now();
-    for (const [key, value] of this.pending) if (value.expiresAt < now) this.pending.delete(key);
     for (const [key, value] of this.codes) if (value.expiresAt < now) this.codes.delete(key);
     for (const [key, value] of this.access) if (value.expiresAt < now) this.access.delete(key);
     for (const [key, value] of this.refresh) if (value.expiresAt < now) this.refresh.delete(key);
   }
 
-  private consentPage(nonce: string, params: URLSearchParams): string {
+  private consentPage(requestToken: string, pending: PendingAuthorization): string {
     const redirectHost = (() => {
       try {
-        return new URL(params.get('redirect_uri') || '').hostname;
+        return new URL(pending.redirectUri).hostname;
       } catch {
         return 'unknown client';
       }
@@ -507,15 +529,9 @@ export class McpOAuthServer {
 </head><body><div class="card">
 <h1>Authorize Hyperbolic Gateway</h1>
 <p>A remote OAuth client wants to control this Chromium browser and its logged-in sessions.</p>
-<div class="warn">Only approve if you started this connection yourself. Client: <code>${escapeHtml(params.get('client_id') || '')}</code><br>Redirect host: <code>${escapeHtml(redirectHost)}</code></div>
+<div class="warn">Only approve if you started this connection yourself. Client: <code>${escapeHtml(pending.clientId)}</code><br>Redirect host: <code>${escapeHtml(redirectHost)}</code></div>
 <form method="post" action="/oauth/authorize">
-<input type="hidden" name="nonce" value="${escapeHtml(nonce)}">
-<input type="hidden" name="client_id" value="${escapeHtml(params.get('client_id') || '')}">
-<input type="hidden" name="redirect_uri" value="${escapeHtml(params.get('redirect_uri') || '')}">
-<input type="hidden" name="state" value="${escapeHtml(params.get('state') || '')}">
-<input type="hidden" name="code_challenge" value="${escapeHtml(params.get('code_challenge') || '')}">
-<input type="hidden" name="code_challenge_method" value="S256">
-<input type="hidden" name="scope" value="${escapeHtml(params.get('scope') || '')}">
+<input type="hidden" name="request" value="${escapeHtml(requestToken)}">
 <div class="actions"><button class="primary" name="decision" value="approve" type="submit">Allow access</button><button name="decision" value="deny" type="submit">Cancel</button></div>
 </form></div></body></html>`;
   }
