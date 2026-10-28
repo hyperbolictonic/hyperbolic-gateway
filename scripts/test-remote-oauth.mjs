@@ -84,10 +84,12 @@ try {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ request: requestToken, decision: 'approve' }),
-    redirect: 'manual',
   });
-  assert.equal(approval.status, 302);
-  const code = new URL(approval.headers.get('location')).searchParams.get('code');
+  assert.equal(approval.status, 200);
+  const approvalHtml = await approval.text();
+  const location = approvalHtml.match(/href="([^"]+)"/)?.[1]?.replaceAll('&amp;', '&');
+  assert.ok(location);
+  const code = new URL(location).searchParams.get('code');
   assert.ok(code);
 
   const tokenResponse = await fetch(`${base}/oauth/token`, {

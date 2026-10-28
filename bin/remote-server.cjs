@@ -31206,10 +31206,6 @@ function sendHtml(response, status, html) {
   });
   response.end(html);
 }
-function redirect2(response, location) {
-  response.writeHead(302, { Location: location, "Cache-Control": "no-store" });
-  response.end();
-}
 function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -31399,7 +31395,7 @@ var McpOAuthServer = class {
     if (fields.decision !== "approve") {
       redirectUrl.searchParams.set("error", "access_denied");
       this.log("oauth_access_denied", { clientId: pending.clientId });
-      redirect2(response, redirectUrl.toString());
+      sendHtml(response, 200, this.continuePage(redirectUrl.toString()));
       return;
     }
     const code = randomToken(24);
@@ -31413,7 +31409,7 @@ var McpOAuthServer = class {
       stateLength: pending.state?.length || 0,
       scope: pending.scope.join(" ")
     });
-    redirect2(response, redirectUrl.toString());
+    sendHtml(response, 200, this.continuePage(redirectUrl.toString()));
   }
   encodePending(pending) {
     const payload = Buffer.from(JSON.stringify(pending), "utf8").toString("base64url");
@@ -31609,6 +31605,15 @@ var McpOAuthServer = class {
   }
   errorPage(message) {
     return `<!doctype html><html><head><meta charset="utf-8"><title>OAuth error</title><style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}</style></head><body><h1>OAuth error</h1><p>${escapeHtml(message)}</p></body></html>`;
+  }
+  continuePage(location) {
+    const safe = escapeHtml(location);
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="0;url=${safe}">
+<title>Connecting to Gemini</title>
+<style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}a{color:#22d3ee}code{color:#a3e635;overflow-wrap:anywhere}</style>
+</head><body><h1>Connecting to Gemini\u2026</h1><p>If the page does not move automatically, use the link below.</p>
+<p><a href="${safe}">Continue to Gemini</a></p></body></html>`;
   }
 };
 

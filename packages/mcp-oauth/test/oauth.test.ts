@@ -111,10 +111,10 @@ test('completes authorization code + PKCE, accepts the token, and refreshes', as
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ request: requestToken, decision: 'approve' }),
-      redirect: 'manual',
     });
-    assert.equal(approval.status, 302);
-    const location = approval.headers.get('location');
+    assert.equal(approval.status, 200);
+    const approvalHtml = await approval.text();
+    const location = approvalHtml.match(/href="([^"]+)"/)?.[1]?.replaceAll('&amp;', '&');
     assert.ok(location);
     const callback = new URL(location);
     assert.equal(callback.origin + callback.pathname, redirect);

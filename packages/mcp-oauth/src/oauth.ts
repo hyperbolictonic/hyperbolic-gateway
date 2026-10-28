@@ -111,11 +111,6 @@ function sendHtml(response: ServerResponse, status: number, html: string): void 
   response.end(html);
 }
 
-function redirect(response: ServerResponse, location: string): void {
-  response.writeHead(302, { Location: location, 'Cache-Control': 'no-store' });
-  response.end();
-}
-
 function readBody(request: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -326,7 +321,7 @@ export class McpOAuthServer {
     if (fields.decision !== 'approve') {
       redirectUrl.searchParams.set('error', 'access_denied');
       this.log('oauth_access_denied', { clientId: pending.clientId });
-      redirect(response, redirectUrl.toString());
+      sendHtml(response, 200, this.continuePage(redirectUrl.toString()));
       return;
     }
 
@@ -341,7 +336,7 @@ export class McpOAuthServer {
       stateLength: pending.state?.length || 0,
       scope: pending.scope.join(' '),
     });
-    redirect(response, redirectUrl.toString());
+    sendHtml(response, 200, this.continuePage(redirectUrl.toString()));
   }
 
   private encodePending(pending: PendingAuthorization): string {
@@ -552,5 +547,15 @@ export class McpOAuthServer {
 
   private errorPage(message: string): string {
     return `<!doctype html><html><head><meta charset="utf-8"><title>OAuth error</title><style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}</style></head><body><h1>OAuth error</h1><p>${escapeHtml(message)}</p></body></html>`;
+  }
+
+  private continuePage(location: string): string {
+    const safe = escapeHtml(location);
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="0;url=${safe}">
+<title>Connecting to Gemini</title>
+<style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}a{color:#22d3ee}code{color:#a3e635;overflow-wrap:anywhere}</style>
+</head><body><h1>Connecting to Gemini…</h1><p>If the page does not move automatically, use the link below.</p>
+<p><a href="${safe}">Continue to Gemini</a></p></body></html>`;
   }
 }
