@@ -36,5 +36,6 @@ push and pull request. Do not weaken the patterns to make a file pass; replace t
 
 - `stdout` in the MCP server is JSON-RPC only. Logs go to `data/logs/mcp-server.log`.
 - Settings are written over IPC only. Do not add an HTTP route that changes settings.
+- For new transport, session, tunnel, auth or child-process code, apply the NASA/JPL review skill in `.agents/skills/NASACodeReview`. Treat Blocker findings as merge blockers; legacy findings are warnings unless the change makes them worse.
 - Run `npx tsc --noEmit` and `npm run test:mcp:contract` before you commit.
 - Do not commit build output, runtime data or installer binaries. See `.gitignore`.
