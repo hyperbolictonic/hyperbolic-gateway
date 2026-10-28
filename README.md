@@ -687,7 +687,8 @@ All suites run against the live Cyberdeck on `http://127.0.0.1:4111` (start the 
 | `npm run test:mcp:primitives` | MCP stdio primitives (14 checks) | The same primitives through a real MCP client — tool schemas, viewport gating, `find`→`act`, contexts, `focus_window`.                          |
 | `npm run test:focus`          | Focus independence (4 checks)    | Hands the OS foreground to another app (Notepad) and asserts typing/clicks/wheel still land **and** that `input.transport === 'cdp'`.           |
 | `npm run test:mcp-http`       | MCP HTTP host (4 checks)         | Bearer auth, session handling, a real MCP client tool call, non-MCP path rejection, and idle expiry.                                            |
-| `npm run test:remote`         | Remote gateway smoke             | Builds `bin/remote-server.cjs`, starts it with a token file, rejects unauthenticated calls, lists the browser tools, and tests the app service start/stop/token rotation. |
+| `npm run test:quick-tunnel`   | Quick Tunnel manager (3 checks)  | URL parsing, startup timeout, process failure, and clean shutdown using a fake cloudflared fixture.                                             |
+| `npm run test:remote`         | Remote gateway smoke             | Builds `bin/remote-server.cjs`, starts it with a token file, rejects unauthenticated calls, lists the browser tools, and tests the app service start/stop/token rotation/tunnel handoff. |
 
 Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`.
 

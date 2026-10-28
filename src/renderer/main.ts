@@ -2507,6 +2507,10 @@ const remoteCopyConfigEl = document.getElementById('settings-remote-copy-config'
 const remoteRefreshEl = document.getElementById('settings-remote-refresh') as HTMLButtonElement | null;
 const remoteRotateEl = document.getElementById('settings-remote-rotate') as HTMLButtonElement | null;
 const remoteDisconnectEl = document.getElementById('settings-remote-disconnect') as HTMLButtonElement | null;
+const remoteTunnelEnabledEl = document.getElementById('settings-remote-tunnel-enabled') as HTMLInputElement | null;
+const remoteTunnelStatusEl = document.getElementById('settings-remote-tunnel-status') as HTMLElement | null;
+const remoteTunnelUrlEl = document.getElementById('settings-remote-tunnel-url') as HTMLInputElement | null;
+const remoteCloudflaredEl = document.getElementById('settings-remote-cloudflared') as HTMLElement | null;
 
 function showRemoteResult(kind: 'success' | 'error' | 'info', text: string): void {
   if (!remoteResultEl) return;
@@ -2535,12 +2539,44 @@ function renderRemoteStatus(status: { enabled: boolean; running: boolean; error?
   }
 }
 
+function renderTunnelStatus(tunnel: { enabled: boolean; running: boolean; state: string; available: boolean; binaryPath?: string; url?: string; error?: string } | undefined): void {
+  if (!remoteTunnelStatusEl) return;
+  remoteTunnelStatusEl.classList.remove('badge-ghost', 'badge-success', 'badge-warning', 'badge-error');
+  if (!tunnel) {
+    remoteTunnelStatusEl.textContent = 'unknown';
+    remoteTunnelStatusEl.classList.add('badge-ghost');
+    return;
+  }
+  if (tunnel.state === 'running') {
+    remoteTunnelStatusEl.textContent = 'running';
+    remoteTunnelStatusEl.classList.add('badge-success');
+  } else if (tunnel.state === 'starting') {
+    remoteTunnelStatusEl.textContent = 'starting';
+    remoteTunnelStatusEl.classList.add('badge-warning');
+  } else if (tunnel.state === 'error') {
+    remoteTunnelStatusEl.textContent = 'error';
+    remoteTunnelStatusEl.classList.add('badge-error');
+  } else {
+    remoteTunnelStatusEl.textContent = 'off';
+    remoteTunnelStatusEl.classList.add('badge-ghost');
+  }
+  if (remoteTunnelEnabledEl) remoteTunnelEnabledEl.checked = tunnel.enabled;
+  if (remoteTunnelUrlEl) remoteTunnelUrlEl.value = tunnel.url || '';
+  if (remoteCloudflaredEl) {
+    remoteCloudflaredEl.textContent = tunnel.available
+      ? `cloudflared: ${tunnel.binaryPath || 'available'}`
+      : 'cloudflared not found. Install it and restart the app.';
+    remoteCloudflaredEl.className = `label font-mono text-[10px] ${tunnel.available ? 'text-base-content/50' : 'text-warning'}`;
+  }
+}
+
 async function loadRemotePanel(): Promise<void> {
   if (!remoteEnabledEl || !remoteUrlEl || !remoteTokenEl || !remoteConfigEl) return;
   try {
     const result = await window.electronAPI?.getRemoteInfo();
     if (!result?.ok || !result.status) {
       renderRemoteStatus(undefined);
+      renderTunnelStatus(undefined);
       showRemoteResult('error', result?.error || 'Remote access is not ready yet.');
       return;
     }
@@ -2551,9 +2587,14 @@ async function loadRemotePanel(): Promise<void> {
     remoteConfigEl.value = result.config || '';
     if (remoteTokenFileEl) remoteTokenFileEl.textContent = status.tokenFile;
     renderRemoteStatus(status);
-    if (status.error) showRemoteResult('error', status.error.slice(-800));
+    renderTunnelStatus(status.tunnel);
+    if (remoteTunnelEnabledEl) remoteTunnelEnabledEl.disabled = !status.running;
+    if (status.error || status.tunnel?.error) {
+      showRemoteResult('error', (status.error || status.tunnel?.error || '').slice(-800));
+    }
   } catch (err: any) {
     renderRemoteStatus(undefined);
+    renderTunnelStatus(undefined);
     showRemoteResult('error', `Could not read remote status: ${err?.message || err}`);
   }
 }
@@ -2576,6 +2617,28 @@ remoteEnabledEl?.addEventListener('change', async () => {
     showRemoteResult('error', `Could not change remote access: ${err?.message || err}`);
   } finally {
     remoteEnabledEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteTunnelEnabledEl?.addEventListener('change', async () => {
+  if (!remoteTunnelEnabledEl) return;
+  const desired = remoteTunnelEnabledEl.checked;
+  remoteTunnelEnabledEl.disabled = true;
+  showRemoteResult('info', desired ? 'Starting the Cloudflare Quick Tunnel…' : 'Stopping the Cloudflare Quick Tunnel…');
+  try {
+    const result = await window.electronAPI?.setRemoteTunnelEnabled(desired);
+    if (!result?.ok) {
+      remoteTunnelEnabledEl.checked = !desired;
+      showRemoteResult('error', result?.error || 'Could not change the Quick Tunnel.');
+    } else {
+      showRemoteResult('success', desired ? 'Quick Tunnel is running. The config now uses the public URL.' : 'Quick Tunnel stopped. The config uses the loopback URL.');
+    }
+  } catch (err: any) {
+    remoteTunnelEnabledEl.checked = !desired;
+    showRemoteResult('error', `Could not change the Quick Tunnel: ${err?.message || err}`);
+  } finally {
+    remoteTunnelEnabledEl.disabled = false;
     await loadRemotePanel();
   }
 });

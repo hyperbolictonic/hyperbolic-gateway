@@ -80,6 +80,9 @@ jobs:
       - name: MCP HTTP transport tests
         run: npm run test:mcp-http
 
+      - name: Quick Tunnel manager tests
+        run: npm run test:quick-tunnel
+
       - name: Remote gateway smoke test
         run: npm run test:remote
 

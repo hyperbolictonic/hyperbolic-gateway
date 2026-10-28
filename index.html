@@ -907,9 +907,8 @@
           <div>
             <h3 class="font-mono text-sm font-bold text-primary">REMOTE ACCESS</h3>
             <p class="text-xs text-base-content/60 mt-1">
-              Expose the browser MCP surface over Streamable HTTP. Remote access is off by default.
-              The Cloudflare Quick Tunnel will be added in the next phase; this panel currently exposes
-              a loopback-only gateway for testing.
+              Expose the browser MCP surface over Streamable HTTP. Remote access and the Cloudflare Quick Tunnel
+              are off by default, and the gateway remains loopback-only.
             </p>
           </div>
           <span id="settings-remote-status" class="badge badge-ghost font-mono text-xs whitespace-nowrap">off</span>
@@ -927,9 +926,27 @@
           </label>
 
           <fieldset class="fieldset">
-            <legend class="fieldset-legend font-mono text-xs">Gateway URL</legend>
+            <legend class="fieldset-legend font-mono text-xs">MCP endpoint</legend>
             <input id="settings-remote-url" type="text" readonly class="input input-sm w-full font-mono text-xs" />
-            <p class="label font-mono text-[10px]">Loopback only in this phase. Phase 3 will replace this with the Quick Tunnel URL.</p>
+            <p class="label font-mono text-[10px]">This becomes the Cloudflare Quick Tunnel URL when the tunnel is running; otherwise it is loopback-only.</p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Cloudflare Quick Tunnel</legend>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="label cursor-pointer justify-start gap-3 py-0">
+                <input id="settings-remote-tunnel-enabled" type="checkbox" class="toggle toggle-sm toggle-secondary" />
+                <span class="label-text font-mono text-xs">Expose the gateway through cloudflared</span>
+              </label>
+              <span id="settings-remote-tunnel-status" class="badge badge-ghost font-mono text-xs">off</span>
+            </div>
+            <input id="settings-remote-tunnel-url" type="text" readonly class="input input-sm w-full font-mono text-xs mt-2" placeholder="https://…trycloudflare.com" />
+            <p id="settings-remote-cloudflared" class="label font-mono text-[10px]">Checking for cloudflared…</p>
+            <p class="label font-mono text-[10px]">
+              Quick URLs change on every start. Install
+              <a class="link" href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/" target="_blank" rel="noreferrer">cloudflared</a>
+              first; this app does not bundle or auto-install it.
+            </p>
           </fieldset>
 
           <fieldset class="fieldset">

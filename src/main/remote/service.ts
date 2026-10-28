@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { createRemoteToken, readRemoteToken, remoteTokenFile } from './token.ts';
-import type { RemoteInfo, RemoteStatus } from '../../shared/remote.js';
+import { findCloudflared } from './cloudflared.ts';
+import { QuickTunnel } from '../../../packages/quick-tunnel/src/index.ts';
+import type { RemoteInfo, RemoteStatus, RemoteTunnelStatus } from '../../shared/remote.js';
 
 export interface RemoteServiceOptions {
   serverPath: string;
@@ -14,6 +16,8 @@ export interface RemoteServiceOptions {
   cwd: string;
   runtimePath?: string;
   logFile?: string;
+  cloudflaredPath?: string;
+  cloudflaredArgsPrefix?: string[];
 }
 
 const START_TIMEOUT_MS = 8000;
@@ -46,16 +50,21 @@ function canConnect(host: string, port: number, timeoutMs = 500): Promise<boolea
  */
 export class RemoteService {
   private child: ChildProcess | null = null;
+  private tunnel: QuickTunnel | null = null;
   private enabled = false;
+  private tunnelEnabled = false;
+  private tunnelError: string | undefined;
   private lastError = '';
   private readonly options: RemoteServiceOptions;
   private readonly tokenPath: string;
   private readonly logFile: string;
+  private readonly tunnelLogFile: string;
 
   constructor(options: RemoteServiceOptions) {
     this.options = options;
     this.tokenPath = remoteTokenFile(options.dataDir);
     this.logFile = options.logFile || path.join(options.dataDir, 'remote-server.log');
+    this.tunnelLogFile = path.join(options.dataDir, 'quick-tunnel.log');
   }
 
   ensureToken(): string {
@@ -82,7 +91,7 @@ export class RemoteService {
       {
         mcpServers: {
           'hyperbolic-browser': {
-            httpUrl: this.url(),
+            httpUrl: this.publicUrl(),
             headers: { Authorization: `Bearer ${this.getToken()}` },
           },
         },
@@ -97,8 +106,10 @@ export class RemoteService {
       enabled: this.enabled,
       running: Boolean(this.child),
       port: this.options.port,
-      url: this.url(),
+      localUrl: this.localUrl(),
+      url: this.publicUrl(),
       tokenFile: this.tokenPath,
+      tunnel: this.tunnelStatus(),
       ...(this.lastError ? { error: this.lastError } : {}),
     };
   }
@@ -118,7 +129,51 @@ export class RemoteService {
       }
     } else {
       this.enabled = false;
+      await this.stopTunnel();
       await this.stopChild();
+    }
+    return this.status();
+  }
+
+  async setTunnelEnabled(enabled: boolean): Promise<RemoteStatus> {
+    if (!enabled) {
+      await this.stopTunnel();
+      return this.status();
+    }
+    if (!this.child) {
+      throw new Error('Start the remote gateway before enabling the Quick Tunnel.');
+    }
+    if (this.tunnel?.status().running) return this.status();
+    if (this.tunnel) {
+      await this.tunnel.stop();
+      this.tunnel = null;
+    }
+
+    const binaryPath = findCloudflared(this.options.cloudflaredPath);
+    if (!binaryPath) {
+      this.tunnelError = 'cloudflared was not found. Install it and restart the app, or set HB_CLOUDFLARED_PATH.';
+      this.tunnelEnabled = false;
+      throw new Error(this.tunnelError);
+    }
+
+    this.tunnelEnabled = true;
+    this.tunnelError = undefined;
+    this.tunnel = new QuickTunnel({
+      localUrl: `http://127.0.0.1:${this.options.port}`,
+      binaryPath,
+      argsPrefix: this.options.cloudflaredArgsPrefix,
+      logFile: this.tunnelLogFile,
+      onStatus: () => {
+        // Status is read on demand by the Settings panel and app IPC.
+      },
+    });
+
+    try {
+      await this.tunnel.start();
+    } catch (error) {
+      this.tunnelEnabled = false;
+      this.tunnelError = error instanceof Error ? error.message : String(error);
+      throw error;
     }
     return this.status();
   }
@@ -144,11 +199,41 @@ export class RemoteService {
 
   async stop(): Promise<void> {
     this.enabled = false;
+    await this.stopTunnel();
     await this.stopChild();
   }
 
-  private url(): string {
+  private localUrl(): string {
     return `http://127.0.0.1:${this.options.port}/mcp/browser`;
+  }
+
+  private publicUrl(): string {
+    const tunnel = this.tunnel?.status();
+    if (tunnel?.running && tunnel.url) return `${tunnel.url}/mcp/browser`;
+    return this.localUrl();
+  }
+
+  private tunnelStatus(): RemoteTunnelStatus {
+    const binaryPath = findCloudflared(this.options.cloudflaredPath);
+    const status = this.tunnel?.status();
+    return {
+      enabled: this.tunnelEnabled,
+      running: Boolean(status?.running),
+      state: status?.state || (this.tunnelError ? 'error' : 'stopped'),
+      available: Boolean(binaryPath),
+      ...(binaryPath ? { binaryPath } : {}),
+      ...(status?.url ? { url: status.url } : {}),
+      ...(this.tunnelError || status?.error ? { error: this.tunnelError || status?.error } : {}),
+    };
+  }
+
+  private async stopTunnel(): Promise<void> {
+    this.tunnelEnabled = false;
+    this.tunnelError = undefined;
+    if (this.tunnel) {
+      await this.tunnel.stop();
+      this.tunnel = null;
+    }
   }
 
   private async startChild(): Promise<void> {
@@ -191,6 +276,7 @@ export class RemoteService {
       if (code !== 0 && this.enabled) {
         this.lastError = `Remote gateway exited (${signal || code}).\n${this.lastError}`.slice(-4000);
       }
+      if (this.enabled && this.tunnelEnabled) void this.stopTunnel();
       this.appendLog(`gateway exited code=${code ?? 'null'} signal=${signal ?? 'null'}\n`);
     });
 

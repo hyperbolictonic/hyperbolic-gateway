@@ -15,8 +15,9 @@ Streamable HTTP process; the stdio servers are unchanged.
 ## Status
 
 Phase 1 implemented the gateway and its auth/session lifecycle. Phase 2 adds
-the app-generated token and the **Settings → Remote** panel. The Cloudflare
-Quick Tunnel manager and client recipes are later phases.
+the app-generated token and the **Settings → Remote** panel. Phase 3 adds the
+optional Cloudflare Quick Tunnel. Named tunnels, custom domains, and
+Cloudflare Access remain later work.
 
 - Binary: `bin/remote-server.cjs`
 - Endpoint: `POST /mcp/browser`
@@ -29,13 +30,39 @@ everything else returns `404`.
 
 ## Settings → Remote
 
-The Settings panel can start and stop the gateway, copy the token and client
-config, rotate the token, and disconnect sessions. The gateway remains off
-after an app restart; remote access must be enabled explicitly each run.
+The Settings panel can start and stop the gateway, start and stop a Quick
+Tunnel, copy the token and client config, rotate the token, and disconnect
+sessions. The gateway and tunnel remain off after an app restart; remote access
+must be enabled explicitly each run.
 
 The token is generated at app startup if absent and stored at
 `<userData>/remote/token` with owner-only permissions. Rotating it stops the
 gateway, creates a new token, and restarts it if it was enabled.
+
+## Cloudflare Quick Tunnel
+
+The app starts `cloudflared` only when the tunnel toggle is enabled:
+
+```text
+cloudflared tunnel --url http://127.0.0.1:4112 --no-autoupdate
+```
+
+It parses the generated `https://<random>.trycloudflare.com` URL and uses that
+as the public MCP endpoint:
+
+```text
+https://<random>.trycloudflare.com/mcp/browser
+```
+
+`cloudflared` is not bundled or auto-installed. The app looks on `PATH` and in
+common install locations; `HB_CLOUDFLARED_PATH` can point at a specific binary.
+Quick Tunnel URLs change every time the process starts, so update the client
+config when restarting the tunnel.
+
+Quick Tunnels do not support SSE and carry no Cloudflare Access policy. This
+gateway therefore uses JSON-response Streamable HTTP and requires its own
+bearer token. For a stable hostname, custom domain, or Access policy, use a
+named Cloudflare Tunnel in a later phase.
 
 ## Architecture
 
@@ -51,8 +78,11 @@ remote MCP client
 ```
 
 The reusable HTTP host and session lifecycle live in
-[`packages/mcp-http`](../../../packages/mcp-http/README.md). The Hyperbolic
-Gateway-specific entry point lives in `src/mcp/remote-server.ts`.
+[`packages/mcp-http`](../../../packages/mcp-http/README.md). The Quick Tunnel
+process lifecycle lives in
+[`packages/quick-tunnel`](../../../packages/quick-tunnel/README.md). The
+Hyperbolic Gateway-specific entry points live in `src/mcp/remote-server.ts`
+and `src/main/remote/service.ts`.
 
 ## Environment
 
@@ -67,6 +97,7 @@ Gateway-specific entry point lives in `src/mcp/remote-server.ts`.
 | `HB_REMOTE_IDLE_MS` | Idle session timeout. Default 15 minutes. |
 | `HB_REMOTE_MAX_BODY_BYTES` | POST body cap. Default 1 MiB. |
 | `HB_REMOTE_LOG_FILE` | JSONL diagnostics path. |
+| `HB_CLOUDFLARED_PATH` | Optional explicit path to the `cloudflared` executable. |
 
 The token is read from the file on every request, so rotation does not require
 restarting the gateway. A missing or malformed token produces `401`.

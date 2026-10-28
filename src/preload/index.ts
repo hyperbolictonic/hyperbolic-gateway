@@ -101,6 +101,11 @@ export interface ElectronAPI {
     status?: RemoteStatus;
     error?: string;
   }>;
+  setRemoteTunnelEnabled: (enabled: boolean) => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
   getRecordingStatus: () => Promise<any>;
   listRecordings: () => Promise<Array<{ path: string; filename: string; bytes: number; modified: number }>>;
   saveRecording: (buffer: ArrayBuffer, frames: number) => Promise<any>;
@@ -264,6 +269,7 @@ const api: ElectronAPI = {
   setRemoteEnabled: (enabled: boolean) => ipcRenderer.invoke('remote:set-enabled', enabled),
   rotateRemoteToken: () => ipcRenderer.invoke('remote:rotate-token'),
   disconnectRemoteSessions: () => ipcRenderer.invoke('remote:disconnect-sessions'),
+  setRemoteTunnelEnabled: (enabled: boolean) => ipcRenderer.invoke('remote:set-tunnel-enabled', enabled),
   saveRecordingConfig: (config: any) => ipcRenderer.invoke('recording:config:save', config),
   pickRecordingDir: () => ipcRenderer.invoke('recording:pick-dir'),
   startRecording: (name?: string) => ipcRenderer.invoke('recording:start', name),

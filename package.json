@@ -30,6 +30,8 @@
     "typecheck:recipe": "tsc -p packages/recipe/tsconfig.json",
     "typecheck:mcp-http": "tsc -p packages/mcp-http/tsconfig.json",
     "test:mcp-http": "node --test packages/mcp-http/test/host.test.ts",
+    "typecheck:quick-tunnel": "tsc -p packages/quick-tunnel/tsconfig.json",
+    "test:quick-tunnel": "node --test packages/quick-tunnel/test/quick-tunnel.test.ts",
     "test:remote": "npm run build:mcp && node scripts/test-remote-gateway.mjs && node scripts/test-remote-service.mjs",
     "fix:local-paths": "node scripts/check-no-local-paths.mjs --fix",
     "test:mcp": "node scripts/test-client.js",

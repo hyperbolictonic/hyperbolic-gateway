@@ -28,6 +28,8 @@ const service = new RemoteService({
   dataDir: tempDir,
   cwd: process.cwd(),
   runtimePath: process.execPath,
+  cloudflaredPath: process.execPath,
+  cloudflaredArgsPrefix: [path.join(process.cwd(), 'packages', 'quick-tunnel', 'test', 'fake-cloudflared.mjs')],
 });
 
 try {
@@ -56,11 +58,17 @@ try {
   assert.equal(rotated.running, true);
   assert.notEqual(service.getToken(), initial.token);
 
+  const tunneled = await service.setTunnelEnabled(true);
+  assert.equal(tunneled.tunnel.running, true);
+  assert.equal(tunneled.tunnel.url, 'https://fake-quick-tunnel.trycloudflare.com');
+  assert.match(service.getConfig(), /fake-quick-tunnel\.trycloudflare\.com/);
+
   const disconnected = await service.disconnectSessions();
   assert.equal(disconnected.running, true);
 
   const stopped = await service.setEnabled(false);
   assert.equal(stopped.running, false);
+  assert.equal(stopped.tunnel.running, false);
   console.log('remote service test passed');
 } finally {
   await service.stop();

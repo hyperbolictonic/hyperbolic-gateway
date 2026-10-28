@@ -333,6 +333,15 @@ ipcMain.handle('remote:disconnect-sessions', async () => {
   }
 });
 
+ipcMain.handle('remote:set-tunnel-enabled', async (_event, enabled: boolean) => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.setTunnelEnabled(Boolean(enabled)) };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
 onRecordingStatus((state) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('recording:status', state);
@@ -440,6 +449,7 @@ async function createWindow() {
         port: remotePort,
         dataDir: remoteDir(),
         cwd: app.getPath('userData'),
+        cloudflaredPath: process.env.HB_CLOUDFLARED_PATH,
       });
       activeRemoteService.ensureToken();
     }
