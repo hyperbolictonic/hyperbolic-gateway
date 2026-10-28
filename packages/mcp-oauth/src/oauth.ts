@@ -158,8 +158,9 @@ async function readFields(request: IncomingMessage): Promise<Record<string, stri
 
 /**
  * A small OAuth 2.1 authorization server for one MCP resource and one static
- * client. It intentionally has no dynamic registration endpoint: Gemini falls
- * back to the client credentials entered under Advanced features.
+ * client. It intentionally has no dynamic registration endpoint, so clients
+ * that use pre-registered credentials fall back to the values entered in their
+ * advanced settings.
  */
 export class McpOAuthServer {
   private readonly options: McpOAuthServerOptions;
@@ -312,7 +313,7 @@ export class McpOAuthServer {
         requestLength: (fields.request || '').length,
         expired: Boolean(pending && pending.expiresAt < Date.now()),
       });
-      sendHtml(response, 400, this.errorPage('This authorization request expired. Start again from Gemini.'));
+      sendHtml(response, 400, this.errorPage('This authorization request expired. Start again from the client.'));
       return;
     }
     const redirectUrl = new URL(pending.redirectUri);
@@ -553,9 +554,9 @@ export class McpOAuthServer {
     const safe = escapeHtml(location);
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="0;url=${safe}">
-<title>Connecting to Gemini</title>
+<title>Connecting to MCP client</title>
 <style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}a{color:#22d3ee}code{color:#a3e635;overflow-wrap:anywhere}</style>
-</head><body><h1>Connecting to Gemini…</h1><p>If the page does not move automatically, use the link below.</p>
-<p><a href="${safe}">Continue to Gemini</a></p></body></html>`;
+</head><body><h1>Connecting to MCP client...</h1><p>If the page does not move automatically, use the link below.</p>
+<p><a href="${safe}">Continue to MCP client</a></p></body></html>`;
   }
 }

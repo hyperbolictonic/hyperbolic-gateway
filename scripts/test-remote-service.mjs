@@ -29,7 +29,7 @@ const service = new RemoteService({
   cwd: process.cwd(),
   runtimePath: process.execPath,
   cloudflaredPath: process.execPath,
-  cloudflaredArgsPrefix: [path.join(process.cwd(), 'packages', 'quick-tunnel', 'test', 'fake-cloudflared.mjs')],
+  tunnelArgsPrefix: [path.join(process.cwd(), 'packages', 'cloudflared-tunnel', 'test', 'fake-tunnel.mjs')],
 });
 
 try {
@@ -63,10 +63,12 @@ try {
   assert.equal(rotated.running, true);
   assert.notEqual(service.getToken(), initial.token);
 
-  const tunneled = await service.setTunnelEnabled(true);
-  assert.equal(tunneled.tunnel.running, true);
-  assert.equal(tunneled.tunnel.url, 'https://fake-quick-tunnel.trycloudflare.com');
-  assert.match(service.getConfig(), /fake-quick-tunnel\.trycloudflare\.com/);
+  await service.setTunnelConfig('mcp.example.com', 'test-tunnel-token');
+  const startedTunnel = await service.setTunnelEnabled(true);
+  assert.equal(startedTunnel.running, true);
+  assert.equal(startedTunnel.tunnel.running, true);
+  assert.equal(startedTunnel.tunnel.url, 'https://mcp.example.com');
+  assert.match(service.getConfig(), /https:\/\/mcp\.example\.com\/mcp\/browser/);
 
   const automatic = await service.setCloudflaredUpdateMode('automatic');
   assert.equal(automatic.cloudflared.updateMode, 'automatic');

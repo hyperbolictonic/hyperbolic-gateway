@@ -2542,7 +2542,9 @@ const remoteRotateEl = document.getElementById('settings-remote-rotate') as HTML
 const remoteDisconnectEl = document.getElementById('settings-remote-disconnect') as HTMLButtonElement | null;
 const remoteTunnelEnabledEl = document.getElementById('settings-remote-tunnel-enabled') as HTMLInputElement | null;
 const remoteTunnelStatusEl = document.getElementById('settings-remote-tunnel-status') as HTMLElement | null;
-const remoteTunnelUrlEl = document.getElementById('settings-remote-tunnel-url') as HTMLInputElement | null;
+const remoteTunnelHostnameEl = document.getElementById('settings-remote-tunnel-hostname') as HTMLInputElement | null;
+const remoteTunnelTokenEl = document.getElementById('settings-remote-tunnel-token') as HTMLInputElement | null;
+const remoteTunnelSaveEl = document.getElementById('settings-remote-tunnel-save') as HTMLButtonElement | null;
 const remoteCloudflaredEl = document.getElementById('settings-remote-cloudflared') as HTMLElement | null;
 const remoteCloudflaredModeEl = document.getElementById('settings-remote-cloudflared-mode') as HTMLSelectElement | null;
 const remoteCloudflaredCheckEl = document.getElementById('settings-remote-cloudflared-check') as HTMLButtonElement | null;
@@ -2608,7 +2610,6 @@ function renderTunnelStatus(tunnel: { enabled: boolean; running: boolean; state:
     remoteTunnelStatusEl.classList.add('badge-ghost');
   }
   if (remoteTunnelEnabledEl) remoteTunnelEnabledEl.checked = tunnel.enabled;
-  if (remoteTunnelUrlEl) remoteTunnelUrlEl.value = tunnel.url || '';
 }
 
 function renderCloudflaredStatus(cloudflared: {
@@ -2669,6 +2670,11 @@ async function loadRemotePanel(): Promise<void> {
     remoteConfigEl.value = result.config || '';
     if (remoteTokenFileEl) remoteTokenFileEl.textContent = status.tokenFile;
     if (remoteAuthModeEl) remoteAuthModeEl.value = status.authMode;
+    if (remoteTunnelHostnameEl) remoteTunnelHostnameEl.value = result.tunnelHostname || '';
+    if (remoteTunnelTokenEl) {
+      remoteTunnelTokenEl.value = '';
+      remoteTunnelTokenEl.placeholder = result.tunnelTokenConfigured ? 'configured — enter a new token to replace' : 'paste the tunnel token';
+    }
     const oauthMode = status.authMode === 'oauth';
     if (remoteBearerSectionEl) remoteBearerSectionEl.classList.toggle('hidden', oauthMode);
     if (remoteOAuthSectionEl) remoteOAuthSectionEl.classList.toggle('hidden', !oauthMode);
@@ -2732,7 +2738,7 @@ remoteAuthModeEl?.addEventListener('change', async () => {
   try {
     const result = await window.electronAPI?.setRemoteAuthMode(mode);
     if (!result?.ok) showRemoteResult('error', result?.error || 'Could not change authentication mode.');
-    else showRemoteResult('success', mode === 'oauth' ? 'OAuth 2.0 mode enabled. Use the client credentials in Gemini’s Advanced features.' : 'Bearer-token mode enabled.');
+    else showRemoteResult('success', mode === 'oauth' ? 'OAuth 2.0 mode enabled. Use the client credentials in your OAuth-capable MCP client.' : 'Bearer-token mode enabled.');
   } catch (err: any) {
     showRemoteResult('error', `Could not change authentication mode: ${err?.message || err}`);
   } finally {
@@ -2760,12 +2766,12 @@ remoteCopyOAuthConfigEl?.addEventListener('click', async () => {
 });
 
 remoteRotateOAuthEl?.addEventListener('click', async () => {
-  if (!window.confirm('Rotate the OAuth client? Existing Gemini authorizations will stop working.')) return;
+  if (!window.confirm('Rotate the OAuth client? Existing OAuth authorizations will stop working.')) return;
   remoteRotateOAuthEl.disabled = true;
   try {
     const result = await window.electronAPI?.rotateOAuthClient();
     if (!result?.ok) showRemoteResult('error', result?.error || 'Could not rotate the OAuth client.');
-    else showRemoteResult('success', 'OAuth client rotated. Update Gemini with the new credentials.');
+    else showRemoteResult('success', 'OAuth client rotated. Update connected OAuth clients with the new credentials.');
   } catch (err: any) {
     showRemoteResult('error', `Could not rotate the OAuth client: ${err?.message || err}`);
   } finally {
@@ -2778,20 +2784,39 @@ remoteTunnelEnabledEl?.addEventListener('change', async () => {
   if (!remoteTunnelEnabledEl) return;
   const desired = remoteTunnelEnabledEl.checked;
   remoteTunnelEnabledEl.disabled = true;
-  showRemoteResult('info', desired ? 'Starting the Cloudflare Quick Tunnel…' : 'Stopping the Cloudflare Quick Tunnel…');
+  showRemoteResult('info', desired ? 'Starting the named tunnel…' : 'Stopping the named tunnel…');
   try {
     const result = await window.electronAPI?.setRemoteTunnelEnabled(desired);
     if (!result?.ok) {
       remoteTunnelEnabledEl.checked = !desired;
-      showRemoteResult('error', result?.error || 'Could not change the Quick Tunnel.');
+      showRemoteResult('error', result?.error || 'Could not change the named tunnel.');
     } else {
-      showRemoteResult('success', desired ? 'Quick Tunnel is running. The config now uses the public URL.' : 'Quick Tunnel stopped. The config uses the loopback URL.');
+      showRemoteResult('success', desired ? 'Named tunnel is running. The config now uses the public URL.' : 'Named tunnel stopped. The config uses the loopback URL.');
     }
   } catch (err: any) {
     remoteTunnelEnabledEl.checked = !desired;
-    showRemoteResult('error', `Could not change the Quick Tunnel: ${err?.message || err}`);
+    showRemoteResult('error', `Could not change the named tunnel: ${err?.message || err}`);
   } finally {
     remoteTunnelEnabledEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteTunnelSaveEl?.addEventListener('click', async () => {
+  const hostname = remoteTunnelHostnameEl?.value.trim() || '';
+  const token = remoteTunnelTokenEl?.value.trim() || undefined;
+  remoteTunnelSaveEl.disabled = true;
+  try {
+    const result = await window.electronAPI?.setRemoteTunnelConfig(hostname, token);
+    if (!result?.ok) {
+      showRemoteResult('error', result?.error || 'Could not save the tunnel configuration.');
+    } else {
+      showRemoteResult('success', 'Tunnel configuration saved.');
+    }
+  } catch (err: any) {
+    showRemoteResult('error', `Could not save the tunnel configuration: ${err?.message || err}`);
+  } finally {
+    remoteTunnelSaveEl.disabled = false;
     await loadRemotePanel();
   }
 });

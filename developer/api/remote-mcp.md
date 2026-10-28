@@ -1,29 +1,25 @@
 ---
 type: API Reference
 title: Remote MCP gateway
-description: The Phase 1 Streamable HTTP gateway for exposing the browser MCP surface beyond stdio.
-tags: [api, remote, streamable-http, mcp, cloudflare]
+description: The Streamable HTTP gateway for exposing the browser MCP surface through a named Cloudflare Tunnel.
+tags: [api, remote, streamable-http, mcp, cloudflare, oauth]
 status: draft
 ---
 
 # Remote MCP gateway
 
-The remote gateway is the first step toward using Hyperbolic Gateway from a
-remote MCP client through a Cloudflare Tunnel. It is a separate, loopback-only
-Streamable HTTP process; the stdio servers are unchanged.
+The remote gateway exposes the browser MCP surface to remote clients through a
+loopback Streamable HTTP process. A named Cloudflare Tunnel publishes it on a
+hostname you control; the stdio servers are unchanged.
 
 ## Status
-
-Phase 1 implemented the gateway and its auth/session lifecycle. Phase 2 adds
-the app-generated token and the **Settings → Remote** panel. Phase 3 adds the
-optional Cloudflare Quick Tunnel. Named tunnels, custom domains, and
-Cloudflare Access remain later work.
 
 - Binary: `bin/remote-server.cjs`
 - Endpoint: `POST /mcp/browser`
 - Transport: MCP Streamable HTTP with direct JSON responses
 - Legacy SSE transport: not implemented
 - Default bind: `127.0.0.1:4112`
+- Public access: named Cloudflare Tunnel only
 
 The gateway is never a proxy for the raw bridge. It exposes only its MCP path;
 everything else returns `404`.
@@ -32,46 +28,60 @@ everything else returns `404`.
 
 The Remote panel has an authentication selector, defaulting to **Bearer**.
 
-- **Bearer**: the existing app-generated remote token. Works with Gemini CLI,
-  MCP Inspector, `mcp-remote`, and manual HTTP clients.
-- **OAuth 2.0**: a pre-registered static client for Gemini’s custom Connected
-  App flow. The app generates the client ID and secret; Gemini enters them under
-  Advanced features. The gateway publishes discovery metadata and exposes
-  `/oauth/authorize`, `/oauth/token`, and `/oauth/revoke`.
+- **Bearer**: the app-generated remote token. Works with MCP clients that
+  support custom headers — for example Gemini CLI, MCP Inspector,
+  `mcp-remote`, or a manual HTTP client.
+- **OAuth 2.0**: a pre-registered static client for OAuth-capable MCP clients,
+  such as Gemini Connected Apps or an equivalent custom connector. The app
+  generates the client ID and secret. The gateway publishes discovery metadata
+  and exposes `/oauth/authorize`, `/oauth/token`, and `/oauth/revoke`.
 
 OAuth mode accepts OAuth access tokens, not the static bearer token. Switching
-modes restarts the gateway but leaves the Quick Tunnel running.
+modes restarts the gateway but leaves a running named tunnel connected.
 
 ## Settings → Remote
 
-The Settings panel can start and stop the gateway, start and stop a Quick
-Tunnel, copy the token and client config, rotate the token, and disconnect
-sessions. The gateway and tunnel remain off after an app restart; remote access
-must be enabled explicitly each run.
+The panel can start and stop the gateway and the named tunnel, copy the bearer
+token or OAuth client credentials, rotate credentials, and disconnect sessions.
+The gateway and tunnel remain off after an app restart.
 
-The token is generated at app startup if absent and stored at
-`<userData>/remote/token` with owner-only permissions. Rotating it stops the
-gateway, creates a new token, and restarts it if it was enabled.
+The bearer token is generated at app startup if absent and stored at
+`<userData>/remote/token` with owner-only permissions. The OAuth client is
+stored at `<userData>/remote/oauth-client.json`.
 
-## Cloudflare Quick Tunnel
+## Named Cloudflare Tunnel
 
-The app starts `cloudflared` only when the tunnel toggle is enabled:
+A named tunnel requires:
+
+- a Cloudflare account
+- a hostname on a Cloudflare DNS zone
+- a named tunnel with a public hostname pointing to
+  `http://127.0.0.1:4112`
+- the tunnel token
+
+In the Cloudflare dashboard, create the tunnel and add a **Public Hostname**
+that routes to `http://127.0.0.1:4112`. Paste the hostname and tunnel token into
+Settings → Remote. The app runs:
 
 ```text
-cloudflared tunnel --url http://127.0.0.1:4112 --no-autoupdate
+cloudflared tunnel --no-autoupdate run
 ```
 
-It parses the generated `https://<random>.trycloudflare.com` URL and uses that
-as the public MCP endpoint:
+with `TUNNEL_TOKEN` in the child environment. The token is stored at
+`<userData>/remote/tunnel-token` with owner-only permissions and is never
+returned to the renderer or logged.
+
+### OAuth on Cloudflare
+
+Cloudflare Bot Fight Mode / WAF can block Google’s server-to-server OAuth token
+exchange even when the browser flow succeeds. If OAuth clients report account
+linking failures, add a skip/bypass rule for:
 
 ```text
-https://<random>.trycloudflare.com/mcp/browser
+/oauth/token
 ```
 
-`cloudflared` is not bundled. The app looks for a managed binary first,
-then `PATH` and common install locations; `HB_CLOUDFLARED_PATH` can point at a
-specific system binary. Quick Tunnel URLs change every time the process starts,
-so update the client config when restarting the tunnel.
+or for the full public hostname used by the MCP gateway.
 
 ### Managed cloudflared
 
@@ -86,26 +96,25 @@ The download is explicit, SHA-256 verified against the GitHub release asset
 digest, and installed atomically. `cloudflared` is Apache-2.0 software from
 Cloudflare; the app downloads the official binary and does not redistribute it.
 The macOS `.tgz` is extracted in pure Node, so it does not depend on the host
-`tar` binary. The panel supports:
+`tar` binary.
 
-- **Manual** updates: use CHECK and INSTALL / UPDATE.
-- **Automatic at startup**: if a managed binary exists, check and install an
-  update when the app starts.
+Update modes:
 
-System binaries are left alone. If `HB_CLOUDFLARED_PATH` is set, it takes
-precedence over the managed binary.
+- **Manual**: use CHECK and INSTALL / UPDATE.
+- **Automatic at startup**: check and install an update when the app starts.
 
-Quick Tunnels do not support SSE and carry no Cloudflare Access policy. This
-gateway therefore uses JSON-response Streamable HTTP and requires its own
-bearer token. For a stable hostname, custom domain, or Access policy, use a
-named Cloudflare Tunnel in a later phase.
+System binaries are left alone. `HB_CLOUDFLARED_PATH` takes precedence over the
+managed binary.
 
 ## Architecture
 
 ```text
 remote MCP client
       |
-      |  Streamable HTTP + bearer token
+      |  HTTPS + bearer/OAuth
+      v
+Cloudflare named tunnel
+      |
       v
 127.0.0.1:4112/mcp/browser
       |
@@ -116,10 +125,10 @@ remote MCP client
 The reusable HTTP host and session lifecycle live in
 [`packages/mcp-http`](../../../packages/mcp-http/README.md). The OAuth
 authorization server lives in
-[`packages/mcp-oauth`](../../../packages/mcp-oauth/README.md). The Quick Tunnel
+[`packages/mcp-oauth`](../../../packages/mcp-oauth/README.md). The named-tunnel
 process lifecycle lives in
-[`packages/quick-tunnel`](../../../packages/quick-tunnel/README.md), and the
-managed `cloudflared` downloader lives in
+[`packages/cloudflared-tunnel`](../../../packages/cloudflared-tunnel/README.md),
+and the managed `cloudflared` downloader lives in
 [`packages/cloudflared`](../../../packages/cloudflared/README.md). The
 Hyperbolic Gateway-specific entry points live in `src/mcp/remote-server.ts`
 and `src/main/remote/service.ts`.
@@ -132,8 +141,9 @@ and `src/main/remote/service.ts`.
 | `HB_BRIDGE_URL` | Local bridge URL. The app passes this automatically. |
 | `HB_REMOTE_AUTH_MODE` | `bearer` (default) or `oauth`. |
 | `HB_OAUTH_CLIENT_FILE` | OAuth client JSON path. Required in `oauth` mode. |
+| `HB_OAUTH_REDIRECT_HOSTS` | Optional comma-separated additional callback hostnames. |
 | `HB_REMOTE_PORT` | Loopback port. Default `4112`. |
-| `HB_REMOTE_HOST` | Loopback bind address. Default `127.0.0.1`; non-loopback values are rejected. |
+| `HB_REMOTE_HOST` | Loopback bind address. Default `127.0.0.1`. |
 | `HB_REMOTE_PATH` | MCP path. Default `/mcp/browser`. |
 | `HB_REMOTE_MAX_SESSIONS` | Concurrent session cap. Default `4`. |
 | `HB_REMOTE_IDLE_MS` | Idle session timeout. Default 15 minutes. |
@@ -148,13 +158,11 @@ restarting the gateway. A missing or malformed token produces `401`.
 
 ### Bearer mode
 
-Once the gateway is running and the token is known:
-
 ```json
 {
   "mcpServers": {
     "hyperbolic-browser": {
-      "httpUrl": "http://127.0.0.1:4112/mcp/browser",
+      "httpUrl": "https://<public-hostname>/mcp/browser",
       "headers": {
         "Authorization": "Bearer <remote-token>"
       }
@@ -163,16 +171,17 @@ Once the gateway is running and the token is known:
 }
 ```
 
-This is the local shape. The Cloudflare Tunnel phase will replace the URL with
-the generated HTTPS tunnel URL.
+The local URL is `http://127.0.0.1:4112/mcp/browser` when the tunnel is stopped.
 
 ### OAuth mode
 
-In Gemini’s Connected Apps screen, enter:
+In an OAuth-capable MCP client — for example Gemini Connected Apps or another
+custom connector — enter:
 
-- MCP server URL: `https://<tunnel>/mcp/browser`
+- MCP server URL: `https://<public-hostname>/mcp/browser`
 - Client ID: the generated OAuth client ID
 - Client secret: the generated OAuth client secret
+- Advanced features: enable PKCE if the client asks
 
 The gateway serves:
 
@@ -182,32 +191,32 @@ The gateway serves:
 - `/oauth/token`
 - `/oauth/revoke`
 
-It does not advertise dynamic client registration, so Gemini uses the
-credentials entered under Advanced features. Authorization requires explicit
-approval on the local consent page. Access tokens are short-lived and refresh
-tokens rotate on use. OAuth tokens live in the gateway process, so restarting
-the remote gateway requires Gemini to authorize again.
+It does not advertise dynamic client registration, so clients that support a
+pre-registered client use the credentials entered under advanced settings.
+Authorization requires explicit approval on the local consent page. Access
+tokens are short-lived and refresh tokens rotate on use. OAuth tokens live in
+the gateway process, so restarting the gateway requires re-authorization.
 
 ## Security boundaries
 
 - Bind is loopback-only.
-- Bearer auth runs before session creation or body parsing.
-- The remote token is separate from the Hyperbolic Rest bridge token.
+- Bearer/OAuth auth runs before session creation or body parsing.
+- The remote bearer token is separate from the Hyperbolic Rest bridge token.
 - The raw bridge and `/wrap/*` are not routed through the gateway.
 - Sessions are capped, idle-expire, and close on shutdown.
 - No SSE GET stream is exposed in this phase.
-- No custom domains, named tunnels or Cloudflare Access yet.
+- Named tunnel token is stored owner-only and never exposed to the renderer.
+- Cloudflare Access is not implemented yet; use Cloudflare policy in front of
+  the named tunnel if needed.
 
-The quick-tunnel URL is not authentication. A future tunnel phase must keep
-the bearer token requirement in place.
+The public hostname is not authentication. Keep the bearer/OAuth requirement.
 
 ## Verification
 
 ```bash
 npm run test:mcp-http
+npm run test:mcp-oauth
+npm run test:cloudflared
+npm run test:cloudflared-tunnel
 npm run test:remote
 ```
-
-`test:remote` starts the built gateway with a temporary token file, rejects an
-unauthenticated request, connects a real MCP client, and verifies the browser
-tool list.

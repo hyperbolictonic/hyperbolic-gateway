@@ -31387,7 +31387,7 @@ var McpOAuthServer = class {
         requestLength: (fields.request || "").length,
         expired: Boolean(pending && pending.expiresAt < Date.now())
       });
-      sendHtml(response, 400, this.errorPage("This authorization request expired. Start again from Gemini."));
+      sendHtml(response, 400, this.errorPage("This authorization request expired. Start again from the client."));
       return;
     }
     const redirectUrl = new URL(pending.redirectUri);
@@ -31610,10 +31610,10 @@ var McpOAuthServer = class {
     const safe = escapeHtml(location);
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="0;url=${safe}">
-<title>Connecting to Gemini</title>
+<title>Connecting to MCP client</title>
 <style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}a{color:#22d3ee}code{color:#a3e635;overflow-wrap:anywhere}</style>
-</head><body><h1>Connecting to Gemini\u2026</h1><p>If the page does not move automatically, use the link below.</p>
-<p><a href="${safe}">Continue to Gemini</a></p></body></html>`;
+</head><body><h1>Connecting to MCP client...</h1><p>If the page does not move automatically, use the link below.</p>
+<p><a href="${safe}">Continue to MCP client</a></p></body></html>`;
   }
 };
 
@@ -42407,6 +42407,7 @@ async function main() {
   const idleTimeoutMs = positiveInteger(process.env.HB_REMOTE_IDLE_MS, DEFAULT_IDLE_TIMEOUT_MS2);
   const maxRequestBodyBytes = positiveInteger(process.env.HB_REMOTE_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES2);
   const authMode = process.env.HB_REMOTE_AUTH_MODE === "oauth" ? "oauth" : "bearer";
+  const redirectHosts = (process.env.HB_OAUTH_REDIRECT_HOSTS || "").split(",").map((host2) => host2.trim().toLowerCase()).filter(Boolean);
   const oauth = authMode === "oauth" ? (() => {
     const clientFile = process.env.HB_OAUTH_CLIENT_FILE?.trim();
     if (!clientFile) throw new Error("HB_OAUTH_CLIENT_FILE is required for OAuth mode");
@@ -42416,6 +42417,7 @@ async function main() {
       clientId: client.clientId,
       clientSecret: client.clientSecret,
       resourcePath: pathName,
+      allowedRedirectHosts: redirectHosts.length ? redirectHosts : void 0,
       logger: logRemote
     });
   })() : null;

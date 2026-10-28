@@ -908,8 +908,8 @@
           <div>
             <h3 class="font-mono text-sm font-bold text-primary">REMOTE ACCESS</h3>
             <p class="text-xs text-base-content/60 mt-1">
-              Expose the browser MCP surface over Streamable HTTP. Remote access and the Cloudflare Quick Tunnel
-              are off by default, and the gateway remains loopback-only.
+              Expose the browser MCP surface over Streamable HTTP. Remote access and the named Cloudflare
+              tunnel are off by default, and the gateway remains loopback-only.
             </p>
           </div>
           <span id="settings-remote-status" class="badge badge-ghost font-mono text-xs whitespace-nowrap">off</span>
@@ -930,9 +930,9 @@
             <legend class="fieldset-legend font-mono text-xs">Authentication</legend>
             <select id="settings-remote-auth-mode" class="select select-sm w-full font-mono text-xs">
               <option value="bearer">Bearer token</option>
-              <option value="oauth">OAuth 2.0 (Gemini custom app)</option>
+              <option value="oauth">OAuth 2.0 (e.g. Gemini, other OAuth-capable clients)</option>
             </select>
-            <p class="label font-mono text-[10px]">Bearer is the default and works with Gemini CLI. OAuth adds discovery and consent for Gemini’s custom Connected App flow.</p>
+            <p class="label font-mono text-[10px]">Bearer is the default and works with MCP clients that can send custom headers, such as Gemini CLI. OAuth adds discovery and consent for OAuth-capable custom connectors.</p>
           </fieldset>
 
           <div id="settings-remote-bearer-section" class="space-y-5">
@@ -959,8 +959,9 @@
 
           <div id="settings-remote-oauth-section" class="hidden space-y-5">
             <div class="alert alert-info alert-sm font-mono text-[11px]">
-              In Gemini → Connected Apps → Add custom app, enter the MCP URL, then open Advanced features
-              and paste the client ID and secret below. Gemini discovers the OAuth endpoints from the URL.
+              In an OAuth-capable MCP client (for example Gemini Connected Apps), enter the MCP URL,
+              then open Advanced features and paste the client ID and secret below. The client discovers
+              the OAuth endpoints from the URL.
             </div>
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">OAuth client ID</legend>
@@ -975,7 +976,7 @@
                 <input id="settings-remote-oauth-client-secret" type="password" readonly class="input input-sm join-item flex-1 font-mono text-xs" />
                 <button type="button" id="settings-remote-copy-oauth-secret" class="btn btn-sm btn-outline join-item font-mono text-xs">COPY</button>
               </div>
-              <p class="label font-mono text-[10px]">Rotating the OAuth client disconnects existing Gemini authorizations.</p>
+              <p class="label font-mono text-[10px]">Rotating the OAuth client disconnects existing OAuth authorizations.</p>
             </fieldset>
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">OAuth client config</legend>
@@ -988,19 +989,30 @@
           <fieldset class="fieldset">
             <legend class="fieldset-legend font-mono text-xs">MCP endpoint</legend>
             <input id="settings-remote-url" type="text" readonly class="input input-sm w-full font-mono text-xs" />
-            <p class="label font-mono text-[10px]">This becomes the Cloudflare Quick Tunnel URL when the tunnel is running; otherwise it is loopback-only.</p>
+            <p class="label font-mono text-[10px]">Uses the public named-tunnel hostname when the tunnel runs; otherwise it is loopback-only.</p>
           </fieldset>
 
           <fieldset class="fieldset">
-            <legend class="fieldset-legend font-mono text-xs">Cloudflare Quick Tunnel</legend>
+            <legend class="fieldset-legend font-mono text-xs">Cloudflare Named Tunnel</legend>
             <div class="flex flex-wrap items-center gap-3">
               <label class="label cursor-pointer justify-start gap-3 py-0">
                 <input id="settings-remote-tunnel-enabled" type="checkbox" class="toggle toggle-sm toggle-secondary" />
-                <span class="label-text font-mono text-xs">Expose the gateway through cloudflared</span>
+                <span class="label-text font-mono text-xs">Run the named tunnel</span>
               </label>
               <span id="settings-remote-tunnel-status" class="badge badge-ghost font-mono text-xs">off</span>
             </div>
-            <input id="settings-remote-tunnel-url" type="text" readonly class="input input-sm w-full font-mono text-xs mt-2" placeholder="https://…trycloudflare.com" />
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-[10px]">Public hostname</legend>
+              <input id="settings-remote-tunnel-hostname" type="text" class="input input-sm w-full font-mono text-xs" placeholder="mcp.example.com" autocomplete="off" />
+              <p class="label font-mono text-[10px]">Configure a public hostname in Cloudflare → Networks → Tunnels → Public Hostname, pointing to <code class="font-mono">http://127.0.0.1:4112</code>.</p>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-[10px]">Tunnel token</legend>
+              <input id="settings-remote-tunnel-token" type="password" class="input input-sm w-full font-mono text-xs" placeholder="paste the tunnel token" autocomplete="off" />
+              <div class="flex flex-wrap gap-2 mt-2">
+                <button type="button" id="settings-remote-tunnel-save" class="btn btn-sm btn-primary font-mono text-xs">SAVE TUNNEL CONFIG</button>
+              </div>
+            </fieldset>
             <p id="settings-remote-cloudflared" class="label font-mono text-[10px]">Checking for cloudflared…</p>
             <div class="flex flex-wrap items-end gap-2">
               <fieldset class="fieldset">
@@ -1015,10 +1027,12 @@
               <span id="settings-remote-cloudflared-result" class="font-mono text-[10px] text-base-content/60"></span>
             </div>
             <p class="label font-mono text-[10px]">
-              Quick URLs change on every start. Install
+              Install
               <a class="link" href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/" target="_blank" rel="noreferrer">cloudflared</a>
-              first; the app can also install and update the official managed binary.
-              Automatic updates apply only to that managed binary, not to a system install.
+              first, or use the official managed binary above. The named tunnel needs a Cloudflare account and a hostname on your Cloudflare DNS zone.
+            </p>
+            <p class="label font-mono text-[10px] text-warning">
+              For OAuth account linking, add a Cloudflare WAF/Bot Fight skip rule for <code class="font-mono">/oauth/token</code>. Server-to-server token requests can otherwise be blocked while the browser succeeds.
             </p>
           </fieldset>
 

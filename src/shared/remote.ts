@@ -16,6 +16,8 @@ export interface RemoteTunnelStatus {
   state: 'stopped' | 'starting' | 'running' | 'error';
   available: boolean;
   binaryPath?: string;
+  hostname?: string;
+  tokenConfigured: boolean;
   url?: string;
   error?: string;
 }
@@ -37,6 +39,8 @@ export interface RemoteInfo {
   status: RemoteStatus;
   token: string;
   config: string;
+  tunnelHostname: string;
+  tunnelTokenConfigured: boolean;
   oauthClient?: {
     clientId: string;
     clientSecret: string;

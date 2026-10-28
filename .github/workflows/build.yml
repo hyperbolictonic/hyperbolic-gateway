@@ -80,8 +80,8 @@ jobs:
       - name: MCP HTTP transport tests
         run: npm run test:mcp-http
 
-      - name: Quick Tunnel manager tests
-        run: npm run test:quick-tunnel
+      - name: Cloudflared tunnel manager tests
+        run: npm run test:cloudflared-tunnel
 
       - name: cloudflared manager tests
         run: npm run test:cloudflared

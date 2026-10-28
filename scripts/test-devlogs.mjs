@@ -17,7 +17,7 @@ fs.writeFileSync(
     'oauth_authorize_state_invalid requestLength=0 expired=false',
   ].join('\n') + '\n',
 );
-fs.writeFileSync(path.join(logDir, 'quick-tunnel.log'), 'tunnel started\nhttps://example.trycloudflare.com\n');
+fs.writeFileSync(path.join(logDir, 'named-tunnel.log'), 'tunnel started\nRegistered tunnel connection\n');
 
 const transport = new StdioClientTransport({
   command: process.execPath,
@@ -41,7 +41,7 @@ try {
 
   const list = await client.callTool({ name: 'list_logs', arguments: {} });
   assert.match(textOf(list), /remote-server\.log/);
-  assert.match(textOf(list), /quick-tunnel\.log/);
+  assert.match(textOf(list), /named-tunnel\.log/);
 
   const read = await client.callTool({
     name: 'read_log',

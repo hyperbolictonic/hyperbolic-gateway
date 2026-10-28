@@ -9,7 +9,7 @@ import { ensureOAuthClient, oauthClientFile, createOAuthClient } from './oauth-c
 import type { OAuthClientCredentials } from './oauth-client.ts';
 import { CloudflaredManager } from '../../../packages/cloudflared/src/index.ts';
 import type { CloudflaredCheck, CloudflaredUpdateMode } from '../../../packages/cloudflared/src/index.ts';
-import { QuickTunnel } from '../../../packages/quick-tunnel/src/index.ts';
+import { CloudflaredTunnel } from '../../../packages/cloudflared-tunnel/src/index.ts';
 import { loadRemoteSettings, saveRemoteSettings } from './settings.ts';
 import type { RemoteInfo, RemoteStatus, RemoteTunnelStatus, RemoteCloudflaredStatus } from '../../shared/remote.js';
 
@@ -22,7 +22,7 @@ export interface RemoteServiceOptions {
   runtimePath?: string;
   logFile?: string;
   cloudflaredPath?: string;
-  cloudflaredArgsPrefix?: string[];
+  tunnelArgsPrefix?: string[];
 }
 
 const START_TIMEOUT_MS = 8000;
@@ -55,7 +55,7 @@ function canConnect(host: string, port: number, timeoutMs = 500): Promise<boolea
  */
 export class RemoteService {
   private child: ChildProcess | null = null;
-  private tunnel: QuickTunnel | null = null;
+  private tunnel: CloudflaredTunnel | null = null;
   private enabled = false;
   private tunnelEnabled = false;
   private tunnelError: string | undefined;
@@ -64,6 +64,8 @@ export class RemoteService {
   private readonly tokenPath: string;
   private readonly logFile: string;
   private readonly tunnelLogFile: string;
+  private readonly tunnelTokenPath: string;
+  private tunnelHostname: string;
   private readonly cloudflared: CloudflaredManager;
   private readonly settingsPath: string;
   private readonly oauthClientPath: string;
@@ -76,13 +78,15 @@ export class RemoteService {
     this.options = options;
     this.tokenPath = remoteTokenFile(options.dataDir);
     this.logFile = options.logFile || path.join(options.dataDir, 'remote-server.log');
-    this.tunnelLogFile = path.join(options.dataDir, 'quick-tunnel.log');
+    this.tunnelLogFile = path.join(options.dataDir, 'named-tunnel.log');
+    this.tunnelTokenPath = path.join(options.dataDir, 'tunnel-token');
     this.cloudflared = new CloudflaredManager({ dataDir: options.dataDir });
     this.settingsPath = path.join(options.dataDir, 'settings.json');
     this.oauthClientPath = oauthClientFile(options.dataDir);
     const settings = loadRemoteSettings(this.settingsPath);
     this.updateMode = settings.cloudflaredUpdateMode;
     this.authMode = settings.authMode;
+    this.tunnelHostname = settings.tunnelHostname;
   }
 
   ensureToken(): string {
@@ -101,6 +105,8 @@ export class RemoteService {
       status: this.status(),
       token: this.getToken(),
       config: this.getConfig(),
+      tunnelHostname: this.tunnelHostname,
+      tunnelTokenConfigured: Boolean(this.readTunnelToken()),
       ...(this.authMode === 'oauth' ? { oauthClient: this.getOAuthClient() } : {}),
     };
   }
@@ -190,7 +196,78 @@ export class RemoteService {
       schemaVersion: 1,
       cloudflaredUpdateMode: this.updateMode,
       authMode: this.authMode,
+      tunnelHostname: this.tunnelHostname,
     });
+  }
+
+  async setTunnelHostname(hostname: string): Promise<RemoteStatus> {
+    const normalized = this.normalizeHostname(hostname);
+    const wasEnabled = this.tunnelEnabled;
+    if (wasEnabled) await this.stopTunnel();
+    this.tunnelHostname = normalized;
+    this.saveSettings();
+    if (wasEnabled) await this.setTunnelEnabled(true);
+    return this.status();
+  }
+
+  async setTunnelToken(token: string): Promise<RemoteStatus> {
+    const value = token.trim();
+    if (!value) throw new Error('Tunnel token cannot be empty.');
+    const wasEnabled = this.tunnelEnabled;
+    if (wasEnabled) await this.stopTunnel();
+    this.writeTunnelToken(value);
+    if (wasEnabled) await this.setTunnelEnabled(true);
+    return this.status();
+  }
+
+  async setTunnelConfig(hostname: string, token?: string): Promise<RemoteStatus> {
+    const normalized = this.normalizeHostname(hostname);
+    const value = token?.trim();
+    const wasEnabled = this.tunnelEnabled;
+    if (wasEnabled) await this.stopTunnel();
+    if (value) this.writeTunnelToken(value);
+    this.tunnelHostname = normalized;
+    this.saveSettings();
+    if (wasEnabled) await this.setTunnelEnabled(true);
+    return this.status();
+  }
+
+  private writeTunnelToken(value: string): void {
+    fs.mkdirSync(this.options.dataDir, { recursive: true });
+    const temp = `${this.tunnelTokenPath}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(temp, `${value}\n`, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(temp, this.tunnelTokenPath);
+    try {
+      fs.chmodSync(this.tunnelTokenPath, 0o600);
+    } catch {
+      // Windows uses ACLs; the userData directory is already user-private.
+    }
+  }
+
+  private readTunnelToken(): string | undefined {
+    try {
+      const value = fs.readFileSync(this.tunnelTokenPath, 'utf8').trim();
+      return value || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private normalizeHostname(value: string): string {
+    const raw = value.trim();
+    if (!raw) throw new Error('Public hostname is required.');
+    let hostname = raw;
+    try {
+      const parsed = new URL(raw.includes('://') ? raw : `https://${raw}`);
+      hostname = parsed.hostname;
+    } catch {
+      throw new Error('Public hostname is not valid.');
+    }
+    hostname = hostname.toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(hostname) || !hostname.includes('.')) {
+      throw new Error('Public hostname must be a full DNS name, for example mcp.example.com.');
+    }
+    return hostname;
   }
 
   async checkCloudflared(): Promise<RemoteStatus> {
@@ -280,7 +357,10 @@ export class RemoteService {
       return this.status();
     }
     if (!this.child) {
-      throw new Error('Start the remote gateway before enabling the Quick Tunnel.');
+      throw new Error('Start the remote gateway before enabling the named tunnel.');
+    }
+    if (!this.tunnelHostname) {
+      throw new Error('Set a public hostname and tunnel token first.');
     }
     if (this.tunnel?.status().running) return this.status();
     if (this.tunnel) {
@@ -288,6 +368,10 @@ export class RemoteService {
       this.tunnel = null;
     }
 
+    const token = this.readTunnelToken();
+    if (!token) {
+      throw new Error('A Cloudflare tunnel token is required. Save one in Remote settings.');
+    }
     const binaryPath = this.localCloudflaredPath();
     if (!binaryPath) {
       this.tunnelError = 'cloudflared is not installed. Use INSTALL / UPDATE in Remote settings, or set HB_CLOUDFLARED_PATH.';
@@ -297,10 +381,9 @@ export class RemoteService {
 
     this.tunnelEnabled = true;
     this.tunnelError = undefined;
-    this.tunnel = new QuickTunnel({
-      localUrl: `http://127.0.0.1:${this.options.port}`,
+    this.tunnel = new CloudflaredTunnel({
       binaryPath,
-      argsPrefix: this.options.cloudflaredArgsPrefix,
+      argsPrefix: this.options.tunnelArgsPrefix,
       logFile: this.tunnelLogFile,
       onStatus: () => {
         // Status is read on demand by the Settings panel and app IPC.
@@ -308,7 +391,7 @@ export class RemoteService {
     });
 
     try {
-      await this.tunnel.start();
+      await this.tunnel.start(token);
     } catch (error) {
       this.tunnelEnabled = false;
       this.tunnelError = error instanceof Error ? error.message : String(error);
@@ -347,8 +430,8 @@ export class RemoteService {
   }
 
   private publicUrl(): string {
-    const tunnel = this.tunnel?.status();
-    if (tunnel?.running && tunnel.url) return `${tunnel.url}/mcp/browser`;
+    const status = this.tunnel?.status();
+    if (status?.running && this.tunnelHostname) return `https://${this.tunnelHostname}/mcp/browser`;
     return this.localUrl();
   }
 
@@ -361,7 +444,9 @@ export class RemoteService {
       state: status?.state || (this.tunnelError ? 'error' : 'stopped'),
       available: Boolean(binaryPath),
       ...(binaryPath ? { binaryPath } : {}),
-      ...(status?.url ? { url: status.url } : {}),
+      ...(this.tunnelHostname ? { hostname: this.tunnelHostname } : {}),
+      tokenConfigured: Boolean(this.readTunnelToken()),
+      ...(status?.running && this.tunnelHostname ? { url: `https://${this.tunnelHostname}` } : {}),
       ...(this.tunnelError || status?.error ? { error: this.tunnelError || status?.error } : {}),
     };
   }

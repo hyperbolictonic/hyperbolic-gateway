@@ -12,7 +12,8 @@ It implements:
 - access and refresh tokens
 - token revocation
 
-It intentionally does **not** advertise dynamic client registration, so Gemini
-falls back to the client ID/secret entered under Advanced features.
+It intentionally does **not** advertise dynamic client registration, so clients
+that support a pre-registered client (for example Gemini Connected Apps) fall
+back to the credentials entered under advanced settings.
 
 The package has no Electron, Cloudflare, or Hyperbolic Gateway imports.

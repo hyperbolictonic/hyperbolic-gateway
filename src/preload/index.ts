@@ -88,6 +88,8 @@ export interface ElectronAPI {
     status?: RemoteStatus;
     token?: string;
     config?: string;
+    tunnelHostname?: string;
+    tunnelTokenConfigured?: boolean;
     oauthClient?: { clientId: string; clientSecret: string; createdAt: string };
     error?: string;
   }>;
@@ -107,6 +109,11 @@ export interface ElectronAPI {
     error?: string;
   }>;
   setRemoteTunnelEnabled: (enabled: boolean) => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
+  setRemoteTunnelConfig: (hostname: string, token?: string) => Promise<{
     ok: boolean;
     status?: RemoteStatus;
     error?: string;
@@ -300,6 +307,7 @@ const api: ElectronAPI = {
   rotateRemoteToken: () => ipcRenderer.invoke('remote:rotate-token'),
   disconnectRemoteSessions: () => ipcRenderer.invoke('remote:disconnect-sessions'),
   setRemoteTunnelEnabled: (enabled: boolean) => ipcRenderer.invoke('remote:set-tunnel-enabled', enabled),
+  setRemoteTunnelConfig: (hostname: string, token?: string) => ipcRenderer.invoke('remote:set-tunnel-config', hostname, token),
   setCloudflaredMode: (mode: 'manual' | 'automatic') => ipcRenderer.invoke('remote:set-cloudflared-mode', mode),
   checkCloudflared: () => ipcRenderer.invoke('remote:check-cloudflared'),
   installCloudflared: () => ipcRenderer.invoke('remote:install-cloudflared'),

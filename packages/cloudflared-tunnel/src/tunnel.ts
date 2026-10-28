@@ -2,73 +2,72 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { QuickTunnelOptions, QuickTunnelStatus } from './types.ts';
+import type { TunnelOptions, TunnelStatus } from './types.ts';
 
-const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
+const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 const STOP_TIMEOUT_MS = 3_000;
-const URL_PATTERN = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i;
+const CONNECTED_PATTERN = /registered tunnel connection/i;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Owns a Cloudflare Quick Tunnel process.
+ * Owns a Cloudflare named tunnel process.
  *
- * It intentionally knows nothing about MCP or Electron: it starts cloudflared,
- * extracts the public URL, bounds startup/shutdown, and publishes state.
+ * The public hostname and ingress mapping are configured in Cloudflare; this
+ * class only runs the connector with a tunnel token. It intentionally never
+ * logs or reports the token.
  */
-export class QuickTunnel {
+export class CloudflaredTunnel {
   private child: ChildProcess | null = null;
-  private state: QuickTunnelStatus['state'] = 'stopped';
-  private url: string | undefined;
+  private state: TunnelStatus['state'] = 'stopped';
   private error: string | undefined;
   private stopping = false;
-  private readonly options: QuickTunnelOptions;
+  private readonly options: TunnelOptions;
   private readonly logFile: string | null;
 
-  constructor(options: QuickTunnelOptions) {
+  constructor(options: TunnelOptions) {
     this.options = options;
     this.logFile = options.logFile || null;
   }
 
-  status(): QuickTunnelStatus {
+  status(): TunnelStatus {
     return {
       state: this.state,
       running: Boolean(this.child),
-      ...(this.url ? { url: this.url } : {}),
       ...(this.error ? { error: this.error } : {}),
       binaryPath: this.options.binaryPath,
     };
   }
 
-  async start(): Promise<QuickTunnelStatus> {
+  async start(token: string): Promise<TunnelStatus> {
     if (this.child) return this.status();
+    if (!token) throw new Error('A Cloudflare tunnel token is required.');
 
     this.stopping = false;
     this.state = 'starting';
-    this.url = undefined;
     this.error = undefined;
     this.emit();
 
     const args = [
       ...(this.options.argsPrefix || []),
       'tunnel',
-      '--url',
-      this.options.localUrl,
       '--no-autoupdate',
+      'run',
     ];
     const child = spawn(this.options.binaryPath, args, {
+      env: { ...process.env, TUNNEL_TOKEN: token },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
     this.child = child;
 
-    let sawUrl = false;
-    let resolveStart!: (status: QuickTunnelStatus) => void;
-    let rejectStart!: (error: Error) => void;
+    let connected = false;
     let startTimer: NodeJS.Timeout | undefined;
-    const started = new Promise<QuickTunnelStatus>((resolve, reject) => {
+    let resolveStart!: (status: TunnelStatus) => void;
+    let rejectStart!: (error: Error) => void;
+    const started = new Promise<TunnelStatus>((resolve, reject) => {
       resolveStart = resolve;
       rejectStart = reject;
     });
@@ -84,11 +83,9 @@ export class QuickTunnel {
       const text = chunk.toString();
       this.appendLog(text);
       this.options.onLog?.(text);
-      const match = text.match(URL_PATTERN);
-      if (match && !sawUrl) {
-        sawUrl = true;
+      if (!connected && CONNECTED_PATTERN.test(text)) {
+        connected = true;
         settleStart();
-        this.url = match[0];
         this.state = 'running';
         this.emit();
         resolveStart(this.status());
@@ -113,23 +110,22 @@ export class QuickTunnel {
         return;
       }
       if (this.child === child) this.child = null;
-      if (!sawUrl) {
+      if (!connected) {
         this.state = 'error';
-        this.error = `cloudflared exited before publishing a URL (${signal || code}).`;
+        this.error = `cloudflared exited before registering the tunnel (${signal || code}).`;
         this.emit();
         rejectStart(new Error(this.error));
         return;
       }
-      this.url = undefined;
       this.state = code === 0 ? 'stopped' : 'error';
       if (code !== 0) this.error = `cloudflared exited (${signal || code}).`;
       this.emit();
     });
 
     startTimer = setTimeout(() => {
-      if (sawUrl) return;
+      if (connected) return;
       settleStart();
-      rejectStart(new Error(`Timed out waiting for the Cloudflare Quick Tunnel URL. ${this.error || ''}`.trim()));
+      rejectStart(new Error(`Timed out waiting for cloudflared to register the tunnel. ${this.error || ''}`.trim()));
     }, this.options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS);
 
     try {
@@ -148,7 +144,6 @@ export class QuickTunnel {
     this.child = null;
     if (!preserveError) {
       this.state = 'stopped';
-      this.url = undefined;
       this.error = undefined;
       this.emit();
     }
@@ -174,7 +169,11 @@ export class QuickTunnel {
   }
 
   private emit(): void {
-    this.options.onStatus?.(this.status());
+    try {
+      this.options.onStatus?.(this.status());
+    } catch {
+      // Status callbacks must never break process lifecycle.
+    }
   }
 
   private appendLog(text: string): void {

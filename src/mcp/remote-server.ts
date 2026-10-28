@@ -69,6 +69,10 @@ async function main(): Promise<void> {
   const idleTimeoutMs = positiveInteger(process.env.HB_REMOTE_IDLE_MS, DEFAULT_IDLE_TIMEOUT_MS);
   const maxRequestBodyBytes = positiveInteger(process.env.HB_REMOTE_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
   const authMode = process.env.HB_REMOTE_AUTH_MODE === 'oauth' ? 'oauth' : 'bearer';
+  const redirectHosts = (process.env.HB_OAUTH_REDIRECT_HOSTS || '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
   const oauth =
     authMode === 'oauth'
       ? (() => {
@@ -80,6 +84,7 @@ async function main(): Promise<void> {
             clientId: client.clientId,
             clientSecret: client.clientSecret,
             resourcePath: pathName,
+            allowedRedirectHosts: redirectHosts.length ? redirectHosts : undefined,
             logger: logRemote,
           });
         })()

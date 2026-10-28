@@ -6,12 +6,14 @@ export interface RemoteSettings {
   schemaVersion: 1;
   cloudflaredUpdateMode: CloudflaredUpdateMode;
   authMode: 'bearer' | 'oauth';
+  tunnelHostname: string;
 }
 
 const DEFAULT_SETTINGS: RemoteSettings = {
   schemaVersion: 1,
   cloudflaredUpdateMode: 'manual',
   authMode: 'bearer',
+  tunnelHostname: '',
 };
 
 export function loadRemoteSettings(file: string): RemoteSettings {
@@ -21,6 +23,7 @@ export function loadRemoteSettings(file: string): RemoteSettings {
       schemaVersion: 1,
       cloudflaredUpdateMode: parsed.cloudflaredUpdateMode === 'automatic' ? 'automatic' : 'manual',
       authMode: parsed.authMode === 'oauth' ? 'oauth' : 'bearer',
+      tunnelHostname: typeof parsed.tunnelHostname === 'string' ? parsed.tunnelHostname : '',
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

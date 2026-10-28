@@ -352,6 +352,15 @@ ipcMain.handle('remote:set-tunnel-enabled', async (_event, enabled: boolean) => 
   }
 });
 
+ipcMain.handle('remote:set-tunnel-config', async (_event, hostname: string, token?: string) => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.setTunnelConfig(String(hostname || ''), token ? String(token) : undefined) };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
 ipcMain.handle('remote:set-cloudflared-mode', async (_event, mode: 'manual' | 'automatic') => {
   if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
   try {

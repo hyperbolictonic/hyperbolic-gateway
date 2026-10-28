@@ -4,9 +4,9 @@
 
 * **Creation**: Added the Phase 1 remote MCP gateway and its Streamable HTTP host package.
 * **Creation**: Added the Phase 2 app-managed token, gateway lifecycle, and Settings -> Remote panel.
-* **Creation**: Added the Phase 3 Cloudflare Quick Tunnel manager and public URL/config handoff.
+* **Creation**: Added the Phase 3 Cloudflare named tunnel manager and public hostname/config handoff.
 * **Creation**: Added the managed cloudflared downloader with SHA-256 verification and manual/automatic update policy.
-* **Creation**: Added the selectable OAuth 2.0 mode with discovery, PKCE, consent, access/refresh tokens and Gemini client credentials.
+* **Creation**: Added the selectable OAuth 2.0 mode with discovery, PKCE, consent, access/refresh tokens and pre-registered client credentials.
 * **Creation**: Added the local-only `hb-devlogs` MCP server with allowlisted, redacted log reads.
 * **Creation**: Documented the remote gateway endpoint, auth boundary, environment variables, and non-goals.
 * **Update**: Extracted the browser MCP factory from the stdio entry point so HTTP and stdio share one server definition.
