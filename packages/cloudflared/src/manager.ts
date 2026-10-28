@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import type {
   CloudflaredCheck,
   CloudflaredInstallRecord,
@@ -33,35 +33,62 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-function findExtractedBinary(directory: string, name: string): string | undefined {
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const full = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      const nested = findExtractedBinary(full, name);
-      if (nested) return nested;
-    } else if (entry.isFile() && entry.name === name) {
-      return full;
-    }
+function readTarString(header: Buffer, offset: number, length: number): string {
+  return header.subarray(offset, offset + length).toString('utf8').replace(/\0.*$/s, '');
+}
+
+function readTarSize(header: Buffer): number {
+  const field = header.subarray(124, 136);
+  if (field[0] & 0x80) {
+    let value = 0n;
+    for (const byte of field.subarray(1)) value = (value << 8n) | BigInt(byte);
+    return Number(value);
+  }
+  const text = field.toString('ascii').replace(/\0.*$/s, '').trim();
+  return text ? Number.parseInt(text, 8) : 0;
+}
+
+function paxPath(data: Buffer): string | undefined {
+  const text = data.toString('utf8');
+  for (const line of text.split('\n')) {
+    const space = line.indexOf(' ');
+    if (space < 1) continue;
+    const entry = line.slice(space + 1);
+    if (entry.startsWith('path=')) return entry.slice(5);
   }
   return undefined;
 }
 
-async function extractTar(archive: string, directory: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn('tar', ['-xzf', archive, '-C', directory], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-      windowsHide: true,
-    });
-    let stderr = '';
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr = `${stderr}${chunk.toString()}`.slice(-2000);
-    });
-    child.once('error', reject);
-    child.once('exit', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Could not extract cloudflared archive: ${stderr || `tar exited ${code}`}`));
-    });
-  });
+/**
+ * Extract the `cloudflared` file from a gzipped tar archive in pure Node.
+ * This avoids depending on the host's tar binary in GUI-launched macOS apps.
+ */
+function extractCloudflaredFromTar(archive: Buffer): Buffer {
+  const tar = zlib.gunzipSync(archive);
+  let offset = 0;
+  let pendingPath: string | undefined;
+  while (offset + 512 <= tar.length) {
+    const header = tar.subarray(offset, offset + 512);
+    if (header.every((byte) => byte === 0)) break;
+    const name = readTarString(header, 0, 100);
+    const prefix = readTarString(header, 345, 155);
+    const entryPath = prefix ? `${prefix}/${name}` : name;
+    const size = readTarSize(header);
+    const type = String.fromCharCode(header[156] || 0);
+    const dataStart = offset + 512;
+    const dataEnd = dataStart + size;
+    if (dataEnd > tar.length) throw new Error('Cloudflared archive has a truncated tar entry.');
+    const data = tar.subarray(dataStart, dataEnd);
+    if (type === 'x' || type === 'g') {
+      pendingPath = paxPath(data) || pendingPath;
+    } else if (type === '0' || type === '\0' || type === '7') {
+      const pathValue = pendingPath || entryPath;
+      pendingPath = undefined;
+      if (path.basename(pathValue) === 'cloudflared') return Buffer.from(data);
+    }
+    offset = dataStart + Math.ceil(size / 512) * 512;
+  }
+  throw new Error('cloudflared archive did not contain a cloudflared binary.');
 }
 
 /** Download and install the official cloudflared binary into a managed app directory. */
@@ -157,41 +184,25 @@ export class CloudflaredManager {
     }
 
     fs.mkdirSync(path.join(this.options.dataDir, 'bin'), { recursive: true });
-    const tempRoot = fs.mkdtempSync(path.join(this.options.dataDir, 'download-'));
-    const archivePath = path.join(tempRoot, release.asset.name);
-    let binaryPath = archivePath;
+    const binary = release.asset.archive === 'tar' ? extractCloudflaredFromTar(bytes) : bytes;
+    const target = this.managedPath();
+    const tempTarget = `${target}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempTarget, binary);
     try {
-      fs.writeFileSync(archivePath, bytes);
-      if (release.asset.archive === 'tar') {
-        const extractDir = path.join(tempRoot, 'extract');
-        fs.mkdirSync(extractDir, { recursive: true });
-        await extractTar(archivePath, extractDir);
-        const extracted = findExtractedBinary(extractDir, 'cloudflared');
-        if (!extracted) throw new Error('cloudflared archive did not contain a cloudflared binary.');
-        binaryPath = extracted;
-      }
-
-      const target = this.managedPath();
-      const tempTarget = `${target}.${process.pid}.${Date.now()}.tmp`;
-      fs.copyFileSync(binaryPath, tempTarget);
-      try {
-        fs.chmodSync(tempTarget, 0o755);
-      } catch {
-        // Windows uses ACLs; the userData directory is already user-private.
-      }
-      fs.renameSync(tempTarget, target);
-
-      const record: CloudflaredInstallRecord = {
-        version: release.version,
-        assetName: release.asset.name,
-        sha256: release.asset.sha256,
-        installedAt: new Date().toISOString(),
-      };
-      fs.writeFileSync(this.metadataPath(), `${JSON.stringify(record, null, 2)}\n`, 'utf8');
-      return record;
-    } finally {
-      fs.rmSync(tempRoot, { recursive: true, force: true });
+      fs.chmodSync(tempTarget, 0o755);
+    } catch {
+      // Windows uses ACLs; the userData directory is already user-private.
     }
+    fs.renameSync(tempTarget, target);
+
+    const record: CloudflaredInstallRecord = {
+      version: release.version,
+      assetName: release.asset.name,
+      sha256: release.asset.sha256,
+      installedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(this.metadataPath(), `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+    return record;
   }
 
   uninstall(): void {

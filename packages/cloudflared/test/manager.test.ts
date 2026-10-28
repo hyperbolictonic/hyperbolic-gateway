@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import zlib from 'node:zlib';
 import { CloudflaredManager } from '../src/index.ts';
 
 const VERSION = '2026.10.5';
@@ -17,28 +18,44 @@ function response(body: unknown, status = 200): Response {
   });
 }
 
-function releasePayload(digest: string) {
+function releasePayload(digest: string, assetName = ASSET, version = VERSION) {
   return {
-    tag_name: VERSION,
+    tag_name: version,
     assets: [
       {
-        name: ASSET,
-        browser_download_url: `https://github.com/cloudflare/cloudflared/releases/download/${VERSION}/${ASSET}`,
+        name: assetName,
+        browser_download_url: `https://github.com/cloudflare/cloudflared/releases/download/${version}/${assetName}`,
         digest: `sha256:${digest}`,
       },
     ],
   };
 }
 
-function fakeFetch(digest: string, binary = BINARY): typeof fetch {
+function fakeFetch(digest: string, binary = BINARY, assetName = ASSET, version = VERSION): typeof fetch {
   return (async (input: unknown) => {
     const url = String(input);
-    if (url.includes('/releases/latest')) return response(releasePayload(digest));
+    if (url.includes('/releases/latest')) return response(releasePayload(digest, assetName, version));
     if (url.startsWith('https://github.com/cloudflare/cloudflared/releases/download/')) {
       return new Response(binary, { status: 200, headers: { 'Content-Length': String(binary.length) } });
     }
     return response({ error: 'not found' }, 404);
   }) as typeof fetch;
+}
+
+function tarFixture(name: string, data: Buffer): Buffer {
+  const header = Buffer.alloc(512, 0);
+  header.write(name, 0, 100, 'utf8');
+  header.write('0000755\0', 100, 8, 'ascii');
+  header.write('0000000\0', 108, 8, 'ascii');
+  header.write('0000000\0', 116, 8, 'ascii');
+  header.write(`${data.length.toString(8).padStart(11, '0')}\0`, 124, 12, 'ascii');
+  header.write('00000000000\0', 136, 12, 'ascii');
+  header.write('        ', 148, 8, 'ascii');
+  header.write('0', 156, 1, 'ascii');
+  header.write('ustar\0', 257, 6, 'ascii');
+  header.write('00', 263, 2, 'ascii');
+  const padding = Buffer.alloc((512 - (data.length % 512)) % 512, 0);
+  return Buffer.concat([header, data, padding, Buffer.alloc(1024, 0)]);
 }
 
 test('checks, verifies, and installs a managed cloudflared binary', async () => {
@@ -98,4 +115,25 @@ test('rejects unsupported platforms explicitly', async () => {
     fetchImpl: fakeFetch('0'.repeat(64)),
   });
   await assert.rejects(() => manager.checkForUpdate(), /Unsupported cloudflared platform/i);
+});
+
+test('extracts the macOS tar archive in pure Node', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudflared-tar-'));
+  const tar = zlib.gzipSync(tarFixture('package/cloudflared', BINARY));
+  const digest = crypto.createHash('sha256').update(tar).digest('hex');
+  const manager = new CloudflaredManager({
+    dataDir,
+    platform: 'darwin',
+    arch: 'arm64',
+    releaseApiUrl: 'https://api.test/cloudflared/releases/latest',
+    fetchImpl: fakeFetch(digest, tar, 'cloudflared-darwin-arm64.tgz'),
+  });
+
+  try {
+    const record = await manager.installLatest();
+    assert.equal(record.version, VERSION);
+    assert.deepEqual(fs.readFileSync(manager.managedPath()), BINARY);
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
 });

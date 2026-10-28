@@ -71,7 +71,8 @@ GitHub releases into:
 The download is explicit, SHA-256 verified against the GitHub release asset
 digest, and installed atomically. `cloudflared` is Apache-2.0 software from
 Cloudflare; the app downloads the official binary and does not redistribute it.
-The panel supports:
+The macOS `.tgz` is extracted in pure Node, so it does not depend on the host
+`tar` binary. The panel supports:
 
 - **Manual** updates: use CHECK and INSTALL / UPDATE.
 - **Automatic at startup**: if a managed binary exists, check and install an

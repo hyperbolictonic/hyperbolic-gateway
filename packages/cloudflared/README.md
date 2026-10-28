@@ -8,6 +8,7 @@ Managed downloader for the official Cloudflare `cloudflared` binary.
 - Verifies the downloaded bytes before installation.
 - Installs atomically into `<dataDir>/bin/`.
 - Supports Windows x64, macOS arm64/x64, and Linux x64/arm64.
+- Extracts the macOS `.tgz` in pure Node; no host `tar` dependency.
 - Never auto-installs on import.
 
 `cloudflared` is Apache-2.0 software from Cloudflare. This package only
