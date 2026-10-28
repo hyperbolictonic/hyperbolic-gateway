@@ -32,7 +32,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // node_modules/ajv/dist/compile/codegen/code.js
 var require_code = __commonJS({
@@ -7200,15 +7199,8 @@ var require_dist = __commonJS({
   }
 });
 
-// src/mcp/bridge-server.ts
-var bridge_server_exports = {};
-__export(bridge_server_exports, {
-  createBridgeMcpServer: () => createBridgeMcpServer,
-  normalizeIncomingParams: () => normalizeIncomingParams
-});
-module.exports = __toCommonJS(bridge_server_exports);
-var import_node_fs3 = __toESM(require("node:fs"), 1);
-var import_node_path2 = __toESM(require("node:path"), 1);
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+var import_node_process = __toESM(require("node:process"), 1);
 
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -26927,6 +26919,1645 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
+// node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
+var LATEST_PROTOCOL_VERSION = "2025-11-25";
+var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
+var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
+var JSONRPC_VERSION = "2.0";
+var AssertObjectSchema = custom((v) => v !== null && (typeof v === "object" || typeof v === "function"));
+var ProgressTokenSchema = union([string2(), number2().int()]);
+var CursorSchema = string2();
+var TaskCreationParamsSchema = looseObject({
+  /**
+   * Requested duration in milliseconds to retain task from creation.
+   */
+  ttl: number2().optional(),
+  /**
+   * Time in milliseconds to wait between task status requests.
+   */
+  pollInterval: number2().optional()
+});
+var TaskMetadataSchema = object({
+  ttl: number2().optional()
+});
+var RelatedTaskMetadataSchema = object({
+  taskId: string2()
+});
+var RequestMetaSchema = looseObject({
+  /**
+   * If specified, the caller is requesting out-of-band progress notifications for this request (as represented by notifications/progress). The value of this parameter is an opaque token that will be attached to any subsequent notifications. The receiver is not obligated to provide these notifications.
+   */
+  progressToken: ProgressTokenSchema.optional(),
+  /**
+   * If specified, this request is related to the provided task.
+   */
+  [RELATED_TASK_META_KEY]: RelatedTaskMetadataSchema.optional()
+});
+var BaseRequestParamsSchema = object({
+  /**
+   * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
+   */
+  _meta: RequestMetaSchema.optional()
+});
+var TaskAugmentedRequestParamsSchema = BaseRequestParamsSchema.extend({
+  /**
+   * If specified, the caller is requesting task-augmented execution for this request.
+   * The request will return a CreateTaskResult immediately, and the actual result can be
+   * retrieved later via tasks/result.
+   *
+   * Task augmentation is subject to capability negotiation - receivers MUST declare support
+   * for task augmentation of specific request types in their capabilities.
+   */
+  task: TaskMetadataSchema.optional()
+});
+var isTaskAugmentedRequestParams = (value) => TaskAugmentedRequestParamsSchema.safeParse(value).success;
+var RequestSchema = object({
+  method: string2(),
+  params: BaseRequestParamsSchema.loose().optional()
+});
+var NotificationsParamsSchema = object({
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: RequestMetaSchema.optional()
+});
+var NotificationSchema = object({
+  method: string2(),
+  params: NotificationsParamsSchema.loose().optional()
+});
+var ResultSchema = looseObject({
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: RequestMetaSchema.optional()
+});
+var RequestIdSchema = union([string2(), number2().int()]);
+var JSONRPCRequestSchema = object({
+  jsonrpc: literal(JSONRPC_VERSION),
+  id: RequestIdSchema,
+  ...RequestSchema.shape
+}).strict();
+var isJSONRPCRequest = (value) => JSONRPCRequestSchema.safeParse(value).success;
+var JSONRPCNotificationSchema = object({
+  jsonrpc: literal(JSONRPC_VERSION),
+  ...NotificationSchema.shape
+}).strict();
+var isJSONRPCNotification = (value) => JSONRPCNotificationSchema.safeParse(value).success;
+var JSONRPCResultResponseSchema = object({
+  jsonrpc: literal(JSONRPC_VERSION),
+  id: RequestIdSchema,
+  result: ResultSchema
+}).strict();
+var isJSONRPCResultResponse = (value) => JSONRPCResultResponseSchema.safeParse(value).success;
+var ErrorCode;
+(function(ErrorCode2) {
+  ErrorCode2[ErrorCode2["ConnectionClosed"] = -32e3] = "ConnectionClosed";
+  ErrorCode2[ErrorCode2["RequestTimeout"] = -32001] = "RequestTimeout";
+  ErrorCode2[ErrorCode2["ParseError"] = -32700] = "ParseError";
+  ErrorCode2[ErrorCode2["InvalidRequest"] = -32600] = "InvalidRequest";
+  ErrorCode2[ErrorCode2["MethodNotFound"] = -32601] = "MethodNotFound";
+  ErrorCode2[ErrorCode2["InvalidParams"] = -32602] = "InvalidParams";
+  ErrorCode2[ErrorCode2["InternalError"] = -32603] = "InternalError";
+  ErrorCode2[ErrorCode2["UrlElicitationRequired"] = -32042] = "UrlElicitationRequired";
+})(ErrorCode || (ErrorCode = {}));
+var JSONRPCErrorResponseSchema = object({
+  jsonrpc: literal(JSONRPC_VERSION),
+  id: RequestIdSchema.optional(),
+  error: object({
+    /**
+     * The error type that occurred.
+     */
+    code: number2().int(),
+    /**
+     * A short description of the error. The message SHOULD be limited to a concise single sentence.
+     */
+    message: string2(),
+    /**
+     * Additional information about the error. The value of this member is defined by the sender (e.g. detailed error information, nested errors etc.).
+     */
+    data: unknown().optional()
+  })
+}).strict();
+var isJSONRPCErrorResponse = (value) => JSONRPCErrorResponseSchema.safeParse(value).success;
+var JSONRPCMessageSchema = union([
+  JSONRPCRequestSchema,
+  JSONRPCNotificationSchema,
+  JSONRPCResultResponseSchema,
+  JSONRPCErrorResponseSchema
+]);
+var JSONRPCResponseSchema = union([JSONRPCResultResponseSchema, JSONRPCErrorResponseSchema]);
+var EmptyResultSchema = ResultSchema.strict();
+var CancelledNotificationParamsSchema = NotificationsParamsSchema.extend({
+  /**
+   * The ID of the request to cancel.
+   *
+   * This MUST correspond to the ID of a request previously issued in the same direction.
+   */
+  requestId: RequestIdSchema.optional(),
+  /**
+   * An optional string describing the reason for the cancellation. This MAY be logged or presented to the user.
+   */
+  reason: string2().optional()
+});
+var CancelledNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/cancelled"),
+  params: CancelledNotificationParamsSchema
+});
+var IconSchema = object({
+  /**
+   * URL or data URI for the icon.
+   */
+  src: string2(),
+  /**
+   * Optional MIME type for the icon.
+   */
+  mimeType: string2().optional(),
+  /**
+   * Optional array of strings that specify sizes at which the icon can be used.
+   * Each string should be in WxH format (e.g., `"48x48"`, `"96x96"`) or `"any"` for scalable formats like SVG.
+   *
+   * If not provided, the client should assume that the icon can be used at any size.
+   */
+  sizes: array(string2()).optional(),
+  /**
+   * Optional specifier for the theme this icon is designed for. `light` indicates
+   * the icon is designed to be used with a light background, and `dark` indicates
+   * the icon is designed to be used with a dark background.
+   *
+   * If not provided, the client should assume the icon can be used with any theme.
+   */
+  theme: _enum2(["light", "dark"]).optional()
+});
+var IconsSchema = object({
+  /**
+   * Optional set of sized icons that the client can display in a user interface.
+   *
+   * Clients that support rendering icons MUST support at least the following MIME types:
+   * - `image/png` - PNG images (safe, universal compatibility)
+   * - `image/jpeg` (and `image/jpg`) - JPEG images (safe, universal compatibility)
+   *
+   * Clients that support rendering icons SHOULD also support:
+   * - `image/svg+xml` - SVG images (scalable but requires security precautions)
+   * - `image/webp` - WebP images (modern, efficient format)
+   */
+  icons: array(IconSchema).optional()
+});
+var BaseMetadataSchema = object({
+  /** Intended for programmatic or logical use, but used as a display name in past specs or fallback */
+  name: string2(),
+  /**
+   * Intended for UI and end-user contexts — optimized to be human-readable and easily understood,
+   * even by those unfamiliar with domain-specific terminology.
+   *
+   * If not provided, the name should be used for display (except for Tool,
+   * where `annotations.title` should be given precedence over using `name`,
+   * if present).
+   */
+  title: string2().optional()
+});
+var ImplementationSchema = BaseMetadataSchema.extend({
+  ...BaseMetadataSchema.shape,
+  ...IconsSchema.shape,
+  version: string2(),
+  /**
+   * An optional URL of the website for this implementation.
+   */
+  websiteUrl: string2().optional(),
+  /**
+   * An optional human-readable description of what this implementation does.
+   *
+   * This can be used by clients or servers to provide context about their purpose
+   * and capabilities. For example, a server might describe the types of resources
+   * or tools it provides, while a client might describe its intended use case.
+   */
+  description: string2().optional()
+});
+var FormElicitationCapabilitySchema = intersection(object({
+  applyDefaults: boolean2().optional()
+}), record(string2(), unknown()));
+var ElicitationCapabilitySchema = preprocess((value) => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    if (Object.keys(value).length === 0) {
+      return { form: {} };
+    }
+  }
+  return value;
+}, intersection(object({
+  form: FormElicitationCapabilitySchema.optional(),
+  url: AssertObjectSchema.optional()
+}), record(string2(), unknown()).optional()));
+var ClientTasksCapabilitySchema = looseObject({
+  /**
+   * Present if the client supports listing tasks.
+   */
+  list: AssertObjectSchema.optional(),
+  /**
+   * Present if the client supports cancelling tasks.
+   */
+  cancel: AssertObjectSchema.optional(),
+  /**
+   * Capabilities for task creation on specific request types.
+   */
+  requests: looseObject({
+    /**
+     * Task support for sampling requests.
+     */
+    sampling: looseObject({
+      createMessage: AssertObjectSchema.optional()
+    }).optional(),
+    /**
+     * Task support for elicitation requests.
+     */
+    elicitation: looseObject({
+      create: AssertObjectSchema.optional()
+    }).optional()
+  }).optional()
+});
+var ServerTasksCapabilitySchema = looseObject({
+  /**
+   * Present if the server supports listing tasks.
+   */
+  list: AssertObjectSchema.optional(),
+  /**
+   * Present if the server supports cancelling tasks.
+   */
+  cancel: AssertObjectSchema.optional(),
+  /**
+   * Capabilities for task creation on specific request types.
+   */
+  requests: looseObject({
+    /**
+     * Task support for tool requests.
+     */
+    tools: looseObject({
+      call: AssertObjectSchema.optional()
+    }).optional()
+  }).optional()
+});
+var ClientCapabilitiesSchema = object({
+  /**
+   * Experimental, non-standard capabilities that the client supports.
+   */
+  experimental: record(string2(), AssertObjectSchema).optional(),
+  /**
+   * Present if the client supports sampling from an LLM.
+   */
+  sampling: object({
+    /**
+     * Present if the client supports context inclusion via includeContext parameter.
+     * If not declared, servers SHOULD only use `includeContext: "none"` (or omit it).
+     */
+    context: AssertObjectSchema.optional(),
+    /**
+     * Present if the client supports tool use via tools and toolChoice parameters.
+     */
+    tools: AssertObjectSchema.optional()
+  }).optional(),
+  /**
+   * Present if the client supports eliciting user input.
+   */
+  elicitation: ElicitationCapabilitySchema.optional(),
+  /**
+   * Present if the client supports listing roots.
+   */
+  roots: object({
+    /**
+     * Whether the client supports issuing notifications for changes to the roots list.
+     */
+    listChanged: boolean2().optional()
+  }).optional(),
+  /**
+   * Present if the client supports task creation.
+   */
+  tasks: ClientTasksCapabilitySchema.optional(),
+  /**
+   * Extensions that the client supports. Keys are extension identifiers (vendor-prefix/extension-name).
+   */
+  extensions: record(string2(), AssertObjectSchema).optional()
+});
+var InitializeRequestParamsSchema = BaseRequestParamsSchema.extend({
+  /**
+   * The latest version of the Model Context Protocol that the client supports. The client MAY decide to support older versions as well.
+   */
+  protocolVersion: string2(),
+  capabilities: ClientCapabilitiesSchema,
+  clientInfo: ImplementationSchema
+});
+var InitializeRequestSchema = RequestSchema.extend({
+  method: literal("initialize"),
+  params: InitializeRequestParamsSchema
+});
+var ServerCapabilitiesSchema = object({
+  /**
+   * Experimental, non-standard capabilities that the server supports.
+   */
+  experimental: record(string2(), AssertObjectSchema).optional(),
+  /**
+   * Present if the server supports sending log messages to the client.
+   */
+  logging: AssertObjectSchema.optional(),
+  /**
+   * Present if the server supports sending completions to the client.
+   */
+  completions: AssertObjectSchema.optional(),
+  /**
+   * Present if the server offers any prompt templates.
+   */
+  prompts: object({
+    /**
+     * Whether this server supports issuing notifications for changes to the prompt list.
+     */
+    listChanged: boolean2().optional()
+  }).optional(),
+  /**
+   * Present if the server offers any resources to read.
+   */
+  resources: object({
+    /**
+     * Whether this server supports clients subscribing to resource updates.
+     */
+    subscribe: boolean2().optional(),
+    /**
+     * Whether this server supports issuing notifications for changes to the resource list.
+     */
+    listChanged: boolean2().optional()
+  }).optional(),
+  /**
+   * Present if the server offers any tools to call.
+   */
+  tools: object({
+    /**
+     * Whether this server supports issuing notifications for changes to the tool list.
+     */
+    listChanged: boolean2().optional()
+  }).optional(),
+  /**
+   * Present if the server supports task creation.
+   */
+  tasks: ServerTasksCapabilitySchema.optional(),
+  /**
+   * Extensions that the server supports. Keys are extension identifiers (vendor-prefix/extension-name).
+   */
+  extensions: record(string2(), AssertObjectSchema).optional()
+});
+var InitializeResultSchema = ResultSchema.extend({
+  /**
+   * The version of the Model Context Protocol that the server wants to use. This may not match the version that the client requested. If the client cannot support this version, it MUST disconnect.
+   */
+  protocolVersion: string2(),
+  capabilities: ServerCapabilitiesSchema,
+  serverInfo: ImplementationSchema,
+  /**
+   * Instructions describing how to use the server and its features.
+   *
+   * This can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a "hint" to the model. For example, this information MAY be added to the system prompt.
+   */
+  instructions: string2().optional()
+});
+var InitializedNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/initialized"),
+  params: NotificationsParamsSchema.optional()
+});
+var PingRequestSchema = RequestSchema.extend({
+  method: literal("ping"),
+  params: BaseRequestParamsSchema.optional()
+});
+var ProgressSchema = object({
+  /**
+   * The progress thus far. This should increase every time progress is made, even if the total is unknown.
+   */
+  progress: number2(),
+  /**
+   * Total number of items to process (or total progress required), if known.
+   */
+  total: optional(number2()),
+  /**
+   * An optional message describing the current progress.
+   */
+  message: optional(string2())
+});
+var ProgressNotificationParamsSchema = object({
+  ...NotificationsParamsSchema.shape,
+  ...ProgressSchema.shape,
+  /**
+   * The progress token which was given in the initial request, used to associate this notification with the request that is proceeding.
+   */
+  progressToken: ProgressTokenSchema
+});
+var ProgressNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/progress"),
+  params: ProgressNotificationParamsSchema
+});
+var PaginatedRequestParamsSchema = BaseRequestParamsSchema.extend({
+  /**
+   * An opaque token representing the current pagination position.
+   * If provided, the server should return results starting after this cursor.
+   */
+  cursor: CursorSchema.optional()
+});
+var PaginatedRequestSchema = RequestSchema.extend({
+  params: PaginatedRequestParamsSchema.optional()
+});
+var PaginatedResultSchema = ResultSchema.extend({
+  /**
+   * An opaque token representing the pagination position after the last returned result.
+   * If present, there may be more results available.
+   */
+  nextCursor: CursorSchema.optional()
+});
+var TaskStatusSchema = _enum2(["working", "input_required", "completed", "failed", "cancelled"]);
+var TaskSchema = object({
+  taskId: string2(),
+  status: TaskStatusSchema,
+  /**
+   * Time in milliseconds to keep task results available after completion.
+   * If null, the task has unlimited lifetime until manually cleaned up.
+   */
+  ttl: union([number2(), _null3()]),
+  /**
+   * ISO 8601 timestamp when the task was created.
+   */
+  createdAt: string2(),
+  /**
+   * ISO 8601 timestamp when the task was last updated.
+   */
+  lastUpdatedAt: string2(),
+  pollInterval: optional(number2()),
+  /**
+   * Optional diagnostic message for failed tasks or other status information.
+   */
+  statusMessage: optional(string2())
+});
+var CreateTaskResultSchema = ResultSchema.extend({
+  task: TaskSchema
+});
+var TaskStatusNotificationParamsSchema = NotificationsParamsSchema.merge(TaskSchema);
+var TaskStatusNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/tasks/status"),
+  params: TaskStatusNotificationParamsSchema
+});
+var GetTaskRequestSchema = RequestSchema.extend({
+  method: literal("tasks/get"),
+  params: BaseRequestParamsSchema.extend({
+    taskId: string2()
+  })
+});
+var GetTaskResultSchema = ResultSchema.merge(TaskSchema);
+var GetTaskPayloadRequestSchema = RequestSchema.extend({
+  method: literal("tasks/result"),
+  params: BaseRequestParamsSchema.extend({
+    taskId: string2()
+  })
+});
+var GetTaskPayloadResultSchema = ResultSchema.loose();
+var ListTasksRequestSchema = PaginatedRequestSchema.extend({
+  method: literal("tasks/list")
+});
+var ListTasksResultSchema = PaginatedResultSchema.extend({
+  tasks: array(TaskSchema)
+});
+var CancelTaskRequestSchema = RequestSchema.extend({
+  method: literal("tasks/cancel"),
+  params: BaseRequestParamsSchema.extend({
+    taskId: string2()
+  })
+});
+var CancelTaskResultSchema = ResultSchema.merge(TaskSchema);
+var ResourceContentsSchema = object({
+  /**
+   * The URI of this resource.
+   */
+  uri: string2(),
+  /**
+   * The MIME type of this resource, if known.
+   */
+  mimeType: optional(string2()),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var TextResourceContentsSchema = ResourceContentsSchema.extend({
+  /**
+   * The text of the item. This must only be set if the item can actually be represented as text (not binary data).
+   */
+  text: string2()
+});
+var Base64Schema = string2().refine((val) => {
+  try {
+    atob(val);
+    return true;
+  } catch {
+    return false;
+  }
+}, { message: "Invalid Base64 string" });
+var BlobResourceContentsSchema = ResourceContentsSchema.extend({
+  /**
+   * A base64-encoded string representing the binary data of the item.
+   */
+  blob: Base64Schema
+});
+var RoleSchema = _enum2(["user", "assistant"]);
+var AnnotationsSchema = object({
+  /**
+   * Intended audience(s) for the resource.
+   */
+  audience: array(RoleSchema).optional(),
+  /**
+   * Importance hint for the resource, from 0 (least) to 1 (most).
+   */
+  priority: number2().min(0).max(1).optional(),
+  /**
+   * ISO 8601 timestamp for the most recent modification.
+   */
+  lastModified: iso_exports.datetime({ offset: true }).optional()
+});
+var ResourceSchema = object({
+  ...BaseMetadataSchema.shape,
+  ...IconsSchema.shape,
+  /**
+   * The URI of this resource.
+   */
+  uri: string2(),
+  /**
+   * A description of what this resource represents.
+   *
+   * This can be used by clients to improve the LLM's understanding of available resources. It can be thought of like a "hint" to the model.
+   */
+  description: optional(string2()),
+  /**
+   * The MIME type of this resource, if known.
+   */
+  mimeType: optional(string2()),
+  /**
+   * The size of the raw resource content, in bytes (i.e., before base64 encoding or any tokenization), if known.
+   *
+   * This can be used by Hosts to display file sizes and estimate context window usage.
+   */
+  size: optional(number2()),
+  /**
+   * Optional annotations for the client.
+   */
+  annotations: AnnotationsSchema.optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: optional(looseObject({}))
+});
+var ResourceTemplateSchema = object({
+  ...BaseMetadataSchema.shape,
+  ...IconsSchema.shape,
+  /**
+   * A URI template (according to RFC 6570) that can be used to construct resource URIs.
+   */
+  uriTemplate: string2(),
+  /**
+   * A description of what this template is for.
+   *
+   * This can be used by clients to improve the LLM's understanding of available resources. It can be thought of like a "hint" to the model.
+   */
+  description: optional(string2()),
+  /**
+   * The MIME type for all resources that match this template. This should only be included if all resources matching this template have the same type.
+   */
+  mimeType: optional(string2()),
+  /**
+   * Optional annotations for the client.
+   */
+  annotations: AnnotationsSchema.optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: optional(looseObject({}))
+});
+var ListResourcesRequestSchema = PaginatedRequestSchema.extend({
+  method: literal("resources/list")
+});
+var ListResourcesResultSchema = PaginatedResultSchema.extend({
+  resources: array(ResourceSchema)
+});
+var ListResourceTemplatesRequestSchema = PaginatedRequestSchema.extend({
+  method: literal("resources/templates/list")
+});
+var ListResourceTemplatesResultSchema = PaginatedResultSchema.extend({
+  resourceTemplates: array(ResourceTemplateSchema)
+});
+var ResourceRequestParamsSchema = BaseRequestParamsSchema.extend({
+  /**
+   * The URI of the resource to read. The URI can use any protocol; it is up to the server how to interpret it.
+   *
+   * @format uri
+   */
+  uri: string2()
+});
+var ReadResourceRequestParamsSchema = ResourceRequestParamsSchema;
+var ReadResourceRequestSchema = RequestSchema.extend({
+  method: literal("resources/read"),
+  params: ReadResourceRequestParamsSchema
+});
+var ReadResourceResultSchema = ResultSchema.extend({
+  contents: array(union([TextResourceContentsSchema, BlobResourceContentsSchema]))
+});
+var ResourceListChangedNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/resources/list_changed"),
+  params: NotificationsParamsSchema.optional()
+});
+var SubscribeRequestParamsSchema = ResourceRequestParamsSchema;
+var SubscribeRequestSchema = RequestSchema.extend({
+  method: literal("resources/subscribe"),
+  params: SubscribeRequestParamsSchema
+});
+var UnsubscribeRequestParamsSchema = ResourceRequestParamsSchema;
+var UnsubscribeRequestSchema = RequestSchema.extend({
+  method: literal("resources/unsubscribe"),
+  params: UnsubscribeRequestParamsSchema
+});
+var ResourceUpdatedNotificationParamsSchema = NotificationsParamsSchema.extend({
+  /**
+   * The URI of the resource that has been updated. This might be a sub-resource of the one that the client actually subscribed to.
+   */
+  uri: string2()
+});
+var ResourceUpdatedNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/resources/updated"),
+  params: ResourceUpdatedNotificationParamsSchema
+});
+var PromptArgumentSchema = object({
+  /**
+   * The name of the argument.
+   */
+  name: string2(),
+  /**
+   * A human-readable description of the argument.
+   */
+  description: optional(string2()),
+  /**
+   * Whether this argument must be provided.
+   */
+  required: optional(boolean2())
+});
+var PromptSchema = object({
+  ...BaseMetadataSchema.shape,
+  ...IconsSchema.shape,
+  /**
+   * An optional description of what this prompt provides
+   */
+  description: optional(string2()),
+  /**
+   * A list of arguments to use for templating the prompt.
+   */
+  arguments: optional(array(PromptArgumentSchema)),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: optional(looseObject({}))
+});
+var ListPromptsRequestSchema = PaginatedRequestSchema.extend({
+  method: literal("prompts/list")
+});
+var ListPromptsResultSchema = PaginatedResultSchema.extend({
+  prompts: array(PromptSchema)
+});
+var GetPromptRequestParamsSchema = BaseRequestParamsSchema.extend({
+  /**
+   * The name of the prompt or prompt template.
+   */
+  name: string2(),
+  /**
+   * Arguments to use for templating the prompt.
+   */
+  arguments: record(string2(), string2()).optional()
+});
+var GetPromptRequestSchema = RequestSchema.extend({
+  method: literal("prompts/get"),
+  params: GetPromptRequestParamsSchema
+});
+var TextContentSchema = object({
+  type: literal("text"),
+  /**
+   * The text content of the message.
+   */
+  text: string2(),
+  /**
+   * Optional annotations for the client.
+   */
+  annotations: AnnotationsSchema.optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var ImageContentSchema = object({
+  type: literal("image"),
+  /**
+   * The base64-encoded image data.
+   */
+  data: Base64Schema,
+  /**
+   * The MIME type of the image. Different providers may support different image types.
+   */
+  mimeType: string2(),
+  /**
+   * Optional annotations for the client.
+   */
+  annotations: AnnotationsSchema.optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var AudioContentSchema = object({
+  type: literal("audio"),
+  /**
+   * The base64-encoded audio data.
+   */
+  data: Base64Schema,
+  /**
+   * The MIME type of the audio. Different providers may support different audio types.
+   */
+  mimeType: string2(),
+  /**
+   * Optional annotations for the client.
+   */
+  annotations: AnnotationsSchema.optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var ToolUseContentSchema = object({
+  type: literal("tool_use"),
+  /**
+   * The name of the tool to invoke.
+   * Must match a tool name from the request's tools array.
+   */
+  name: string2(),
+  /**
+   * Unique identifier for this tool call.
+   * Used to correlate with ToolResultContent in subsequent messages.
+   */
+  id: string2(),
+  /**
+   * Arguments to pass to the tool.
+   * Must conform to the tool's inputSchema.
+   */
+  input: record(string2(), unknown()),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var EmbeddedResourceSchema = object({
+  type: literal("resource"),
+  resource: union([TextResourceContentsSchema, BlobResourceContentsSchema]),
+  /**
+   * Optional annotations for the client.
+   */
+  annotations: AnnotationsSchema.optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var ResourceLinkSchema = ResourceSchema.extend({
+  type: literal("resource_link")
+});
+var ContentBlockSchema = union([
+  TextContentSchema,
+  ImageContentSchema,
+  AudioContentSchema,
+  ResourceLinkSchema,
+  EmbeddedResourceSchema
+]);
+var PromptMessageSchema = object({
+  role: RoleSchema,
+  content: ContentBlockSchema
+});
+var GetPromptResultSchema = ResultSchema.extend({
+  /**
+   * An optional description for the prompt.
+   */
+  description: string2().optional(),
+  messages: array(PromptMessageSchema)
+});
+var PromptListChangedNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/prompts/list_changed"),
+  params: NotificationsParamsSchema.optional()
+});
+var ToolAnnotationsSchema = object({
+  /**
+   * A human-readable title for the tool.
+   */
+  title: string2().optional(),
+  /**
+   * If true, the tool does not modify its environment.
+   *
+   * Default: false
+   */
+  readOnlyHint: boolean2().optional(),
+  /**
+   * If true, the tool may perform destructive updates to its environment.
+   * If false, the tool performs only additive updates.
+   *
+   * (This property is meaningful only when `readOnlyHint == false`)
+   *
+   * Default: true
+   */
+  destructiveHint: boolean2().optional(),
+  /**
+   * If true, calling the tool repeatedly with the same arguments
+   * will have no additional effect on the its environment.
+   *
+   * (This property is meaningful only when `readOnlyHint == false`)
+   *
+   * Default: false
+   */
+  idempotentHint: boolean2().optional(),
+  /**
+   * If true, this tool may interact with an "open world" of external
+   * entities. If false, the tool's domain of interaction is closed.
+   * For example, the world of a web search tool is open, whereas that
+   * of a memory tool is not.
+   *
+   * Default: true
+   */
+  openWorldHint: boolean2().optional()
+});
+var ToolExecutionSchema = object({
+  /**
+   * Indicates the tool's preference for task-augmented execution.
+   * - "required": Clients MUST invoke the tool as a task
+   * - "optional": Clients MAY invoke the tool as a task or normal request
+   * - "forbidden": Clients MUST NOT attempt to invoke the tool as a task
+   *
+   * If not present, defaults to "forbidden".
+   */
+  taskSupport: _enum2(["required", "optional", "forbidden"]).optional()
+});
+var ToolSchema = object({
+  ...BaseMetadataSchema.shape,
+  ...IconsSchema.shape,
+  /**
+   * A human-readable description of the tool.
+   */
+  description: string2().optional(),
+  /**
+   * A JSON Schema 2020-12 object defining the expected parameters for the tool.
+   * Must have type: 'object' at the root level per MCP spec.
+   */
+  inputSchema: object({
+    type: literal("object"),
+    properties: record(string2(), AssertObjectSchema).optional(),
+    required: array(string2()).optional()
+  }).catchall(unknown()),
+  /**
+   * An optional JSON Schema 2020-12 object defining the structure of the tool's output
+   * returned in the structuredContent field of a CallToolResult.
+   * Must have type: 'object' at the root level per MCP spec.
+   */
+  outputSchema: object({
+    type: literal("object"),
+    properties: record(string2(), AssertObjectSchema).optional(),
+    required: array(string2()).optional()
+  }).catchall(unknown()).optional(),
+  /**
+   * Optional additional tool information.
+   */
+  annotations: ToolAnnotationsSchema.optional(),
+  /**
+   * Execution-related properties for this tool.
+   */
+  execution: ToolExecutionSchema.optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var ListToolsRequestSchema = PaginatedRequestSchema.extend({
+  method: literal("tools/list")
+});
+var ListToolsResultSchema = PaginatedResultSchema.extend({
+  tools: array(ToolSchema)
+});
+var CallToolResultSchema = ResultSchema.extend({
+  /**
+   * A list of content objects that represent the result of the tool call.
+   *
+   * If the Tool does not define an outputSchema, this field MUST be present in the result.
+   * For backwards compatibility, this field is always present, but it may be empty.
+   */
+  content: array(ContentBlockSchema).default([]),
+  /**
+   * An object containing structured tool output.
+   *
+   * If the Tool defines an outputSchema, this field MUST be present in the result, and contain a JSON object that matches the schema.
+   */
+  structuredContent: record(string2(), unknown()).optional(),
+  /**
+   * Whether the tool call ended in an error.
+   *
+   * If not set, this is assumed to be false (the call was successful).
+   *
+   * Any errors that originate from the tool SHOULD be reported inside the result
+   * object, with `isError` set to true, _not_ as an MCP protocol-level error
+   * response. Otherwise, the LLM would not be able to see that an error occurred
+   * and self-correct.
+   *
+   * However, any errors in _finding_ the tool, an error indicating that the
+   * server does not support tool calls, or any other exceptional conditions,
+   * should be reported as an MCP error response.
+   */
+  isError: boolean2().optional()
+});
+var CompatibilityCallToolResultSchema = CallToolResultSchema.or(ResultSchema.extend({
+  toolResult: unknown()
+}));
+var CallToolRequestParamsSchema = TaskAugmentedRequestParamsSchema.extend({
+  /**
+   * The name of the tool to call.
+   */
+  name: string2(),
+  /**
+   * Arguments to pass to the tool.
+   */
+  arguments: record(string2(), unknown()).optional()
+});
+var CallToolRequestSchema = RequestSchema.extend({
+  method: literal("tools/call"),
+  params: CallToolRequestParamsSchema
+});
+var ToolListChangedNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/tools/list_changed"),
+  params: NotificationsParamsSchema.optional()
+});
+var ListChangedOptionsBaseSchema = object({
+  /**
+   * If true, the list will be refreshed automatically when a list changed notification is received.
+   * The callback will be called with the updated list.
+   *
+   * If false, the callback will be called with null items, allowing manual refresh.
+   *
+   * @default true
+   */
+  autoRefresh: boolean2().default(true),
+  /**
+   * Debounce time in milliseconds for list changed notification processing.
+   *
+   * Multiple notifications received within this timeframe will only trigger one refresh.
+   * Set to 0 to disable debouncing.
+   *
+   * @default 300
+   */
+  debounceMs: number2().int().nonnegative().default(300)
+});
+var LoggingLevelSchema = _enum2(["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]);
+var SetLevelRequestParamsSchema = BaseRequestParamsSchema.extend({
+  /**
+   * The level of logging that the client wants to receive from the server. The server should send all logs at this level and higher (i.e., more severe) to the client as notifications/logging/message.
+   */
+  level: LoggingLevelSchema
+});
+var SetLevelRequestSchema = RequestSchema.extend({
+  method: literal("logging/setLevel"),
+  params: SetLevelRequestParamsSchema
+});
+var LoggingMessageNotificationParamsSchema = NotificationsParamsSchema.extend({
+  /**
+   * The severity of this log message.
+   */
+  level: LoggingLevelSchema,
+  /**
+   * An optional name of the logger issuing this message.
+   */
+  logger: string2().optional(),
+  /**
+   * The data to be logged, such as a string message or an object. Any JSON serializable type is allowed here.
+   */
+  data: unknown()
+});
+var LoggingMessageNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/message"),
+  params: LoggingMessageNotificationParamsSchema
+});
+var ModelHintSchema = object({
+  /**
+   * A hint for a model name.
+   */
+  name: string2().optional()
+});
+var ModelPreferencesSchema = object({
+  /**
+   * Optional hints to use for model selection.
+   */
+  hints: array(ModelHintSchema).optional(),
+  /**
+   * How much to prioritize cost when selecting a model.
+   */
+  costPriority: number2().min(0).max(1).optional(),
+  /**
+   * How much to prioritize sampling speed (latency) when selecting a model.
+   */
+  speedPriority: number2().min(0).max(1).optional(),
+  /**
+   * How much to prioritize intelligence and capabilities when selecting a model.
+   */
+  intelligencePriority: number2().min(0).max(1).optional()
+});
+var ToolChoiceSchema = object({
+  /**
+   * Controls when tools are used:
+   * - "auto": Model decides whether to use tools (default)
+   * - "required": Model MUST use at least one tool before completing
+   * - "none": Model MUST NOT use any tools
+   */
+  mode: _enum2(["auto", "required", "none"]).optional()
+});
+var ToolResultContentSchema = object({
+  type: literal("tool_result"),
+  toolUseId: string2().describe("The unique identifier for the corresponding tool call."),
+  content: array(ContentBlockSchema).default([]),
+  structuredContent: object({}).loose().optional(),
+  isError: boolean2().optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var SamplingContentSchema = discriminatedUnion("type", [TextContentSchema, ImageContentSchema, AudioContentSchema]);
+var SamplingMessageContentBlockSchema = discriminatedUnion("type", [
+  TextContentSchema,
+  ImageContentSchema,
+  AudioContentSchema,
+  ToolUseContentSchema,
+  ToolResultContentSchema
+]);
+var SamplingMessageSchema = object({
+  role: RoleSchema,
+  content: union([SamplingMessageContentBlockSchema, array(SamplingMessageContentBlockSchema)]),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var CreateMessageRequestParamsSchema = TaskAugmentedRequestParamsSchema.extend({
+  messages: array(SamplingMessageSchema),
+  /**
+   * The server's preferences for which model to select. The client MAY modify or omit this request.
+   */
+  modelPreferences: ModelPreferencesSchema.optional(),
+  /**
+   * An optional system prompt the server wants to use for sampling. The client MAY modify or omit this prompt.
+   */
+  systemPrompt: string2().optional(),
+  /**
+   * A request to include context from one or more MCP servers (including the caller), to be attached to the prompt.
+   * The client MAY ignore this request.
+   *
+   * Default is "none". Values "thisServer" and "allServers" are soft-deprecated. Servers SHOULD only use these values if the client
+   * declares ClientCapabilities.sampling.context. These values may be removed in future spec releases.
+   */
+  includeContext: _enum2(["none", "thisServer", "allServers"]).optional(),
+  temperature: number2().optional(),
+  /**
+   * The requested maximum number of tokens to sample (to prevent runaway completions).
+   *
+   * The client MAY choose to sample fewer tokens than the requested maximum.
+   */
+  maxTokens: number2().int(),
+  stopSequences: array(string2()).optional(),
+  /**
+   * Optional metadata to pass through to the LLM provider. The format of this metadata is provider-specific.
+   */
+  metadata: AssertObjectSchema.optional(),
+  /**
+   * Tools that the model may use during generation.
+   * The client MUST return an error if this field is provided but ClientCapabilities.sampling.tools is not declared.
+   */
+  tools: array(ToolSchema).optional(),
+  /**
+   * Controls how the model uses tools.
+   * The client MUST return an error if this field is provided but ClientCapabilities.sampling.tools is not declared.
+   * Default is `{ mode: "auto" }`.
+   */
+  toolChoice: ToolChoiceSchema.optional()
+});
+var CreateMessageRequestSchema = RequestSchema.extend({
+  method: literal("sampling/createMessage"),
+  params: CreateMessageRequestParamsSchema
+});
+var CreateMessageResultSchema = ResultSchema.extend({
+  /**
+   * The name of the model that generated the message.
+   */
+  model: string2(),
+  /**
+   * The reason why sampling stopped, if known.
+   *
+   * Standard values:
+   * - "endTurn": Natural end of the assistant's turn
+   * - "stopSequence": A stop sequence was encountered
+   * - "maxTokens": Maximum token limit was reached
+   *
+   * This field is an open string to allow for provider-specific stop reasons.
+   */
+  stopReason: optional(_enum2(["endTurn", "stopSequence", "maxTokens"]).or(string2())),
+  role: RoleSchema,
+  /**
+   * Response content. Single content block (text, image, or audio).
+   */
+  content: SamplingContentSchema
+});
+var CreateMessageResultWithToolsSchema = ResultSchema.extend({
+  /**
+   * The name of the model that generated the message.
+   */
+  model: string2(),
+  /**
+   * The reason why sampling stopped, if known.
+   *
+   * Standard values:
+   * - "endTurn": Natural end of the assistant's turn
+   * - "stopSequence": A stop sequence was encountered
+   * - "maxTokens": Maximum token limit was reached
+   * - "toolUse": The model wants to use one or more tools
+   *
+   * This field is an open string to allow for provider-specific stop reasons.
+   */
+  stopReason: optional(_enum2(["endTurn", "stopSequence", "maxTokens", "toolUse"]).or(string2())),
+  role: RoleSchema,
+  /**
+   * Response content. May be a single block or array. May include ToolUseContent if stopReason is "toolUse".
+   */
+  content: union([SamplingMessageContentBlockSchema, array(SamplingMessageContentBlockSchema)])
+});
+var BooleanSchemaSchema = object({
+  type: literal("boolean"),
+  title: string2().optional(),
+  description: string2().optional(),
+  default: boolean2().optional()
+});
+var StringSchemaSchema = object({
+  type: literal("string"),
+  title: string2().optional(),
+  description: string2().optional(),
+  minLength: number2().optional(),
+  maxLength: number2().optional(),
+  format: _enum2(["email", "uri", "date", "date-time"]).optional(),
+  default: string2().optional()
+});
+var NumberSchemaSchema = object({
+  type: _enum2(["number", "integer"]),
+  title: string2().optional(),
+  description: string2().optional(),
+  minimum: number2().optional(),
+  maximum: number2().optional(),
+  default: number2().optional()
+});
+var UntitledSingleSelectEnumSchemaSchema = object({
+  type: literal("string"),
+  title: string2().optional(),
+  description: string2().optional(),
+  enum: array(string2()),
+  default: string2().optional()
+});
+var TitledSingleSelectEnumSchemaSchema = object({
+  type: literal("string"),
+  title: string2().optional(),
+  description: string2().optional(),
+  oneOf: array(object({
+    const: string2(),
+    title: string2()
+  })),
+  default: string2().optional()
+});
+var LegacyTitledEnumSchemaSchema = object({
+  type: literal("string"),
+  title: string2().optional(),
+  description: string2().optional(),
+  enum: array(string2()),
+  enumNames: array(string2()).optional(),
+  default: string2().optional()
+});
+var SingleSelectEnumSchemaSchema = union([UntitledSingleSelectEnumSchemaSchema, TitledSingleSelectEnumSchemaSchema]);
+var UntitledMultiSelectEnumSchemaSchema = object({
+  type: literal("array"),
+  title: string2().optional(),
+  description: string2().optional(),
+  minItems: number2().optional(),
+  maxItems: number2().optional(),
+  items: object({
+    type: literal("string"),
+    enum: array(string2())
+  }),
+  default: array(string2()).optional()
+});
+var TitledMultiSelectEnumSchemaSchema = object({
+  type: literal("array"),
+  title: string2().optional(),
+  description: string2().optional(),
+  minItems: number2().optional(),
+  maxItems: number2().optional(),
+  items: object({
+    anyOf: array(object({
+      const: string2(),
+      title: string2()
+    }))
+  }),
+  default: array(string2()).optional()
+});
+var MultiSelectEnumSchemaSchema = union([UntitledMultiSelectEnumSchemaSchema, TitledMultiSelectEnumSchemaSchema]);
+var EnumSchemaSchema = union([LegacyTitledEnumSchemaSchema, SingleSelectEnumSchemaSchema, MultiSelectEnumSchemaSchema]);
+var PrimitiveSchemaDefinitionSchema = union([EnumSchemaSchema, BooleanSchemaSchema, StringSchemaSchema, NumberSchemaSchema]);
+var ElicitRequestFormParamsSchema = TaskAugmentedRequestParamsSchema.extend({
+  /**
+   * The elicitation mode.
+   *
+   * Optional for backward compatibility. Clients MUST treat missing mode as "form".
+   */
+  mode: literal("form").optional(),
+  /**
+   * The message to present to the user describing what information is being requested.
+   */
+  message: string2(),
+  /**
+   * A restricted subset of JSON Schema.
+   * Only top-level properties are allowed, without nesting.
+   */
+  requestedSchema: object({
+    type: literal("object"),
+    properties: record(string2(), PrimitiveSchemaDefinitionSchema),
+    required: array(string2()).optional()
+  })
+});
+var ElicitRequestURLParamsSchema = TaskAugmentedRequestParamsSchema.extend({
+  /**
+   * The elicitation mode.
+   */
+  mode: literal("url"),
+  /**
+   * The message to present to the user explaining why the interaction is needed.
+   */
+  message: string2(),
+  /**
+   * The ID of the elicitation, which must be unique within the context of the server.
+   * The client MUST treat this ID as an opaque value.
+   */
+  elicitationId: string2(),
+  /**
+   * The URL that the user should navigate to.
+   */
+  url: string2().url()
+});
+var ElicitRequestParamsSchema = union([ElicitRequestFormParamsSchema, ElicitRequestURLParamsSchema]);
+var ElicitRequestSchema = RequestSchema.extend({
+  method: literal("elicitation/create"),
+  params: ElicitRequestParamsSchema
+});
+var ElicitationCompleteNotificationParamsSchema = NotificationsParamsSchema.extend({
+  /**
+   * The ID of the elicitation that completed.
+   */
+  elicitationId: string2()
+});
+var ElicitationCompleteNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/elicitation/complete"),
+  params: ElicitationCompleteNotificationParamsSchema
+});
+var ElicitResultSchema = ResultSchema.extend({
+  /**
+   * The user action in response to the elicitation.
+   * - "accept": User submitted the form/confirmed the action
+   * - "decline": User explicitly decline the action
+   * - "cancel": User dismissed without making an explicit choice
+   */
+  action: _enum2(["accept", "decline", "cancel"]),
+  /**
+   * The submitted form data, only present when action is "accept".
+   * Contains values matching the requested schema.
+   * Per MCP spec, content is "typically omitted" for decline/cancel actions.
+   * We normalize null to undefined for leniency while maintaining type compatibility.
+   */
+  content: preprocess((val) => val === null ? void 0 : val, record(string2(), union([string2(), number2(), boolean2(), array(string2())])).optional())
+});
+var ResourceTemplateReferenceSchema = object({
+  type: literal("ref/resource"),
+  /**
+   * The URI or URI template of the resource.
+   */
+  uri: string2()
+});
+var PromptReferenceSchema = object({
+  type: literal("ref/prompt"),
+  /**
+   * The name of the prompt or prompt template
+   */
+  name: string2()
+});
+var CompleteRequestParamsSchema = BaseRequestParamsSchema.extend({
+  ref: union([PromptReferenceSchema, ResourceTemplateReferenceSchema]),
+  /**
+   * The argument's information
+   */
+  argument: object({
+    /**
+     * The name of the argument
+     */
+    name: string2(),
+    /**
+     * The value of the argument to use for completion matching.
+     */
+    value: string2()
+  }),
+  context: object({
+    /**
+     * Previously-resolved variables in a URI template or prompt.
+     */
+    arguments: record(string2(), string2()).optional()
+  }).optional()
+});
+var CompleteRequestSchema = RequestSchema.extend({
+  method: literal("completion/complete"),
+  params: CompleteRequestParamsSchema
+});
+function assertCompleteRequestPrompt(request) {
+  if (request.params.ref.type !== "ref/prompt") {
+    throw new TypeError(`Expected CompleteRequestPrompt, but got ${request.params.ref.type}`);
+  }
+  void request;
+}
+function assertCompleteRequestResourceTemplate(request) {
+  if (request.params.ref.type !== "ref/resource") {
+    throw new TypeError(`Expected CompleteRequestResourceTemplate, but got ${request.params.ref.type}`);
+  }
+  void request;
+}
+var CompleteResultSchema = ResultSchema.extend({
+  completion: looseObject({
+    /**
+     * An array of completion values. Must not exceed 100 items.
+     */
+    values: array(string2()).max(100),
+    /**
+     * The total number of completion options available. This can exceed the number of values actually sent in the response.
+     */
+    total: optional(number2().int()),
+    /**
+     * Indicates whether there are additional completion options beyond those provided in the current response, even if the exact total is unknown.
+     */
+    hasMore: optional(boolean2())
+  })
+});
+var RootSchema = object({
+  /**
+   * The URI identifying the root. This *must* start with file:// for now.
+   */
+  uri: string2().startsWith("file://"),
+  /**
+   * An optional name for the root.
+   */
+  name: string2().optional(),
+  /**
+   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
+   * for notes on _meta usage.
+   */
+  _meta: record(string2(), unknown()).optional()
+});
+var ListRootsRequestSchema = RequestSchema.extend({
+  method: literal("roots/list"),
+  params: BaseRequestParamsSchema.optional()
+});
+var ListRootsResultSchema = ResultSchema.extend({
+  roots: array(RootSchema)
+});
+var RootsListChangedNotificationSchema = NotificationSchema.extend({
+  method: literal("notifications/roots/list_changed"),
+  params: NotificationsParamsSchema.optional()
+});
+var ClientRequestSchema = union([
+  PingRequestSchema,
+  InitializeRequestSchema,
+  CompleteRequestSchema,
+  SetLevelRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema,
+  SubscribeRequestSchema,
+  UnsubscribeRequestSchema,
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  GetTaskRequestSchema,
+  GetTaskPayloadRequestSchema,
+  ListTasksRequestSchema,
+  CancelTaskRequestSchema
+]);
+var ClientNotificationSchema = union([
+  CancelledNotificationSchema,
+  ProgressNotificationSchema,
+  InitializedNotificationSchema,
+  RootsListChangedNotificationSchema,
+  TaskStatusNotificationSchema
+]);
+var ClientResultSchema = union([
+  EmptyResultSchema,
+  CreateMessageResultSchema,
+  CreateMessageResultWithToolsSchema,
+  ElicitResultSchema,
+  ListRootsResultSchema,
+  GetTaskResultSchema,
+  ListTasksResultSchema,
+  CreateTaskResultSchema
+]);
+var ServerRequestSchema = union([
+  PingRequestSchema,
+  CreateMessageRequestSchema,
+  ElicitRequestSchema,
+  ListRootsRequestSchema,
+  GetTaskRequestSchema,
+  GetTaskPayloadRequestSchema,
+  ListTasksRequestSchema,
+  CancelTaskRequestSchema
+]);
+var ServerNotificationSchema = union([
+  CancelledNotificationSchema,
+  ProgressNotificationSchema,
+  LoggingMessageNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  ResourceListChangedNotificationSchema,
+  ToolListChangedNotificationSchema,
+  PromptListChangedNotificationSchema,
+  TaskStatusNotificationSchema,
+  ElicitationCompleteNotificationSchema
+]);
+var ServerResultSchema = union([
+  EmptyResultSchema,
+  InitializeResultSchema,
+  CompleteResultSchema,
+  GetPromptResultSchema,
+  ListPromptsResultSchema,
+  ListResourcesResultSchema,
+  ListResourceTemplatesResultSchema,
+  ReadResourceResultSchema,
+  CallToolResultSchema,
+  ListToolsResultSchema,
+  GetTaskResultSchema,
+  ListTasksResultSchema,
+  CreateTaskResultSchema
+]);
+var McpError = class _McpError extends Error {
+  constructor(code, message, data) {
+    super(`MCP error ${code}: ${message}`);
+    this.code = code;
+    this.data = data;
+    this.name = "McpError";
+  }
+  /**
+   * Factory method to create the appropriate error type based on the error code and data
+   */
+  static fromError(code, message, data) {
+    if (code === ErrorCode.UrlElicitationRequired && data) {
+      const errorData = data;
+      if (errorData.elicitations) {
+        return new UrlElicitationRequiredError(errorData.elicitations, message);
+      }
+    }
+    return new _McpError(code, message, data);
+  }
+};
+var UrlElicitationRequiredError = class extends McpError {
+  constructor(elicitations, message = `URL elicitation${elicitations.length > 1 ? "s" : ""} required`) {
+    super(ErrorCode.UrlElicitationRequired, message, {
+      elicitations
+    });
+  }
+  get elicitations() {
+    return this.data?.elicitations ?? [];
+  }
+};
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
+var STDIO_DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
+var ReadBuffer = class {
+  constructor(options) {
+    this._maxBufferSize = options?.maxBufferSize ?? STDIO_DEFAULT_MAX_BUFFER_SIZE;
+  }
+  append(chunk) {
+    const newSize = (this._buffer?.length ?? 0) + chunk.length;
+    if (newSize > this._maxBufferSize) {
+      this.clear();
+      throw new Error(`ReadBuffer exceeded maximum size of ${this._maxBufferSize} bytes`);
+    }
+    this._buffer = this._buffer ? Buffer.concat([this._buffer, chunk]) : chunk;
+  }
+  readMessage() {
+    if (!this._buffer) {
+      return null;
+    }
+    const index = this._buffer.indexOf("\n");
+    if (index === -1) {
+      return null;
+    }
+    const line = this._buffer.toString("utf8", 0, index).replace(/\r$/, "");
+    this._buffer = this._buffer.subarray(index + 1);
+    return deserializeMessage(line);
+  }
+  clear() {
+    this._buffer = void 0;
+  }
+};
+function deserializeMessage(line) {
+  return JSONRPCMessageSchema.parse(JSON.parse(line));
+}
+function serializeMessage(message) {
+  return JSON.stringify(message) + "\n";
+}
+
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+var StdioServerTransport = class {
+  constructor(_stdin = import_node_process.default.stdin, _stdout = import_node_process.default.stdout, options) {
+    this._stdin = _stdin;
+    this._stdout = _stdout;
+    this._started = false;
+    this._ondata = (chunk) => {
+      try {
+        this._readBuffer.append(chunk);
+        this.processReadBuffer();
+      } catch (error62) {
+        this.onerror?.(error62);
+        this.close().catch(() => {
+        });
+      }
+    };
+    this._onerror = (error62) => {
+      this.onerror?.(error62);
+    };
+    this._readBuffer = new ReadBuffer({ maxBufferSize: options?.maxBufferSize });
+  }
+  /**
+   * Starts listening for messages on stdin.
+   */
+  async start() {
+    if (this._started) {
+      throw new Error("StdioServerTransport already started! If using Server class, note that connect() calls start() automatically.");
+    }
+    this._started = true;
+    this._stdin.on("data", this._ondata);
+    this._stdin.on("error", this._onerror);
+  }
+  processReadBuffer() {
+    while (true) {
+      try {
+        const message = this._readBuffer.readMessage();
+        if (message === null) {
+          break;
+        }
+        this.onmessage?.(message);
+      } catch (error62) {
+        this.onerror?.(error62);
+      }
+    }
+  }
+  async close() {
+    this._stdin.off("data", this._ondata);
+    this._stdin.off("error", this._onerror);
+    const remainingDataListeners = this._stdin.listenerCount("data");
+    if (remainingDataListeners === 0) {
+      this._stdin.pause();
+    }
+    this._readBuffer.clear();
+    this.onclose?.();
+  }
+  send(message) {
+    return new Promise((resolve) => {
+      const json2 = serializeMessage(message);
+      if (this._stdout.write(json2)) {
+        resolve();
+      } else {
+        this._stdout.once("drain", resolve);
+      }
+    });
+  }
+};
+
+// src/mcp/browser-mcp.ts
+var import_node_fs3 = __toESM(require("node:fs"), 1);
+var import_node_path2 = __toESM(require("node:path"), 1);
+
 // node_modules/zod/v3/helpers/util.js
 var util;
 (function(util2) {
@@ -31048,1537 +32679,6 @@ function getLiteralValue(schema) {
   return void 0;
 }
 
-// node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
-var LATEST_PROTOCOL_VERSION = "2025-11-25";
-var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
-var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
-var JSONRPC_VERSION = "2.0";
-var AssertObjectSchema = custom((v) => v !== null && (typeof v === "object" || typeof v === "function"));
-var ProgressTokenSchema = union([string2(), number2().int()]);
-var CursorSchema = string2();
-var TaskCreationParamsSchema = looseObject({
-  /**
-   * Requested duration in milliseconds to retain task from creation.
-   */
-  ttl: number2().optional(),
-  /**
-   * Time in milliseconds to wait between task status requests.
-   */
-  pollInterval: number2().optional()
-});
-var TaskMetadataSchema = object({
-  ttl: number2().optional()
-});
-var RelatedTaskMetadataSchema = object({
-  taskId: string2()
-});
-var RequestMetaSchema = looseObject({
-  /**
-   * If specified, the caller is requesting out-of-band progress notifications for this request (as represented by notifications/progress). The value of this parameter is an opaque token that will be attached to any subsequent notifications. The receiver is not obligated to provide these notifications.
-   */
-  progressToken: ProgressTokenSchema.optional(),
-  /**
-   * If specified, this request is related to the provided task.
-   */
-  [RELATED_TASK_META_KEY]: RelatedTaskMetadataSchema.optional()
-});
-var BaseRequestParamsSchema = object({
-  /**
-   * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
-   */
-  _meta: RequestMetaSchema.optional()
-});
-var TaskAugmentedRequestParamsSchema = BaseRequestParamsSchema.extend({
-  /**
-   * If specified, the caller is requesting task-augmented execution for this request.
-   * The request will return a CreateTaskResult immediately, and the actual result can be
-   * retrieved later via tasks/result.
-   *
-   * Task augmentation is subject to capability negotiation - receivers MUST declare support
-   * for task augmentation of specific request types in their capabilities.
-   */
-  task: TaskMetadataSchema.optional()
-});
-var isTaskAugmentedRequestParams = (value) => TaskAugmentedRequestParamsSchema.safeParse(value).success;
-var RequestSchema = object({
-  method: string2(),
-  params: BaseRequestParamsSchema.loose().optional()
-});
-var NotificationsParamsSchema = object({
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: RequestMetaSchema.optional()
-});
-var NotificationSchema = object({
-  method: string2(),
-  params: NotificationsParamsSchema.loose().optional()
-});
-var ResultSchema = looseObject({
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: RequestMetaSchema.optional()
-});
-var RequestIdSchema = union([string2(), number2().int()]);
-var JSONRPCRequestSchema = object({
-  jsonrpc: literal(JSONRPC_VERSION),
-  id: RequestIdSchema,
-  ...RequestSchema.shape
-}).strict();
-var isJSONRPCRequest = (value) => JSONRPCRequestSchema.safeParse(value).success;
-var JSONRPCNotificationSchema = object({
-  jsonrpc: literal(JSONRPC_VERSION),
-  ...NotificationSchema.shape
-}).strict();
-var isJSONRPCNotification = (value) => JSONRPCNotificationSchema.safeParse(value).success;
-var JSONRPCResultResponseSchema = object({
-  jsonrpc: literal(JSONRPC_VERSION),
-  id: RequestIdSchema,
-  result: ResultSchema
-}).strict();
-var isJSONRPCResultResponse = (value) => JSONRPCResultResponseSchema.safeParse(value).success;
-var ErrorCode;
-(function(ErrorCode2) {
-  ErrorCode2[ErrorCode2["ConnectionClosed"] = -32e3] = "ConnectionClosed";
-  ErrorCode2[ErrorCode2["RequestTimeout"] = -32001] = "RequestTimeout";
-  ErrorCode2[ErrorCode2["ParseError"] = -32700] = "ParseError";
-  ErrorCode2[ErrorCode2["InvalidRequest"] = -32600] = "InvalidRequest";
-  ErrorCode2[ErrorCode2["MethodNotFound"] = -32601] = "MethodNotFound";
-  ErrorCode2[ErrorCode2["InvalidParams"] = -32602] = "InvalidParams";
-  ErrorCode2[ErrorCode2["InternalError"] = -32603] = "InternalError";
-  ErrorCode2[ErrorCode2["UrlElicitationRequired"] = -32042] = "UrlElicitationRequired";
-})(ErrorCode || (ErrorCode = {}));
-var JSONRPCErrorResponseSchema = object({
-  jsonrpc: literal(JSONRPC_VERSION),
-  id: RequestIdSchema.optional(),
-  error: object({
-    /**
-     * The error type that occurred.
-     */
-    code: number2().int(),
-    /**
-     * A short description of the error. The message SHOULD be limited to a concise single sentence.
-     */
-    message: string2(),
-    /**
-     * Additional information about the error. The value of this member is defined by the sender (e.g. detailed error information, nested errors etc.).
-     */
-    data: unknown().optional()
-  })
-}).strict();
-var isJSONRPCErrorResponse = (value) => JSONRPCErrorResponseSchema.safeParse(value).success;
-var JSONRPCMessageSchema = union([
-  JSONRPCRequestSchema,
-  JSONRPCNotificationSchema,
-  JSONRPCResultResponseSchema,
-  JSONRPCErrorResponseSchema
-]);
-var JSONRPCResponseSchema = union([JSONRPCResultResponseSchema, JSONRPCErrorResponseSchema]);
-var EmptyResultSchema = ResultSchema.strict();
-var CancelledNotificationParamsSchema = NotificationsParamsSchema.extend({
-  /**
-   * The ID of the request to cancel.
-   *
-   * This MUST correspond to the ID of a request previously issued in the same direction.
-   */
-  requestId: RequestIdSchema.optional(),
-  /**
-   * An optional string describing the reason for the cancellation. This MAY be logged or presented to the user.
-   */
-  reason: string2().optional()
-});
-var CancelledNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/cancelled"),
-  params: CancelledNotificationParamsSchema
-});
-var IconSchema = object({
-  /**
-   * URL or data URI for the icon.
-   */
-  src: string2(),
-  /**
-   * Optional MIME type for the icon.
-   */
-  mimeType: string2().optional(),
-  /**
-   * Optional array of strings that specify sizes at which the icon can be used.
-   * Each string should be in WxH format (e.g., `"48x48"`, `"96x96"`) or `"any"` for scalable formats like SVG.
-   *
-   * If not provided, the client should assume that the icon can be used at any size.
-   */
-  sizes: array(string2()).optional(),
-  /**
-   * Optional specifier for the theme this icon is designed for. `light` indicates
-   * the icon is designed to be used with a light background, and `dark` indicates
-   * the icon is designed to be used with a dark background.
-   *
-   * If not provided, the client should assume the icon can be used with any theme.
-   */
-  theme: _enum2(["light", "dark"]).optional()
-});
-var IconsSchema = object({
-  /**
-   * Optional set of sized icons that the client can display in a user interface.
-   *
-   * Clients that support rendering icons MUST support at least the following MIME types:
-   * - `image/png` - PNG images (safe, universal compatibility)
-   * - `image/jpeg` (and `image/jpg`) - JPEG images (safe, universal compatibility)
-   *
-   * Clients that support rendering icons SHOULD also support:
-   * - `image/svg+xml` - SVG images (scalable but requires security precautions)
-   * - `image/webp` - WebP images (modern, efficient format)
-   */
-  icons: array(IconSchema).optional()
-});
-var BaseMetadataSchema = object({
-  /** Intended for programmatic or logical use, but used as a display name in past specs or fallback */
-  name: string2(),
-  /**
-   * Intended for UI and end-user contexts — optimized to be human-readable and easily understood,
-   * even by those unfamiliar with domain-specific terminology.
-   *
-   * If not provided, the name should be used for display (except for Tool,
-   * where `annotations.title` should be given precedence over using `name`,
-   * if present).
-   */
-  title: string2().optional()
-});
-var ImplementationSchema = BaseMetadataSchema.extend({
-  ...BaseMetadataSchema.shape,
-  ...IconsSchema.shape,
-  version: string2(),
-  /**
-   * An optional URL of the website for this implementation.
-   */
-  websiteUrl: string2().optional(),
-  /**
-   * An optional human-readable description of what this implementation does.
-   *
-   * This can be used by clients or servers to provide context about their purpose
-   * and capabilities. For example, a server might describe the types of resources
-   * or tools it provides, while a client might describe its intended use case.
-   */
-  description: string2().optional()
-});
-var FormElicitationCapabilitySchema = intersection(object({
-  applyDefaults: boolean2().optional()
-}), record(string2(), unknown()));
-var ElicitationCapabilitySchema = preprocess((value) => {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    if (Object.keys(value).length === 0) {
-      return { form: {} };
-    }
-  }
-  return value;
-}, intersection(object({
-  form: FormElicitationCapabilitySchema.optional(),
-  url: AssertObjectSchema.optional()
-}), record(string2(), unknown()).optional()));
-var ClientTasksCapabilitySchema = looseObject({
-  /**
-   * Present if the client supports listing tasks.
-   */
-  list: AssertObjectSchema.optional(),
-  /**
-   * Present if the client supports cancelling tasks.
-   */
-  cancel: AssertObjectSchema.optional(),
-  /**
-   * Capabilities for task creation on specific request types.
-   */
-  requests: looseObject({
-    /**
-     * Task support for sampling requests.
-     */
-    sampling: looseObject({
-      createMessage: AssertObjectSchema.optional()
-    }).optional(),
-    /**
-     * Task support for elicitation requests.
-     */
-    elicitation: looseObject({
-      create: AssertObjectSchema.optional()
-    }).optional()
-  }).optional()
-});
-var ServerTasksCapabilitySchema = looseObject({
-  /**
-   * Present if the server supports listing tasks.
-   */
-  list: AssertObjectSchema.optional(),
-  /**
-   * Present if the server supports cancelling tasks.
-   */
-  cancel: AssertObjectSchema.optional(),
-  /**
-   * Capabilities for task creation on specific request types.
-   */
-  requests: looseObject({
-    /**
-     * Task support for tool requests.
-     */
-    tools: looseObject({
-      call: AssertObjectSchema.optional()
-    }).optional()
-  }).optional()
-});
-var ClientCapabilitiesSchema = object({
-  /**
-   * Experimental, non-standard capabilities that the client supports.
-   */
-  experimental: record(string2(), AssertObjectSchema).optional(),
-  /**
-   * Present if the client supports sampling from an LLM.
-   */
-  sampling: object({
-    /**
-     * Present if the client supports context inclusion via includeContext parameter.
-     * If not declared, servers SHOULD only use `includeContext: "none"` (or omit it).
-     */
-    context: AssertObjectSchema.optional(),
-    /**
-     * Present if the client supports tool use via tools and toolChoice parameters.
-     */
-    tools: AssertObjectSchema.optional()
-  }).optional(),
-  /**
-   * Present if the client supports eliciting user input.
-   */
-  elicitation: ElicitationCapabilitySchema.optional(),
-  /**
-   * Present if the client supports listing roots.
-   */
-  roots: object({
-    /**
-     * Whether the client supports issuing notifications for changes to the roots list.
-     */
-    listChanged: boolean2().optional()
-  }).optional(),
-  /**
-   * Present if the client supports task creation.
-   */
-  tasks: ClientTasksCapabilitySchema.optional(),
-  /**
-   * Extensions that the client supports. Keys are extension identifiers (vendor-prefix/extension-name).
-   */
-  extensions: record(string2(), AssertObjectSchema).optional()
-});
-var InitializeRequestParamsSchema = BaseRequestParamsSchema.extend({
-  /**
-   * The latest version of the Model Context Protocol that the client supports. The client MAY decide to support older versions as well.
-   */
-  protocolVersion: string2(),
-  capabilities: ClientCapabilitiesSchema,
-  clientInfo: ImplementationSchema
-});
-var InitializeRequestSchema = RequestSchema.extend({
-  method: literal("initialize"),
-  params: InitializeRequestParamsSchema
-});
-var ServerCapabilitiesSchema = object({
-  /**
-   * Experimental, non-standard capabilities that the server supports.
-   */
-  experimental: record(string2(), AssertObjectSchema).optional(),
-  /**
-   * Present if the server supports sending log messages to the client.
-   */
-  logging: AssertObjectSchema.optional(),
-  /**
-   * Present if the server supports sending completions to the client.
-   */
-  completions: AssertObjectSchema.optional(),
-  /**
-   * Present if the server offers any prompt templates.
-   */
-  prompts: object({
-    /**
-     * Whether this server supports issuing notifications for changes to the prompt list.
-     */
-    listChanged: boolean2().optional()
-  }).optional(),
-  /**
-   * Present if the server offers any resources to read.
-   */
-  resources: object({
-    /**
-     * Whether this server supports clients subscribing to resource updates.
-     */
-    subscribe: boolean2().optional(),
-    /**
-     * Whether this server supports issuing notifications for changes to the resource list.
-     */
-    listChanged: boolean2().optional()
-  }).optional(),
-  /**
-   * Present if the server offers any tools to call.
-   */
-  tools: object({
-    /**
-     * Whether this server supports issuing notifications for changes to the tool list.
-     */
-    listChanged: boolean2().optional()
-  }).optional(),
-  /**
-   * Present if the server supports task creation.
-   */
-  tasks: ServerTasksCapabilitySchema.optional(),
-  /**
-   * Extensions that the server supports. Keys are extension identifiers (vendor-prefix/extension-name).
-   */
-  extensions: record(string2(), AssertObjectSchema).optional()
-});
-var InitializeResultSchema = ResultSchema.extend({
-  /**
-   * The version of the Model Context Protocol that the server wants to use. This may not match the version that the client requested. If the client cannot support this version, it MUST disconnect.
-   */
-  protocolVersion: string2(),
-  capabilities: ServerCapabilitiesSchema,
-  serverInfo: ImplementationSchema,
-  /**
-   * Instructions describing how to use the server and its features.
-   *
-   * This can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a "hint" to the model. For example, this information MAY be added to the system prompt.
-   */
-  instructions: string2().optional()
-});
-var InitializedNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/initialized"),
-  params: NotificationsParamsSchema.optional()
-});
-var PingRequestSchema = RequestSchema.extend({
-  method: literal("ping"),
-  params: BaseRequestParamsSchema.optional()
-});
-var ProgressSchema = object({
-  /**
-   * The progress thus far. This should increase every time progress is made, even if the total is unknown.
-   */
-  progress: number2(),
-  /**
-   * Total number of items to process (or total progress required), if known.
-   */
-  total: optional(number2()),
-  /**
-   * An optional message describing the current progress.
-   */
-  message: optional(string2())
-});
-var ProgressNotificationParamsSchema = object({
-  ...NotificationsParamsSchema.shape,
-  ...ProgressSchema.shape,
-  /**
-   * The progress token which was given in the initial request, used to associate this notification with the request that is proceeding.
-   */
-  progressToken: ProgressTokenSchema
-});
-var ProgressNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/progress"),
-  params: ProgressNotificationParamsSchema
-});
-var PaginatedRequestParamsSchema = BaseRequestParamsSchema.extend({
-  /**
-   * An opaque token representing the current pagination position.
-   * If provided, the server should return results starting after this cursor.
-   */
-  cursor: CursorSchema.optional()
-});
-var PaginatedRequestSchema = RequestSchema.extend({
-  params: PaginatedRequestParamsSchema.optional()
-});
-var PaginatedResultSchema = ResultSchema.extend({
-  /**
-   * An opaque token representing the pagination position after the last returned result.
-   * If present, there may be more results available.
-   */
-  nextCursor: CursorSchema.optional()
-});
-var TaskStatusSchema = _enum2(["working", "input_required", "completed", "failed", "cancelled"]);
-var TaskSchema = object({
-  taskId: string2(),
-  status: TaskStatusSchema,
-  /**
-   * Time in milliseconds to keep task results available after completion.
-   * If null, the task has unlimited lifetime until manually cleaned up.
-   */
-  ttl: union([number2(), _null3()]),
-  /**
-   * ISO 8601 timestamp when the task was created.
-   */
-  createdAt: string2(),
-  /**
-   * ISO 8601 timestamp when the task was last updated.
-   */
-  lastUpdatedAt: string2(),
-  pollInterval: optional(number2()),
-  /**
-   * Optional diagnostic message for failed tasks or other status information.
-   */
-  statusMessage: optional(string2())
-});
-var CreateTaskResultSchema = ResultSchema.extend({
-  task: TaskSchema
-});
-var TaskStatusNotificationParamsSchema = NotificationsParamsSchema.merge(TaskSchema);
-var TaskStatusNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/tasks/status"),
-  params: TaskStatusNotificationParamsSchema
-});
-var GetTaskRequestSchema = RequestSchema.extend({
-  method: literal("tasks/get"),
-  params: BaseRequestParamsSchema.extend({
-    taskId: string2()
-  })
-});
-var GetTaskResultSchema = ResultSchema.merge(TaskSchema);
-var GetTaskPayloadRequestSchema = RequestSchema.extend({
-  method: literal("tasks/result"),
-  params: BaseRequestParamsSchema.extend({
-    taskId: string2()
-  })
-});
-var GetTaskPayloadResultSchema = ResultSchema.loose();
-var ListTasksRequestSchema = PaginatedRequestSchema.extend({
-  method: literal("tasks/list")
-});
-var ListTasksResultSchema = PaginatedResultSchema.extend({
-  tasks: array(TaskSchema)
-});
-var CancelTaskRequestSchema = RequestSchema.extend({
-  method: literal("tasks/cancel"),
-  params: BaseRequestParamsSchema.extend({
-    taskId: string2()
-  })
-});
-var CancelTaskResultSchema = ResultSchema.merge(TaskSchema);
-var ResourceContentsSchema = object({
-  /**
-   * The URI of this resource.
-   */
-  uri: string2(),
-  /**
-   * The MIME type of this resource, if known.
-   */
-  mimeType: optional(string2()),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var TextResourceContentsSchema = ResourceContentsSchema.extend({
-  /**
-   * The text of the item. This must only be set if the item can actually be represented as text (not binary data).
-   */
-  text: string2()
-});
-var Base64Schema = string2().refine((val) => {
-  try {
-    atob(val);
-    return true;
-  } catch {
-    return false;
-  }
-}, { message: "Invalid Base64 string" });
-var BlobResourceContentsSchema = ResourceContentsSchema.extend({
-  /**
-   * A base64-encoded string representing the binary data of the item.
-   */
-  blob: Base64Schema
-});
-var RoleSchema = _enum2(["user", "assistant"]);
-var AnnotationsSchema = object({
-  /**
-   * Intended audience(s) for the resource.
-   */
-  audience: array(RoleSchema).optional(),
-  /**
-   * Importance hint for the resource, from 0 (least) to 1 (most).
-   */
-  priority: number2().min(0).max(1).optional(),
-  /**
-   * ISO 8601 timestamp for the most recent modification.
-   */
-  lastModified: iso_exports.datetime({ offset: true }).optional()
-});
-var ResourceSchema = object({
-  ...BaseMetadataSchema.shape,
-  ...IconsSchema.shape,
-  /**
-   * The URI of this resource.
-   */
-  uri: string2(),
-  /**
-   * A description of what this resource represents.
-   *
-   * This can be used by clients to improve the LLM's understanding of available resources. It can be thought of like a "hint" to the model.
-   */
-  description: optional(string2()),
-  /**
-   * The MIME type of this resource, if known.
-   */
-  mimeType: optional(string2()),
-  /**
-   * The size of the raw resource content, in bytes (i.e., before base64 encoding or any tokenization), if known.
-   *
-   * This can be used by Hosts to display file sizes and estimate context window usage.
-   */
-  size: optional(number2()),
-  /**
-   * Optional annotations for the client.
-   */
-  annotations: AnnotationsSchema.optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: optional(looseObject({}))
-});
-var ResourceTemplateSchema = object({
-  ...BaseMetadataSchema.shape,
-  ...IconsSchema.shape,
-  /**
-   * A URI template (according to RFC 6570) that can be used to construct resource URIs.
-   */
-  uriTemplate: string2(),
-  /**
-   * A description of what this template is for.
-   *
-   * This can be used by clients to improve the LLM's understanding of available resources. It can be thought of like a "hint" to the model.
-   */
-  description: optional(string2()),
-  /**
-   * The MIME type for all resources that match this template. This should only be included if all resources matching this template have the same type.
-   */
-  mimeType: optional(string2()),
-  /**
-   * Optional annotations for the client.
-   */
-  annotations: AnnotationsSchema.optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: optional(looseObject({}))
-});
-var ListResourcesRequestSchema = PaginatedRequestSchema.extend({
-  method: literal("resources/list")
-});
-var ListResourcesResultSchema = PaginatedResultSchema.extend({
-  resources: array(ResourceSchema)
-});
-var ListResourceTemplatesRequestSchema = PaginatedRequestSchema.extend({
-  method: literal("resources/templates/list")
-});
-var ListResourceTemplatesResultSchema = PaginatedResultSchema.extend({
-  resourceTemplates: array(ResourceTemplateSchema)
-});
-var ResourceRequestParamsSchema = BaseRequestParamsSchema.extend({
-  /**
-   * The URI of the resource to read. The URI can use any protocol; it is up to the server how to interpret it.
-   *
-   * @format uri
-   */
-  uri: string2()
-});
-var ReadResourceRequestParamsSchema = ResourceRequestParamsSchema;
-var ReadResourceRequestSchema = RequestSchema.extend({
-  method: literal("resources/read"),
-  params: ReadResourceRequestParamsSchema
-});
-var ReadResourceResultSchema = ResultSchema.extend({
-  contents: array(union([TextResourceContentsSchema, BlobResourceContentsSchema]))
-});
-var ResourceListChangedNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/resources/list_changed"),
-  params: NotificationsParamsSchema.optional()
-});
-var SubscribeRequestParamsSchema = ResourceRequestParamsSchema;
-var SubscribeRequestSchema = RequestSchema.extend({
-  method: literal("resources/subscribe"),
-  params: SubscribeRequestParamsSchema
-});
-var UnsubscribeRequestParamsSchema = ResourceRequestParamsSchema;
-var UnsubscribeRequestSchema = RequestSchema.extend({
-  method: literal("resources/unsubscribe"),
-  params: UnsubscribeRequestParamsSchema
-});
-var ResourceUpdatedNotificationParamsSchema = NotificationsParamsSchema.extend({
-  /**
-   * The URI of the resource that has been updated. This might be a sub-resource of the one that the client actually subscribed to.
-   */
-  uri: string2()
-});
-var ResourceUpdatedNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/resources/updated"),
-  params: ResourceUpdatedNotificationParamsSchema
-});
-var PromptArgumentSchema = object({
-  /**
-   * The name of the argument.
-   */
-  name: string2(),
-  /**
-   * A human-readable description of the argument.
-   */
-  description: optional(string2()),
-  /**
-   * Whether this argument must be provided.
-   */
-  required: optional(boolean2())
-});
-var PromptSchema = object({
-  ...BaseMetadataSchema.shape,
-  ...IconsSchema.shape,
-  /**
-   * An optional description of what this prompt provides
-   */
-  description: optional(string2()),
-  /**
-   * A list of arguments to use for templating the prompt.
-   */
-  arguments: optional(array(PromptArgumentSchema)),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: optional(looseObject({}))
-});
-var ListPromptsRequestSchema = PaginatedRequestSchema.extend({
-  method: literal("prompts/list")
-});
-var ListPromptsResultSchema = PaginatedResultSchema.extend({
-  prompts: array(PromptSchema)
-});
-var GetPromptRequestParamsSchema = BaseRequestParamsSchema.extend({
-  /**
-   * The name of the prompt or prompt template.
-   */
-  name: string2(),
-  /**
-   * Arguments to use for templating the prompt.
-   */
-  arguments: record(string2(), string2()).optional()
-});
-var GetPromptRequestSchema = RequestSchema.extend({
-  method: literal("prompts/get"),
-  params: GetPromptRequestParamsSchema
-});
-var TextContentSchema = object({
-  type: literal("text"),
-  /**
-   * The text content of the message.
-   */
-  text: string2(),
-  /**
-   * Optional annotations for the client.
-   */
-  annotations: AnnotationsSchema.optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var ImageContentSchema = object({
-  type: literal("image"),
-  /**
-   * The base64-encoded image data.
-   */
-  data: Base64Schema,
-  /**
-   * The MIME type of the image. Different providers may support different image types.
-   */
-  mimeType: string2(),
-  /**
-   * Optional annotations for the client.
-   */
-  annotations: AnnotationsSchema.optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var AudioContentSchema = object({
-  type: literal("audio"),
-  /**
-   * The base64-encoded audio data.
-   */
-  data: Base64Schema,
-  /**
-   * The MIME type of the audio. Different providers may support different audio types.
-   */
-  mimeType: string2(),
-  /**
-   * Optional annotations for the client.
-   */
-  annotations: AnnotationsSchema.optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var ToolUseContentSchema = object({
-  type: literal("tool_use"),
-  /**
-   * The name of the tool to invoke.
-   * Must match a tool name from the request's tools array.
-   */
-  name: string2(),
-  /**
-   * Unique identifier for this tool call.
-   * Used to correlate with ToolResultContent in subsequent messages.
-   */
-  id: string2(),
-  /**
-   * Arguments to pass to the tool.
-   * Must conform to the tool's inputSchema.
-   */
-  input: record(string2(), unknown()),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var EmbeddedResourceSchema = object({
-  type: literal("resource"),
-  resource: union([TextResourceContentsSchema, BlobResourceContentsSchema]),
-  /**
-   * Optional annotations for the client.
-   */
-  annotations: AnnotationsSchema.optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var ResourceLinkSchema = ResourceSchema.extend({
-  type: literal("resource_link")
-});
-var ContentBlockSchema = union([
-  TextContentSchema,
-  ImageContentSchema,
-  AudioContentSchema,
-  ResourceLinkSchema,
-  EmbeddedResourceSchema
-]);
-var PromptMessageSchema = object({
-  role: RoleSchema,
-  content: ContentBlockSchema
-});
-var GetPromptResultSchema = ResultSchema.extend({
-  /**
-   * An optional description for the prompt.
-   */
-  description: string2().optional(),
-  messages: array(PromptMessageSchema)
-});
-var PromptListChangedNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/prompts/list_changed"),
-  params: NotificationsParamsSchema.optional()
-});
-var ToolAnnotationsSchema = object({
-  /**
-   * A human-readable title for the tool.
-   */
-  title: string2().optional(),
-  /**
-   * If true, the tool does not modify its environment.
-   *
-   * Default: false
-   */
-  readOnlyHint: boolean2().optional(),
-  /**
-   * If true, the tool may perform destructive updates to its environment.
-   * If false, the tool performs only additive updates.
-   *
-   * (This property is meaningful only when `readOnlyHint == false`)
-   *
-   * Default: true
-   */
-  destructiveHint: boolean2().optional(),
-  /**
-   * If true, calling the tool repeatedly with the same arguments
-   * will have no additional effect on the its environment.
-   *
-   * (This property is meaningful only when `readOnlyHint == false`)
-   *
-   * Default: false
-   */
-  idempotentHint: boolean2().optional(),
-  /**
-   * If true, this tool may interact with an "open world" of external
-   * entities. If false, the tool's domain of interaction is closed.
-   * For example, the world of a web search tool is open, whereas that
-   * of a memory tool is not.
-   *
-   * Default: true
-   */
-  openWorldHint: boolean2().optional()
-});
-var ToolExecutionSchema = object({
-  /**
-   * Indicates the tool's preference for task-augmented execution.
-   * - "required": Clients MUST invoke the tool as a task
-   * - "optional": Clients MAY invoke the tool as a task or normal request
-   * - "forbidden": Clients MUST NOT attempt to invoke the tool as a task
-   *
-   * If not present, defaults to "forbidden".
-   */
-  taskSupport: _enum2(["required", "optional", "forbidden"]).optional()
-});
-var ToolSchema = object({
-  ...BaseMetadataSchema.shape,
-  ...IconsSchema.shape,
-  /**
-   * A human-readable description of the tool.
-   */
-  description: string2().optional(),
-  /**
-   * A JSON Schema 2020-12 object defining the expected parameters for the tool.
-   * Must have type: 'object' at the root level per MCP spec.
-   */
-  inputSchema: object({
-    type: literal("object"),
-    properties: record(string2(), AssertObjectSchema).optional(),
-    required: array(string2()).optional()
-  }).catchall(unknown()),
-  /**
-   * An optional JSON Schema 2020-12 object defining the structure of the tool's output
-   * returned in the structuredContent field of a CallToolResult.
-   * Must have type: 'object' at the root level per MCP spec.
-   */
-  outputSchema: object({
-    type: literal("object"),
-    properties: record(string2(), AssertObjectSchema).optional(),
-    required: array(string2()).optional()
-  }).catchall(unknown()).optional(),
-  /**
-   * Optional additional tool information.
-   */
-  annotations: ToolAnnotationsSchema.optional(),
-  /**
-   * Execution-related properties for this tool.
-   */
-  execution: ToolExecutionSchema.optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var ListToolsRequestSchema = PaginatedRequestSchema.extend({
-  method: literal("tools/list")
-});
-var ListToolsResultSchema = PaginatedResultSchema.extend({
-  tools: array(ToolSchema)
-});
-var CallToolResultSchema = ResultSchema.extend({
-  /**
-   * A list of content objects that represent the result of the tool call.
-   *
-   * If the Tool does not define an outputSchema, this field MUST be present in the result.
-   * For backwards compatibility, this field is always present, but it may be empty.
-   */
-  content: array(ContentBlockSchema).default([]),
-  /**
-   * An object containing structured tool output.
-   *
-   * If the Tool defines an outputSchema, this field MUST be present in the result, and contain a JSON object that matches the schema.
-   */
-  structuredContent: record(string2(), unknown()).optional(),
-  /**
-   * Whether the tool call ended in an error.
-   *
-   * If not set, this is assumed to be false (the call was successful).
-   *
-   * Any errors that originate from the tool SHOULD be reported inside the result
-   * object, with `isError` set to true, _not_ as an MCP protocol-level error
-   * response. Otherwise, the LLM would not be able to see that an error occurred
-   * and self-correct.
-   *
-   * However, any errors in _finding_ the tool, an error indicating that the
-   * server does not support tool calls, or any other exceptional conditions,
-   * should be reported as an MCP error response.
-   */
-  isError: boolean2().optional()
-});
-var CompatibilityCallToolResultSchema = CallToolResultSchema.or(ResultSchema.extend({
-  toolResult: unknown()
-}));
-var CallToolRequestParamsSchema = TaskAugmentedRequestParamsSchema.extend({
-  /**
-   * The name of the tool to call.
-   */
-  name: string2(),
-  /**
-   * Arguments to pass to the tool.
-   */
-  arguments: record(string2(), unknown()).optional()
-});
-var CallToolRequestSchema = RequestSchema.extend({
-  method: literal("tools/call"),
-  params: CallToolRequestParamsSchema
-});
-var ToolListChangedNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/tools/list_changed"),
-  params: NotificationsParamsSchema.optional()
-});
-var ListChangedOptionsBaseSchema = object({
-  /**
-   * If true, the list will be refreshed automatically when a list changed notification is received.
-   * The callback will be called with the updated list.
-   *
-   * If false, the callback will be called with null items, allowing manual refresh.
-   *
-   * @default true
-   */
-  autoRefresh: boolean2().default(true),
-  /**
-   * Debounce time in milliseconds for list changed notification processing.
-   *
-   * Multiple notifications received within this timeframe will only trigger one refresh.
-   * Set to 0 to disable debouncing.
-   *
-   * @default 300
-   */
-  debounceMs: number2().int().nonnegative().default(300)
-});
-var LoggingLevelSchema = _enum2(["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]);
-var SetLevelRequestParamsSchema = BaseRequestParamsSchema.extend({
-  /**
-   * The level of logging that the client wants to receive from the server. The server should send all logs at this level and higher (i.e., more severe) to the client as notifications/logging/message.
-   */
-  level: LoggingLevelSchema
-});
-var SetLevelRequestSchema = RequestSchema.extend({
-  method: literal("logging/setLevel"),
-  params: SetLevelRequestParamsSchema
-});
-var LoggingMessageNotificationParamsSchema = NotificationsParamsSchema.extend({
-  /**
-   * The severity of this log message.
-   */
-  level: LoggingLevelSchema,
-  /**
-   * An optional name of the logger issuing this message.
-   */
-  logger: string2().optional(),
-  /**
-   * The data to be logged, such as a string message or an object. Any JSON serializable type is allowed here.
-   */
-  data: unknown()
-});
-var LoggingMessageNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/message"),
-  params: LoggingMessageNotificationParamsSchema
-});
-var ModelHintSchema = object({
-  /**
-   * A hint for a model name.
-   */
-  name: string2().optional()
-});
-var ModelPreferencesSchema = object({
-  /**
-   * Optional hints to use for model selection.
-   */
-  hints: array(ModelHintSchema).optional(),
-  /**
-   * How much to prioritize cost when selecting a model.
-   */
-  costPriority: number2().min(0).max(1).optional(),
-  /**
-   * How much to prioritize sampling speed (latency) when selecting a model.
-   */
-  speedPriority: number2().min(0).max(1).optional(),
-  /**
-   * How much to prioritize intelligence and capabilities when selecting a model.
-   */
-  intelligencePriority: number2().min(0).max(1).optional()
-});
-var ToolChoiceSchema = object({
-  /**
-   * Controls when tools are used:
-   * - "auto": Model decides whether to use tools (default)
-   * - "required": Model MUST use at least one tool before completing
-   * - "none": Model MUST NOT use any tools
-   */
-  mode: _enum2(["auto", "required", "none"]).optional()
-});
-var ToolResultContentSchema = object({
-  type: literal("tool_result"),
-  toolUseId: string2().describe("The unique identifier for the corresponding tool call."),
-  content: array(ContentBlockSchema).default([]),
-  structuredContent: object({}).loose().optional(),
-  isError: boolean2().optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var SamplingContentSchema = discriminatedUnion("type", [TextContentSchema, ImageContentSchema, AudioContentSchema]);
-var SamplingMessageContentBlockSchema = discriminatedUnion("type", [
-  TextContentSchema,
-  ImageContentSchema,
-  AudioContentSchema,
-  ToolUseContentSchema,
-  ToolResultContentSchema
-]);
-var SamplingMessageSchema = object({
-  role: RoleSchema,
-  content: union([SamplingMessageContentBlockSchema, array(SamplingMessageContentBlockSchema)]),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var CreateMessageRequestParamsSchema = TaskAugmentedRequestParamsSchema.extend({
-  messages: array(SamplingMessageSchema),
-  /**
-   * The server's preferences for which model to select. The client MAY modify or omit this request.
-   */
-  modelPreferences: ModelPreferencesSchema.optional(),
-  /**
-   * An optional system prompt the server wants to use for sampling. The client MAY modify or omit this prompt.
-   */
-  systemPrompt: string2().optional(),
-  /**
-   * A request to include context from one or more MCP servers (including the caller), to be attached to the prompt.
-   * The client MAY ignore this request.
-   *
-   * Default is "none". Values "thisServer" and "allServers" are soft-deprecated. Servers SHOULD only use these values if the client
-   * declares ClientCapabilities.sampling.context. These values may be removed in future spec releases.
-   */
-  includeContext: _enum2(["none", "thisServer", "allServers"]).optional(),
-  temperature: number2().optional(),
-  /**
-   * The requested maximum number of tokens to sample (to prevent runaway completions).
-   *
-   * The client MAY choose to sample fewer tokens than the requested maximum.
-   */
-  maxTokens: number2().int(),
-  stopSequences: array(string2()).optional(),
-  /**
-   * Optional metadata to pass through to the LLM provider. The format of this metadata is provider-specific.
-   */
-  metadata: AssertObjectSchema.optional(),
-  /**
-   * Tools that the model may use during generation.
-   * The client MUST return an error if this field is provided but ClientCapabilities.sampling.tools is not declared.
-   */
-  tools: array(ToolSchema).optional(),
-  /**
-   * Controls how the model uses tools.
-   * The client MUST return an error if this field is provided but ClientCapabilities.sampling.tools is not declared.
-   * Default is `{ mode: "auto" }`.
-   */
-  toolChoice: ToolChoiceSchema.optional()
-});
-var CreateMessageRequestSchema = RequestSchema.extend({
-  method: literal("sampling/createMessage"),
-  params: CreateMessageRequestParamsSchema
-});
-var CreateMessageResultSchema = ResultSchema.extend({
-  /**
-   * The name of the model that generated the message.
-   */
-  model: string2(),
-  /**
-   * The reason why sampling stopped, if known.
-   *
-   * Standard values:
-   * - "endTurn": Natural end of the assistant's turn
-   * - "stopSequence": A stop sequence was encountered
-   * - "maxTokens": Maximum token limit was reached
-   *
-   * This field is an open string to allow for provider-specific stop reasons.
-   */
-  stopReason: optional(_enum2(["endTurn", "stopSequence", "maxTokens"]).or(string2())),
-  role: RoleSchema,
-  /**
-   * Response content. Single content block (text, image, or audio).
-   */
-  content: SamplingContentSchema
-});
-var CreateMessageResultWithToolsSchema = ResultSchema.extend({
-  /**
-   * The name of the model that generated the message.
-   */
-  model: string2(),
-  /**
-   * The reason why sampling stopped, if known.
-   *
-   * Standard values:
-   * - "endTurn": Natural end of the assistant's turn
-   * - "stopSequence": A stop sequence was encountered
-   * - "maxTokens": Maximum token limit was reached
-   * - "toolUse": The model wants to use one or more tools
-   *
-   * This field is an open string to allow for provider-specific stop reasons.
-   */
-  stopReason: optional(_enum2(["endTurn", "stopSequence", "maxTokens", "toolUse"]).or(string2())),
-  role: RoleSchema,
-  /**
-   * Response content. May be a single block or array. May include ToolUseContent if stopReason is "toolUse".
-   */
-  content: union([SamplingMessageContentBlockSchema, array(SamplingMessageContentBlockSchema)])
-});
-var BooleanSchemaSchema = object({
-  type: literal("boolean"),
-  title: string2().optional(),
-  description: string2().optional(),
-  default: boolean2().optional()
-});
-var StringSchemaSchema = object({
-  type: literal("string"),
-  title: string2().optional(),
-  description: string2().optional(),
-  minLength: number2().optional(),
-  maxLength: number2().optional(),
-  format: _enum2(["email", "uri", "date", "date-time"]).optional(),
-  default: string2().optional()
-});
-var NumberSchemaSchema = object({
-  type: _enum2(["number", "integer"]),
-  title: string2().optional(),
-  description: string2().optional(),
-  minimum: number2().optional(),
-  maximum: number2().optional(),
-  default: number2().optional()
-});
-var UntitledSingleSelectEnumSchemaSchema = object({
-  type: literal("string"),
-  title: string2().optional(),
-  description: string2().optional(),
-  enum: array(string2()),
-  default: string2().optional()
-});
-var TitledSingleSelectEnumSchemaSchema = object({
-  type: literal("string"),
-  title: string2().optional(),
-  description: string2().optional(),
-  oneOf: array(object({
-    const: string2(),
-    title: string2()
-  })),
-  default: string2().optional()
-});
-var LegacyTitledEnumSchemaSchema = object({
-  type: literal("string"),
-  title: string2().optional(),
-  description: string2().optional(),
-  enum: array(string2()),
-  enumNames: array(string2()).optional(),
-  default: string2().optional()
-});
-var SingleSelectEnumSchemaSchema = union([UntitledSingleSelectEnumSchemaSchema, TitledSingleSelectEnumSchemaSchema]);
-var UntitledMultiSelectEnumSchemaSchema = object({
-  type: literal("array"),
-  title: string2().optional(),
-  description: string2().optional(),
-  minItems: number2().optional(),
-  maxItems: number2().optional(),
-  items: object({
-    type: literal("string"),
-    enum: array(string2())
-  }),
-  default: array(string2()).optional()
-});
-var TitledMultiSelectEnumSchemaSchema = object({
-  type: literal("array"),
-  title: string2().optional(),
-  description: string2().optional(),
-  minItems: number2().optional(),
-  maxItems: number2().optional(),
-  items: object({
-    anyOf: array(object({
-      const: string2(),
-      title: string2()
-    }))
-  }),
-  default: array(string2()).optional()
-});
-var MultiSelectEnumSchemaSchema = union([UntitledMultiSelectEnumSchemaSchema, TitledMultiSelectEnumSchemaSchema]);
-var EnumSchemaSchema = union([LegacyTitledEnumSchemaSchema, SingleSelectEnumSchemaSchema, MultiSelectEnumSchemaSchema]);
-var PrimitiveSchemaDefinitionSchema = union([EnumSchemaSchema, BooleanSchemaSchema, StringSchemaSchema, NumberSchemaSchema]);
-var ElicitRequestFormParamsSchema = TaskAugmentedRequestParamsSchema.extend({
-  /**
-   * The elicitation mode.
-   *
-   * Optional for backward compatibility. Clients MUST treat missing mode as "form".
-   */
-  mode: literal("form").optional(),
-  /**
-   * The message to present to the user describing what information is being requested.
-   */
-  message: string2(),
-  /**
-   * A restricted subset of JSON Schema.
-   * Only top-level properties are allowed, without nesting.
-   */
-  requestedSchema: object({
-    type: literal("object"),
-    properties: record(string2(), PrimitiveSchemaDefinitionSchema),
-    required: array(string2()).optional()
-  })
-});
-var ElicitRequestURLParamsSchema = TaskAugmentedRequestParamsSchema.extend({
-  /**
-   * The elicitation mode.
-   */
-  mode: literal("url"),
-  /**
-   * The message to present to the user explaining why the interaction is needed.
-   */
-  message: string2(),
-  /**
-   * The ID of the elicitation, which must be unique within the context of the server.
-   * The client MUST treat this ID as an opaque value.
-   */
-  elicitationId: string2(),
-  /**
-   * The URL that the user should navigate to.
-   */
-  url: string2().url()
-});
-var ElicitRequestParamsSchema = union([ElicitRequestFormParamsSchema, ElicitRequestURLParamsSchema]);
-var ElicitRequestSchema = RequestSchema.extend({
-  method: literal("elicitation/create"),
-  params: ElicitRequestParamsSchema
-});
-var ElicitationCompleteNotificationParamsSchema = NotificationsParamsSchema.extend({
-  /**
-   * The ID of the elicitation that completed.
-   */
-  elicitationId: string2()
-});
-var ElicitationCompleteNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/elicitation/complete"),
-  params: ElicitationCompleteNotificationParamsSchema
-});
-var ElicitResultSchema = ResultSchema.extend({
-  /**
-   * The user action in response to the elicitation.
-   * - "accept": User submitted the form/confirmed the action
-   * - "decline": User explicitly decline the action
-   * - "cancel": User dismissed without making an explicit choice
-   */
-  action: _enum2(["accept", "decline", "cancel"]),
-  /**
-   * The submitted form data, only present when action is "accept".
-   * Contains values matching the requested schema.
-   * Per MCP spec, content is "typically omitted" for decline/cancel actions.
-   * We normalize null to undefined for leniency while maintaining type compatibility.
-   */
-  content: preprocess((val) => val === null ? void 0 : val, record(string2(), union([string2(), number2(), boolean2(), array(string2())])).optional())
-});
-var ResourceTemplateReferenceSchema = object({
-  type: literal("ref/resource"),
-  /**
-   * The URI or URI template of the resource.
-   */
-  uri: string2()
-});
-var PromptReferenceSchema = object({
-  type: literal("ref/prompt"),
-  /**
-   * The name of the prompt or prompt template
-   */
-  name: string2()
-});
-var CompleteRequestParamsSchema = BaseRequestParamsSchema.extend({
-  ref: union([PromptReferenceSchema, ResourceTemplateReferenceSchema]),
-  /**
-   * The argument's information
-   */
-  argument: object({
-    /**
-     * The name of the argument
-     */
-    name: string2(),
-    /**
-     * The value of the argument to use for completion matching.
-     */
-    value: string2()
-  }),
-  context: object({
-    /**
-     * Previously-resolved variables in a URI template or prompt.
-     */
-    arguments: record(string2(), string2()).optional()
-  }).optional()
-});
-var CompleteRequestSchema = RequestSchema.extend({
-  method: literal("completion/complete"),
-  params: CompleteRequestParamsSchema
-});
-function assertCompleteRequestPrompt(request) {
-  if (request.params.ref.type !== "ref/prompt") {
-    throw new TypeError(`Expected CompleteRequestPrompt, but got ${request.params.ref.type}`);
-  }
-  void request;
-}
-function assertCompleteRequestResourceTemplate(request) {
-  if (request.params.ref.type !== "ref/resource") {
-    throw new TypeError(`Expected CompleteRequestResourceTemplate, but got ${request.params.ref.type}`);
-  }
-  void request;
-}
-var CompleteResultSchema = ResultSchema.extend({
-  completion: looseObject({
-    /**
-     * An array of completion values. Must not exceed 100 items.
-     */
-    values: array(string2()).max(100),
-    /**
-     * The total number of completion options available. This can exceed the number of values actually sent in the response.
-     */
-    total: optional(number2().int()),
-    /**
-     * Indicates whether there are additional completion options beyond those provided in the current response, even if the exact total is unknown.
-     */
-    hasMore: optional(boolean2())
-  })
-});
-var RootSchema = object({
-  /**
-   * The URI identifying the root. This *must* start with file:// for now.
-   */
-  uri: string2().startsWith("file://"),
-  /**
-   * An optional name for the root.
-   */
-  name: string2().optional(),
-  /**
-   * See [MCP specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/47339c03c143bb4ec01a26e721a1b8fe66634ebe/docs/specification/draft/basic/index.mdx#general-fields)
-   * for notes on _meta usage.
-   */
-  _meta: record(string2(), unknown()).optional()
-});
-var ListRootsRequestSchema = RequestSchema.extend({
-  method: literal("roots/list"),
-  params: BaseRequestParamsSchema.optional()
-});
-var ListRootsResultSchema = ResultSchema.extend({
-  roots: array(RootSchema)
-});
-var RootsListChangedNotificationSchema = NotificationSchema.extend({
-  method: literal("notifications/roots/list_changed"),
-  params: NotificationsParamsSchema.optional()
-});
-var ClientRequestSchema = union([
-  PingRequestSchema,
-  InitializeRequestSchema,
-  CompleteRequestSchema,
-  SetLevelRequestSchema,
-  GetPromptRequestSchema,
-  ListPromptsRequestSchema,
-  ListResourcesRequestSchema,
-  ListResourceTemplatesRequestSchema,
-  ReadResourceRequestSchema,
-  SubscribeRequestSchema,
-  UnsubscribeRequestSchema,
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  GetTaskRequestSchema,
-  GetTaskPayloadRequestSchema,
-  ListTasksRequestSchema,
-  CancelTaskRequestSchema
-]);
-var ClientNotificationSchema = union([
-  CancelledNotificationSchema,
-  ProgressNotificationSchema,
-  InitializedNotificationSchema,
-  RootsListChangedNotificationSchema,
-  TaskStatusNotificationSchema
-]);
-var ClientResultSchema = union([
-  EmptyResultSchema,
-  CreateMessageResultSchema,
-  CreateMessageResultWithToolsSchema,
-  ElicitResultSchema,
-  ListRootsResultSchema,
-  GetTaskResultSchema,
-  ListTasksResultSchema,
-  CreateTaskResultSchema
-]);
-var ServerRequestSchema = union([
-  PingRequestSchema,
-  CreateMessageRequestSchema,
-  ElicitRequestSchema,
-  ListRootsRequestSchema,
-  GetTaskRequestSchema,
-  GetTaskPayloadRequestSchema,
-  ListTasksRequestSchema,
-  CancelTaskRequestSchema
-]);
-var ServerNotificationSchema = union([
-  CancelledNotificationSchema,
-  ProgressNotificationSchema,
-  LoggingMessageNotificationSchema,
-  ResourceUpdatedNotificationSchema,
-  ResourceListChangedNotificationSchema,
-  ToolListChangedNotificationSchema,
-  PromptListChangedNotificationSchema,
-  TaskStatusNotificationSchema,
-  ElicitationCompleteNotificationSchema
-]);
-var ServerResultSchema = union([
-  EmptyResultSchema,
-  InitializeResultSchema,
-  CompleteResultSchema,
-  GetPromptResultSchema,
-  ListPromptsResultSchema,
-  ListResourcesResultSchema,
-  ListResourceTemplatesResultSchema,
-  ReadResourceResultSchema,
-  CallToolResultSchema,
-  ListToolsResultSchema,
-  GetTaskResultSchema,
-  ListTasksResultSchema,
-  CreateTaskResultSchema
-]);
-var McpError = class _McpError extends Error {
-  constructor(code, message, data) {
-    super(`MCP error ${code}: ${message}`);
-    this.code = code;
-    this.data = data;
-    this.name = "McpError";
-  }
-  /**
-   * Factory method to create the appropriate error type based on the error code and data
-   */
-  static fromError(code, message, data) {
-    if (code === ErrorCode.UrlElicitationRequired && data) {
-      const errorData = data;
-      if (errorData.elicitations) {
-        return new UrlElicitationRequiredError(errorData.elicitations, message);
-      }
-    }
-    return new _McpError(code, message, data);
-  }
-};
-var UrlElicitationRequiredError = class extends McpError {
-  constructor(elicitations, message = `URL elicitation${elicitations.length > 1 ? "s" : ""} required`) {
-    super(ErrorCode.UrlElicitationRequired, message, {
-      elicitations
-    });
-  }
-  get elicitations() {
-    return this.data?.elicitations ?? [];
-  }
-};
-
 // node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
 function isTerminal(status) {
   return status === "completed" || status === "failed" || status === "cancelled";
@@ -36493,113 +36593,6 @@ var EMPTY_COMPLETION_RESULT = {
   }
 };
 
-// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
-var import_node_process = __toESM(require("node:process"), 1);
-
-// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
-var STDIO_DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
-var ReadBuffer = class {
-  constructor(options) {
-    this._maxBufferSize = options?.maxBufferSize ?? STDIO_DEFAULT_MAX_BUFFER_SIZE;
-  }
-  append(chunk) {
-    const newSize = (this._buffer?.length ?? 0) + chunk.length;
-    if (newSize > this._maxBufferSize) {
-      this.clear();
-      throw new Error(`ReadBuffer exceeded maximum size of ${this._maxBufferSize} bytes`);
-    }
-    this._buffer = this._buffer ? Buffer.concat([this._buffer, chunk]) : chunk;
-  }
-  readMessage() {
-    if (!this._buffer) {
-      return null;
-    }
-    const index = this._buffer.indexOf("\n");
-    if (index === -1) {
-      return null;
-    }
-    const line = this._buffer.toString("utf8", 0, index).replace(/\r$/, "");
-    this._buffer = this._buffer.subarray(index + 1);
-    return deserializeMessage(line);
-  }
-  clear() {
-    this._buffer = void 0;
-  }
-};
-function deserializeMessage(line) {
-  return JSONRPCMessageSchema.parse(JSON.parse(line));
-}
-function serializeMessage(message) {
-  return JSON.stringify(message) + "\n";
-}
-
-// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
-var StdioServerTransport = class {
-  constructor(_stdin = import_node_process.default.stdin, _stdout = import_node_process.default.stdout, options) {
-    this._stdin = _stdin;
-    this._stdout = _stdout;
-    this._started = false;
-    this._ondata = (chunk) => {
-      try {
-        this._readBuffer.append(chunk);
-        this.processReadBuffer();
-      } catch (error62) {
-        this.onerror?.(error62);
-        this.close().catch(() => {
-        });
-      }
-    };
-    this._onerror = (error62) => {
-      this.onerror?.(error62);
-    };
-    this._readBuffer = new ReadBuffer({ maxBufferSize: options?.maxBufferSize });
-  }
-  /**
-   * Starts listening for messages on stdin.
-   */
-  async start() {
-    if (this._started) {
-      throw new Error("StdioServerTransport already started! If using Server class, note that connect() calls start() automatically.");
-    }
-    this._started = true;
-    this._stdin.on("data", this._ondata);
-    this._stdin.on("error", this._onerror);
-  }
-  processReadBuffer() {
-    while (true) {
-      try {
-        const message = this._readBuffer.readMessage();
-        if (message === null) {
-          break;
-        }
-        this.onmessage?.(message);
-      } catch (error62) {
-        this.onerror?.(error62);
-      }
-    }
-  }
-  async close() {
-    this._stdin.off("data", this._ondata);
-    this._stdin.off("error", this._onerror);
-    const remainingDataListeners = this._stdin.listenerCount("data");
-    if (remainingDataListeners === 0) {
-      this._stdin.pause();
-    }
-    this._readBuffer.clear();
-    this.onclose?.();
-  }
-  send(message) {
-    return new Promise((resolve) => {
-      const json2 = serializeMessage(message);
-      if (this._stdout.write(json2)) {
-        resolve();
-      } else {
-        this._stdout.once("drain", resolve);
-      }
-    });
-  }
-};
-
 // src/mcp/format-mark.ts
 function formatMark(m) {
   const attrs = `${m.type ? ` type="${m.type}"` : ""}${m.role ? ` role=${m.role}` : ""}`;
@@ -38517,7 +38510,7 @@ function decisionStatus() {
   };
 }
 
-// src/mcp/bridge-server.ts
+// src/mcp/browser-mcp.ts
 var BRIDGE_URL = process.env.HB_BRIDGE_URL || process.env.KUANG_BRIDGE_URL || "http://127.0.0.1:4111";
 var LOG_TO_FILE = (process.env.HB_MCP_LOG ?? process.env.KUANG_MCP_LOG) !== "0";
 var STDERR_MODE = (process.env.HB_MCP_STDERR ?? process.env.KUANG_MCP_STDERR) === "0" ? "off" : (process.env.HB_MCP_STDERR ?? process.env.KUANG_MCP_STDERR) === "verbose" ? "verbose" : "boot";
@@ -38593,36 +38586,6 @@ function logMcp(message, level = "call") {
     writeStderr(`[Hyperbolic Browser MCP ${timestamp}] ${message}`);
   }
 }
-var stdoutClosed = false;
-process.stdout.on("error", (err) => {
-  if (err?.code === "EPIPE" || err?.code === "ERR_STREAM_DESTROYED") {
-    if (!stdoutClosed) {
-      stdoutClosed = true;
-      logMcp("stdout pipe closed by client (EPIPE); shutting down cleanly.", "boot");
-    }
-    process.exit(0);
-  }
-  logMcp(`stdout stream error: ${err?.message || err}`, "error");
-});
-process.stderr.on("error", () => {
-});
-var shuttingDown = false;
-function shutdown(reason) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  logMcp(reason, "boot");
-  flushLogSync();
-  process.exit(0);
-}
-process.stdin.on("end", () => shutdown("stdin closed by client; shutting down cleanly."));
-process.stdin.on("close", () => shutdown("stdin stream closed; shutting down cleanly."));
-process.on("exit", () => flushLogSync());
-process.on("unhandledRejection", (reason) => {
-  logMcp(`Unhandled promise rejection (server kept alive): ${reason?.stack || reason}`, "error");
-});
-process.on("uncaughtException", (err) => {
-  logMcp(`Uncaught exception (server kept alive): ${err?.stack || err}`, "error");
-});
 var MAX_TEXT_CHARS = 6e4;
 function clampText(text) {
   if (typeof text !== "string" || text.length <= MAX_TEXT_CHARS) return text;
@@ -39292,6 +39255,38 @@ function normalizeIncomingParams(params) {
   if (normalized.clearFirst !== void 0 && normalized.clear_first === void 0) normalized.clear_first = normalized.clearFirst;
   return normalized;
 }
+
+// src/mcp/bridge-server.ts
+var stdoutClosed = false;
+process.stdout.on("error", (err) => {
+  if (err?.code === "EPIPE" || err?.code === "ERR_STREAM_DESTROYED") {
+    if (!stdoutClosed) {
+      stdoutClosed = true;
+      logMcp("stdout pipe closed by client (EPIPE); shutting down cleanly.", "boot");
+    }
+    process.exit(0);
+  }
+  logMcp(`stdout stream error: ${err?.message || err}`, "error");
+});
+process.stderr.on("error", () => {
+});
+var shuttingDown = false;
+function shutdown(reason) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logMcp(reason, "boot");
+  flushLogSync();
+  process.exit(0);
+}
+process.stdin.on("end", () => shutdown("stdin closed by client; shutting down cleanly."));
+process.stdin.on("close", () => shutdown("stdin stream closed; shutting down cleanly."));
+process.on("exit", () => flushLogSync());
+process.on("unhandledRejection", (reason) => {
+  logMcp(`Unhandled promise rejection (server kept alive): ${reason?.stack || reason}`, "error");
+});
+process.on("uncaughtException", (err) => {
+  logMcp(`Uncaught exception (server kept alive): ${err?.stack || err}`, "error");
+});
 async function start() {
   logMcp("Initializing Hyperbolic Browser MCP Server over stdio...", "boot");
   const server = await createBridgeMcpServer();
@@ -39341,9 +39336,4 @@ start().catch((err) => {
   logMcp(`Fatal Hyperbolic Browser MCP Server Error: ${err?.stack || err}`, "error");
   flushLogSync();
   process.exit(1);
-});
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  createBridgeMcpServer,
-  normalizeIncomingParams
 });

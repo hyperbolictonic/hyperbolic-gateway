@@ -1,0 +1,25 @@
+{
+  "name": "@kuang/mcp-http",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Reusable Streamable HTTP host and session lifecycle for MCP servers.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/host.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1"
+  }
+}

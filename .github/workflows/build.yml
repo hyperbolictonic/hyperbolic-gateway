@@ -77,6 +77,12 @@ jobs:
       - name: MCP contract test (offline)
         run: node scripts/test-mcp-contract.mjs
 
+      - name: MCP HTTP transport tests
+        run: npm run test:mcp-http
+
+      - name: Remote gateway smoke test
+        run: npm run test:remote
+
       - name: Runtime data path test
         run: node scripts/test-data-paths.mjs
 

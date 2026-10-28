@@ -46,6 +46,12 @@ In addition to the 63 advertised tools, `bridge-server.ts` registers **7 MCP res
 - **[`bin/mcp-server.cjs`](../../bin/mcp-server.cjs)** & **[`scripts/mcp-server.js`](../../scripts/mcp-server.js)**:
   Production bundled standalone stdio executable spawned by AI agents and IDEs.
 
+### Remote gateway (Phase 1)
+
+- **[`browser-mcp.ts`](./browser-mcp.ts)**: side-effect-free `createBridgeMcpServer()` factory used by both the stdio entry point and the HTTP gateway.
+- **[`remote-server.ts`](./remote-server.ts)**: builds `bin/remote-server.cjs`, a loopback-only Streamable HTTP MCP process for remote clients. It exposes `/mcp/browser` with bearer auth and never proxies the raw bridge.
+- **[`../../packages/mcp-http`](../../packages/mcp-http/README.md)**: reusable HTTP host, auth helper, session cap and idle expiry. No Electron or Hyperbolic Gateway imports.
+
 ---
 
 ## 🩺 Diagnostics & stdio Discipline
