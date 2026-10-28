@@ -70,6 +70,10 @@ export interface ElectronAPI {
     serverExists: boolean;
     wrapServerPath: string;
     wrapServerExists: boolean;
+    devlogsServerPath: string;
+    devlogsServerExists: boolean;
+    devlogsDir: string;
+    devMode: boolean;
     wrapTokenFile: string;
     runtimePath: string;
     packaged: boolean;

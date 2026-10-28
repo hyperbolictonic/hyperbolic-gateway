@@ -128,6 +128,7 @@ const developerOrder = [
   'developer/api/browser-mcp.html',
   'developer/api/rest-mcp.html',
   'developer/api/remote-mcp.html',
+  'developer/api/devlogs.html',
   'developer/api/bridge-http.html',
   'developer/formats/index.html',
   'developer/formats/wrapper-format.html',

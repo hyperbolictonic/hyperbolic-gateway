@@ -19,6 +19,7 @@ handoffs are intentionally not published here; links to them go back to the repo
 - [Browser MCP API](../developer/api/browser-mcp.html) — tool groups, resources and call shape.
 - [REST MCP API](../developer/api/rest-mcp.html) — meta-tools, generated tools and result shapes.
 - [Remote MCP gateway](../developer/api/remote-mcp.html) — Streamable HTTP gateway, bearer/OAuth modes, Quick Tunnel and session limits.
+- [Development logs MCP](../developer/api/devlogs.html) — local-only log access for development.
 - [Wrapper format](../developer/formats/wrapper-format.html) and [recipe format](../developer/formats/recipe-format.html).
 
 ## Hyperbolic Browser

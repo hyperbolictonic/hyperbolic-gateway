@@ -2233,7 +2233,7 @@ if (settingsBtn && settingsModal) {
 
 // ---- MCP client snippets (Settings → MCP Clients) ------------------------------------------
 type ConnectRuntime = 'bundled' | 'node';
-type ConnectServer = 'browser' | 'wrap' | 'legacy-browser' | 'legacy-wrap';
+type ConnectServer = 'browser' | 'wrap' | 'devlogs' | 'legacy-browser' | 'legacy-wrap';
 
 interface ConnectInfo {
   platform: string;
@@ -2244,6 +2244,10 @@ interface ConnectInfo {
   serverExists: boolean;
   wrapServerPath: string;
   wrapServerExists: boolean;
+  devlogsServerPath: string;
+  devlogsServerExists: boolean;
+  devlogsDir: string;
+  devMode: boolean;
   wrapTokenFile: string;
   runtimePath: string;
   packaged: boolean;
@@ -2272,22 +2276,35 @@ let connectInfo: ConnectInfo | null = null;
 const serverName = (server: ConnectServer) =>
   server === 'wrap'
     ? 'hb-rest'
-    : server === 'legacy-wrap'
-      ? 'kuang-wrap'
-      : server === 'legacy-browser'
-        ? 'kuang'
-        : 'hb-browser';
+    : server === 'devlogs'
+      ? 'hb-devlogs'
+      : server === 'legacy-wrap'
+        ? 'kuang-wrap'
+        : server === 'legacy-browser'
+          ? 'kuang'
+          : 'hb-browser';
 
 const isWrapServer = (server: ConnectServer) => server === 'wrap' || server === 'legacy-wrap';
+const isDevlogsServer = (server: ConnectServer) => server === 'devlogs';
 const isLegacyServer = (server: ConnectServer) => server === 'legacy-browser' || server === 'legacy-wrap';
 
 function runtimeParts(info: ConnectInfo, runtime: ConnectRuntime, server: ConnectServer) {
   const env: Record<string, string> = {};
   const legacy = isLegacyServer(server);
   if (runtime === 'bundled') env.ELECTRON_RUN_AS_NODE = '1';
-  if (info.bridgePort !== 4111) env[legacy ? 'KUANG_BRIDGE_URL' : 'HB_BRIDGE_URL'] = info.bridgeUrl;
+  if (!isDevlogsServer(server) && info.bridgePort !== 4111) {
+    env[legacy ? 'KUANG_BRIDGE_URL' : 'HB_BRIDGE_URL'] = info.bridgeUrl;
+  }
   if (isWrapServer(server)) env[legacy ? 'KUANG_WRAP_TOKEN_FILE' : 'HB_WRAP_TOKEN_FILE'] = info.wrapTokenFile;
-  const serverPath = isWrapServer(server) ? info.wrapServerPath : info.serverPath;
+  if (isDevlogsServer(server)) {
+    env.HB_DEV_LOGS = '1';
+    env.HB_DEVLOGS_DIR = info.devlogsDir;
+  }
+  const serverPath = isDevlogsServer(server)
+    ? info.devlogsServerPath
+    : isWrapServer(server)
+      ? info.wrapServerPath
+      : info.serverPath;
   return runtime === 'bundled'
     ? { command: info.runtimePath, args: [serverPath], env }
     : { command: 'node', args: [serverPath], env };
@@ -2455,18 +2472,31 @@ function renderConnect() {
   if (isLegacyServer(server)) {
     notes.push('Legacy alias: existing configs keep working, but new configs should use hb-browser or hb-rest.');
   }
+  if (isDevlogsServer(server)) {
+    notes.push('Development only. Reads allowlisted log files with token redaction; it is not exposed through the remote gateway.');
+  }
   notes.push(
     runtime === 'bundled'
       ? 'Runs on this app’s bundled runtime (ELECTRON_RUN_AS_NODE=1), so Node does not need to be installed.'
       : 'Runs with `node` from PATH — Node 20 or newer is required.'
   );
-  notes.push(
-    connectInfo.bridgePort === 4111
-      ? 'The Cyberdeck must already be running; the bridge listens on the default port 4111.'
-      : `${isLegacyServer(server) ? 'KUANG' : 'HB'}_BRIDGE_URL=${connectInfo.bridgeUrl} is included because this instance uses port ${connectInfo.bridgePort}.`
-  );
-  const serverPath = isWrapServer(server) ? connectInfo.wrapServerPath : connectInfo.serverPath;
-  const serverExists = isWrapServer(server) ? connectInfo.wrapServerExists : connectInfo.serverExists;
+  if (!isDevlogsServer(server)) {
+    notes.push(
+      connectInfo.bridgePort === 4111
+        ? 'The Cyberdeck must already be running; the bridge listens on the default port 4111.'
+        : `${isLegacyServer(server) ? 'KUANG' : 'HB'}_BRIDGE_URL=${connectInfo.bridgeUrl} is included because this instance uses port ${connectInfo.bridgePort}.`
+    );
+  }
+  const serverPath = isDevlogsServer(server)
+    ? connectInfo.devlogsServerPath
+    : isWrapServer(server)
+      ? connectInfo.wrapServerPath
+      : connectInfo.serverPath;
+  const serverExists = isDevlogsServer(server)
+    ? connectInfo.devlogsServerExists
+    : isWrapServer(server)
+      ? connectInfo.wrapServerExists
+      : connectInfo.serverExists;
   if (!serverExists) notes.push(`⚠ MCP server not found at ${serverPath} — run npm run build:mcp.`);
   if (connectNoteEl) connectNoteEl.textContent = notes.join(' ');
 }
@@ -2476,6 +2506,9 @@ async function loadConnectPanel() {
   if (!connectClientEl.options.length) populateConnectClients();
   try {
     if (!connectInfo) connectInfo = await window.electronAPI!.getConnectInfo();
+    const devlogsOption = connectServerEl?.querySelector('option[value="devlogs"]') as HTMLOptionElement | null;
+    if (devlogsOption) devlogsOption.hidden = !connectInfo.devMode;
+    if (!connectInfo.devMode && connectServerEl?.value === 'devlogs') connectServerEl.value = 'browser';
     renderConnect();
   } catch (err: any) {
     if (connectSnippetEl) connectSnippetEl.textContent = `Could not read connection info: ${err?.message || err}`;

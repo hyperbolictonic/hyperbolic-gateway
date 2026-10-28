@@ -28,6 +28,7 @@ saved REST tools on top of the app. It is not the end-user manual.
 * [Browser MCP API](api/browser-mcp.md) - the `hb-browser` server, tool groups, resources, and call shape.
 * [REST MCP API](api/rest-mcp.md) - the `hb-rest` server, ten meta-tools, generated tools, and discovery.
 * [Remote MCP gateway](api/remote-mcp.md) - the Phase 1 Streamable HTTP gateway and its auth/session model.
+* [Development logs MCP](api/devlogs.md) - local-only development log access.
 * [Local bridge HTTP API](api/bridge-http.md) - supported local control-plane routes and authentication.
 * [Wrapper format](formats/wrapper-format.md) - the saved request, input schema, auth reference, and validation rules.
 * [Recipe format](formats/recipe-format.md) - JSON-to-Markdown projection, templates, limits, and pagination.

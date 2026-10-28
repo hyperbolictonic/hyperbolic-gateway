@@ -89,6 +89,9 @@ jobs:
       - name: MCP OAuth tests
         run: npm run test:mcp-oauth
 
+      - name: Dev logs MCP tests
+        run: npm run test:devlogs
+
       - name: Remote gateway smoke test
         run: npm run test:remote
 

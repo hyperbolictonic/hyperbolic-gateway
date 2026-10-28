@@ -16,6 +16,7 @@ import { DEFAULT_SHADOW_WALK_SETTINGS, loadShadowWalkSettings, saveShadowWalkSet
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { RemoteService } from './remote/service.js';
+import { dataPath } from './data-paths.js';
 import { APP_VERSION } from '../shared/version.js';
 import {
   failRecording,
@@ -112,6 +113,10 @@ function ensureWrapServerPath(): string {
 
 function ensureRemoteServerPath(): string {
   return ensureBundledServerPath('remote-server.cjs');
+}
+
+function ensureDevlogsServerPath(): string {
+  return ensureBundledServerPath('devlogs-server.cjs');
 }
 
 function wrapDir(): string {
@@ -277,6 +282,7 @@ ipcMain.handle('wrap:wrappers:delete', (_event, id: string) => {
 ipcMain.handle('app:connect-info', () => {
   const serverPath = ensureMcpServerPath();
   const wrapServerPath = ensureWrapServerPath();
+  const devlogsServerPath = ensureDevlogsServerPath();
   return {
     platform: process.platform,
     version: APP_VERSION,
@@ -286,6 +292,10 @@ ipcMain.handle('app:connect-info', () => {
     serverExists: fs.existsSync(serverPath),
     wrapServerPath,
     wrapServerExists: fs.existsSync(wrapServerPath),
+    devlogsServerPath,
+    devlogsServerExists: fs.existsSync(devlogsServerPath),
+    devlogsDir: dataPath('logs'),
+    devMode: !app.isPackaged,
     wrapTokenFile: tokenFile(wrapDir()),
     runtimePath: process.execPath,
     packaged: app.isPackaged,
