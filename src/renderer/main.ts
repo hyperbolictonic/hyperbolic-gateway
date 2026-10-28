@@ -2039,6 +2039,9 @@ if (settingsBtn && settingsModal) {
     if (tab === 'clients') {
       void loadConnectPanel();
     }
+    if (tab === 'remote') {
+      void loadRemotePanel();
+    }
     if (tab === 'research') {
       void loadResearchSettings();
     }
@@ -2162,6 +2165,7 @@ if (settingsBtn && settingsModal) {
     const activeTab = settingsTabs.find((button) => button.classList.contains('tab-active'))?.dataset.settingsTab;
     if (activeTab === 'recording') void loadRecordingSettings();
     if (activeTab === 'clients') void loadConnectPanel();
+    if (activeTab === 'remote') void loadRemotePanel();
     if (activeTab === 'research') void loadResearchSettings();
     if (activeTab === 'shadow') void loadShadowWalkSettings();
   });
@@ -2489,6 +2493,145 @@ connectCopyEl?.addEventListener('click', async () => {
   window.setTimeout(() => (connectCopyEl.textContent = 'COPY'), 1500);
 });
 populateConnectClients();
+
+// ---- Remote MCP gateway (Settings -> Remote) ------------------------------------------------
+const remoteEnabledEl = document.getElementById('settings-remote-enabled') as HTMLInputElement | null;
+const remoteStatusEl = document.getElementById('settings-remote-status') as HTMLElement | null;
+const remoteUrlEl = document.getElementById('settings-remote-url') as HTMLInputElement | null;
+const remoteTokenEl = document.getElementById('settings-remote-token') as HTMLInputElement | null;
+const remoteTokenFileEl = document.getElementById('settings-remote-token-file') as HTMLElement | null;
+const remoteConfigEl = document.getElementById('settings-remote-config') as HTMLTextAreaElement | null;
+const remoteResultEl = document.getElementById('settings-remote-result') as HTMLElement | null;
+const remoteCopyTokenEl = document.getElementById('settings-remote-copy-token') as HTMLButtonElement | null;
+const remoteCopyConfigEl = document.getElementById('settings-remote-copy-config') as HTMLButtonElement | null;
+const remoteRefreshEl = document.getElementById('settings-remote-refresh') as HTMLButtonElement | null;
+const remoteRotateEl = document.getElementById('settings-remote-rotate') as HTMLButtonElement | null;
+const remoteDisconnectEl = document.getElementById('settings-remote-disconnect') as HTMLButtonElement | null;
+
+function showRemoteResult(kind: 'success' | 'error' | 'info', text: string): void {
+  if (!remoteResultEl) return;
+  remoteResultEl.className = `alert alert-${kind} alert-sm font-mono text-xs`;
+  remoteResultEl.textContent = text;
+  remoteResultEl.classList.remove('hidden');
+}
+
+function renderRemoteStatus(status: { enabled: boolean; running: boolean; error?: string } | undefined): void {
+  if (!remoteStatusEl) return;
+  remoteStatusEl.classList.remove('badge-ghost', 'badge-success', 'badge-warning', 'badge-error');
+  if (!status) {
+    remoteStatusEl.textContent = 'not ready';
+    remoteStatusEl.classList.add('badge-ghost');
+    return;
+  }
+  if (status.running) {
+    remoteStatusEl.textContent = 'running';
+    remoteStatusEl.classList.add('badge-success');
+  } else if (status.enabled) {
+    remoteStatusEl.textContent = 'error';
+    remoteStatusEl.classList.add('badge-error');
+  } else {
+    remoteStatusEl.textContent = 'off';
+    remoteStatusEl.classList.add('badge-ghost');
+  }
+}
+
+async function loadRemotePanel(): Promise<void> {
+  if (!remoteEnabledEl || !remoteUrlEl || !remoteTokenEl || !remoteConfigEl) return;
+  try {
+    const result = await window.electronAPI?.getRemoteInfo();
+    if (!result?.ok || !result.status) {
+      renderRemoteStatus(undefined);
+      showRemoteResult('error', result?.error || 'Remote access is not ready yet.');
+      return;
+    }
+    const status = result.status;
+    remoteEnabledEl.checked = status.enabled;
+    remoteUrlEl.value = status.url;
+    remoteTokenEl.value = result.token || '';
+    remoteConfigEl.value = result.config || '';
+    if (remoteTokenFileEl) remoteTokenFileEl.textContent = status.tokenFile;
+    renderRemoteStatus(status);
+    if (status.error) showRemoteResult('error', status.error.slice(-800));
+  } catch (err: any) {
+    renderRemoteStatus(undefined);
+    showRemoteResult('error', `Could not read remote status: ${err?.message || err}`);
+  }
+}
+
+remoteEnabledEl?.addEventListener('change', async () => {
+  if (!remoteEnabledEl) return;
+  const desired = remoteEnabledEl.checked;
+  remoteEnabledEl.disabled = true;
+  showRemoteResult('info', desired ? 'Starting the remote gateway…' : 'Stopping the remote gateway…');
+  try {
+    const result = await window.electronAPI?.setRemoteEnabled(desired);
+    if (!result?.ok) {
+      remoteEnabledEl.checked = !desired;
+      showRemoteResult('error', result?.error || 'Could not change remote access.');
+    } else {
+      showRemoteResult('success', desired ? 'Remote gateway is running.' : 'Remote gateway is stopped.');
+    }
+  } catch (err: any) {
+    remoteEnabledEl.checked = !desired;
+    showRemoteResult('error', `Could not change remote access: ${err?.message || err}`);
+  } finally {
+    remoteEnabledEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteRefreshEl?.addEventListener('click', () => void loadRemotePanel());
+
+remoteCopyTokenEl?.addEventListener('click', async () => {
+  const token = remoteTokenEl?.value || '';
+  if (!token) return;
+  await window.electronAPI?.copyToClipboard(token);
+  remoteCopyTokenEl.textContent = 'COPIED';
+  window.setTimeout(() => (remoteCopyTokenEl.textContent = 'COPY'), 1500);
+});
+
+remoteCopyConfigEl?.addEventListener('click', async () => {
+  const config = remoteConfigEl?.value || '';
+  if (!config) return;
+  await window.electronAPI?.copyToClipboard(config);
+  remoteCopyConfigEl.textContent = 'COPIED';
+  window.setTimeout(() => (remoteCopyConfigEl.textContent = 'COPY CONFIG'), 1500);
+});
+
+remoteRotateEl?.addEventListener('click', async () => {
+  if (!window.confirm('Rotate the remote token? Existing remote clients will stop working.')) return;
+  remoteRotateEl.disabled = true;
+  try {
+    const result = await window.electronAPI?.rotateRemoteToken();
+    if (!result?.ok) {
+      showRemoteResult('error', result?.error || 'Could not rotate the token.');
+    } else {
+      showRemoteResult('success', 'Remote token rotated. Update any configured clients.');
+    }
+  } catch (err: any) {
+    showRemoteResult('error', `Could not rotate the token: ${err?.message || err}`);
+  } finally {
+    remoteRotateEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteDisconnectEl?.addEventListener('click', async () => {
+  remoteDisconnectEl.disabled = true;
+  try {
+    const result = await window.electronAPI?.disconnectRemoteSessions();
+    if (!result?.ok) {
+      showRemoteResult('error', result?.error || 'Could not disconnect sessions.');
+    } else {
+      showRemoteResult('success', 'Remote sessions disconnected. The gateway is ready for a new client.');
+    }
+  } catch (err: any) {
+    showRemoteResult('error', `Could not disconnect sessions: ${err?.message || err}`);
+  } finally {
+    remoteDisconnectEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
 
 // ---- Auto-update banner (packaged builds only; the main process disables it elsewhere) ------
 const updateBanner = document.getElementById('update-banner') as HTMLElement | null;

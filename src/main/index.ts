@@ -15,6 +15,7 @@ import { ResearchSettingsStore } from './research/settings.js';
 import { DEFAULT_SHADOW_WALK_SETTINGS, loadShadowWalkSettings, saveShadowWalkSettings } from './shadow-walk/settings.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
+import { RemoteService } from './remote/service.js';
 import { APP_VERSION } from '../shared/version.js';
 import {
   failRecording,
@@ -59,6 +60,11 @@ const chassis = new BrowserChassis();
 
 const configuredPort = Number(process.env.HB_BRIDGE_PORT ?? process.env.KUANG_BRIDGE_PORT);
 const bridgePort = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 4111;
+const configuredRemotePort = Number(process.env.HB_REMOTE_PORT);
+const remotePort =
+  Number.isInteger(configuredRemotePort) && configuredRemotePort > 0 && configuredRemotePort <= 65_535
+    ? configuredRemotePort
+    : bridgePort + 1;
 
 /**
  * A stable path to the stdio MCP server for generated client configs.
@@ -104,14 +110,23 @@ function ensureWrapServerPath(): string {
   return ensureBundledServerPath('wrap-server.cjs');
 }
 
+function ensureRemoteServerPath(): string {
+  return ensureBundledServerPath('remote-server.cjs');
+}
+
 function wrapDir(): string {
   return path.join(app.getPath('userData'), 'wrap');
+}
+
+function remoteDir(): string {
+  return path.join(app.getPath('userData'), 'remote');
 }
 
 let activeResearchSettings: ResearchSettingsStore | null = null;
 let activeWrapStore: WrapStore | null = null;
 let activeWrapSecrets: SecretStore | null = null;
 let activeWrapAudit: WrapAuditLog | null = null;
+let activeRemoteService: RemoteService | null = null;
 
 function createSecretCipher(): SecretCipher {
   let available = false;
@@ -278,6 +293,46 @@ ipcMain.handle('app:connect-info', () => {
   };
 });
 
+function remoteFailure(message: string) {
+  return { ok: false, error: message };
+}
+
+ipcMain.handle('remote:info', () => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, ...activeRemoteService.getInfo() };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
+ipcMain.handle('remote:set-enabled', async (_event, enabled: boolean) => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.setEnabled(Boolean(enabled)) };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
+ipcMain.handle('remote:rotate-token', async () => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.rotateToken() };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
+ipcMain.handle('remote:disconnect-sessions', async () => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.disconnectSessions() };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
 onRecordingStatus((state) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('recording:status', state);
@@ -377,12 +432,31 @@ async function createWindow() {
       audit: wrapAudit,
       token: wrapToken,
     });
+
+    if (!activeRemoteService) {
+      activeRemoteService = new RemoteService({
+        serverPath: ensureRemoteServerPath(),
+        bridgeUrl: `http://127.0.0.1:${bridgePort}`,
+        port: remotePort,
+        dataDir: remoteDir(),
+        cwd: app.getPath('userData'),
+      });
+      activeRemoteService.ensureToken();
+    }
   } catch (err: any) {
     chassis.addLog('warn', `HTTP Bridge notice: ${err?.message || err}`);
   }
 }
 
 app.whenReady().then(createWindow);
+
+let remoteShutdownStarted = false;
+app.on('before-quit', (event) => {
+  if (!activeRemoteService || !activeRemoteService.isRunning() || remoteShutdownStarted) return;
+  event.preventDefault();
+  remoteShutdownStarted = true;
+  void activeRemoteService.stop().finally(() => app.quit());
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

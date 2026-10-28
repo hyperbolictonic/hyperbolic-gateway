@@ -14,8 +14,9 @@ Streamable HTTP process; the stdio servers are unchanged.
 
 ## Status
 
-Phase 1 implements the gateway and its auth/session lifecycle. The Settings
-UI, Cloudflare Quick Tunnel manager, and client recipes are later phases.
+Phase 1 implemented the gateway and its auth/session lifecycle. Phase 2 adds
+the app-generated token and the **Settings → Remote** panel. The Cloudflare
+Quick Tunnel manager and client recipes are later phases.
 
 - Binary: `bin/remote-server.cjs`
 - Endpoint: `POST /mcp/browser`
@@ -25,6 +26,16 @@ UI, Cloudflare Quick Tunnel manager, and client recipes are later phases.
 
 The gateway is never a proxy for the raw bridge. It exposes only its MCP path;
 everything else returns `404`.
+
+## Settings → Remote
+
+The Settings panel can start and stop the gateway, copy the token and client
+config, rotate the token, and disconnect sessions. The gateway remains off
+after an app restart; remote access must be enabled explicitly each run.
+
+The token is generated at app startup if absent and stored at
+`<userData>/remote/token` with owner-only permissions. Rotating it stops the
+gateway, creates a new token, and restarts it if it was enabled.
 
 ## Architecture
 
@@ -48,6 +59,7 @@ Gateway-specific entry point lives in `src/mcp/remote-server.ts`.
 | Variable | Meaning |
 | --- | --- |
 | `HB_REMOTE_TOKEN_FILE` | Required. Path to the 64-hex-character remote token file. |
+| `HB_BRIDGE_URL` | Local bridge URL. The app passes this automatically. |
 | `HB_REMOTE_PORT` | Loopback port. Default `4112`. |
 | `HB_REMOTE_HOST` | Loopback bind address. Default `127.0.0.1`; non-loopback values are rejected. |
 | `HB_REMOTE_PATH` | MCP path. Default `/mcp/browser`. |

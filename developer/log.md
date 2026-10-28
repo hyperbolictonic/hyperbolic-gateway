@@ -3,6 +3,7 @@
 ## 2026-10-28
 
 * **Creation**: Added the Phase 1 remote MCP gateway and its Streamable HTTP host package.
+* **Creation**: Added the Phase 2 app-managed token, gateway lifecycle, and Settings -> Remote panel.
 * **Creation**: Documented the remote gateway endpoint, auth boundary, environment variables, and non-goals.
 * **Update**: Extracted the browser MCP factory from the stdio entry point so HTTP and stdio share one server definition.
 

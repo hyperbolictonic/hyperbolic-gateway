@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
+import type { RemoteStatus } from '../shared/remote.js';
 
 export interface ElectronAPI {
   getState: () => Promise<ChassisState>;
@@ -78,6 +79,28 @@ export interface ElectronAPI {
   pickRecordingDir: () => Promise<string | null>;
   startRecording: (name?: string) => Promise<{ filename: string; config: any }>;
   stopRecording: () => Promise<any>;
+  getRemoteInfo: () => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    token?: string;
+    config?: string;
+    error?: string;
+  }>;
+  setRemoteEnabled: (enabled: boolean) => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
+  rotateRemoteToken: () => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
+  disconnectRemoteSessions: () => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
   getRecordingStatus: () => Promise<any>;
   listRecordings: () => Promise<Array<{ path: string; filename: string; bytes: number; modified: number }>>;
   saveRecording: (buffer: ArrayBuffer, frames: number) => Promise<any>;
@@ -237,6 +260,10 @@ const api: ElectronAPI = {
 
   getRecordingConfig: () => ipcRenderer.invoke('recording:config:get'),
   getConnectInfo: () => ipcRenderer.invoke('app:connect-info'),
+  getRemoteInfo: () => ipcRenderer.invoke('remote:info'),
+  setRemoteEnabled: (enabled: boolean) => ipcRenderer.invoke('remote:set-enabled', enabled),
+  rotateRemoteToken: () => ipcRenderer.invoke('remote:rotate-token'),
+  disconnectRemoteSessions: () => ipcRenderer.invoke('remote:disconnect-sessions'),
   saveRecordingConfig: (config: any) => ipcRenderer.invoke('recording:config:save', config),
   pickRecordingDir: () => ipcRenderer.invoke('recording:pick-dir'),
   startRecording: (name?: string) => ipcRenderer.invoke('recording:start', name),

@@ -30,7 +30,7 @@
     "typecheck:recipe": "tsc -p packages/recipe/tsconfig.json",
     "typecheck:mcp-http": "tsc -p packages/mcp-http/tsconfig.json",
     "test:mcp-http": "node --test packages/mcp-http/test/host.test.ts",
-    "test:remote": "npm run build:mcp && node scripts/test-remote-gateway.mjs",
+    "test:remote": "npm run build:mcp && node scripts/test-remote-gateway.mjs && node scripts/test-remote-service.mjs",
     "fix:local-paths": "node scripts/check-no-local-paths.mjs --fix",
     "test:mcp": "node scripts/test-client.js",
     "test:mcp:all": "node scripts/test-all-mcp-tools.js",
