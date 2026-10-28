@@ -52,7 +52,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Assemble site
-        run: pnpm build:pages
+        run: |
+          pnpm build:pages
           ls -la _site
 
       - uses: actions/configure-pages@v5
