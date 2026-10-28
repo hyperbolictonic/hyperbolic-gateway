@@ -181,6 +181,34 @@ No waiver is allowed for an auth bypass, secret leak, unbounded resource, or
 leaked child process. If a rule is a poor fit, record it as a **Note**, not a
 silent exception.
 
+## Unrelated findings and the issue queue
+
+A review often finds real problems that are unrelated to the task being worked
+on. Do not drift into fixing unrelated problems in the current branch.
+
+A finding is **related** — and belongs in the current task — when the change
+introduces it, makes it worse, or the task cannot be completed or verified
+safely without addressing it. Everything else is **unrelated** and belongs in
+the issue queue.
+
+For unrelated findings:
+
+- Add the finding to the **GitHub issue queue** with:
+  - severity and rule number
+  - exact file and line or symbol
+  - reproduction or evidence
+  - why it is unrelated to the current task
+  - suggested fix or acceptance criterion
+- Search the existing issues first and add a comment instead of creating a
+  duplicate.
+- Mention the issue link in the final task summary.
+- Do not create a speculative branch, refactor, or unrelated PR for it.
+
+Exception: if an unrelated finding is a security or lifecycle issue that the
+current change would worsen or that blocks safe verification, stop and
+surface it immediately. Fix it only when necessary to make the current task
+correct; otherwise file it and leave it alone.
+
 ## Required output
 
 ```text
