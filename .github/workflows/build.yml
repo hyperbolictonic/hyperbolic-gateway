@@ -83,6 +83,9 @@ jobs:
       - name: Quick Tunnel manager tests
         run: npm run test:quick-tunnel
 
+      - name: cloudflared manager tests
+        run: npm run test:cloudflared
+
       - name: Remote gateway smoke test
         run: npm run test:remote
 

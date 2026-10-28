@@ -106,6 +106,21 @@ export interface ElectronAPI {
     status?: RemoteStatus;
     error?: string;
   }>;
+  setCloudflaredMode: (mode: 'manual' | 'automatic') => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
+  checkCloudflared: () => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
+  installCloudflared: () => Promise<{
+    ok: boolean;
+    status?: RemoteStatus;
+    error?: string;
+  }>;
   getRecordingStatus: () => Promise<any>;
   listRecordings: () => Promise<Array<{ path: string; filename: string; bytes: number; modified: number }>>;
   saveRecording: (buffer: ArrayBuffer, frames: number) => Promise<any>;
@@ -270,6 +285,9 @@ const api: ElectronAPI = {
   rotateRemoteToken: () => ipcRenderer.invoke('remote:rotate-token'),
   disconnectRemoteSessions: () => ipcRenderer.invoke('remote:disconnect-sessions'),
   setRemoteTunnelEnabled: (enabled: boolean) => ipcRenderer.invoke('remote:set-tunnel-enabled', enabled),
+  setCloudflaredMode: (mode: 'manual' | 'automatic') => ipcRenderer.invoke('remote:set-cloudflared-mode', mode),
+  checkCloudflared: () => ipcRenderer.invoke('remote:check-cloudflared'),
+  installCloudflared: () => ipcRenderer.invoke('remote:install-cloudflared'),
   saveRecordingConfig: (config: any) => ipcRenderer.invoke('recording:config:save', config),
   pickRecordingDir: () => ipcRenderer.invoke('recording:pick-dir'),
   startRecording: (name?: string) => ipcRenderer.invoke('recording:start', name),

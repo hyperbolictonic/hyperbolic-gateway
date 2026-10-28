@@ -32,6 +32,8 @@
     "test:mcp-http": "node --test packages/mcp-http/test/host.test.ts",
     "typecheck:quick-tunnel": "tsc -p packages/quick-tunnel/tsconfig.json",
     "test:quick-tunnel": "node --test packages/quick-tunnel/test/quick-tunnel.test.ts",
+    "typecheck:cloudflared": "tsc -p packages/cloudflared/tsconfig.json",
+    "test:cloudflared": "node --test packages/cloudflared/test/manager.test.ts",
     "test:remote": "npm run build:mcp && node scripts/test-remote-gateway.mjs && node scripts/test-remote-service.mjs",
     "fix:local-paths": "node scripts/check-no-local-paths.mjs --fix",
     "test:mcp": "node scripts/test-client.js",

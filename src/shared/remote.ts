@@ -1,3 +1,15 @@
+export interface RemoteCloudflaredStatus {
+  available: boolean;
+  managed: boolean;
+  source: 'managed' | 'system' | 'none';
+  version?: string;
+  path?: string;
+  updateMode: 'manual' | 'automatic';
+  latestVersion?: string;
+  updateAvailable?: boolean;
+  error?: string;
+}
+
 export interface RemoteTunnelStatus {
   enabled: boolean;
   running: boolean;
@@ -16,6 +28,7 @@ export interface RemoteStatus {
   url: string;
   tokenFile: string;
   tunnel: RemoteTunnelStatus;
+  cloudflared: RemoteCloudflaredStatus;
   error?: string;
 }
 

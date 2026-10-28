@@ -942,10 +942,23 @@
             </div>
             <input id="settings-remote-tunnel-url" type="text" readonly class="input input-sm w-full font-mono text-xs mt-2" placeholder="https://…trycloudflare.com" />
             <p id="settings-remote-cloudflared" class="label font-mono text-[10px]">Checking for cloudflared…</p>
+            <div class="flex flex-wrap items-end gap-2">
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-[10px]">Managed binary updates</legend>
+                <select id="settings-remote-cloudflared-mode" class="select select-xs select-bordered font-mono text-[10px]">
+                  <option value="manual">Manual</option>
+                  <option value="automatic">Automatic at startup</option>
+                </select>
+              </fieldset>
+              <button type="button" id="settings-remote-cloudflared-check" class="btn btn-xs btn-ghost font-mono text-[10px]">CHECK</button>
+              <button type="button" id="settings-remote-cloudflared-install" class="btn btn-xs btn-outline btn-primary font-mono text-[10px]">INSTALL / UPDATE</button>
+              <span id="settings-remote-cloudflared-result" class="font-mono text-[10px] text-base-content/60"></span>
+            </div>
             <p class="label font-mono text-[10px]">
               Quick URLs change on every start. Install
               <a class="link" href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/" target="_blank" rel="noreferrer">cloudflared</a>
-              first; this app does not bundle or auto-install it.
+              first; the app can also install and update the official managed binary.
+              Automatic updates apply only to that managed binary, not to a system install.
             </p>
           </fieldset>
 

@@ -2511,6 +2511,10 @@ const remoteTunnelEnabledEl = document.getElementById('settings-remote-tunnel-en
 const remoteTunnelStatusEl = document.getElementById('settings-remote-tunnel-status') as HTMLElement | null;
 const remoteTunnelUrlEl = document.getElementById('settings-remote-tunnel-url') as HTMLInputElement | null;
 const remoteCloudflaredEl = document.getElementById('settings-remote-cloudflared') as HTMLElement | null;
+const remoteCloudflaredModeEl = document.getElementById('settings-remote-cloudflared-mode') as HTMLSelectElement | null;
+const remoteCloudflaredCheckEl = document.getElementById('settings-remote-cloudflared-check') as HTMLButtonElement | null;
+const remoteCloudflaredInstallEl = document.getElementById('settings-remote-cloudflared-install') as HTMLButtonElement | null;
+const remoteCloudflaredResultEl = document.getElementById('settings-remote-cloudflared-result') as HTMLElement | null;
 
 function showRemoteResult(kind: 'success' | 'error' | 'info', text: string): void {
   if (!remoteResultEl) return;
@@ -2562,11 +2566,45 @@ function renderTunnelStatus(tunnel: { enabled: boolean; running: boolean; state:
   }
   if (remoteTunnelEnabledEl) remoteTunnelEnabledEl.checked = tunnel.enabled;
   if (remoteTunnelUrlEl) remoteTunnelUrlEl.value = tunnel.url || '';
+}
+
+function renderCloudflaredStatus(cloudflared: {
+  available: boolean;
+  managed: boolean;
+  source: 'managed' | 'system' | 'none';
+  version?: string;
+  path?: string;
+  updateMode: 'manual' | 'automatic';
+  latestVersion?: string;
+  updateAvailable?: boolean;
+  error?: string;
+} | undefined): void {
   if (remoteCloudflaredEl) {
-    remoteCloudflaredEl.textContent = tunnel.available
-      ? `cloudflared: ${tunnel.binaryPath || 'available'}`
-      : 'cloudflared not found. Install it and restart the app.';
-    remoteCloudflaredEl.className = `label font-mono text-[10px] ${tunnel.available ? 'text-base-content/50' : 'text-warning'}`;
+    if (!cloudflared) {
+      remoteCloudflaredEl.textContent = 'cloudflared status unavailable';
+    } else if (cloudflared.source === 'managed') {
+      remoteCloudflaredEl.textContent = `managed cloudflared${cloudflared.version ? ` v${cloudflared.version}` : ''}`;
+    } else if (cloudflared.source === 'system') {
+      remoteCloudflaredEl.textContent = `system cloudflared: ${cloudflared.path || 'available'}`;
+    } else {
+      remoteCloudflaredEl.textContent = 'cloudflared not installed';
+    }
+    remoteCloudflaredEl.className = `label font-mono text-[10px] ${cloudflared?.available ? 'text-base-content/50' : 'text-warning'}`;
+  }
+  if (remoteCloudflaredModeEl) {
+    remoteCloudflaredModeEl.value = cloudflared?.updateMode === 'automatic' ? 'automatic' : 'manual';
+  }
+  if (remoteCloudflaredInstallEl) {
+    remoteCloudflaredInstallEl.textContent = cloudflared?.source === 'managed' ? 'UPDATE' : 'INSTALL';
+  }
+  if (remoteCloudflaredResultEl) {
+    if (cloudflared?.updateAvailable === undefined) {
+      remoteCloudflaredResultEl.textContent = '';
+    } else {
+      remoteCloudflaredResultEl.textContent = cloudflared.updateAvailable
+        ? `update available${cloudflared.latestVersion ? `: v${cloudflared.latestVersion}` : ''}`
+        : `up to date${cloudflared.latestVersion ? ` (v${cloudflared.latestVersion})` : ''}`;
+    }
   }
 }
 
@@ -2588,9 +2626,10 @@ async function loadRemotePanel(): Promise<void> {
     if (remoteTokenFileEl) remoteTokenFileEl.textContent = status.tokenFile;
     renderRemoteStatus(status);
     renderTunnelStatus(status.tunnel);
+    renderCloudflaredStatus(status.cloudflared);
     if (remoteTunnelEnabledEl) remoteTunnelEnabledEl.disabled = !status.running;
-    if (status.error || status.tunnel?.error) {
-      showRemoteResult('error', (status.error || status.tunnel?.error || '').slice(-800));
+    if (status.error || status.tunnel?.error || status.cloudflared?.error) {
+      showRemoteResult('error', (status.error || status.tunnel?.error || status.cloudflared?.error || '').slice(-800));
     }
   } catch (err: any) {
     renderRemoteStatus(undefined);
@@ -2639,6 +2678,61 @@ remoteTunnelEnabledEl?.addEventListener('change', async () => {
     showRemoteResult('error', `Could not change the Quick Tunnel: ${err?.message || err}`);
   } finally {
     remoteTunnelEnabledEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteCloudflaredModeEl?.addEventListener('change', async () => {
+  const mode = remoteCloudflaredModeEl.value === 'automatic' ? 'automatic' : 'manual';
+  remoteCloudflaredModeEl.disabled = true;
+  try {
+    const result = await window.electronAPI?.setCloudflaredMode(mode);
+    if (!result?.ok) showRemoteResult('error', result?.error || 'Could not save the update mode.');
+    else showRemoteResult('success', mode === 'automatic' ? 'Managed cloudflared updates will be checked at app startup.' : 'Managed cloudflared updates are manual.');
+  } catch (err: any) {
+    showRemoteResult('error', `Could not save the update mode: ${err?.message || err}`);
+  } finally {
+    remoteCloudflaredModeEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteCloudflaredCheckEl?.addEventListener('click', async () => {
+  remoteCloudflaredCheckEl.disabled = true;
+  if (remoteCloudflaredResultEl) remoteCloudflaredResultEl.textContent = 'checking…';
+  try {
+    const result = await window.electronAPI?.checkCloudflared();
+    if (!result?.ok || !result.status) {
+      showRemoteResult('error', result?.error || 'Could not check cloudflared.');
+    } else {
+      renderCloudflaredStatus(result.status.cloudflared);
+      const cf = result.status.cloudflared;
+      showRemoteResult('info', cf.updateAvailable ? `cloudflared update available${cf.latestVersion ? `: v${cf.latestVersion}` : ''}.` : 'cloudflared is up to date.');
+    }
+  } catch (err: any) {
+    showRemoteResult('error', `Could not check cloudflared: ${err?.message || err}`);
+  } finally {
+    remoteCloudflaredCheckEl.disabled = false;
+    await loadRemotePanel();
+  }
+});
+
+remoteCloudflaredInstallEl?.addEventListener('click', async () => {
+  if (!window.confirm('Download and install the official cloudflared binary from Cloudflare GitHub releases?')) return;
+  remoteCloudflaredInstallEl.disabled = true;
+  if (remoteCloudflaredResultEl) remoteCloudflaredResultEl.textContent = 'downloading…';
+  showRemoteResult('info', 'Downloading and verifying cloudflared…');
+  try {
+    const result = await window.electronAPI?.installCloudflared();
+    if (!result?.ok) {
+      showRemoteResult('error', result?.error || 'Could not install cloudflared.');
+    } else {
+      showRemoteResult('success', 'cloudflared is installed and verified.');
+    }
+  } catch (err: any) {
+    showRemoteResult('error', `Could not install cloudflared: ${err?.message || err}`);
+  } finally {
+    remoteCloudflaredInstallEl.disabled = false;
     await loadRemotePanel();
   }
 });

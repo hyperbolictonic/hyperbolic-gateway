@@ -19,7 +19,7 @@ function usable(file: string): boolean {
 }
 
 /** Find cloudflared without installing or downloading it. */
-export function findCloudflared(explicit?: string): string | undefined {
+export function findCloudflared(explicit?: string, managedPath?: string): string | undefined {
   const configured = explicit?.trim();
   if (configured) {
     if (configured.includes(path.sep) || configured.includes('/')) {
@@ -29,6 +29,7 @@ export function findCloudflared(explicit?: string): string | undefined {
     return fromPath || (usable(configured) ? configured : undefined);
   }
 
+  if (managedPath && usable(managedPath)) return managedPath;
   const fromPath = searchPath('cloudflared');
   if (fromPath) return fromPath;
   return COMMON_PATHS.find(usable);

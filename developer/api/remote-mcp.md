@@ -54,10 +54,31 @@ as the public MCP endpoint:
 https://<random>.trycloudflare.com/mcp/browser
 ```
 
-`cloudflared` is not bundled or auto-installed. The app looks on `PATH` and in
-common install locations; `HB_CLOUDFLARED_PATH` can point at a specific binary.
-Quick Tunnel URLs change every time the process starts, so update the client
-config when restarting the tunnel.
+`cloudflared` is not bundled. The app looks for a managed binary first,
+then `PATH` and common install locations; `HB_CLOUDFLARED_PATH` can point at a
+specific system binary. Quick Tunnel URLs change every time the process starts,
+so update the client config when restarting the tunnel.
+
+### Managed cloudflared
+
+The Remote panel can download the official `cloudflared` binary from Cloudflare
+GitHub releases into:
+
+```text
+<userData>/remote/bin/cloudflared[.exe]
+```
+
+The download is explicit, SHA-256 verified against the GitHub release asset
+digest, and installed atomically. `cloudflared` is Apache-2.0 software from
+Cloudflare; the app downloads the official binary and does not redistribute it.
+The panel supports:
+
+- **Manual** updates: use CHECK and INSTALL / UPDATE.
+- **Automatic at startup**: if a managed binary exists, check and install an
+  update when the app starts.
+
+System binaries are left alone. If `HB_CLOUDFLARED_PATH` is set, it takes
+precedence over the managed binary.
 
 Quick Tunnels do not support SSE and carry no Cloudflare Access policy. This
 gateway therefore uses JSON-response Streamable HTTP and requires its own
@@ -80,7 +101,9 @@ remote MCP client
 The reusable HTTP host and session lifecycle live in
 [`packages/mcp-http`](../../../packages/mcp-http/README.md). The Quick Tunnel
 process lifecycle lives in
-[`packages/quick-tunnel`](../../../packages/quick-tunnel/README.md). The
+[`packages/quick-tunnel`](../../../packages/quick-tunnel/README.md), and the
+managed `cloudflared` downloader lives in
+[`packages/cloudflared`](../../../packages/cloudflared/README.md). The
 Hyperbolic Gateway-specific entry points live in `src/mcp/remote-server.ts`
 and `src/main/remote/service.ts`.
 

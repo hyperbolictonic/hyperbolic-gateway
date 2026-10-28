@@ -63,6 +63,10 @@ try {
   assert.equal(tunneled.tunnel.url, 'https://fake-quick-tunnel.trycloudflare.com');
   assert.match(service.getConfig(), /fake-quick-tunnel\.trycloudflare\.com/);
 
+  const automatic = await service.setCloudflaredUpdateMode('automatic');
+  assert.equal(automatic.cloudflared.updateMode, 'automatic');
+  await service.setCloudflaredUpdateMode('manual');
+
   const disconnected = await service.disconnectSessions();
   assert.equal(disconnected.running, true);
 

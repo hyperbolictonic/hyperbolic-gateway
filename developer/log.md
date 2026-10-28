@@ -5,6 +5,7 @@
 * **Creation**: Added the Phase 1 remote MCP gateway and its Streamable HTTP host package.
 * **Creation**: Added the Phase 2 app-managed token, gateway lifecycle, and Settings -> Remote panel.
 * **Creation**: Added the Phase 3 Cloudflare Quick Tunnel manager and public URL/config handoff.
+* **Creation**: Added the managed cloudflared downloader with SHA-256 verification and manual/automatic update policy.
 * **Creation**: Documented the remote gateway endpoint, auth boundary, environment variables, and non-goals.
 * **Update**: Extracted the browser MCP factory from the stdio entry point so HTTP and stdio share one server definition.
 

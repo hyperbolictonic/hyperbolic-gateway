@@ -1,0 +1,19 @@
+{
+  "name": "@kuang/cloudflared",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Managed cloudflared release downloader with SHA-256 verification and atomic installation.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": ["src", "README.md"],
+  "scripts": {
+    "test": "node --test test/manager.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

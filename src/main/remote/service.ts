@@ -5,8 +5,11 @@ import net from 'node:net';
 import path from 'node:path';
 import { createRemoteToken, readRemoteToken, remoteTokenFile } from './token.ts';
 import { findCloudflared } from './cloudflared.ts';
+import { CloudflaredManager } from '../../../packages/cloudflared/src/index.ts';
+import type { CloudflaredCheck, CloudflaredUpdateMode } from '../../../packages/cloudflared/src/index.ts';
 import { QuickTunnel } from '../../../packages/quick-tunnel/src/index.ts';
-import type { RemoteInfo, RemoteStatus, RemoteTunnelStatus } from '../../shared/remote.js';
+import { loadRemoteSettings, saveRemoteSettings } from './settings.ts';
+import type { RemoteInfo, RemoteStatus, RemoteTunnelStatus, RemoteCloudflaredStatus } from '../../shared/remote.js';
 
 export interface RemoteServiceOptions {
   serverPath: string;
@@ -59,12 +62,20 @@ export class RemoteService {
   private readonly tokenPath: string;
   private readonly logFile: string;
   private readonly tunnelLogFile: string;
+  private readonly cloudflared: CloudflaredManager;
+  private readonly settingsPath: string;
+  private updateMode: CloudflaredUpdateMode;
+  private lastCloudflaredCheck: CloudflaredCheck | undefined;
+  private cloudflaredError: string | undefined;
 
   constructor(options: RemoteServiceOptions) {
     this.options = options;
     this.tokenPath = remoteTokenFile(options.dataDir);
     this.logFile = options.logFile || path.join(options.dataDir, 'remote-server.log');
     this.tunnelLogFile = path.join(options.dataDir, 'quick-tunnel.log');
+    this.cloudflared = new CloudflaredManager({ dataDir: options.dataDir });
+    this.settingsPath = path.join(options.dataDir, 'settings.json');
+    this.updateMode = loadRemoteSettings(this.settingsPath).cloudflaredUpdateMode;
   }
 
   ensureToken(): string {
@@ -110,12 +121,86 @@ export class RemoteService {
       url: this.publicUrl(),
       tokenFile: this.tokenPath,
       tunnel: this.tunnelStatus(),
+      cloudflared: this.cloudflaredStatus(),
       ...(this.lastError ? { error: this.lastError } : {}),
     };
   }
 
   isRunning(): boolean {
     return Boolean(this.child);
+  }
+
+  async setCloudflaredUpdateMode(mode: CloudflaredUpdateMode): Promise<RemoteStatus> {
+    this.updateMode = mode === 'automatic' ? 'automatic' : 'manual';
+    saveRemoteSettings(this.settingsPath, {
+      schemaVersion: 1,
+      cloudflaredUpdateMode: this.updateMode,
+    });
+    return this.status();
+  }
+
+  async checkCloudflared(): Promise<RemoteStatus> {
+    try {
+      this.lastCloudflaredCheck = await this.cloudflared.checkForUpdate();
+      this.cloudflaredError = undefined;
+    } catch (error) {
+      this.cloudflaredError = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+    return this.status();
+  }
+
+  async installCloudflared(): Promise<RemoteStatus> {
+    const wasTunnelEnabled = this.tunnelEnabled;
+    if (wasTunnelEnabled) await this.stopTunnel();
+    try {
+      await this.cloudflared.installLatest();
+      this.lastCloudflaredCheck = undefined;
+      this.cloudflaredError = undefined;
+      if (wasTunnelEnabled) await this.setTunnelEnabled(true);
+    } catch (error) {
+      this.cloudflaredError = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+    return this.status();
+  }
+
+  async maybeAutoUpdateCloudflared(): Promise<RemoteStatus> {
+    if (this.updateMode !== 'automatic') return this.status();
+    if (!this.cloudflared.installed()) return this.status();
+    try {
+      const check = await this.cloudflared.checkForUpdate();
+      this.lastCloudflaredCheck = check;
+      if (check.updateAvailable) await this.installCloudflared();
+    } catch (error) {
+      this.cloudflaredError = error instanceof Error ? error.message : String(error);
+    }
+    return this.status();
+  }
+
+  private managedCloudflaredPath(): string {
+    return this.cloudflared.managedPath();
+  }
+
+  private localCloudflaredPath(): string | undefined {
+    return findCloudflared(this.options.cloudflaredPath, this.managedCloudflaredPath());
+  }
+
+  private cloudflaredStatus(): RemoteCloudflaredStatus {
+    const installed = this.cloudflared.installed();
+    const path = this.localCloudflaredPath();
+    const managed = Boolean(installed && path === this.managedCloudflaredPath());
+    return {
+      available: Boolean(path),
+      managed,
+      source: managed ? 'managed' : path ? 'system' : 'none',
+      ...(installed?.version ? { version: installed.version } : {}),
+      ...(path ? { path } : {}),
+      updateMode: this.updateMode,
+      ...(this.lastCloudflaredCheck?.latest.version ? { latestVersion: this.lastCloudflaredCheck.latest.version } : {}),
+      ...(this.lastCloudflaredCheck ? { updateAvailable: this.lastCloudflaredCheck.updateAvailable } : {}),
+      ...(this.cloudflaredError ? { error: this.cloudflaredError } : {}),
+    };
   }
 
   async setEnabled(enabled: boolean): Promise<RemoteStatus> {
@@ -149,9 +234,9 @@ export class RemoteService {
       this.tunnel = null;
     }
 
-    const binaryPath = findCloudflared(this.options.cloudflaredPath);
+    const binaryPath = this.localCloudflaredPath();
     if (!binaryPath) {
-      this.tunnelError = 'cloudflared was not found. Install it and restart the app, or set HB_CLOUDFLARED_PATH.';
+      this.tunnelError = 'cloudflared is not installed. Use INSTALL / UPDATE in Remote settings, or set HB_CLOUDFLARED_PATH.';
       this.tunnelEnabled = false;
       throw new Error(this.tunnelError);
     }
@@ -214,7 +299,7 @@ export class RemoteService {
   }
 
   private tunnelStatus(): RemoteTunnelStatus {
-    const binaryPath = findCloudflared(this.options.cloudflaredPath);
+    const binaryPath = this.localCloudflaredPath();
     const status = this.tunnel?.status();
     return {
       enabled: this.tunnelEnabled,

@@ -342,6 +342,33 @@ ipcMain.handle('remote:set-tunnel-enabled', async (_event, enabled: boolean) => 
   }
 });
 
+ipcMain.handle('remote:set-cloudflared-mode', async (_event, mode: 'manual' | 'automatic') => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.setCloudflaredUpdateMode(mode) };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
+ipcMain.handle('remote:check-cloudflared', async () => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.checkCloudflared() };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
+ipcMain.handle('remote:install-cloudflared', async () => {
+  if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
+  try {
+    return { ok: true, status: await activeRemoteService.installCloudflared() };
+  } catch (err: any) {
+    return remoteFailure(err?.message || String(err));
+  }
+});
+
 onRecordingStatus((state) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('recording:status', state);
@@ -452,6 +479,7 @@ async function createWindow() {
         cloudflaredPath: process.env.HB_CLOUDFLARED_PATH,
       });
       activeRemoteService.ensureToken();
+      void activeRemoteService.maybeAutoUpdateCloudflared();
     }
   } catch (err: any) {
     chassis.addLog('warn', `HTTP Bridge notice: ${err?.message || err}`);
