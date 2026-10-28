@@ -18,7 +18,7 @@ handoffs are intentionally not published here; links to them go back to the repo
 - [Connect an MCP client](../developer/getting-started/mcp-clients.html) — `hb-browser`, `hb-rest`, bundled runtime and environment variables.
 - [Browser MCP API](../developer/api/browser-mcp.html) — tool groups, resources and call shape.
 - [REST MCP API](../developer/api/rest-mcp.html) — meta-tools, generated tools and result shapes.
-- [Remote MCP gateway](../developer/api/remote-mcp.html) — Streamable HTTP gateway, bearer/OAuth modes, named Cloudflare Tunnel and session limits.
+- [Remote MCP gateway (experimental)](../developer/api/remote-mcp.html) — Streamable HTTP gateway, bearer/OAuth modes, and named Cloudflare Tunnel. Third-party client support is experimental; Gemini Connected Apps is known to be flaky.
 - [Development logs MCP](../developer/api/devlogs.html) — local-only log access for development.
 - [Wrapper format](../developer/formats/wrapper-format.html) and [recipe format](../developer/formats/recipe-format.html).
 

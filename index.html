@@ -907,10 +907,11 @@
       <section data-settings-panel="remote" class="hidden max-w-4xl mx-auto w-full">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <h3 class="font-mono text-sm font-bold text-primary">REMOTE ACCESS</h3>
+            <h3 class="font-mono text-sm font-bold text-primary">REMOTE ACCESS <span class="badge badge-warning badge-sm ml-1">EXPERIMENTAL</span></h3>
             <p class="text-xs text-base-content/60 mt-1">
               Expose the browser MCP surface over Streamable HTTP. Remote access and the named Cloudflare
-              tunnel are off by default, and the gateway remains loopback-only.
+              tunnel are off by default, and the gateway remains loopback-only. Third-party client support
+              is experimental; Gemini Connected Apps is known to be flaky.
             </p>
           </div>
           <span id="settings-remote-status" class="badge badge-ghost font-mono text-xs whitespace-nowrap">off</span>

@@ -36594,7 +36594,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.6.1";
+var APP_VERSION = "1.6.2";
 
 // src/mcp/devlogs-server.ts
 var MAX_BYTES = 1048576;

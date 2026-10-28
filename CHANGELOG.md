@@ -16,6 +16,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.6.2] - 2026-10-28
+
+The **experimental remote access** release. It exposes the browser MCP surface
+through a loopback Streamable HTTP gateway and an optional named Cloudflare
+Tunnel, with bearer or OAuth authentication.
+
+Remote MCP is explicitly experimental: the protocol path is implemented and
+tested, but third-party client behaviour varies. Gemini Connected Apps in
+particular can lose its connector context or fail to re-inject tools between
+turns. Keep remote access off unless you are actively testing it, and never
+expose it unattended.
+
+### Added
+
+- **Remote MCP gateway** at `127.0.0.1:4112/mcp/browser`, with bearer-token or
+  OAuth 2.0 authentication. The gateway has no route to the raw local bridge.
+- **Named Cloudflare Tunnel** support in Settings → Remote, including managed
+  `cloudflared` download/update and a public-hostname handoff. Quick Tunnels are
+  not supported.
+- **OAuth 2.0** discovery, PKCE authorization-code flow, explicit consent,
+  access/refresh tokens, refresh rotation, and revocation using app-generated
+  client credentials.
+- **Stateless MCP transport by default** for remote clients. This avoids stale
+  `Mcp-Session-Id` values and session-cap failures; stateful sessions remain
+  available with `HB_REMOTE_STATEFUL=1`.
+- **Human-takeover controls** for remote agents: `get_human_activity` reports the
+  passive pause, `resume_agent` clears it after confirmation, and a
+  **RESUME AGENT** button appears in the header during a takeover.
+- **Local development log MCP** (`hb-devlogs`) with allowlisted, redacted,
+  read-only access. It is local stdio only and is not part of the remote gateway.
+
+### Changed
+
+- The Remote panel now saves the tunnel hostname/token before starting the
+  tunnel and can auto-start the gateway.
+- OAuth clients use pre-registered client credentials; dynamic client
+  registration is deliberately not advertised.
+- A remote startup/restart invalidates in-memory OAuth tokens, so clients must
+  reconnect after the gateway restarts.
+
+### Fixed
+
+- Session-cap failures no longer return a hard `429` in stateful mode; the
+  least-recently-used idle session is reclaimed.
+- Unknown/expired session IDs are logged with their MCP method, making client
+  reconnect failures diagnosable.
+
+### Known limitations
+
+- **Gemini Connected Apps is flaky.** It may show the custom app as connected
+  without injecting its tools into a conversation, and may reuse a stale
+  session. Reconnect the app and start a new chat after a gateway restart.
+- Cloudflare Bot Fight Mode / WAF can block the server-to-server OAuth token
+  exchange. A skip rule for `/oauth/token` is required on some zones.
+- Remote access is not a hosted service. The app, tunnel and machine must stay
+  running, and the bearer token/OAuth client secret must remain private.
+
+### Compatibility
+
+- The app identity, `appId`, macOS bundle identity, package directory, userData
+  path, wrapper storage, and update feed remain unchanged for in-place upgrades.
+- The legacy `kuang` / `kuang-wrap` MCP labels and `KUANG_*` environment aliases
+  remain available.
+
 ## [1.6.1] - 2026-10-27
 
 The documentation and presentation release. It carries the refreshed in-app

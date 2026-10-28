@@ -1,6 +1,6 @@
 {
   "name": "kuang-grade-mark-eleven",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "license": "MIT",
   "description": "Hyperbolic Gateway — stateful browser and REST gateway for agents (Hyperbolic Browser + Hyperbolic Rest).",
   "main": "dist-electron/main/index.js",

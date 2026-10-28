@@ -691,7 +691,7 @@ All suites run against the live Cyberdeck on `http://127.0.0.1:4111` (start the 
 | `npm run test:cloudflared`    | cloudflared manager (4 checks)   | Release selection, SHA-256 verification, atomic managed install, checksum rejection, unsupported-platform errors, and pure-Node macOS tar extraction. |
 | `npm run test:mcp-oauth`      | MCP OAuth server (4 checks)      | Discovery metadata, forwarded HTTPS origin, authorization code + PKCE, token/refresh, bad verifier and disallowed redirect rejection. |
 | `npm run test:devlogs`        | Dev logs MCP smoke               | Lists/read/searches allowlisted logs and confirms token redaction. |
-| `npm run test:remote`         | Remote gateway smoke             | Builds `bin/remote-server.cjs`, starts it with a token file, rejects unauthenticated calls, lists the browser tools, and tests the app service start/stop/token rotation/tunnel handoff. |
+| `npm run test:remote`         | Remote gateway smoke (experimental) | Builds `bin/remote-server.cjs`, starts it with a token file, rejects unauthenticated calls, lists the browser tools, and tests the app service start/stop/token rotation/tunnel handoff. |
 
 Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`.
 

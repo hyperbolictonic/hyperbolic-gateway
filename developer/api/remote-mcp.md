@@ -3,10 +3,17 @@ type: API Reference
 title: Remote MCP gateway
 description: The Streamable HTTP gateway for exposing the browser MCP surface through a named Cloudflare Tunnel.
 tags: [api, remote, streamable-http, mcp, cloudflare, oauth]
-status: draft
+status: experimental
 ---
 
-# Remote MCP gateway
+# Remote MCP gateway (experimental)
+
+> **Experimental.** Remote MCP, named Cloudflare Tunnel support and OAuth are
+> new and their third-party client compatibility varies. Gemini Connected Apps
+> is known to be flaky: it can show the connector as connected without
+> injecting its tools into a conversation, and it may reuse stale state after a
+> gateway restart. Keep remote access off unless you are actively testing it,
+> and never expose it unattended.
 
 The remote gateway exposes the browser MCP surface to remote clients through a
 loopback Streamable HTTP process. A named Cloudflare Tunnel publishes it on a
@@ -14,15 +21,28 @@ hostname you control; the stdio servers are unchanged.
 
 ## Status
 
+- Maturity: **experimental**
 - Binary: `bin/remote-server.cjs`
 - Endpoint: `POST /mcp/browser`
 - Transport: MCP Streamable HTTP with direct JSON responses
+- Session model: stateless by default; stateful mode is opt-in
 - Legacy SSE transport: not implemented
 - Default bind: `127.0.0.1:4112`
 - Public access: named Cloudflare Tunnel only
 
 The gateway is never a proxy for the raw bridge. It exposes only its MCP path;
 everything else returns `404`.
+
+## Session model
+
+The gateway is **stateless by default**: each POST gets a fresh MCP server and
+transport, and no `Mcp-Session-Id` is issued. This is the recommended mode for
+third-party clients, because it avoids session caps and stale session IDs.
+Browser state is held by the local bridge, not by the MCP session.
+
+Set `HB_REMOTE_STATEFUL=1` to opt into stateful sessions with a concurrent
+session cap and idle expiry. Stateful mode is useful for protocol debugging,
+not for the default remote deployment.
 
 ## Authentication modes
 
