@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { TOOLS_CATALOG, TOOL_TIERS, TIER_LABELS } from './tools-catalog.js';
+import { DEFAULT_TOOL_ORDER, TOOLS_CATALOG, TOOL_TIERS, TIER_LABELS } from './tools-catalog.js';
 import { formatMark } from './format-mark.js';
 import { APP_VERSION } from '../shared/version.js';
 import { decisionStatus } from '../main/decide/decision-client.js';
@@ -132,6 +132,40 @@ const BRIDGE_TIMEOUT_MS = (() => {
   return Number.isFinite(raw) && raw > 0 ? raw : 300_000;
 })();
 
+interface ToolPreferences {
+  order: string[];
+  disabled: string[];
+  instructions: Record<string, string>;
+}
+
+let cachedToolPreferences: { value: ToolPreferences; at: number } | null = null;
+
+async function loadToolPreferences(): Promise<ToolPreferences> {
+  if (cachedToolPreferences && Date.now() - cachedToolPreferences.at < 2000) {
+    return cachedToolPreferences.value;
+  }
+  try {
+    const data = await callBridge('/tools/config', 'GET');
+    const order = Array.isArray(data?.order)
+      ? data.order.filter((name: unknown): name is string => typeof name === 'string')
+      : [];
+    const disabled = Array.isArray(data?.disabled)
+      ? data.disabled.filter((name: unknown): name is string => typeof name === 'string')
+      : [];
+    const instructions: Record<string, string> = {};
+    if (data?.instructions && typeof data.instructions === 'object' && !Array.isArray(data.instructions)) {
+      for (const [name, text] of Object.entries(data.instructions)) {
+        if (typeof text === 'string' && text.trim()) instructions[name] = text.trim();
+      }
+    }
+    const value = { order, disabled, instructions };
+    cachedToolPreferences = { value, at: Date.now() };
+    return value;
+  } catch {
+    return { order: [], disabled: [], instructions: {} };
+  }
+}
+
 async function callBridge(endpoint: string, method: string = 'GET', body: any = null) {
   let url = `${BRIDGE_URL}${endpoint}`;
   const options: RequestInit = {
@@ -243,12 +277,32 @@ export async function createBridgeMcpServer() {
   // register them first so `tools/list` leads with `drive` and `decide` instead of burying them
   // among 59 browser tools. When it is not configured they are not registered at all.
   const decisionConfigured = decisionStatus().configured;
-  const orderedTools = decisionConfigured
+  const toolPreferences = await loadToolPreferences();
+  const disabledTools = new Set(toolPreferences.disabled);
+  const baseTools = decisionConfigured
     ? [
         ...TOOLS_CATALOG.filter((t) => t.name === 'drive' || t.name === 'decide'),
         ...TOOLS_CATALOG.filter((t) => t.name !== 'drive' && t.name !== 'decide'),
       ]
     : TOOLS_CATALOG;
+  const defaultOrder = decisionConfigured
+    ? ['drive', 'decide', ...DEFAULT_TOOL_ORDER.filter((name) => name !== 'drive' && name !== 'decide')]
+    : DEFAULT_TOOL_ORDER;
+  const baseRank = new Map(defaultOrder.map((name, index) => [name, index]));
+  const configuredRank = new Map(toolPreferences.order.map((name, index) => [name, index]));
+  const orderedTools = baseTools
+    .filter((tool) => !disabledTools.has(tool.name))
+    .sort((a, b) => {
+      const aRank = configuredRank.get(a.name);
+      const bRank = configuredRank.get(b.name);
+      if (aRank !== undefined || bRank !== undefined) {
+        if (aRank === undefined) return 1;
+        if (bRank === undefined) return -1;
+        if (aRank !== bRank) return aRank - bRank;
+      }
+      return (baseRank.get(a.name) ?? Number.MAX_SAFE_INTEGER) -
+        (baseRank.get(b.name) ?? Number.MAX_SAFE_INTEGER);
+    });
 
   for (const tool of orderedTools) {
     // The decision model is opt-in: when no backend is configured, `decide`/`drive` are not
@@ -260,12 +314,13 @@ export async function createBridgeMcpServer() {
     // Phase 4: fold discoverability guidance into the advertised description so it
     // travels with every tools/list entry in any agent framework.
     const tier = TOOL_TIERS[tool.name];
+    const details = toolPreferences.instructions[tool.name] || tool.description;
     const prefix = tool.hidden
       ? `[DEPRECATED → use "${tool.deprecatedInFavorOf || 'the canonical tool'}"] `
       : tier
         ? `[${TIER_LABELS[tier]}] `
         : '';
-    server.tool(tool.name, `${prefix}${tool.description}`, tool.parameters, async (args) => {
+    server.tool(tool.name, `${prefix}${details}`, tool.parameters, async (args) => {
       try {
         logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
         const body = tool.payload ? tool.payload(args) : args;

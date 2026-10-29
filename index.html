@@ -312,6 +312,7 @@
           <button type="button" id="settings-tab-research" class="tab" data-settings-tab="research">RESEARCH</button>
           <button type="button" id="settings-tab-wrappers" class="tab" data-settings-tab="wrappers">WRAPPERS</button>
           <button type="button" id="settings-tab-clients" class="tab" data-settings-tab="clients">MCP CLIENTS</button>
+        <button type="button" id="settings-tab-tools" class="tab" data-settings-tab="tools">TOOLS</button>
         <button type="button" id="settings-tab-remote" class="tab" data-settings-tab="remote">REMOTE</button>
         </div>
       </div>
@@ -901,6 +902,86 @@
         </div>
 
         <p id="connect-note" class="mt-3 text-xs text-base-content/60"></p>
+      </section>
+
+      <!-- MCP tool manager -->
+      <section data-settings-panel="tools" class="hidden max-w-6xl mx-auto w-full">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="font-mono text-sm font-bold text-primary">MCP TOOL MANAGER</h3>
+            <p class="text-xs text-base-content/60 mt-1">
+              Control the browser MCP surface: enable or disable tools, drag to reorder them, and replace
+              verbose catalog instructions with shorter task-specific guidance.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="settings-tools-dirty" class="badge badge-warning badge-sm font-mono hidden">UNSAVED</span>
+            <button type="button" id="settings-tools-reset-all" class="btn btn-sm btn-ghost btn-error font-mono text-xs">RESET ALL</button>
+            <button type="button" id="settings-tools-save" class="btn btn-sm btn-primary font-mono text-xs">SAVE CHANGES</button>
+          </div>
+        </div>
+
+        <div class="mt-4 alert alert-info alert-sm font-mono text-[11px]">
+          Changes apply to new MCP sessions. Restart the client or its MCP server after saving. Disabled
+          tools remain callable by name, but are removed from <code class="font-mono">tools/list</code>.
+        </div>
+        <div id="settings-tools-result" class="alert alert-ghost alert-sm font-mono text-xs mt-3 hidden"></div>
+
+        <div class="mt-4 flex flex-col lg:flex-row gap-4 min-h-[560px]">
+          <div class="w-full lg:w-1/3 min-w-0 bg-base-200/40 border border-base-300 rounded-lg p-3 flex flex-col">
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <span class="font-mono text-[10px] uppercase tracking-wider text-base-content/50">TOOL LIST</span>
+              <span id="settings-tools-summary" class="badge badge-ghost badge-xs font-mono">0</span>
+            </div>
+            <div id="settings-tools-list" class="space-y-3 overflow-y-auto max-h-[62vh] pr-1"></div>
+          </div>
+
+          <div class="w-full lg:w-2/3 min-w-0 bg-base-200/40 border border-base-300 rounded-lg p-4">
+            <div id="settings-tools-empty" class="h-full min-h-[240px] flex items-center justify-center text-center">
+              <div>
+                <p class="font-mono text-sm text-base-content/60">SELECT A TOOL</p>
+                <p class="text-xs text-base-content/40 mt-1">Its instructions and options appear here.</p>
+              </div>
+            </div>
+            <div id="settings-tools-detail" class="hidden space-y-4">
+              <div class="flex flex-wrap items-start justify-between gap-3 border-b border-base-300 pb-3">
+                <div class="min-w-0">
+                  <h4 id="settings-tools-name" class="font-mono text-base font-bold text-accent break-all">tool</h4>
+                  <div class="flex flex-wrap items-center gap-2 mt-1">
+                    <span id="settings-tools-tier" class="badge badge-ghost badge-sm font-mono text-[10px]">OTHER</span>
+                    <span id="settings-tools-state" class="badge badge-ghost badge-sm font-mono text-[10px]">ON</span>
+                  </div>
+                </div>
+                <label class="label cursor-pointer justify-start gap-2 py-0">
+                  <span class="label-text font-mono text-[10px]">ENABLED</span>
+                  <input id="settings-tools-enabled" type="checkbox" class="toggle toggle-sm toggle-success" />
+                </label>
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-mono text-[10px] uppercase tracking-wider text-base-content/50">DEFAULT INSTRUCTIONS</span>
+                  <span id="settings-tools-default-chars" class="font-mono text-[10px] text-base-content/40"></span>
+                </div>
+                <pre id="settings-tools-default" class="mt-1 max-h-44 overflow-y-auto whitespace-pre-wrap break-words rounded border border-base-300 bg-base-100/60 p-3 font-mono text-[11px] text-base-content/60"></pre>
+              </div>
+
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-mono text-xs">
+                  OVERRIDE INSTRUCTIONS
+                  <span id="settings-tools-override-chars" class="ml-2 font-normal text-base-content/40"></span>
+                </legend>
+                <textarea id="settings-tools-instructions" class="textarea textarea-sm w-full h-52 font-mono text-[11px] leading-relaxed" placeholder="Leave empty to use the default instructions. Keep this short: it travels in every tools/list response."></textarea>
+                <p class="label font-mono text-[10px]">The tier/deprecation prefix is preserved. Reset the tool to return to the catalog text.</p>
+              </fieldset>
+
+              <div class="flex flex-wrap items-center gap-2 border-t border-base-300 pt-3">
+                <button type="button" id="settings-tools-reset" class="btn btn-sm btn-outline btn-error font-mono text-xs">RESET TOOL</button>
+                <span id="settings-tools-detail-result" class="font-mono text-[10px] text-base-content/50"></span>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Remote MCP gateway -->

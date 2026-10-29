@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import type { RemoteStatus } from '../shared/remote.js';
+import type { ToolManagerResult, ToolSettings } from '../shared/tool-settings.js';
 
 export interface ElectronAPI {
   getState: () => Promise<ChassisState>;
@@ -85,6 +86,9 @@ export interface ElectronAPI {
   pickRecordingDir: () => Promise<string | null>;
   startRecording: (name?: string) => Promise<{ filename: string; config: any }>;
   stopRecording: () => Promise<any>;
+  getToolManager: () => Promise<ToolManagerResult>;
+  saveToolManager: (settings: Pick<ToolSettings, 'order' | 'disabled' | 'instructions'>) => Promise<ToolManagerResult>;
+  resetToolManager: () => Promise<ToolManagerResult>;
   getRemoteInfo: () => Promise<{
     ok: boolean;
     status?: RemoteStatus;
@@ -312,6 +316,9 @@ const api: ElectronAPI = {
 
   getRecordingConfig: () => ipcRenderer.invoke('recording:config:get'),
   getConnectInfo: () => ipcRenderer.invoke('app:connect-info'),
+  getToolManager: () => ipcRenderer.invoke('tools:get'),
+  saveToolManager: (settings) => ipcRenderer.invoke('tools:save', settings),
+  resetToolManager: () => ipcRenderer.invoke('tools:reset'),
   getRemoteInfo: () => ipcRenderer.invoke('remote:info'),
   setRemoteEnabled: (enabled: boolean) => ipcRenderer.invoke('remote:set-enabled', enabled),
   rotateRemoteToken: () => ipcRenderer.invoke('remote:rotate-token'),

@@ -41556,6 +41556,7 @@ var TIER_LABELS = {
   3: "TIER 3 \xB7 use deliberately"
 };
 var TOOL_TIERS = {
+  navigate_to: 1,
   // TIER 1 — first choice for the job.
   observe: 1,
   act: 1,
@@ -41574,6 +41575,78 @@ var TOOL_TIERS = {
   // (prefer the primitives when they fit; injected JS is a bot-detection signal).
   evaluate_javascript: 3
 };
+var DEFAULT_TOOL_ORDER = [
+  "navigate_to",
+  "observe",
+  "act",
+  "wait_for",
+  "find",
+  "extract",
+  "collect_all",
+  "expect",
+  "page_state",
+  "diff",
+  "take_screenshot",
+  "snapshot_rendered_page",
+  "press_key",
+  "evaluate_javascript",
+  "dismiss_consent",
+  "scroll_page",
+  "navigate_history",
+  "fill_form",
+  "new_tab",
+  "switch_tab",
+  "list_tabs",
+  "close_tab",
+  "get_console_logs",
+  "get_fingerprint_profile",
+  "recall_memory",
+  "browsing_history",
+  "browsing_history_clear",
+  "add_bookmark",
+  "list_bookmarks",
+  "delete_bookmark",
+  "read_url",
+  "search_web",
+  "llm_surface",
+  "llm_fetch",
+  "deep_crawl",
+  "research_topic",
+  "prerender_links",
+  "get_network_traffic",
+  "query_json_data",
+  "list_realtime_streams",
+  "clear_capture",
+  "save_script",
+  "run_script",
+  "list_scripts",
+  "delete_script",
+  "list_downloads",
+  "read_download",
+  "record_start",
+  "record_stop",
+  "list_recordings",
+  "request_human_intervention",
+  "get_human_activity",
+  "resume_agent",
+  "get_human_intervention_status",
+  "resolve_human_intervention",
+  "send_notification",
+  "set_window_visibility",
+  "configure_system_tray",
+  "drive",
+  "recipe",
+  "decide",
+  "frames",
+  "focus_walk",
+  "bridge_health",
+  "export_har",
+  "context_save",
+  "context_open",
+  "context_list",
+  "context_delete",
+  "help"
+];
 
 // src/shared/version.ts
 var APP_VERSION = "1.6.2";
@@ -41780,6 +41853,28 @@ var BRIDGE_TIMEOUT_MS = (() => {
   const raw = Number(process.env.HB_BRIDGE_TIMEOUT_MS ?? process.env.KUANG_BRIDGE_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 3e5;
 })();
+var cachedToolPreferences = null;
+async function loadToolPreferences() {
+  if (cachedToolPreferences && Date.now() - cachedToolPreferences.at < 2e3) {
+    return cachedToolPreferences.value;
+  }
+  try {
+    const data = await callBridge("/tools/config", "GET");
+    const order = Array.isArray(data?.order) ? data.order.filter((name) => typeof name === "string") : [];
+    const disabled = Array.isArray(data?.disabled) ? data.disabled.filter((name) => typeof name === "string") : [];
+    const instructions = {};
+    if (data?.instructions && typeof data.instructions === "object" && !Array.isArray(data.instructions)) {
+      for (const [name, text] of Object.entries(data.instructions)) {
+        if (typeof text === "string" && text.trim()) instructions[name] = text.trim();
+      }
+    }
+    const value = { order, disabled, instructions };
+    cachedToolPreferences = { value, at: Date.now() };
+    return value;
+  } catch {
+    return { order: [], disabled: [], instructions: {} };
+  }
+}
 async function callBridge(endpoint, method = "GET", body = null) {
   let url2 = `${BRIDGE_URL}${endpoint}`;
   const options = {
@@ -41858,16 +41953,32 @@ async function createBridgeMcpServer() {
     logMcp("[Recording] Tools are disabled by the human-only switch; not registering them.", "boot");
   }
   const decisionConfigured = decisionStatus().configured;
-  const orderedTools = decisionConfigured ? [
+  const toolPreferences = await loadToolPreferences();
+  const disabledTools = new Set(toolPreferences.disabled);
+  const baseTools = decisionConfigured ? [
     ...TOOLS_CATALOG.filter((t) => t.name === "drive" || t.name === "decide"),
     ...TOOLS_CATALOG.filter((t) => t.name !== "drive" && t.name !== "decide")
   ] : TOOLS_CATALOG;
+  const defaultOrder = decisionConfigured ? ["drive", "decide", ...DEFAULT_TOOL_ORDER.filter((name) => name !== "drive" && name !== "decide")] : DEFAULT_TOOL_ORDER;
+  const baseRank = new Map(defaultOrder.map((name, index) => [name, index]));
+  const configuredRank = new Map(toolPreferences.order.map((name, index) => [name, index]));
+  const orderedTools = baseTools.filter((tool) => !disabledTools.has(tool.name)).sort((a, b) => {
+    const aRank = configuredRank.get(a.name);
+    const bRank = configuredRank.get(b.name);
+    if (aRank !== void 0 || bRank !== void 0) {
+      if (aRank === void 0) return 1;
+      if (bRank === void 0) return -1;
+      if (aRank !== bRank) return aRank - bRank;
+    }
+    return (baseRank.get(a.name) ?? Number.MAX_SAFE_INTEGER) - (baseRank.get(b.name) ?? Number.MAX_SAFE_INTEGER);
+  });
   for (const tool of orderedTools) {
     if ((tool.name === "decide" || tool.name === "drive") && !decisionConfigured) continue;
     if (!recordingToolsAvailable && RECORDING_TOOL_NAMES.has(tool.name)) continue;
     const tier = TOOL_TIERS[tool.name];
+    const details = toolPreferences.instructions[tool.name] || tool.description;
     const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
-    server.tool(tool.name, `${prefix}${tool.description}`, tool.parameters, async (args) => {
+    server.tool(tool.name, `${prefix}${details}`, tool.parameters, async (args) => {
       try {
         logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
         const body = tool.payload ? tool.payload(args) : args;

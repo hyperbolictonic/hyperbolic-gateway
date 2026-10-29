@@ -1,6 +1,7 @@
 import type { ElectronAPI } from '../preload/index.js';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent } from '../shared/types.js';
 import { beginRecording, finishRecording } from './recording';
+import { refreshToolsPanel } from './tools-panel';
 
 declare global {
   interface Window {
@@ -2062,6 +2063,9 @@ if (settingsBtn && settingsModal) {
     if (tab === 'clients') {
       void loadConnectPanel();
     }
+    if (tab === 'tools') {
+      refreshToolsPanel();
+    }
     if (tab === 'remote') {
       void loadRemotePanel();
     }
@@ -2188,6 +2192,7 @@ if (settingsBtn && settingsModal) {
     const activeTab = settingsTabs.find((button) => button.classList.contains('tab-active'))?.dataset.settingsTab;
     if (activeTab === 'recording') void loadRecordingSettings();
     if (activeTab === 'clients') void loadConnectPanel();
+    if (activeTab === 'tools') refreshToolsPanel();
     if (activeTab === 'remote') void loadRemotePanel();
     if (activeTab === 'research') void loadResearchSettings();
     if (activeTab === 'shadow') void loadShadowWalkSettings();

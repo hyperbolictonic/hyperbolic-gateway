@@ -12,9 +12,11 @@ The standalone stdio server executable ([`scripts/mcp-server.js`](../../scripts/
 
 ## 🧰 Registered MCP Tool Domains (63 Advertised Tools)
 
+**Tool manager:** Settings → **Tools** controls which advertised tools appear in `tools/list`, their order within a tier, and an optional per-tool instruction override. The saved configuration lives in `<userData>/tool-settings.json`; the bridge exposes it read-only at `GET /tools/config`. Changes apply to new MCP sessions.
+
 Deprecated aliases are hidden from `tools/list` (they still work by name); the canonical name is listed here.
 
-**Tier map** (mirrors the `[TIER n]` prefixes on the advertised descriptions): **TIER 1 · prefer** — `observe`, `act`, `wait_for`, `expect`, `find`, `extract`, `collect_all`, `page_state`, `diff`; **TIER 2 · fallback** — `take_screenshot`, `snapshot_rendered_page`, `press_key`; **TIER 3 · use deliberately** — `evaluate_javascript` (powerful, just not the default). Every other tool is **unprefixed** (the only tool for the job). Start with `observe` → `act` → `wait_for` → `find` → `extract` / `collect_all`.
+**Tier map** (mirrors the `[TIER n]` prefixes on the advertised descriptions): **TIER 1 · prefer** — `navigate_to`, `observe`, `act`, `wait_for`, `expect`, `find`, `extract`, `collect_all`, `page_state`, `diff`; **TIER 2 · fallback** — `take_screenshot`, `snapshot_rendered_page`, `press_key`; **TIER 3 · use deliberately** — `evaluate_javascript` (powerful, just not the default). Every other tool is **unprefixed** (the only tool for the job). Start with `observe` → `act` → `wait_for` → `find` → `extract` / `collect_all`.
 
 1. **Navigation & History (2 Tools):** `navigate_to`, `navigate_history`.
 2. **Autonomous Shield & Consent (1 Tool):** `dismiss_consent`.

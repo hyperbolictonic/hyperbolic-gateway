@@ -38,6 +38,24 @@ Tool schemas are authoritative in `tools/list`; the source of truth is
 `src/mcp/tools-catalog.ts`. Deprecated names remain callable but are hidden
 from `tools/list`.
 
+## Tool manager
+
+Settings → **Tools** controls the advertised surface:
+
+- enable or disable individual tools;
+- drag tools to reorder them within their tier;
+- replace verbose catalog instructions with a shorter per-tool override;
+- reset one tool or every tool to the catalog defaults.
+
+The settings are stored in `<userData>/tool-settings.json`. They apply to the
+next MCP session; restart the client or its MCP server after saving. Disabled
+tools are omitted from `tools/list` but remain callable by name through
+`tools/call`, so existing workflows do not break mid-session.
+
+The local bridge exposes the saved settings read-only at `GET /tools/config`
+for the stdio and remote MCP server processes. The HTTP route cannot write
+settings.
+
 ## Tool groups
 
 The group names below are a reading aid. Some advanced primitives overlap with

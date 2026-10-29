@@ -24,6 +24,7 @@ import type { WrapStore } from './wrap/store.js';
 import type { SecretStore } from './wrap/secrets.js';
 import type { WrapAuditLog } from './wrap/audit.js';
 import { isWrapAuthorized, tokenFromHeaders } from './wrap/auth.js';
+import { DEFAULT_TOOL_SETTINGS, type ToolSettingsStore } from './tools/settings.js';
 import { deriveRecipe } from '../../packages/recipe/src/index.ts';
 
 export interface WrapBridge {
@@ -79,7 +80,12 @@ function redactLogValue(value: any, depth = 0): any {
   return out;
 }
 
-export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wrap?: WrapBridge) {
+export function startHttpBridge(
+  chassis: BrowserChassis,
+  port: number = 4111,
+  wrap?: WrapBridge,
+  toolSettings?: ToolSettingsStore
+) {
   /** Timestamp of the last mutating action, for `since: "last_action"` network correlation. */
   let lastActionAt = Date.now();
   const MUTATING_PATHS = new Set([
@@ -160,6 +166,12 @@ export function startHttpBridge(chassis: BrowserChassis, port: number = 4111, wr
           shadowWalk: { ...shadowWalkStatus(), forceOpenArmed: chassis.forceOpenArmed() },
           info,
         });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/tools/config') {
+        const settings = toolSettings?.load() ?? DEFAULT_TOOL_SETTINGS;
+        sendJson({ success: true, ...settings });
         return;
       }
 

@@ -16,6 +16,8 @@ import { DEFAULT_SHADOW_WALK_SETTINGS, loadShadowWalkSettings, saveShadowWalkSet
 import { attachContextMenu } from './menu/context-menu.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { RemoteService } from './remote/service.js';
+import { ToolSettingsStore } from './tools/settings.js';
+import { registerToolSettingsIpc } from './tools/ipc.js';
 import { dataPath } from './data-paths.js';
 import { APP_VERSION } from '../shared/version.js';
 import {
@@ -498,13 +500,20 @@ async function createWindow() {
       },
     });
     const wrapToken = createWrapToken(wrapDir());
-    startHttpBridge(chassis, bridgePort, {
-      store: wrapStore,
-      executor: wrapExecutor,
-      secrets: wrapSecrets,
-      audit: wrapAudit,
-      token: wrapToken,
-    });
+    const toolSettings = new ToolSettingsStore(path.join(app.getPath('userData'), 'tool-settings.json'));
+    registerToolSettingsIpc(toolSettings);
+    startHttpBridge(
+      chassis,
+      bridgePort,
+      {
+        store: wrapStore,
+        executor: wrapExecutor,
+        secrets: wrapSecrets,
+        audit: wrapAudit,
+        token: wrapToken,
+      },
+      toolSettings
+    );
 
     if (!activeRemoteService) {
       activeRemoteService = new RemoteService({
