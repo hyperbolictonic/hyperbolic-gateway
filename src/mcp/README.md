@@ -1,4 +1,4 @@
-# 🔌 Kuang Grade Mark Eleven — Model Context Protocol Server (`src/mcp/`)
+# 🔌 Hyperbolic Gateway — Model Context Protocol Server (`src/mcp/`)
 
 This directory contains the in-process TypeScript implementation of the Model Context Protocol (MCP) server using `@modelcontextprotocol/sdk`.
 

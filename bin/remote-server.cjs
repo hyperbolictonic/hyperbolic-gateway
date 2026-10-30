@@ -40768,17 +40768,17 @@ ${lines.join("\n")}`;
     description: "Dispatches an OS native desktop notification to alert the user without blocking agent execution.",
     parameters: {
       message: external_exports.string().describe("Notification body message"),
-      title: external_exports.string().optional().default("Kuang Grade Mark Eleven").describe("Notification title"),
+      title: external_exports.string().optional().default("Hyperbolic Gateway").describe("Notification title"),
       urgency: external_exports.enum(["normal", "critical", "low"]).optional().default("normal").describe("Urgency level (default: normal)"),
       sound: external_exports.boolean().optional().default(true).describe("Whether to play notification alert sound (default: true)")
     },
     endpoint: "/notify",
     payload: (args) => {
-      const title = args?.title || "Kuang Grade Mark Eleven";
+      const title = args?.title || "Hyperbolic Gateway";
       const message = args?.message || args?.text || args?.body || "Agent notification";
       return { title, message, urgency: args?.urgency, sound: args?.sound };
     },
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Kuang Grade Mark Eleven", message: args?.message || "Notification sent" })
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Hyperbolic Gateway", message: args?.message || "Notification sent" })
   },
   {
     name: "send_desktop_notification",
@@ -40787,17 +40787,17 @@ ${lines.join("\n")}`;
     description: "Deprecated alias for send_notification (same /notify endpoint; defaults urgency=critical). Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).",
     parameters: {
       message: external_exports.string().describe("Specific reason why the user is needed and instructions for what to do in the browser."),
-      title: external_exports.string().optional().default("Kuang Browser: Human Intervention Required").describe("Notification title"),
+      title: external_exports.string().optional().default("Hyperbolic Browser: Human Intervention Required").describe("Notification title"),
       urgency: external_exports.enum(["low", "normal", "critical"]).optional().default("critical").describe("Urgency level of the notification."),
       sound: external_exports.boolean().optional().default(true).describe("Whether to play notification alert sound (default: true)")
     },
     endpoint: "/notify",
     payload: (args) => {
-      const title = args?.title || "Kuang Browser: Human Intervention Required";
-      const message = args?.message || args?.text || args?.body || "Human intervention required in Kuang browser";
+      const title = args?.title || "Hyperbolic Browser: Human Intervention Required";
+      const message = args?.message || args?.text || args?.body || "Human intervention required in Hyperbolic Browser";
       return { title, message, urgency: args?.urgency || "critical", sound: args?.sound ?? true };
     },
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Kuang Browser: Human Intervention Required", message: args?.message || "Notification sent" })
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Hyperbolic Browser: Human Intervention Required", message: args?.message || "Notification sent" })
   },
   // ---------------------------------------------------------------------------
   // 14. Primitives Layer — one observe / act / wait / extract model.
@@ -40882,7 +40882,7 @@ ${data.result.message}`;
   },
   {
     name: "decide",
-    description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. FAN OUT THE HEADS: ask operation + every plausible target head (click_target, type_text_target, select_target) + done in the same call, then execute only the head matching the chosen operation \u2014 one round trip per step instead of operation-then-target. Ask only for heads the page offers. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default \u2014 experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
+    description: 'OPTIONAL decision model (absent unless configured \u2014 see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no \u2014 never prose. This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. The gateway forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) \u2192 decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) \u2192 act(mark_id) \u2192 check the returned delta/typing verdict. FAN OUT THE HEADS: ask operation + every plausible target head (click_target, type_text_target, select_target) + done in the same call, then execute only the head matching the chosen operation \u2014 one round trip per step instead of operation-then-target. Ask only for heads the page offers. Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default \u2014 experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',
     parameters: {
       state: external_exports.any().describe("What the model reasons over: a string, JSON (e.g. the components array), or an array of values"),
       questions: external_exports.record(external_exports.string(), external_exports.any()).describe('Typed questions keyed by name. For TypeSafe: {"operation":{"type":"choice","instructions":"\u2026","criteria":{"click":"Click a control","done":"The goal is met"}},"done":{"type":"noul","instructions":"\u2026"}} \u2014 choice takes criteria (option\u2192description), NOT options. Local open-jev takes options instead.'),
@@ -42312,7 +42312,7 @@ async function createBridgeMcpServer() {
     * Pass guard:{components, threshold} so an answer naming a missing id or a control that cannot accept the operation is rejected instead of executed.
     * drive(goal, values?, max_steps?) is for a short, well-scoped goal with genuine ambiguity per step. It is not a retry engine: a guard rejection means fall back to observe(markdown) + find.
     * decide CHOOSES, it does not act or verify. Every decision is followed by act + expect/diff/page_state. Never treat "done" as proof \u2014 check the page.
-    * HUMAN_DECISION_REQUIRED means the guarded choice did not clear its threshold. Kuang has already raised the HIL banner and will not act. Do NOT guess, do NOT retry with a lower threshold: wait for the human, then re-observe and continue (or ask them in chat if they are present).
+    * HUMAN_DECISION_REQUIRED means the guarded choice did not clear its threshold. The gateway has already raised the HIL banner and will not act. Do NOT guess, do NOT retry with a lower threshold: wait for the human, then re-observe and continue (or ask them in chat if they are present).
 
 2. [ORTHOGONAL PRIMITIVES \u2014 PREFER THESE OVER BLIND SLEEPS]
   - wait_for(conditions[], require?, timeout_ms?, poll_ms?): declarative readiness gate; returns {ok, waitedMs, attempts, results[]}. Replaces every sleep.
@@ -42412,7 +42412,7 @@ async function createBridgeMcpServer() {
     "okf-manifest",
     "mark-eleven://okf/manifest",
     {
-      description: "Open Knowledge Format (OKF) manifest declaring bundleId kuang_browser_docs and all available partitions.",
+      description: "Open Knowledge Format (OKF) manifest for the Hyperbolic Browser docs bundle and its available partitions.",
       mimeType: "application/json"
     },
     async () => {

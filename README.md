@@ -6,7 +6,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.6.1-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-1.7.0-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-15%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -21,7 +21,7 @@
 - **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
 - **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
-- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (15 advertised +2 optional)](#sec-standardized-semantic-mcp-tools-63-advertised) · [REST wrappers](#sec-rest-wrappers-hb-rest)
+- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (15 advertised +2 optional)](#sec-standardized-semantic-mcp-tools-63-advertised) · [Agent skills](#sec-agent-skills) · [REST wrappers](#sec-rest-wrappers-hb-rest)
 - **Building on it** — [Architecture lowdown](./docs/CODEBASE.md) · [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
 - **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Control layer: targeting, consent, human takeover](./docs/CONTROL_LAYER.md) · [Shadow DOM & iframes: what Hyperbolic Gateway can see and click](./docs/SHADOW_DOM_AND_FRAMES.md) · [Shadow Walk: sealed-content plan](./docs/SHADOW_WALK.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 - **Release notes** — [What shipped](#sec-release-notes) · [All releases](./CHANGELOG.md)
@@ -107,7 +107,17 @@ To _use_ it with an AI assistant you already have: no — you paste one line of 
 MCP is a standard plug shape for AI tools. If your AI app accepts MCP plugins, it can use this one. Claude Desktop, Cursor and several other apps speak it.
 
 **Can I install an agent skill too?**
-Yes. The `hb-browser` and `hb-wrap` skills are at [`skills/`](./skills/README.md). Hermes and other skill-aware clients can install them from the raw GitHub URL, or with `npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser`.
+Yes. The `hb-browser` and `hb-wrap` skills are at [`skills/`](./skills/README.md).
+
+```bash
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
+
+npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
+npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+```
+
+Add `-g -y` to the `npx` commands for a non-interactive global install.
 
 **Which AI can drive it?**
 Any assistant that supports MCP — a cloud service, or a model running on your own computer. You choose, and you aren't locked to one provider.
@@ -706,6 +716,29 @@ A minimal Claude-style entry looks like this (the tab generates the real paths):
 > the server into `userData/bin/` (refreshed on update), because `resources/` is temporary for portable and
 > AppImage builds.
 
+<a id="sec-agent-skills" name="sec-agent-skills"></a>
+
+### Agent Skills
+
+The MCP servers provide the tools; the skills teach the agent which grouped tool to use and give exact recipes.
+Install either skill directly from GitHub:
+
+```bash
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
+```
+
+Or with the Skills CLI:
+
+```bash
+npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
+npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+```
+
+For a non-interactive global install, add `-g -y`. The source files are
+[`skills/hb-browser/SKILL.md`](./skills/hb-browser/SKILL.md) and
+[`skills/hb-wrap/SKILL.md`](./skills/hb-wrap/SKILL.md).
+
 ---
 
 <a id="sec-testing" name="sec-testing"></a>
@@ -721,6 +754,7 @@ All suites run against the live Cyberdeck on `http://127.0.0.1:4111` (start the 
 | `npm run test:mcp:primitives` | MCP stdio primitives (14 checks) | The same primitives through a real MCP client — tool schemas, viewport gating, `find`→`act`, contexts, `focus_window`.                          |
 | `npm run test:focus`          | Focus independence (4 checks)    | Hands the OS foreground to another app (Notepad) and asserts typing/clicks/wheel still land **and** that `input.transport === 'cdp'`.           |
 | `npm run test:mcp-http`       | MCP HTTP host (6 checks)         | Bearer auth, stateful and stateless MCP clients, session eviction, non-MCP path rejection, and idle expiry.                                       |
+| `npm run test:navigation`     | Navigation error mapping         | DNS, refusal, timeout, certificate and aborted failures map to `400` with stable `NAVIGATION_*` codes.                                           |
 | `npm run test:cloudflared-tunnel` | Named tunnel manager (3 checks) | Registration parse, startup timeout, process failure, and clean shutdown using a fake cloudflared fixture. |
 | `npm run test:cloudflared`    | cloudflared manager (4 checks)   | Release selection, SHA-256 verification, atomic managed install, checksum rejection, unsupported-platform errors, and pure-Node macOS tar extraction. |
 | `npm run test:mcp-oauth`      | MCP OAuth server (4 checks)      | Discovery metadata, forwarded HTTPS origin, authorization code + PKCE, token/refresh, bad verifier and disallowed redirect rejection. |

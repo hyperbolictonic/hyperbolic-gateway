@@ -1013,17 +1013,17 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     description: 'Dispatches an OS native desktop notification to alert the user without blocking agent execution.',
     parameters: {
       message: z.string().describe('Notification body message'),
-      title: z.string().optional().default('Kuang Grade Mark Eleven').describe('Notification title'),
+      title: z.string().optional().default('Hyperbolic Gateway').describe('Notification title'),
       urgency: z.enum(['normal', 'critical', 'low']).optional().default('normal').describe('Urgency level (default: normal)'),
       sound: z.boolean().optional().default(true).describe('Whether to play notification alert sound (default: true)'),
     },
     endpoint: '/notify',
     payload: (args) => {
-      const title = args?.title || 'Kuang Grade Mark Eleven';
+      const title = args?.title || 'Hyperbolic Gateway';
       const message = args?.message || args?.text || args?.body || 'Agent notification';
       return { title, message, urgency: args?.urgency, sound: args?.sound };
     },
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Kuang Grade Mark Eleven', message: args?.message || 'Notification sent' }),
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Hyperbolic Gateway', message: args?.message || 'Notification sent' }),
   },
   {
     name: 'send_desktop_notification',
@@ -1032,17 +1032,17 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     description: 'Deprecated alias for send_notification (same /notify endpoint; defaults urgency=critical). Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).',
     parameters: {
       message: z.string().describe('Specific reason why the user is needed and instructions for what to do in the browser.'),
-      title: z.string().optional().default('Kuang Browser: Human Intervention Required').describe('Notification title'),
+      title: z.string().optional().default('Hyperbolic Browser: Human Intervention Required').describe('Notification title'),
       urgency: z.enum(['low', 'normal', 'critical']).optional().default('critical').describe('Urgency level of the notification.'),
       sound: z.boolean().optional().default(true).describe('Whether to play notification alert sound (default: true)'),
     },
     endpoint: '/notify',
     payload: (args) => {
-      const title = args?.title || 'Kuang Browser: Human Intervention Required';
-      const message = args?.message || args?.text || args?.body || 'Human intervention required in Kuang browser';
+      const title = args?.title || 'Hyperbolic Browser: Human Intervention Required';
+      const message = args?.message || args?.text || args?.body || 'Human intervention required in Hyperbolic Browser';
       return { title, message, urgency: args?.urgency || 'critical', sound: args?.sound ?? true };
     },
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Kuang Browser: Human Intervention Required', message: args?.message || 'Notification sent' }),
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Hyperbolic Browser: Human Intervention Required', message: args?.message || 'Notification sent' }),
   },
 
   // ---------------------------------------------------------------------------
@@ -1136,7 +1136,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     name: 'decide',
     description:
       'OPTIONAL decision model (absent unless configured — see docs/DECISION_MODELS.md). Send a state plus typed questions; get typed answers back: choices with probabilities, scores, yes/no — never prose. ' +
-      'This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. Kuang forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. ' +
+      'This is not an LLM: every answer is one of the options you supplied, so it cannot invent a target. The gateway forwards your questions verbatim and returns the answers untouched, and never calls a decision model on its own. ' +
       'Typical loop: observe(as:"components") for the component table (role/name/value/region/actions, ids are mark ids) → decide over it (e.g. one `choice` for the operation, one `choice` per operation over only the components whose actions include it, all in ONE call) → act(mark_id) → check the returned delta/typing verdict. ' +
       'FAN OUT THE HEADS: ask operation + every plausible target head (click_target, type_text_target, select_target) + done in the same call, then execute only the head matching the chosen operation — one round trip per step instead of operation-then-target. Ask only for heads the page offers. ' +
       'Backends: hosted Jev (typesafe protocol, e.g. jev-1.13) or a local ONNX model via open-jev (local-onnx: kev-0.6b by default — experimental, see docs/DECISION_MODELS.md for measured accuracy). Returns NOT_CONFIGURED when no backend is set.',

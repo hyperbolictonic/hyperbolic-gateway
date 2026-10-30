@@ -111,6 +111,10 @@ try {
   const absent = CANONICAL.filter((n) => !set.has(n));
   check('canonical names are present', absent.length === 0, absent.length ? `missing: ${absent.join(', ')}` : '');
   check('help is present', set.has('help'));
+  check(
+    'advertised tool text has no legacy Kuang branding',
+    !JSON.stringify(tools).match(/Kuang|kuang/),
+  );
 
   const byName = new Map(tools.map((t) => [t.name, t]));
   const describes = (n) => byName.get(n)?.description || '';
