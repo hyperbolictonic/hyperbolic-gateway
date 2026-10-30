@@ -293,6 +293,20 @@ const COLLAB_CSS = `
   border-top: 1px solid rgba(34, 211, 238, 0.32);
   border-right: 1px solid rgba(34, 211, 238, 0.32);
 }
+#__kuang_collaboration_layer .hb-box.hb-human {
+  border-color: rgba(245, 158, 11, 0.85);
+  background: rgba(245, 158, 11, 0.05);
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.2);
+}
+#__kuang_collaboration_layer .hb-agent.hb-human { border-color: rgba(245, 158, 11, 0.35); }
+#__kuang_collaboration_layer .hb-agent.hb-human .hb-agent-head { color: #f59e0b; }
+#__kuang_collaboration_layer .hb-agent.hb-human .hb-agent-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+#__kuang_collaboration_layer .hb-agent.hb-human .hb-agent-arrow {
+  border-color: rgba(245, 158, 11, 0.35);
+}
 `;
 
 /**
@@ -778,7 +792,11 @@ export function collaborationOverlayScript(
   const payload = threads.map((thread) => ({
     id: thread.id,
     status: thread.status,
-    text: thread.messages.find((message) => message.author === 'agent')?.text || thread.intent || '',
+    text: thread.messages.find((message) => message.author === 'agent')?.text
+      || thread.intent
+      || thread.messages[0]?.text
+      || '',
+    humanOnly: !thread.messages.some((message) => message.author === 'agent'),
     choices: thread.messages.find((message) => message.kind === 'question')?.choices || [],
     target: thread.target,
   }));
@@ -824,13 +842,13 @@ export function collaborationOverlayScript(
       const offsetX = scrollX;
       const offsetY = scrollY;
       const box = document.createElement('div');
-      box.className = 'hb-box';
+      box.className = 'hb-box' + (thread.humanOnly ? ' hb-human' : '');
       Object.assign(box.style, {
         left: rect.left + offsetX + 'px', top: rect.top + offsetY + 'px',
         width: Math.max(8, rect.width) + 'px', height: Math.max(8, rect.height) + 'px',
       });
       const card = document.createElement('div');
-      card.className = 'hb-agent';
+      card.className = 'hb-agent' + (thread.humanOnly ? ' hb-human' : '');
       const head = document.createElement('div');
       head.className = 'hb-agent-head';
       const dot = document.createElement('span');
