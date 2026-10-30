@@ -80,6 +80,9 @@ import { Researcher, type ResearchOptions, type ResearchOutcome } from './resear
  */
 const PAGE_SCROLLBAR_GUTTER = 16;
 
+/** Width of the Cyberdeck panel (docked and floating). */
+const PANEL_WIDTH = 420;
+
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
   /** Recent decision-model calls, mirrored to the HUD (newest last, capped at 50). */
@@ -487,6 +490,18 @@ export class BrowserChassis {
     return this.sidebarMode;
   }
 
+  /**
+   * How much of the browsing view (from its right edge) the Cyberdeck panel
+   * covers in page coordinates. Docked mode resizes the browsing view instead,
+   * and the collapsed rail is too small to matter, so only the floating panel
+   * reports an inset.
+   */
+  public getSidebarPageInset(): number {
+    if (!this.sidebarOverlayVisible) return 0;
+    if (this.sidebarMode !== 'floating') return 0;
+    return PANEL_WIDTH + PAGE_SCROLLBAR_GUTTER;
+  }
+
   public setSidebarMode(mode: 'docked' | 'floating' | 'collapsed'): void {
     if (mode !== 'docked' && mode !== 'floating' && mode !== 'collapsed') return;
     if (mode === 'docked' || mode === 'floating') this.lastOpenSidebarMode = mode;
@@ -547,7 +562,7 @@ export class BrowserChassis {
       return;
     }
 
-    const width = 420;
+    const width = PANEL_WIDTH;
     this.sidebarView.setBounds({
       x: Math.max(0, usableWidth - width),
       y: 100,
@@ -978,7 +993,9 @@ export class BrowserChassis {
   /** Start the human element picker. The selected target arrives through onCollaborationTarget. */
   public async pickCollaborationTarget(): Promise<CollaborationTarget | null> {
     const wc = this.getActiveWebContents();
-    return await wc.executeJavaScript(collaborationPickerScript()).catch(() => null);
+    return await wc
+      .executeJavaScript(collaborationPickerScript({ rightInset: this.getSidebarPageInset() }))
+      .catch(() => null);
   }
 
   public async startCollaborationSelection(): Promise<string> {

@@ -54,7 +54,8 @@ export class CollaborationService {
       const threads = this.store.list({ url });
       const wc = this.chassis.getActiveWebContents();
       if (!wc || wc.isDestroyed()) return;
-      await wc.executeJavaScript(collaborationOverlayScript(threads)).catch(() => null);
+      const rightInset = this.chassis.getSidebarPageInset();
+      await wc.executeJavaScript(collaborationOverlayScript(threads, { rightInset })).catch(() => null);
     } catch {
       // Overlay refresh is best-effort; the persisted thread remains authoritative.
     }

@@ -299,7 +299,8 @@ const COLLAB_CSS = `
  * Anchored note composer. The drawer is mounted next to the picked element,
  * follows it while the page scrolls, can be minimised to a compact pill and can
  * be dragged out of the way. Exposed on `window` so the picker and the tests
- * share one implementation.
+ * share one implementation. `rightInset` is the width covered by the floating
+ * deck panel; placement avoids it.
  */
 export function collaborationNoteDrawerScript(): string {
   return `(() => {
@@ -321,7 +322,8 @@ export function collaborationNoteDrawerScript(): string {
       (document.head || document.documentElement).appendChild(style);
     }
   };
-  window.__hbCollabOpenNoteDrawer = function (el, target) {
+  window.__hbCollabOpenNoteDrawer = function (el, target, options) {
+    const rightInset = options && Number.isFinite(options.rightInset) ? Math.max(0, options.rightInset) : 0;
     ensureStyle();
     const previousDrawer = document.getElementById('__kuang_collab_drawer');
     if (previousDrawer) previousDrawer.remove();
@@ -421,7 +423,7 @@ export function collaborationNoteDrawerScript(): string {
       const rect = el.getBoundingClientRect();
       const offsetX = scrollX;
       const offsetY = scrollY;
-      const vw = innerWidth;
+      const vw = Math.max(0, innerWidth - rightInset);
       const vh = innerHeight;
       const margin = 12;
       const gap = 12;
@@ -628,9 +630,18 @@ export function collaborationNoteDrawerScript(): string {
 }
 
 /** Human element picker. The click is reported through the existing console channel. */
-export function collaborationPickerScript(): string {
+export interface CollaborationPickerOptions {
+  /** Page width (from the right edge) covered by the floating deck panel. */
+  rightInset?: number;
+}
+
+export function collaborationPickerScript(options: CollaborationPickerOptions = {}): string {
+  const rightInset = typeof options.rightInset === 'number' && Number.isFinite(options.rightInset)
+    ? Math.max(0, options.rightInset)
+    : 0;
   return `new Promise((resolve) => {
     ${collaborationNoteDrawerScript()}
+    const RIGHT_INSET = ${JSON.stringify(rightInset)};
     const layerId = '__kuang_collab_picker';
     const old = document.getElementById(layerId);
     if (old) old.remove();
@@ -712,7 +723,7 @@ export function collaborationPickerScript(): string {
       event.preventDefault();
       event.stopPropagation();
       const target = describe(el);
-      window.__hbCollabOpenNoteDrawer(el, target);
+      window.__hbCollabOpenNoteDrawer(el, target, { rightInset: RIGHT_INSET });
       finish(target);
     };
     const onKey = (event) => {
@@ -730,7 +741,13 @@ export function collaborationPickerScript(): string {
  * Pure in-page projection for collaboration threads. The overlay is read-only in
  * Phase 1; Phase 2 adds human selection/reply controls.
  */
-export function collaborationOverlayScript(threads: CollaborationThread[]): string {
+export function collaborationOverlayScript(
+  threads: CollaborationThread[],
+  options: { rightInset?: number } = {},
+): string {
+  const rightInset = typeof options.rightInset === 'number' && Number.isFinite(options.rightInset)
+    ? Math.max(0, options.rightInset)
+    : 0;
   const payload = threads.map((thread) => ({
     id: thread.id,
     status: thread.status,
@@ -750,6 +767,7 @@ export function collaborationOverlayScript(threads: CollaborationThread[]): stri
       (document.head || document.documentElement).appendChild(injected);
     }
     const threads = ${JSON.stringify(payload)};
+    const RIGHT_INSET = ${JSON.stringify(rightInset)};
     if (!threads.length) return;
     const layer = document.createElement('div');
     layer.id = layerId;
@@ -770,6 +788,7 @@ export function collaborationOverlayScript(threads: CollaborationThread[]): stri
         : null;
     };
     const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+    const usableWidth = Math.max(0, innerWidth - RIGHT_INSET);
     for (const thread of threads) {
       const rect = rectFor(thread.target);
       if (!rect || rect.width <= 0 || rect.height <= 0) continue;
@@ -813,7 +832,7 @@ export function collaborationOverlayScript(threads: CollaborationThread[]): stri
         pointingUp = true;
       }
       top = clamp(top, margin, Math.max(margin, innerHeight - height - margin));
-      const left = clamp(rect.left, margin, Math.max(margin, innerWidth - width - margin));
+      const left = clamp(rect.left, margin, Math.max(margin, usableWidth - width - margin));
       card.style.left = Math.round(left + offsetX) + 'px';
       card.style.top = Math.round(top + offsetY) + 'px';
       if (pointingUp) {
