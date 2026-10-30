@@ -172,3 +172,123 @@ html.sidebar-mode #sidebar-rail-toggle:active {
     opacity: 1;
   }
 }
+
+/* Orb pressed while its radial menu is open: the hub becomes the origin. */
+html.sidebar-mode #sidebar-rail-toggle.orb-menu-open {
+  transform: scale(0.92);
+}
+/* Dragged orb loses its hover scale so it tracks the pointer cleanly. */
+html.sidebar-mode #sidebar-rail-toggle.orb-dragging {
+  transform: none !important;
+  transition: none !important;
+}
+/* Docked to the left edge (drag-to-dock). */
+html.sidebar-mode #sidebar-rail-toggle.orb-left {
+  right: auto;
+  left: 0;
+}
+/* Status lights: red pulse while recording, amber pulse during a human hand-off. */
+html.sidebar-mode #sidebar-rail-toggle.is-recording::after,
+html.sidebar-mode #sidebar-rail-toggle.is-hil::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: deck-orb-pulse 1.5s ease-out infinite;
+}
+html.sidebar-mode #sidebar-rail-toggle.is-recording::after {
+  border: 2px solid rgb(248 113 113 / 0.8);
+}
+html.sidebar-mode #sidebar-rail-toggle.is-hil::after {
+  border: 2px solid rgb(245 158 11 / 0.85);
+  animation-duration: 1.9s;
+}
+@keyframes deck-orb-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+/* Open collab-thread count pinned on the orb. */
+html.sidebar-mode #deck-orb-count {
+  position: absolute;
+  top: -3px;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--color-warning);
+  color: var(--color-warning-content);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9px;
+  line-height: 15px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgb(13 18 33 / 0.9);
+}
+
+/* Radial petal menu stage. The native view grows to 340x340 around the same
+   corner; petals fan out from under the hub with a staggered spring. The
+   container never captures clicks outside its petals (`pointer-events: none`). */
+html.sidebar-mode #deck-menu {
+  display: none;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  height: 340px;
+  z-index: 2147483000;
+  pointer-events: none;
+}
+html.sidebar-mode #deck-menu.open {
+  display: block;
+}
+html.sidebar-mode .deck-petal {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in oklab, var(--color-accent) 40%, transparent);
+  background: color-mix(in oklab, var(--color-base-300) 74%, transparent);
+  color: var(--color-accent);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translate(0, 0) scale(0.3);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.4);
+  transition:
+    transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--i, 0) * 30ms),
+    opacity 180ms ease calc(var(--i, 0) * 30ms),
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+html.sidebar-mode .deck-petal svg {
+  width: 16px;
+  height: 16px;
+}
+html.sidebar-mode #deck-menu.open .deck-petal {
+  transform: translate(var(--dx), var(--dy)) scale(1);
+  opacity: 1;
+}
+html.sidebar-mode #deck-menu.open .deck-petal:hover {
+  transform: translate(var(--dx), var(--dy)) scale(1.14);
+  background: color-mix(in oklab, var(--color-base-300) 88%, transparent);
+  box-shadow:
+    0 8px 26px rgb(0 0 0 / 0.5),
+    0 0 0 4px color-mix(in oklab, var(--color-accent) 16%, transparent);
+}

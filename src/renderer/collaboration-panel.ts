@@ -56,10 +56,12 @@ function closePanel(): void {
 
 function updateCount(): void {
   const count = byId<HTMLElement>('collab-count');
-  if (!count) return;
   const open = threads.filter((thread) => thread.status !== 'resolved').length;
-  count.textContent = String(open);
-  count.classList.toggle('hidden', open === 0);
+  for (const badge of [count, byId<HTMLElement>('deck-orb-count')]) {
+    if (!badge) continue;
+    badge.textContent = String(open);
+    badge.classList.toggle('hidden', open === 0);
+  }
 }
 
 function renderList(): void {

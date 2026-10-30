@@ -155,10 +155,132 @@ sidebarDockBtn?.addEventListener('click', () => {
   applySidebarMode(target);
   window.electronAPI?.setSidebarMode(target);
 });
-sidebarRailToggle?.addEventListener('click', () => {
-  applySidebarMode('floating');
-  window.electronAPI?.setSidebarMode('floating');
+// ---- Deck orb: press toggles the radial menu, press-and-move drags it ----
+const deckMenuRoot = document.getElementById('deck-menu');
+let deckMenuOpen = false;
+
+function closeDeckMenuLocally(): void {
+  deckMenuOpen = false;
+  deckMenuRoot?.classList.remove('open');
+  deckMenuRoot?.setAttribute('aria-hidden', 'true');
+  sidebarRailToggle?.classList.remove('orb-menu-open');
+}
+
+function setDeckMenu(open: boolean): void {
+  deckMenuOpen = open;
+  deckMenuRoot?.classList.toggle('open', open);
+  deckMenuRoot?.setAttribute('aria-hidden', String(!open));
+  sidebarRailToggle?.classList.toggle('orb-menu-open', open);
+  window.electronAPI?.setSidebarMenuOpen(open);
+}
+
+sidebarRailToggle?.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  const hub = event.currentTarget as HTMLElement;
+  // Synthetic pointers (tests, automation) have no active id: ignore the failure.
+  try {
+    hub.setPointerCapture(event.pointerId);
+  } catch {
+    /* capture unavailable */
+  }
+  const startX = event.clientX;
+  const startY = event.clientY;
+  let dragging = false;
+  const onMove = (moveEvent: PointerEvent) => {
+    if (!dragging) {
+      if (Math.abs(moveEvent.clientX - startX) + Math.abs(moveEvent.clientY - startY) <= 6) return;
+      dragging = true;
+      hub.classList.add('orb-dragging');
+    }
+    window.electronAPI?.orbitDragMove(moveEvent.movementX, moveEvent.movementY);
+  };
+  const onUp = () => {
+    hub.classList.remove('orb-dragging');
+    hub.removeEventListener('pointermove', onMove);
+    hub.removeEventListener('pointerup', onUp);
+    hub.removeEventListener('pointercancel', onUp);
+    if (dragging) {
+      dragging = false;
+      window.electronAPI?.orbitDragEnd();
+      return;
+    }
+    setDeckMenu(!deckMenuOpen);
+  };
+  hub.addEventListener('pointermove', onMove);
+  hub.addEventListener('pointerup', onUp);
+  hub.addEventListener('pointercancel', onUp);
 });
+sidebarRailToggle?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    setDeckMenu(!deckMenuOpen);
+  }
+});
+
+// Petals: one action each, then the stage collapses back into the orb.
+deckMenuRoot?.querySelectorAll<HTMLButtonElement>('.deck-petal').forEach((petal) => {
+  petal.addEventListener('click', () => {
+    switch (petal.dataset.action) {
+      case 'deck':
+        closeDeckMenuLocally();
+        applySidebarMode('floating');
+        window.electronAPI?.setSidebarMode('floating');
+        break;
+      case 'collab':
+        closeDeckMenuLocally();
+        applySidebarMode('floating');
+        window.electronAPI?.setSidebarMode('floating');
+        document.getElementById('collab-btn')?.click();
+        break;
+      case 'note':
+        setDeckMenu(false);
+        void window.electronAPI?.startCollaborationPicker();
+        break;
+      case 'harvest':
+        setDeckMenu(false);
+        document.getElementById('harvest-btn')?.click();
+        break;
+      case 'record':
+        setDeckMenu(false);
+        document.getElementById('record-btn')?.click();
+        break;
+      default:
+        setDeckMenu(false);
+    }
+  });
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && deckMenuOpen) {
+    setDeckMenu(false);
+  }
+});
+
+// Orb status lights and dock-side persistence.
+const syncOrbEdge = (edge: 'left' | 'right'): void => {
+  sidebarRailToggle?.classList.toggle('orb-left', edge === 'left');
+  try {
+    localStorage.setItem('deck.orb-edge', edge);
+  } catch {
+    /* storage unavailable */
+  }
+};
+window.electronAPI?.onOrbEdge(syncOrbEdge);
+window.electronAPI?.onRecordingStatus((state: unknown) => {
+  sidebarRailToggle?.classList.toggle('is-recording', Boolean((state as { recording?: boolean })?.recording));
+});
+window.electronAPI?.onHilRequested(() => sidebarRailToggle?.classList.add('is-hil'));
+window.electronAPI?.onHilCleared(() => sidebarRailToggle?.classList.remove('is-hil'));
+try {
+  const savedEdge = localStorage.getItem('deck.orb-edge');
+  if (savedEdge === 'left' || savedEdge === 'right') {
+    sidebarRailToggle?.classList.toggle('orb-left', savedEdge === 'left');
+    window.electronAPI?.setSidebarOrbEdge(savedEdge);
+  }
+} catch {
+  /* storage unavailable */
+}
+
 window.addEventListener('keydown', (event) => {
   if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'b') {
     event.preventDefault();

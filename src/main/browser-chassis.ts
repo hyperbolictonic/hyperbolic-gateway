@@ -86,6 +86,8 @@ const PANEL_WIDTH = 420;
 /** Orb chip size and screen margin used when the deck is collapsed. */
 const DECK_ORB_SIZE = 56;
 const DECK_ORB_MARGIN = 12;
+/** Square stage the orb grows into while its radial menu is open. */
+const DECK_MENU_SIZE = 340;
 
 /** Sidebar transition duration, shared by the native bounds animation and the panel's CSS reveal. */
 const SIDEBAR_TRANSITION_MS = 240;
@@ -141,6 +143,10 @@ export class BrowserChassis {
   private lastOpenSidebarMode: 'docked' | 'floating' = 'floating';
   /** Running sidebar bounds animation, so a new target or a snap can cancel it. */
   private sidebarBoundsAnimation: { cancelled: boolean } | null = null;
+  /** Radial orb menu stage (only meaningful while the deck is collapsed). */
+  private sidebarMenuOpen = false;
+  /** Which vertical edge the collapsed orb docks to (survives restarts via the sidebar renderer). */
+  private orbEdge: 'left' | 'right' = 'right';
   /** False while a full-window settings/dialog surface is open. */
   private sidebarOverlayVisible = true;
   private utilQueue: Promise<void> = Promise.resolve();
@@ -249,6 +255,13 @@ export class BrowserChassis {
           return this.getActiveWebContents();
         } catch {
           return null;
+        }
+      },
+      broadcastAll: (channel, payload) => {
+        try {
+          this.broadcast(channel, payload);
+        } catch {
+          // Broadcasts must never break the hand-off flow itself.
         }
       },
       onHilStateChanged: (pending, req) => {
@@ -517,6 +530,8 @@ export class BrowserChassis {
     if (mode === 'docked' || mode === 'floating') this.lastOpenSidebarMode = mode;
     const previous = this.sidebarMode;
     this.sidebarMode = mode;
+    // Any deck state change cancels the radial menu; the orb stays collapsed.
+    this.sidebarMenuOpen = false;
     this.addLog('action', `Sidebar mode: ${mode}`);
     // Animate only real transitions; arriving in the requested mode again snaps.
     this.positionSidebar(mode !== previous);
@@ -555,7 +570,13 @@ export class BrowserChassis {
         width: Math.round(start.width + dw * eased),
         height: Math.round(start.height + dh * eased),
       });
-      if (progress < 1) setTimeout(step, 16);
+      if (progress < 1) {
+        setTimeout(step, 16);
+      } else {
+        // Shrinking a transparent WebContentsView can leave stale pixels from
+        // the previous larger root layer on Windows; force a clean repaint.
+        this.sidebarView?.webContents.invalidate();
+      }
     };
     step();
   }
@@ -582,6 +603,15 @@ export class BrowserChassis {
     this.sendToSurfaces('chassis:sidebar-mode', this.sidebarMode);
   }
 
+  private broadcastOrbEdge(): void {
+    this.sendToSurfaces('chassis:orb-edge', this.orbEdge);
+  }
+
+  /** Broadcast an event to every render surface (shell and deck panel alike). */
+  public broadcast(channel: string, payload?: unknown): void {
+    this.sendToSurfaces(channel, payload);
+  }
+
   private positionSidebar(animate = false): void {
     if (!this.mainWindow || !this.sidebarView) return;
     // A snap (window resize, visibility change) invalidates a running
@@ -605,15 +635,22 @@ export class BrowserChassis {
       // The collapsed deck shrinks to a free-floating orb chip at the
       // bottom-right of the page, clear of the scrollbar track. The view is
       // exactly the chip: a transparent native view would otherwise swallow
-      // clicks meant for the page.
+      // clicks meant for the page. Opening the radial menu grows the same
+      // corner into a larger stage; the anchored corner never moves.
+      const size = this.sidebarMenuOpen ? DECK_MENU_SIZE : DECK_ORB_SIZE;
       const bounds = {
-        x: Math.max(0, usableWidth - DECK_ORB_SIZE - DECK_ORB_MARGIN),
-        y: Math.max(0, winHeight - DECK_ORB_SIZE - DECK_ORB_MARGIN),
-        width: DECK_ORB_SIZE,
-        height: DECK_ORB_SIZE,
+        x: this.orbEdge === 'left'
+          ? DECK_ORB_MARGIN
+          : Math.max(0, usableWidth - size - DECK_ORB_MARGIN),
+        y: Math.max(0, winHeight - size - DECK_ORB_MARGIN),
+        width: size,
+        height: size,
       };
       if (animate) this.animateSidebarBounds(bounds);
-      else this.sidebarView.setBounds(bounds);
+      else {
+        this.sidebarView.setBounds(bounds);
+        this.sidebarView.webContents.invalidate();
+      }
       return;
     }
 
@@ -908,6 +945,58 @@ export class BrowserChassis {
       this.setSidebarMode(mode),
     );
     ipcMain.on('chassis:toggle-sidebar-mode', () => this.toggleSidebarMode());
+
+    // Orb menu and drag choreography (only meaningful while collapsed).
+    ipcMain.on('chassis:set-sidebar-menu-open', (_: any, open: boolean) => {
+      const next = Boolean(open);
+      if (next === this.sidebarMenuOpen) return;
+      this.sidebarMenuOpen = next;
+      if (this.sidebarMode === 'collapsed') this.positionSidebar(true);
+    });
+    ipcMain.on('chassis:set-sidebar-orb-edge', (_: any, edge: 'left' | 'right') => {
+      const next = edge === 'left' ? 'left' : 'right';
+      if (next === this.orbEdge) return;
+      this.orbEdge = next;
+      if (this.sidebarMode === 'collapsed' && !this.sidebarMenuOpen) this.positionSidebar(true);
+      this.broadcastOrbEdge();
+    });
+    // Live drag: forward pointer deltas, clamped inside the content area.
+    ipcMain.on('chassis:orbit-drag', (_: any, delta: { dx: number; dy: number }) => {
+      if (this.sidebarMode !== 'collapsed' || this.sidebarMenuOpen) return;
+      if (!this.mainWindow || !this.sidebarView) return;
+      if (this.sidebarBoundsAnimation) this.sidebarBoundsAnimation.cancelled = true;
+      const [winWidth, winHeight] = this.mainWindow.getContentSize();
+      const current = this.sidebarView.getBounds();
+      const dx = Number(delta?.dx);
+      const dy = Number(delta?.dy);
+      const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(value, max));
+      const x = clamp(
+        Number.isFinite(dx) ? current.x + dx : current.x,
+        DECK_ORB_MARGIN,
+        Math.max(DECK_ORB_MARGIN, winWidth - PAGE_SCROLLBAR_GUTTER - DECK_ORB_SIZE - DECK_ORB_MARGIN),
+      );
+      const y = clamp(
+        Number.isFinite(dy) ? current.y + dy : current.y,
+        100 + DECK_ORB_MARGIN,
+        Math.max(100 + DECK_ORB_MARGIN, winHeight - DECK_ORB_SIZE - DECK_ORB_MARGIN),
+      );
+      this.sidebarView.setBounds({
+        x: Math.round(x),
+        y: Math.round(y),
+        width: DECK_ORB_SIZE,
+        height: DECK_ORB_SIZE,
+      });
+    });
+    // Drop: dock to the nearest vertical edge with the standard margin.
+    ipcMain.on('chassis:orbit-drag-end', () => {
+      if (this.sidebarMode !== 'collapsed' || this.sidebarMenuOpen) return;
+      if (!this.mainWindow || !this.sidebarView) return;
+      const [winWidth] = this.mainWindow.getContentSize();
+      const current = this.sidebarView.getBounds();
+      this.orbEdge = current.x + current.width / 2 < winWidth / 2 ? 'left' : 'right';
+      this.positionSidebar(true);
+      this.broadcastOrbEdge();
+    });
 
     // Cortex & Bookmarks IPC Handlers
     ipcMain.handle('cortex:recall', async (_, query: string, options?: any) => {

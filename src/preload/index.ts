@@ -31,6 +31,11 @@ export interface ElectronAPI {
   setSidebarMode: (mode: 'docked' | 'floating' | 'collapsed') => void;
   toggleSidebarMode: () => void;
   onSidebarMode: (callback: (mode: 'docked' | 'floating' | 'collapsed') => void) => () => void;
+  setSidebarMenuOpen: (open: boolean) => void;
+  setSidebarOrbEdge: (edge: 'left' | 'right') => void;
+  orbitDragMove: (dx: number, dy: number) => void;
+  orbitDragEnd: () => void;
+  onOrbEdge: (callback: (edge: 'left' | 'right') => void) => () => void;
   getTabs: () => Promise<TabSummary[]>;
   createTab: (url?: string) => Promise<TabSummary>;
   switchTab: (tabId: string) => Promise<void>;
@@ -236,6 +241,15 @@ const api: ElectronAPI = {
     const handler = (_: any, mode: 'docked' | 'floating' | 'collapsed') => callback(mode);
     ipcRenderer.on('chassis:sidebar-mode', handler);
     return () => ipcRenderer.removeListener('chassis:sidebar-mode', handler);
+  },
+  setSidebarMenuOpen: (open: boolean) => ipcRenderer.send('chassis:set-sidebar-menu-open', Boolean(open)),
+  setSidebarOrbEdge: (edge: 'left' | 'right') => ipcRenderer.send('chassis:set-sidebar-orb-edge', edge),
+  orbitDragMove: (dx, dy) => ipcRenderer.send('chassis:orbit-drag', { dx, dy }),
+  orbitDragEnd: () => ipcRenderer.send('chassis:orbit-drag-end'),
+  onOrbEdge: (callback) => {
+    const handler = (_: any, edge: 'left' | 'right') => callback(edge);
+    ipcRenderer.on('chassis:orb-edge', handler);
+    return () => ipcRenderer.removeListener('chassis:orb-edge', handler);
   },
 
   getTabs: () => ipcRenderer.invoke('chassis:get-tabs'),

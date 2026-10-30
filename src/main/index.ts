@@ -487,9 +487,7 @@ ipcMain.handle('remote:rotate-oauth-client', async () => {
 });
 
 onRecordingStatus((state) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('recording:status', state);
-  }
+  chassis.broadcast('recording:status', state);
 });
 
 async function createWindow() {

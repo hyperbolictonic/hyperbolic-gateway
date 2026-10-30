@@ -34,15 +34,18 @@ export class HilManager {
   private requestHistory: HilRequest[] = [];
   private onHilStateChanged?: (pending: boolean, req: HilRequest | null) => void;
   private getActiveWebContents?: () => Electron.WebContents | null;
+  private broadcastAll?: (channel: string, payload?: unknown) => void;
 
   constructor(options?: {
     mainWindow?: BrowserWindow;
     getActiveWebContents?: () => Electron.WebContents | null;
     onHilStateChanged?: (pending: boolean, req: HilRequest | null) => void;
+    broadcastAll?: (channel: string, payload?: unknown) => void;
   }) {
     if (options?.mainWindow) this.mainWindow = options.mainWindow;
     this.getActiveWebContents = options?.getActiveWebContents;
     this.onHilStateChanged = options?.onHilStateChanged;
+    this.broadcastAll = options?.broadcastAll;
 
     this.registerIpcHandlers();
   }
@@ -185,6 +188,7 @@ export class HilManager {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('hil:requested', request);
     }
+    this.broadcastAll?.('hil:requested', request);
 
     // 5. Return promise awaiting user resolution or timeout
     return new Promise<HilResolution>((resolve) => {
@@ -310,6 +314,7 @@ export class HilManager {
       this.mainWindow.flashFrame(false);
       this.mainWindow.webContents.send('hil:cleared');
     }
+    this.broadcastAll?.('hil:cleared');
 
     if (wc && !wc.isDestroyed()) {
       this.removeInPageBanner(wc);
