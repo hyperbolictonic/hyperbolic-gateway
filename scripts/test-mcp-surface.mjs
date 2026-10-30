@@ -109,7 +109,7 @@ try {
     describes('act').includes('mark_id') && describes('act').includes('CSS selector') && /coordinates/.test(describes('act')),
     `act: "${describes('act').slice(0, 80)}..."`,
   );
-  check('un-tiered tools stay unprefixed', !describes('navigate_to').startsWith('[TIER'));
+  check('un-tiered tools stay unprefixed', !describes('scroll_page').startsWith('[TIER'));
 
   const { resources } = await client.listResources();
   check('mark-eleven://tools/recommended is registered', resources.some((r) => r.uri === 'mark-eleven://tools/recommended'));

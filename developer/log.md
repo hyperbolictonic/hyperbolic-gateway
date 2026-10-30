@@ -1,5 +1,11 @@
 # Developer Knowledge Update Log
 
+## 2026-10-30
+
+* **Creation**: Added the Settings -> Tools tool manager: enable/disable, tiered drag order, per-tool instruction overrides, per-tool and global reset.
+* **Update**: Added the curated `tools/list` order (`navigate_to` -> `observe` -> `act` -> `wait_for` -> `find` -> `extract`) and made `navigate_to` Tier 1.
+* **Creation**: Documented the proposed 15-tool consolidated surface and nested action-accordion settings shape in `docs/TOOL_SURFACE_CONSOLIDATION.md`.
+
 ## 2026-10-28
 
 * **Creation**: Added the Phase 1 remote MCP gateway and its Streamable HTTP host package.

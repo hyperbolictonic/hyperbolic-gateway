@@ -9,8 +9,9 @@ status: stable
 # Browser MCP API
 
 `hb-browser` is the MCP server that drives the visible Chromium session. It
-exposes 63 advertised tools and a small set of MCP resources. It is configured
-and started by the agent client; the app must already be running.
+exposes 68 advertised tools plus two optional decision tools and a small set of
+MCP resources. It is configured and started by the agent client; the app must
+already be running.
 
 - Binary: `bin/mcp-server.cjs`
 - Transport: stdio JSON-RPC
@@ -36,7 +37,8 @@ Every call is a standard MCP tool call:
 
 Tool schemas are authoritative in `tools/list`; the source of truth is
 `src/mcp/tools-catalog.ts`. Deprecated names remain callable but are hidden
-from `tools/list`.
+from `tools/list`. `drive` and `decide` are absent unless a decision model is
+configured; when present they lead the surface and are Tier 1.
 
 ## Tool manager
 
@@ -46,6 +48,10 @@ Settings → **Tools** controls the advertised surface:
 - drag tools to reorder them within their tier;
 - replace verbose catalog instructions with a shorter per-tool override;
 - reset one tool or every tool to the catalog defaults.
+
+The default order follows the operational sequence: `navigate_to` → `observe` →
+`act` → `wait_for` → `find` → `extract`. A saved order overrides it; catalog
+declaration order is only a fallback for tools not yet in the curated list.
 
 The settings are stored in `<userData>/tool-settings.json`. They apply to the
 next MCP session; restart the client or its MCP server after saving. Disabled
@@ -152,6 +158,13 @@ and `secret` for typed values.
 | `run_script` | Run a saved script. |
 | `delete_script` | Delete a saved script. |
 
+### Shadow DOM and frames
+
+| Tool | Purpose |
+| --- | --- |
+| `frames` | List iframes, their controls and optional per-frame screenshots. |
+| `focus_walk` | Enter a closed shadow root with trusted Tab/Shift+Tab steps. |
+
 ### Window, tray, and human intervention
 
 | Tool | Purpose |
@@ -160,7 +173,9 @@ and `secret` for typed values.
 | `configure_system_tray` | Configure close-to-tray behaviour. |
 | `request_human_intervention` | Pause for login, CAPTCHA, 2FA, payment, or another human step. |
 | `resolve_human_intervention` | Mark a human request resolved. |
-| `get_human_intervention_status` | Read the active request. |
+| `get_human_intervention_status` | Read the active HIL request. |
+| `get_human_activity` | Read the passive human-takeover window that blocks synthetic input. |
+| `resume_agent` | Clear that passive takeover window after confirmation. |
 | `send_notification` | Native OS notification. |
 
 ### Primitives and abstraction
@@ -210,6 +225,7 @@ disabled, `tools/list` omits them and the bridge refuses direct calls.
 | Tool | Purpose |
 | --- | --- |
 | `help` | Tool guidance and recommended workflows. |
+| `recipe` | Save, list, replay or delete a zero-model navigation path. |
 | `decide` | Optional typed decision, only when a decision backend is configured. |
 | `drive` | Optional observe-decide-act loop, only when configured. |
 

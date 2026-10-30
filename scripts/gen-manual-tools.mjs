@@ -23,24 +23,20 @@ const WELCOME_PATH = path.join(ROOT, 'public', 'welcome.html');
 const BEGIN = '        <!-- BEGIN GENERATED: complete tool list — regenerate with `npm run manual:tools` -->';
 const END = '        <!-- END GENERATED: complete tool list -->';
 
-// Authoritative hidden-alias count: 83 registered entries - 63 advertised catalog entries.
-// (The README's dagger rows only mark 21 of the 23; two renamed aliases have no row.)
-const DEPRECATED_ALIASES = 23;
-
 // ---- parse README.md's tool table (only that table) ------------------------
 const readme = fs.readFileSync(README_PATH, 'utf8').split('\n');
 const rows = [];
 let category = '';
 let inTable = false;
 for (const line of readme) {
-  if (line.startsWith('| Category | Tool |')) {
+  if (line.trim().startsWith('| Category') && line.includes('| Tool')) {
     inTable = true;
     continue;
   }
   if (!inTable) continue;
   if (!line.startsWith('|')) break; // table ended
   const cells = line.replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((c) => c.trim());
-  if (cells.length < 4 || cells[0] === ':---') continue;
+  if (cells.length < 4 || /^:?-+:?$/.test(cells[0])) continue;
   const [cat, tool, params, desc] = cells;
   if (cat) category = cat.replace(/\*\*/g, '');
   if (!tool) continue;
@@ -50,6 +46,7 @@ for (const line of readme) {
 
 const advertised = rows.filter((r) => !r.deprecated && !r.optional);
 const optionalRows = rows.filter((r) => r.optional);
+const DEPRECATED_ALIASES = rows.filter((r) => r.deprecated).length;
 // Optional tools are listed first, matching tools/list order when a decision model is active.
 const listed = [...optionalRows, ...advertised];
 
@@ -141,10 +138,12 @@ if (b >= 0 && e > b) {
   action = 'upgraded legacy block';
 } else {
   const marker = '        </table>';
-  let i = html.indexOf(marker);
-  if (i < 0) throw new Error('could not find the curated tool table (</table>) in public/welcome.html');
-  i = skipEol(html, i + marker.length);
-  next = html.slice(0, i) + block + html.slice(i);
+  const i = html.indexOf(marker);
+  if (i < 0) {
+    console.log('public/welcome.html has no generated tool table; nothing to update.');
+    process.exit(0);
+  }
+  next = html.slice(0, skipEol(html, i + marker.length)) + block + html.slice(skipEol(html, i + marker.length));
   action = 'inserted new block';
 }
 
