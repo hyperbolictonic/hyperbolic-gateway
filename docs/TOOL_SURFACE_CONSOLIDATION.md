@@ -26,10 +26,10 @@ compatibility aliases rather than part of the advertised surface.
 
 | Tool | Absorbs | Action shape |
 | --- | --- | --- |
-| `navigate` | `navigate_to`, `navigate_history`, `dismiss_consent` | `open`, `back`, `forward`, `reload`, `consent` |
+| `navigate` | `navigate_to`, `navigate_history`, `dismiss_consent`, `recipe` | `open`, `back`, `forward`, `reload`, `consent`, `scroll`, `recipe` |
 | `observe` | `observe` | `markdown`, `text`, `ax`, `som`, `components` |
 | `find` | `find` | semantic target search |
-| `act` | `act`, `fill_form`, `press_key`, `scroll_page` | `click`, `focus`, `hover`, `type`, `press`, `scroll`, `fill` |
+| `act` | `act`, `fill_form`, `press_key`, `scroll_page` | `click`, `focus`, `hover`, `type`, `press`, `scroll`, `fill` (multi-field via `fields`) |
 | `wait_for` | `wait_for` | readiness gate |
 | `extract` | `extract`, `collect_all` | structured reads, optional `scroll_to_end` |
 | `capture` | `take_screenshot`, `snapshot_rendered_page` | `plain`, `marks`, `rendered` |
@@ -43,7 +43,7 @@ compatibility aliases rather than part of the advertised surface.
 | `help` | `help` | docs lookup |
 | `drive` *(optional)* | `drive` | Tier 1 when a decision model is configured |
 | `decide` *(optional)* | `decide` | Tier 1 when a decision model is configured |
-| `recipe` *(hidden compatibility)* | `recipe` | Callable by name; not advertised until the action UI lands |
+| `recipe` *(hidden compatibility)* | `recipe` | Exposed as `navigate({action:"recipe", recipe_action:"list"|"save"|"replay"|"delete"})`; old name remains callable |
 
 `devtools` is deliberately read-only. `evaluate` stays separate because it can
 mutate the page and must remain a deliberate Tier 3 action. `export_har`,
@@ -102,4 +102,4 @@ switch remains the unit of enablement.
 2. Hidden-alias migration and compatibility tests. **Done**
 3. Tools panel action accordion and preset selector. **Done**
 4. Per-action instruction overrides and migration. **Done**
-5. Docs and release notes. **Pending**
+5. Docs and release notes. **Done for 1.7.0**

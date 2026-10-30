@@ -38260,7 +38260,7 @@ ${rows.join("\n")}`;
   },
   {
     name: "act",
-    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, x/y viewport coordinates, or target_text for controls with no semantics (React cards: a div with a handler three levels up, no role/href/onclick). Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit \u2014 so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths \u2014 never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP \u2192 request_human_intervention). NOT for navigation (use navigate_to) or scrolling (use scroll_page). HUMAN_IN_PROGRESS means a person just used the browser: synthetic input is paused for a short quiet window. Do not retry in a loop \u2014 poll /human/status, wait for idle, then re-observe. Choosing the target is a separate job: when a decision model is configured AND two or more controls plausibly match, prefer observe(as:"components") -> decide -> act(mark_id); when exactly one control matches, find/act is faster and deterministic.',
+    description: 'Click, focus, hover, type into, or press on one page target. Address the target by: mark_id (preferred - a Set-of-Marks badge, resilient to layout shifts), a CSS selector, x/y viewport coordinates, or target_text for controls with no semantics (React cards: a div with a handler three levels up, no role/href/onclick). Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit \u2014 so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths \u2014 never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP \u2192 request_human_intervention). Use action="fill" with a fields map to fill several controls in one call. NOT for navigation (use navigate_to) or scrolling (use scroll_page). HUMAN_IN_PROGRESS means a person just used the browser: synthetic input is paused for a short quiet window. Do not retry in a loop \u2014 poll /human/status, wait for idle, then re-observe. Choosing the target is a separate job: when a decision model is configured AND two or more controls plausibly match, prefer observe(as:"components") -> decide -> act(mark_id); when exactly one control matches, find/act is faster and deterministic.',
     parameters: {
       mark_id: external_exports.coerce.number().optional().describe("Target Set-of-Marks badge id from observe/find/take_screenshot (preferred)"),
       selector: external_exports.coerce.string().optional().describe('CSS selector of the target, when you have no mark id (e.g. "button.submit", "#search-input")'),
@@ -38268,16 +38268,20 @@ ${rows.join("\n")}`;
       y: external_exports.coerce.number().optional().describe("Viewport Y for coordinate targeting (pair with x)"),
       target_text: external_exports.string().optional().describe("Anchor by visible text when the control has no semantics (React card divs, handler-only elements). Resolves the deepest visible element containing the text; refuses when more than one match is ambiguous"),
       sealed_token: external_exports.string().optional().describe("Opaque token from find(sealed:true); scrolls/re-measures the sealed control before acting"),
-      action: external_exports.enum(["click", "focus", "hover", "type", "press"]).default("click").describe('Action to perform (default: "click")'),
+      action: external_exports.enum(["click", "focus", "hover", "type", "press", "fill"]).default("click").describe('Action to perform (default: "click")'),
       text: external_exports.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
+      fields: external_exports.record(external_exports.string(), external_exports.union([external_exports.string(), external_exports.boolean(), external_exports.number()])).optional().describe('For action="fill": map of CSS selectors to values'),
+      submit_selector: external_exports.string().optional().describe('For action="fill": optional submit button selector'),
       secret: external_exports.coerce.boolean().optional().default(false).describe("Redact typed text from logs"),
-      clear_first: external_exports.coerce.boolean().optional().default(false).describe('For action="type": clear the field first (select-all + delete) so an existing value is REPLACED, not appended to \u2014 use it on pre-filled inputs and comboboxes'),
+      clear_first: external_exports.coerce.boolean().optional().default(false).describe('For action="type": clear the field first (select-all + delete) so an existing value is REPLACED, not appended to - use it on pre-filled inputs and comboboxes'),
       await_conditions: external_exports.array(external_exports.record(external_exports.string(), external_exports.any())).optional().describe("wait_for conditions evaluated right after the action"),
       timeout_ms: external_exports.coerce.number().optional().default(15e3).describe("Timeout for await_conditions"),
       dry_run: external_exports.coerce.boolean().optional().default(false).describe("Resolve the target but do not act")
     },
     endpoint: "/act",
-    payload: (args) => ({
+    endpointFor: (args) => args?.action === "fill" ? "/form/fill" : "/act",
+    endpoints: ["/act", "/form/fill"],
+    payload: (args) => args?.action === "fill" ? { fields: args?.fields, submitSelector: args?.submit_selector } : {
       mark_id: args?.mark_id,
       selector: args?.selector,
       target_text: args?.target_text,
@@ -38291,8 +38295,9 @@ ${rows.join("\n")}`;
       await: args?.await_conditions,
       timeout_ms: args?.timeout_ms,
       dry_run: args?.dry_run === true
-    }),
+    },
     format: (data, args) => {
+      if (args?.action === "fill") return JSON.stringify(data.result ?? data, null, 2);
       const t = data.target || {};
       const where = t.id !== void 0 ? `[#${t.id}] <${t.tag}> "${t.text}"` : t.selector ? `${t.tag ? `<${t.tag}> ` : ""}${t.selector}${t.text ? ` "${t.text}"` : ""}` : t.center ? `(${t.center.x}, ${t.center.y})` : "(nothing)";
       if (data.dryRun) return `DRY RUN \u2014 would ${data.action} ${where}${data.wouldType ? ` typing "${data.wouldType}"` : ""}`;
@@ -38515,7 +38520,21 @@ var TOOL_GROUPS = [
       { action: "forward", tool: "navigate_history", description: "Go forward.", map: () => ({ direction: "forward" }) },
       { action: "reload", tool: "navigate_history", description: "Reload.", map: () => ({ direction: "reload" }) },
       { action: "consent", tool: "dismiss_consent", description: "Dismiss a cookie/GDPR wall.", map: () => ({}) },
-      { action: "scroll", tool: "scroll_page", description: "Scroll the viewport." }
+      { action: "scroll", tool: "scroll_page", description: "Scroll the viewport." },
+      {
+        action: "recipe",
+        tool: "recipe",
+        description: "Save/list/replay/delete a zero-model navigation path.",
+        map: (args) => ({
+          action: args.recipe_action || "list",
+          id: args.id,
+          url: args.url,
+          name: args.name,
+          path: args.path,
+          steps: args.steps,
+          expect_timeout_ms: args.expect_timeout_ms
+        })
+      }
     ]
   },
   {
@@ -38635,7 +38654,7 @@ var CONSOLIDATED_HIDDEN_TOOLS = /* @__PURE__ */ new Set([
 ]);
 
 // src/shared/version.ts
-var APP_VERSION = "1.6.2";
+var APP_VERSION = "1.7.0";
 
 // src/main/decide/decision-client.ts
 var import_node_fs2 = __toESM(require("node:fs"), 1);

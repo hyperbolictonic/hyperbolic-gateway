@@ -16,6 +16,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [1.7.0] - 2026-10-30
+
+The **consolidated tool surface** release. The browser MCP now advertises 15
+grouped tools instead of the flat catalog, cutting the `tools/list` payload from
+roughly 62 KB to 24 KB.
+
+### Added
+
+- **Consolidated tools:** `navigate`, `capture`, `devtools`, `human_in_loop`,
+  `browser_workspace`, `shadow_iframes`, `research` and `memory`.
+- **Settings → Tools** now supports Core / Research / Automation / Full presets.
+- **Per-action instruction overrides** for grouped tools, alongside per-tool
+  instructions.
+- `act({ action: "fill", fields })` for multi-field form filling.
+- `navigate({ action: "recipe", recipe_action: ... })` for recipe save, list,
+  replay and delete.
+
+### Changed
+
+- `extract` absorbs `collect_all` through `kind: "collect"`.
+- `capture` absorbs viewport screenshots and rendered snapshots.
+- `navigate` absorbs history, consent and scroll actions.
+- `devtools` is the read-only deep-browser console: page state, diff, console,
+  network, streams, HAR, JSON payloads, fingerprint and bridge health.
+- The default advertised order is `navigate` → `observe` → `act` → `wait_for` →
+  `find` → `extract`; `drive` and `decide` lead when a decision model is active.
+
+### Compatibility
+
+- Old flat tool names remain callable through `tools/call` but are hidden from
+  `tools/list`.
+- `fill_form` and `recipe` remain callable compatibility aliases; the grouped
+  forms are the advertised path.
+- App identity, `appId`, bundle identity, userData path, wrapper storage and
+  update feed are unchanged.
+
 ## [1.6.2] - 2026-10-28
 
 The **experimental remote access** release. It exposes the browser MCP surface

@@ -18,10 +18,10 @@ The advertised surface is grouped; old flat names remain callable by name but ar
 
 | Tool | Actions / scope |
 | --- | --- |
-| `navigate` | `open`, `back`, `forward`, `reload`, `consent`, `scroll` |
+| `navigate` | `open`, `back`, `forward`, `reload`, `consent`, `scroll`, `recipe` |
 | `observe` | markdown, text, AX, Set-of-Marks, components |
 | `find` | semantic target search |
-| `act` | click/focus/hover/type/press/scroll |
+| `act` | click/focus/hover/type/press/scroll/fill |
 | `wait_for` | readiness gate |
 | `extract` | structured reads and lazy-list `collect` |
 | `capture` | screenshot or rendered snapshot |

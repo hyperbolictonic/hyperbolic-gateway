@@ -1691,7 +1691,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       'Selectors resolve through open shadow roots and, for a custom-element host, to the control a mouse would actually hit — so `#email` or `my-text-input` reaches the real <input>, not the host wrapper. ' +
       'Returns a before/after delta; pass await_conditions to do "act then wait" in one round trip, and dry_run=true to resolve the target without acting. secret=true redacts typed text from logs. For action="type", pass clear_first=true on a pre-filled field so the value is REPLACED (select-all + delete) rather than appended to. action="press" needs no target. ' +
       'Typing is VERIFIED: the control\'s value is read before and after, and if nothing changed the result is ok:false with error.code "TYPE_NO_EFFECT", a `typing` evidence object (key counts, value lengths — never the text) and a hint that distinguishes "input never arrived" (focus/window) from "the control rejects synthetic input" (one-time-code/OTP → request_human_intervention). ' +
-      'NOT for navigation (use navigate_to) or scrolling (use scroll_page). ' +
+      'Use action="fill" with a fields map to fill several controls in one call. NOT for navigation (use navigate_to) or scrolling (use scroll_page). ' +
       'HUMAN_IN_PROGRESS means a person just used the browser: synthetic input is paused for a short quiet window. Do not retry in a loop — poll /human/status, wait for idle, then re-observe. ' +
       'Choosing the target is a separate job: when a decision model is configured AND two or more controls plausibly match, prefer observe(as:"components") -> decide -> act(mark_id); when exactly one control matches, find/act is faster and deterministic.',
     parameters: {
@@ -1701,31 +1701,38 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       y: z.coerce.number().optional().describe('Viewport Y for coordinate targeting (pair with x)'),
       target_text: z.string().optional().describe('Anchor by visible text when the control has no semantics (React card divs, handler-only elements). Resolves the deepest visible element containing the text; refuses when more than one match is ambiguous'),
       sealed_token: z.string().optional().describe('Opaque token from find(sealed:true); scrolls/re-measures the sealed control before acting'),
-      action: z.enum(['click', 'focus', 'hover', 'type', 'press']).default('click').describe('Action to perform (default: "click")'),
+      action: z.enum(['click', 'focus', 'hover', 'type', 'press', 'fill']).default('click').describe('Action to perform (default: "click")'),
       text: z.string().optional().describe('Text for action="type"; key name for action="press" (e.g. "Enter")'),
+      fields: z.record(z.string(), z.union([z.string(), z.boolean(), z.number()])).optional().describe('For action="fill": map of CSS selectors to values'),
+      submit_selector: z.string().optional().describe('For action="fill": optional submit button selector'),
       secret: z.coerce.boolean().optional().default(false).describe('Redact typed text from logs'),
-      clear_first: z.coerce.boolean().optional().default(false).describe('For action="type": clear the field first (select-all + delete) so an existing value is REPLACED, not appended to — use it on pre-filled inputs and comboboxes'),
+      clear_first: z.coerce.boolean().optional().default(false).describe('For action="type": clear the field first (select-all + delete) so an existing value is REPLACED, not appended to - use it on pre-filled inputs and comboboxes'),
       await_conditions: z.array(z.record(z.string(), z.any())).optional().describe('wait_for conditions evaluated right after the action'),
       timeout_ms: z.coerce.number().optional().default(15000).describe('Timeout for await_conditions'),
       dry_run: z.coerce.boolean().optional().default(false).describe('Resolve the target but do not act'),
     },
     endpoint: '/act',
-    payload: (args) => ({
-      mark_id: args?.mark_id,
-      selector: args?.selector,
-      target_text: args?.target_text,
-      sealed_token: args?.sealed_token,
-      x: args?.x,
-      y: args?.y,
-      action: args?.action || 'click',
-      text: args?.text !== undefined ? String(args.text) : undefined,
-      secret: args?.secret === true,
-      clear_first: args?.clear_first === true,
-      await: args?.await_conditions,
-      timeout_ms: args?.timeout_ms,
-      dry_run: args?.dry_run === true,
-    }),
+    endpointFor: (args) => (args?.action === 'fill' ? '/form/fill' : '/act'),
+    endpoints: ['/act', '/form/fill'],
+    payload: (args) => args?.action === 'fill'
+      ? { fields: args?.fields, submitSelector: args?.submit_selector }
+      : {
+          mark_id: args?.mark_id,
+          selector: args?.selector,
+          target_text: args?.target_text,
+          sealed_token: args?.sealed_token,
+          x: args?.x,
+          y: args?.y,
+          action: args?.action || 'click',
+          text: args?.text !== undefined ? String(args.text) : undefined,
+          secret: args?.secret === true,
+          clear_first: args?.clear_first === true,
+          await: args?.await_conditions,
+          timeout_ms: args?.timeout_ms,
+          dry_run: args?.dry_run === true,
+        },
     format: (data, args) => {
+      if (args?.action === 'fill') return JSON.stringify(data.result ?? data, null, 2);
       const t = data.target || {};
       const where =
         t.id !== undefined

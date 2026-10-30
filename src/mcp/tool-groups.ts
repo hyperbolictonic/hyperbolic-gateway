@@ -36,6 +36,20 @@ export const TOOL_GROUPS: ToolGroupDefinition[] = [
       { action: 'reload', tool: 'navigate_history', description: 'Reload.', map: () => ({ direction: 'reload' }) },
       { action: 'consent', tool: 'dismiss_consent', description: 'Dismiss a cookie/GDPR wall.', map: () => ({}) },
       { action: 'scroll', tool: 'scroll_page', description: 'Scroll the viewport.' },
+      {
+        action: 'recipe',
+        tool: 'recipe',
+        description: 'Save/list/replay/delete a zero-model navigation path.',
+        map: (args) => ({
+          action: args.recipe_action || 'list',
+          id: args.id,
+          url: args.url,
+          name: args.name,
+          path: args.path,
+          steps: args.steps,
+          expect_timeout_ms: args.expect_timeout_ms,
+        }),
+      },
     ],
   },
   {

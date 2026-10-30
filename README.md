@@ -437,10 +437,10 @@ Hyperbolic Gateway features an embedded, serverless vector database (**LanceDB**
 
 | Tool | Actions / scope |
 | --- | --- |
-| `navigate` | `open`, `back`, `forward`, `reload`, `consent`, `scroll` |
+| `navigate` | `open`, `back`, `forward`, `reload`, `consent`, `scroll`, `recipe` |
 | `observe` | markdown, text, AX, Set-of-Marks and components projections |
 | `find` | Semantic target search returning mark refs |
-| `act` | click, focus, hover, type, press, scroll and fill via one target address |
+| `act` | click, focus, hover, type, press, scroll and multi-field fill |
 | `wait_for` | Declarative readiness gate |
 | `extract` | list, table(s), app data, schema.org and lazy-list `collect` |
 | `capture` | viewport/Set-of-Marks screenshot or rendered snapshot |
