@@ -56,7 +56,10 @@ function closePanel(): void {
 
 function updateCount(): void {
   const count = byId<HTMLElement>('collab-count');
-  if (count) count.textContent = String(threads.filter((thread) => thread.status !== 'resolved').length);
+  if (!count) return;
+  const open = threads.filter((thread) => thread.status !== 'resolved').length;
+  count.textContent = String(open);
+  count.classList.toggle('hidden', open === 0);
 }
 
 function renderList(): void {

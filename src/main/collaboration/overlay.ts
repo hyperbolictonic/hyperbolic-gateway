@@ -817,6 +817,7 @@ export function collaborationOverlayScript(
     };
     const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
     const usableWidth = Math.max(0, innerWidth - RIGHT_INSET);
+    const placedCards = [];
     for (const thread of threads) {
       const rect = rectFor(thread.target);
       if (!rect || rect.width <= 0 || rect.height <= 0) continue;
@@ -859,10 +860,26 @@ export function collaborationOverlayScript(
         top = rect.bottom + margin;
         pointingUp = true;
       }
-      top = clamp(top, margin, Math.max(margin, innerHeight - height - margin));
       const left = clamp(rect.left, margin, Math.max(margin, usableWidth - width - margin));
+      // Stack cards that would cover each other instead of overlapping.
+      let docTop = top + offsetY;
+      const overlaps = () =>
+        placedCards.some(
+          (other) =>
+            left + offsetX < other.left + other.width + 8 &&
+            left + offsetX + width + 8 > other.left &&
+            docTop < other.top + other.height + 8 &&
+            docTop + height + 8 > other.top,
+        );
+      let guard = 0;
+      while (overlaps() && guard < 12) {
+        docTop += height + 10;
+        guard += 1;
+      }
+      docTop = clamp(docTop, margin, Math.max(margin, document.documentElement.scrollHeight - height - margin));
+      placedCards.push({ left: left + offsetX, top: docTop, width, height });
       card.style.left = Math.round(left + offsetX) + 'px';
-      card.style.top = Math.round(top + offsetY) + 'px';
+      card.style.top = Math.round(docTop) + 'px';
       if (pointingUp) {
         arrow.style.top = '-6px';
         arrow.style.left = clamp(rect.left + rect.width / 2 - left - 5, 12, Math.max(12, width - 22)) + 'px';

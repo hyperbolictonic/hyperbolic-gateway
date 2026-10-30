@@ -43,9 +43,9 @@ const aboutVersion = document.getElementById('about-version');
 
 function renderAppVersion(version: string | undefined) {
   if (!version) return;
-  if (chassisVersionBadge) chassisVersionBadge.textContent = `CHASSIS v${version}`;
+  if (chassisVersionBadge) chassisVersionBadge.textContent = `v${version}`;
   if (aboutVersion) aboutVersion.textContent = `v${version}`;
-  document.title = `Hyperbolic Gateway v${version} // Cyberdeck`;
+  document.title = `Hyperbolic Gateway v${version}`;
 }
 
 void window.electronAPI
