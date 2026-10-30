@@ -10,7 +10,9 @@ export type ToolArgs = Record<string, any>;
 
 export interface ToolGroupAction {
   action: string;
-  tool: string;
+  tool?: string;
+  endpoint?: string;
+  method?: 'GET' | 'POST';
   description: string;
   map?: (args: ToolArgs) => ToolArgs;
 }
@@ -92,6 +94,25 @@ export const TOOL_GROUPS: ToolGroupDefinition[] = [
       { action: 'show', tool: 'set_window_visibility', description: 'Show/focus the app.', map: (args) => ({ visible: true, focus: args.focus ?? true }) },
       { action: 'hide', tool: 'set_window_visibility', description: 'Hide to tray.', map: () => ({ visible: false, focus: false }) },
       { action: 'tray', tool: 'configure_system_tray', description: 'Configure close-to-tray.' },
+    ],
+  },
+  {
+    name: 'collaborate',
+    description: 'Talk to a human about page objects: highlight an element, ask a question with choices, read replies, or resolve the thread.',
+    tier: null,
+    actions: [
+      { action: 'highlight', endpoint: '/collaboration/highlight', description: 'Highlight a target with a note.' },
+      { action: 'ask', endpoint: '/collaboration/ask', description: 'Ask a question on a target, with optional choices.' },
+      { action: 'read', endpoint: '/collaboration/threads', method: 'GET', description: 'Read one thread by id.', map: (args) => ({ queryParams: args.id ? { id: args.id } : {} }) },
+      { action: 'list', endpoint: '/collaboration/threads', method: 'GET', description: 'List threads for the current page.', map: (args) => {
+        const queryParams: Record<string, string> = {};
+        if (args.url) queryParams.url = args.url;
+        if (args.status) queryParams.status = args.status;
+        if (args.limit !== undefined) queryParams.limit = String(args.limit);
+        return { queryParams };
+      } },
+      { action: 'reply', endpoint: '/collaboration/reply', description: 'Add an agent reply.' },
+      { action: 'resolve', endpoint: '/collaboration/resolve', description: 'Resolve a thread.' },
     ],
   },
   {

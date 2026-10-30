@@ -7,7 +7,7 @@
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-1.7.0-22d3ee" />
-  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-15%20%2B2%20optional-a3e635" />
+  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-16%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-64748b" />
@@ -21,7 +21,7 @@
 - **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
 - **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
-- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (15 advertised +2 optional)](#sec-standardized-semantic-mcp-tools-63-advertised) · [Agent skills](#sec-agent-skills) · [REST wrappers](#sec-rest-wrappers-hb-rest)
+- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (16 advertised +2 optional)](#sec-standardized-semantic-mcp-tools-63-advertised) · [Agent skills](#sec-agent-skills) · [REST wrappers](#sec-rest-wrappers-hb-rest)
 - **Building on it** — [Architecture lowdown](./docs/CODEBASE.md) · [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
 - **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Control layer: targeting, consent, human takeover](./docs/CONTROL_LAYER.md) · [Shadow DOM & iframes: what Hyperbolic Gateway can see and click](./docs/SHADOW_DOM_AND_FRAMES.md) · [Shadow Walk: sealed-content plan](./docs/SHADOW_WALK.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 - **Release notes** — [What shipped](#sec-release-notes) · [All releases](./CHANGELOG.md)
@@ -440,9 +440,9 @@ Hyperbolic Gateway features an embedded, serverless vector database (**LanceDB**
 
 <a id="sec-standardized-semantic-mcp-tools-63-advertised" name="sec-standardized-semantic-mcp-tools-63-advertised"></a>
 
-## 🔌 Consolidated Semantic MCP Tools (15 advertised · +2 optional)
+## 🔌 Consolidated Semantic MCP Tools (16 advertised · +2 optional)
 
-> **Advertised surface:** 15 grouped tools, plus `drive` and `decide` when a decision model is configured. The old flat names remain callable by name but are hidden from `tools/list`; they are listed below as the underlying catalog.
+> **Advertised surface:** 16 grouped tools, plus `drive` and `decide` when a decision model is configured. The old flat names remain callable by name but are hidden from `tools/list`; they are listed below as the underlying catalog.
 >
 > **Tool manager:** Settings → Tools controls enablement, order, per-tool instructions, per-action instructions for grouped tools, and Core/Research/Automation/Full presets. The default order starts with `navigate` → `observe` → `act` → `wait_for` → `find` → `extract`.
 
@@ -460,6 +460,7 @@ Hyperbolic Gateway features an embedded, serverless vector database (**LanceDB**
 | `evaluate_javascript` | Deliberate page JS execution |
 | `devtools` | state, diff, console, network, streams, HAR, JSON query, fingerprint, health |
 | `human_in_loop` | request/status/resolve HIL, activity/resume, notify, window and tray |
+| `collaborate` | highlight, ask, read, reply and resolve human page threads |
 | `browser_workspace` | tabs, downloads, contexts, recordings and scripts |
 | `shadow_iframes` | `frames`, `focus_walk` |
 | `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |
@@ -582,7 +583,7 @@ process, its own config entry and its own bridge token.
 | :---------- | :------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
 | Binary      | `bin/mcp-server.cjs`                         | `bin/wrap-server.cjs`                                                                                                           |
 | Server name | `hb-browser` (legacy: `kuang`)               | `hb-rest` (legacy: `kuang-wrap`)                                                                                                |
-| Surface     | 15 advertised browser tools (+2 optional decision tools) | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` (configurable via `HB_WRAP_MAX_TOOLS` or legacy `KUANG_WRAP_MAX_TOOLS`) |
+| Surface     | 16 advertised browser tools (+2 optional decision tools) | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` (configurable via `HB_WRAP_MAX_TOOLS` or legacy `KUANG_WRAP_MAX_TOOLS`) |
 | Env         | `HB_BRIDGE_URL` (legacy: `KUANG_BRIDGE_URL`) | `HB_WRAP_TOKEN_FILE` (legacy: `KUANG_WRAP_TOKEN_FILE`)                                                                          |
 
 **What it is for:** agent access to JSON APIs (dashboards, internal tools, SaaS). The wrapper

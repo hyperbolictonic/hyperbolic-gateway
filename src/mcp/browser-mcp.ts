@@ -411,12 +411,24 @@ function registerToolGroup(
       if (!action) {
         return { isError: true, content: [{ type: 'text', text: `Unknown action "${args?.action}". Use one of: ${group.actions.map((entry) => entry.action).join(', ')}` }] };
       }
+      const { action: _action, ...rest } = args || {};
+      const mapped = action.map ? action.map(rest) : rest;
+      if (action.endpoint) {
+        try {
+          const data = await callBridge(action.endpoint, action.method || 'POST', mapped);
+          return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+        } catch (error: any) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `[Hyperbolic Browser MCP Error] ${error?.message || error}` }],
+          };
+        }
+      }
       const target = TOOLS_CATALOG.find((tool) => tool.name === action.tool);
       if (!target) {
         return { isError: true, content: [{ type: 'text', text: `Action "${action.action}" is unavailable.` }] };
       }
-      const { action: _action, ...rest } = args || {};
-      return executeCatalogTool(target, action.map ? action.map(rest) : rest);
+      return executeCatalogTool(target, mapped);
     },
   );
 }

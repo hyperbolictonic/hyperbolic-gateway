@@ -1,6 +1,8 @@
 # Collaboration plan
 
-**Status:** planned, post-1.7.0  
+**Status:** phase 1 implemented (store, bridge routes, `collaborate` tool, agent highlight overlay); human selection/reply UI next
+
+
 **Related:** [`TOOL_SURFACE_CONSOLIDATION.md`](./TOOL_SURFACE_CONSOLIDATION.md), [`CONTROL_LAYER.md`](./CONTROL_LAYER.md), [`../src/main/hil/README.md`](../src/main/hil/README.md)
 
 ## Goal
@@ -132,6 +134,22 @@ Add one advertised tool: `collaborate`.
 The tool should not duplicate `request_human_intervention`; HIL remains the
 blocking “I need a human to clear this gate” primitive. Collaboration is for
 persistent, structured review and demonstration.
+
+## Phase 1 endpoints
+
+```text
+GET  /collaboration/threads?id=...
+GET  /collaboration/threads?url=&status=&limit=
+POST /collaboration/highlight
+POST /collaboration/ask
+POST /collaboration/reply
+POST /collaboration/resolve
+```
+
+Storage is `<userData>/collaboration.json`. The agent-facing `collaborate`
+tool maps to these routes and the overlay is refreshed after create, reply and
+resolve. The overlay is read-only until Phase 2 adds selection and reply
+controls.
 
 ## Human interface
 

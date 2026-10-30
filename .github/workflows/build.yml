@@ -80,6 +80,9 @@ jobs:
       - name: Navigation error tests
         run: npm run test:navigation
 
+      - name: Collaboration store tests
+        run: npm run test:collaboration
+
       - name: MCP HTTP transport tests
         run: npm run test:mcp-http
 

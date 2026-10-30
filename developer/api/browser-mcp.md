@@ -9,7 +9,7 @@ status: stable
 # Browser MCP API
 
 `hb-browser` is the MCP server that drives the visible Chromium session. It
-exposes 15 grouped tools plus two optional decision tools and a small set of MCP
+exposes 16 grouped tools plus two optional decision tools and a small set of MCP
 resources. It is configured and started by the agent client; the app must
 already be running.
 
@@ -78,6 +78,7 @@ settings.
 | `evaluate_javascript` | deliberate page JS |
 | `devtools` | state, diff, console, network, streams, HAR, JSON query, fingerprint, health |
 | `human_in_loop` | HIL, activity/resume, notify, window and tray |
+| `collaborate` | highlight, ask, read, reply and resolve human page threads |
 | `browser_workspace` | tabs, downloads, contexts, recordings, scripts |
 | `shadow_iframes` | `frames`, `focus_walk` |
 | `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |

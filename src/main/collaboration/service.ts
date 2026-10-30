@@ -1,0 +1,56 @@
+import type { BrowserChassis } from '../browser-chassis.js';
+import type {
+  CollaborationFilter,
+  CollaborationMessage,
+  CollaborationThread,
+} from '../../shared/collaboration.js';
+import { CollaborationStore, type CreateThreadInput } from './store.js';
+import { collaborationOverlayScript } from './overlay.js';
+
+export class CollaborationService {
+  readonly store: CollaborationStore;
+  private readonly chassis: BrowserChassis;
+
+  constructor(store: CollaborationStore, chassis: BrowserChassis) {
+    this.store = store;
+    this.chassis = chassis;
+  }
+
+  list(filter: CollaborationFilter = {}): CollaborationThread[] {
+    return this.store.list(filter);
+  }
+
+  get(id: string): CollaborationThread | undefined {
+    return this.store.get(id);
+  }
+
+  create(input: CreateThreadInput): CollaborationThread {
+    const thread = this.store.create(input);
+    void this.refreshOverlay();
+    return thread;
+  }
+
+  reply(id: string, message: Omit<CollaborationMessage, 'id' | 'createdAt'>): CollaborationThread {
+    const thread = this.store.addMessage(id, message, message.kind === 'answer' ? 'answered' : undefined);
+    void this.refreshOverlay();
+    return thread;
+  }
+
+  resolve(id: string, notes?: string): CollaborationThread {
+    const thread = this.store.resolve(id, notes);
+    void this.refreshOverlay();
+    return thread;
+  }
+
+  async refreshOverlay(): Promise<void> {
+    try {
+      const url = this.chassis.getPageInfo().url;
+      const threads = this.store.list({ url });
+      const wc = this.chassis.getActiveWebContents();
+      if (!wc || wc.isDestroyed()) return;
+      await wc.executeJavaScript(collaborationOverlayScript(threads)).catch(() => null);
+    } catch {
+      // Overlay refresh is best-effort; the persisted thread remains authoritative.
+    }
+  }
+}

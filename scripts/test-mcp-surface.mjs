@@ -71,6 +71,7 @@ const CANONICAL = [
   'evaluate_javascript',
   'devtools',
   'human_in_loop',
+  'collaborate',
   'browser_workspace',
   'shadow_iframes',
   'research',

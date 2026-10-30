@@ -10,7 +10,7 @@ The standalone stdio server executable ([`scripts/mcp-server.js`](../../scripts/
 
 ---
 
-## 🧰 Consolidated MCP Surface (15 Advertised +2 Optional Tools)
+## 🧰 Consolidated MCP Surface (16 Advertised +2 Optional Tools)
 
 **Tool manager:** Settings → **Tools** controls which advertised tools appear in `tools/list`, their order within a tier, per-tool instructions, per-action instructions for grouped tools, and Core/Research/Automation/Full presets. The saved configuration lives in `<userData>/tool-settings.json`; the bridge exposes it read-only at `GET /tools/config`. Changes apply to new MCP sessions.
 
@@ -28,6 +28,7 @@ The advertised surface is grouped; old flat names remain callable by name but ar
 | `evaluate_javascript` | deliberate page JS |
 | `devtools` | state, diff, console, network, streams, HAR, JSON query, fingerprint, health |
 | `human_in_loop` | HIL, activity/resume, notify, window and tray |
+| `collaborate` | highlight, ask, read, reply, resolve |
 | `browser_workspace` | tabs, downloads, contexts, recordings, scripts |
 | `shadow_iframes` | `frames`, `focus_walk` |
 | `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |
@@ -60,14 +61,14 @@ The list below documents the flat catalog. Most names are hidden from `tools/lis
 16. **Optional Decision Layer (2 Tools, only when configured):** `decide` (one typed decision) and `drive` (observe → decide → act loop), registered first when a decision backend is configured.
 17. **Navigation Recipes (1 Tool):** `recipe` (save/list/replay/delete zero-model navigation paths).
 
-In addition to the 15 advertised tools, `bridge-server.ts` registers **7 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://tools/recommended` (the canonical "what to use when" order across the five common jobs), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
+In addition to the 16 advertised tools, `bridge-server.ts` registers **7 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://tools/recommended` (the canonical "what to use when" order across the five common jobs), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
 
 ---
 
 ## 📄 Key Source Files
 
 - **[`tools-catalog.ts`](./tools-catalog.ts)**:
-  Central repository of the tool definitions (**88 registered**, of which most are hidden behind the 15 advertised groups; deprecated aliases remain callable by name), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters. Because the `endpoint`/`method` here must match `src/main/http-bridge.ts` exactly, **run `npm run test:mcp:contract` after editing this file** — it fails if any entry maps to a route the bridge does not serve. `npm run test:mcp:surface` verifies the hidden/canonical split.
+  Central repository of the tool definitions (**88 registered**, of which most are hidden behind the 16 advertised groups; deprecated aliases remain callable by name), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters. Because the `endpoint`/`method` here must match `src/main/http-bridge.ts` exactly, **run `npm run test:mcp:contract` after editing this file** — it fails if any entry maps to a route the bridge does not serve. `npm run test:mcp:surface` verifies the hidden/canonical split.
 - **[`bridge-server.ts`](./bridge-server.ts)**:
   Factory `createBridgeMcpServer()` configuring `@modelcontextprotocol/sdk` to forward tool calls to the active browser chassis via `http://127.0.0.1:4111` and package dual text + native base64 PNG image blocks.
 - **[`bin/mcp-server.cjs`](../../bin/mcp-server.cjs)** & **[`scripts/mcp-server.js`](../../scripts/mcp-server.js)**:

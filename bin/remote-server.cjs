@@ -41604,6 +41604,7 @@ var DEFAULT_TOOL_ORDER = [
   "evaluate_javascript",
   "devtools",
   "human_in_loop",
+  "collaborate",
   "browser_workspace",
   "shadow_iframes",
   "research",
@@ -41744,6 +41745,25 @@ var TOOL_GROUPS = [
       { action: "show", tool: "set_window_visibility", description: "Show/focus the app.", map: (args) => ({ visible: true, focus: args.focus ?? true }) },
       { action: "hide", tool: "set_window_visibility", description: "Hide to tray.", map: () => ({ visible: false, focus: false }) },
       { action: "tray", tool: "configure_system_tray", description: "Configure close-to-tray." }
+    ]
+  },
+  {
+    name: "collaborate",
+    description: "Talk to a human about page objects: highlight an element, ask a question with choices, read replies, or resolve the thread.",
+    tier: null,
+    actions: [
+      { action: "highlight", endpoint: "/collaboration/highlight", description: "Highlight a target with a note." },
+      { action: "ask", endpoint: "/collaboration/ask", description: "Ask a question on a target, with optional choices." },
+      { action: "read", endpoint: "/collaboration/threads", method: "GET", description: "Read one thread by id.", map: (args) => ({ queryParams: args.id ? { id: args.id } : {} }) },
+      { action: "list", endpoint: "/collaboration/threads", method: "GET", description: "List threads for the current page.", map: (args) => {
+        const queryParams = {};
+        if (args.url) queryParams.url = args.url;
+        if (args.status) queryParams.status = args.status;
+        if (args.limit !== void 0) queryParams.limit = String(args.limit);
+        return { queryParams };
+      } },
+      { action: "reply", endpoint: "/collaboration/reply", description: "Add an agent reply." },
+      { action: "resolve", endpoint: "/collaboration/resolve", description: "Resolve a thread." }
     ]
   },
   {
@@ -42239,12 +42259,24 @@ function registerToolGroup(server, group, preferences) {
       if (!action) {
         return { isError: true, content: [{ type: "text", text: `Unknown action "${args?.action}". Use one of: ${group.actions.map((entry) => entry.action).join(", ")}` }] };
       }
+      const { action: _action, ...rest } = args || {};
+      const mapped = action.map ? action.map(rest) : rest;
+      if (action.endpoint) {
+        try {
+          const data = await callBridge(action.endpoint, action.method || "POST", mapped);
+          return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        } catch (error62) {
+          return {
+            isError: true,
+            content: [{ type: "text", text: `[Hyperbolic Browser MCP Error] ${error62?.message || error62}` }]
+          };
+        }
+      }
       const target = TOOLS_CATALOG.find((tool) => tool.name === action.tool);
       if (!target) {
         return { isError: true, content: [{ type: "text", text: `Action "${action.action}" is unavailable.` }] };
       }
-      const { action: _action, ...rest } = args || {};
-      return executeCatalogTool(target, action.map ? action.map(rest) : rest);
+      return executeCatalogTool(target, mapped);
     }
   );
 }

@@ -18,6 +18,8 @@ import { initUpdater, checkForUpdates, installUpdate, updaterState } from './upd
 import { RemoteService } from './remote/service.js';
 import { ToolSettingsStore } from './tools/settings.js';
 import { registerToolSettingsIpc } from './tools/ipc.js';
+import { CollaborationStore } from './collaboration/store.js';
+import { CollaborationService } from './collaboration/service.js';
 import { dataPath } from './data-paths.js';
 import { APP_VERSION } from '../shared/version.js';
 import {
@@ -502,6 +504,10 @@ async function createWindow() {
     const wrapToken = createWrapToken(wrapDir());
     const toolSettings = new ToolSettingsStore(path.join(app.getPath('userData'), 'tool-settings.json'));
     registerToolSettingsIpc(toolSettings);
+    const collaboration = new CollaborationService(
+      new CollaborationStore(path.join(app.getPath('userData'), 'collaboration.json')),
+      chassis,
+    );
     startHttpBridge(
       chassis,
       bridgePort,
@@ -512,7 +518,8 @@ async function createWindow() {
         audit: wrapAudit,
         token: wrapToken,
       },
-      toolSettings
+      toolSettings,
+      collaboration
     );
 
     if (!activeRemoteService) {

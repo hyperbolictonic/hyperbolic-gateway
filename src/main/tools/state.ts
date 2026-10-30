@@ -85,7 +85,7 @@ export function buildToolManagerState(settings: ToolSettings): ToolManagerState 
     actions: group.actions.map((action) => ({
       name: action.action,
       description: action.description,
-      tool: action.tool,
+      tool: action.tool || action.endpoint || '',
       instruction: settings.actionInstructions?.[group.name]?.[action.action] ?? '',
     })),
   }));

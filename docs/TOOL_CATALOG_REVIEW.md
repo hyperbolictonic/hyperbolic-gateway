@@ -4,7 +4,7 @@
 **Scope:** `src/mcp/tools-catalog.ts` (81 registered entries: 58 advertised + 23 hidden deprecated aliases, plus the built-in `help` = **59 advertised**), `src/main/http-bridge.ts` (route table).
 **Status:** Phases 1–8 implemented 2026-10-19 (see §5).
 
-**Current:** the live surface is 15 advertised +2 optional, managed from Settings → Tools. The consolidation record is in [`TOOL_SURFACE_CONSOLIDATION.md`](./TOOL_SURFACE_CONSOLIDATION.md).
+**Current:** the live surface is 16 advertised +2 optional, managed from Settings → Tools. The consolidation record is in [`TOOL_SURFACE_CONSOLIDATION.md`](./TOOL_SURFACE_CONSOLIDATION.md).
 
 ---
 

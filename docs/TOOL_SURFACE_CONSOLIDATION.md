@@ -1,6 +1,6 @@
 # Tool surface consolidation
 
-**Status:** phase 2 implemented (15 advertised +2 optional; presets and per-action instruction overrides)
+**Status:** phase 2 implemented (16 advertised +2 optional; presets and per-action instruction overrides)
 
 **Related:** [`TOOL_CATALOG_REVIEW.md`](./TOOL_CATALOG_REVIEW.md), [`../developer/api/browser-mcp.md`](../developer/api/browser-mcp.md)
 
@@ -8,7 +8,7 @@
 
 The current `hb-browser` surface is broad and expensive to advertise:
 
-- 68 flat catalog tools (15 advertised groups plus hidden aliases) and two optional decision tools;
+- 68 flat catalog tools (16 advertised groups plus hidden aliases) and two optional decision tools;
 - many long, overlapping descriptions;
 - several families that are really one operation with different nouns
   (tabs, contexts, downloads, recordings, scripts);
@@ -20,7 +20,7 @@ description.
 
 ## Implemented surface
 
-15 base tools, plus optional decision tools when configured. Old flat names are
+16 base tools, plus optional decision tools when configured. Old flat names are
 hidden aliases and remain callable by name; `fill_form` and `recipe` are also
 compatibility aliases rather than part of the advertised surface.
 
@@ -36,6 +36,7 @@ compatibility aliases rather than part of the advertised surface.
 | `evaluate` | `evaluate_javascript` | deliberate JS execution |
 | `devtools` | `page_state`, `diff`, `get_console_logs`, `get_fingerprint_profile`, `bridge_health`, `get_network_traffic`, `query_json_data`, `list_realtime_streams`, `clear_capture`, `export_har` | `state`, `diff`, `console`, `fingerprint`, `health`, `traffic`, `query`, `streams`, `clear`, `har` |
 | `human_in_loop` | HIL requests, status/resolve, activity/resume, notifications, window visibility, tray | `request`, `status`, `activity`, `resolve`, `resume`, `notify`, `show`, `hide`, `tray` |
+| `collaborate` | human/agent threads on page targets | `highlight`, `ask`, `read`, `list`, `reply`, `resolve` |
 | `browser_workspace` | tabs, downloads, contexts, recordings, scripts | domain-prefixed actions |
 | `shadow_iframes` | `frames`, `focus_walk` | `frames`, `focus_walk` |
 | `research` | `read_url`, `search_web`, `llm_surface`, `llm_fetch`, `deep_crawl`, `research_topic`, `prerender_links` | discovery/read actions |

@@ -31,6 +31,7 @@ Start with the grouped tools, not the old flat names:
 - `evaluate_javascript` — deliberate page JS
 - `devtools` — state, diff, console, network, streams, HAR, JSON query, fingerprint, health
 - `human_in_loop` — HIL, passive takeover, notifications, window and tray
+- `collaborate` — highlight/ask/read/reply/resolve human page threads
 - `browser_workspace` — tabs, downloads, contexts, recordings and scripts
 - `shadow_iframes` — frames and closed-shadow focus
 - `research` — read, search, LLM surface/fetch, crawl, topic research, prerender
@@ -134,6 +135,18 @@ Check passive takeover before blaming the server:
 
 ```json
 {"name":"human_in_loop","arguments":{"action":"activity"}}
+```
+
+### Ask a human about an element
+
+```json
+{"name":"collaborate","arguments":{"action":"ask","target":{"selector":"#checkout","text":"Checkout button"},"text":"Should this stay disabled until the address is valid?","choices":["yes","no"]}}
+```
+
+Read the reply:
+
+```json
+{"name":"collaborate","arguments":{"action":"read","id":"collab_..."}}
 ```
 
 ### Recipes
