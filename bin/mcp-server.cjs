@@ -37826,20 +37826,33 @@ ${data.text || "(no content)"}`;
   },
   {
     name: "extract",
-    description: 'Structured, read-only extraction (no page JS injection). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. kind="table" returns {headers, rows, records} from one <table> or ARIA grid; kind="tables" returns EVERY table on the page. kind="schema_org" parses <script type="application/ld+json"> into typed items (flattens @graph; pass `type` to keep just e.g. "Recipe"/"Product"/"FAQPage"/"HowTo"). kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs.',
+    description: 'Structured, read-only extraction (no page JS injection). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. kind="table" returns {headers, rows, records} from one <table> or ARIA grid; kind="tables" returns EVERY table on the page. kind="schema_org" parses <script type="application/ld+json"> into typed items (flattens @graph; pass `type` to keep just e.g. "Recipe"/"Product"/"FAQPage"/"HowTo"). kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs. kind="collect" scrolls a lazy/virtualized list to the end and returns every distinct row.',
     parameters: {
-      kind: external_exports.enum(["list", "table", "tables", "app_data", "schema_org"]).default("list").describe("Extraction kind"),
+      kind: external_exports.enum(["list", "table", "tables", "app_data", "schema_org", "collect"]).default("list").describe("Extraction kind"),
       ref: external_exports.coerce.number().optional().describe("Scope to a mark id (from list_marks/find)"),
       selector: external_exports.string().optional().describe("Scope to a CSS selector (default: whole page)"),
       type: external_exports.string().optional().describe('schema_org only: filter to one schema.org @type (e.g. "Recipe")'),
       limit: external_exports.coerce.number().optional().default(200).describe("Max rows/sources/items"),
       include_frames: external_exports.coerce.boolean().optional().default(false).describe("Also extract from child frames; returns per-frame results"),
       max_frames: external_exports.coerce.number().optional().describe("Child frames to visit (default 6)"),
-      timeout_ms: external_exports.coerce.number().optional().describe("Per-frame extraction timeout (default 2000)")
+      timeout_ms: external_exports.coerce.number().optional().describe("Per-frame extraction timeout (default 2000)"),
+      scroll: external_exports.enum(["container", "window"]).optional().describe("collect only: scroll target"),
+      step: external_exports.coerce.number().optional().describe("collect only: pixels per step"),
+      delay_ms: external_exports.coerce.number().optional().describe("collect only: wait after each scroll"),
+      max_scrolls: external_exports.coerce.number().optional().describe("collect only: scroll safety cap"),
+      max: external_exports.coerce.number().optional().describe("collect only: max rows")
     },
     endpoint: "/extract",
-    payload: (args) => ({ kind: args?.kind || "list", ref: args?.ref, selector: args?.selector, type: args?.type, limit: args?.limit, include_frames: args?.include_frames, max_frames: args?.max_frames, timeout_ms: args?.timeout_ms }),
-    format: (data) => {
+    endpointFor: (args) => args?.kind === "collect" ? "/collect" : "/extract",
+    endpoints: ["/extract", "/collect"],
+    payload: (args) => args?.kind === "collect" ? { kind: "collect", selector: args?.selector, ref: args?.ref, scroll: args?.scroll || "container", step: args?.step, delay_ms: args?.delay_ms, max_scrolls: args?.max_scrolls, max: args?.max } : { kind: args?.kind || "list", ref: args?.ref, selector: args?.selector, type: args?.type, limit: args?.limit, include_frames: args?.include_frames, max_frames: args?.max_frames, timeout_ms: args?.timeout_ms },
+    format: (data, args) => {
+      if (args?.kind === "collect") {
+        if (data.error) return `extract(collect) failed: ${data.error}`;
+        const rows2 = (data.rows || []).map((r, i) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ""}`);
+        return `# extract(collect) - ${data.count} distinct rows after ${data.scrolls} scrolls
+${rows2.join("\n")}`;
+      }
       const frameSummary = Array.isArray(data.frames) && data.frames.length ? `
 
 # child frames (${data.frames.length})
@@ -38409,12 +38422,27 @@ var TOOL_TIERS = {
   evaluate_javascript: 3
 };
 var DEFAULT_TOOL_ORDER = [
-  "navigate_to",
+  "navigate",
   "observe",
   "act",
   "wait_for",
   "find",
   "extract",
+  "capture",
+  "evaluate_javascript",
+  "devtools",
+  "human_in_loop",
+  "browser_workspace",
+  "shadow_iframes",
+  "research",
+  "memory",
+  "recipe",
+  "help",
+  // Hidden aliases remain ordered for stateful clients that call them by name.
+  "navigate_to",
+  "navigate_history",
+  "dismiss_consent",
+  "scroll_page",
   "collect_all",
   "expect",
   "page_state",
@@ -38422,10 +38450,6 @@ var DEFAULT_TOOL_ORDER = [
   "take_screenshot",
   "snapshot_rendered_page",
   "press_key",
-  "evaluate_javascript",
-  "dismiss_consent",
-  "scroll_page",
-  "navigate_history",
   "fill_form",
   "new_tab",
   "switch_tab",
@@ -38468,7 +38492,6 @@ var DEFAULT_TOOL_ORDER = [
   "set_window_visibility",
   "configure_system_tray",
   "drive",
-  "recipe",
   "decide",
   "frames",
   "focus_walk",
@@ -38477,9 +38500,139 @@ var DEFAULT_TOOL_ORDER = [
   "context_save",
   "context_open",
   "context_list",
-  "context_delete",
-  "help"
+  "context_delete"
 ];
+
+// src/mcp/tool-groups.ts
+var TOOL_GROUPS = [
+  {
+    name: "navigate",
+    description: "Navigate the visible browser: open a URL, move through history, dismiss a consent wall, or scroll.",
+    tier: 1,
+    actions: [
+      { action: "open", tool: "navigate_to", description: "Open a URL." },
+      { action: "back", tool: "navigate_history", description: "Go back.", map: () => ({ direction: "back" }) },
+      { action: "forward", tool: "navigate_history", description: "Go forward.", map: () => ({ direction: "forward" }) },
+      { action: "reload", tool: "navigate_history", description: "Reload.", map: () => ({ direction: "reload" }) },
+      { action: "consent", tool: "dismiss_consent", description: "Dismiss a cookie/GDPR wall.", map: () => ({}) },
+      { action: "scroll", tool: "scroll_page", description: "Scroll the viewport." }
+    ]
+  },
+  {
+    name: "capture",
+    description: "Capture the active page as a viewport/Set-of-Marks screenshot or a rendered post-hydration snapshot.",
+    tier: 2,
+    actions: [
+      { action: "screenshot", tool: "take_screenshot", description: "Viewport or Set-of-Marks image." },
+      { action: "rendered", tool: "snapshot_rendered_page", description: "Rendered AX/Markdown/HTML snapshot." }
+    ]
+  },
+  {
+    name: "devtools",
+    description: "Read-only deep-browser console: page state, diff, console, network, streams, HAR, JSON payloads, fingerprint and health.",
+    tier: null,
+    actions: [
+      { action: "state", tool: "page_state", description: "Cheap page-state signature.", map: () => ({}) },
+      { action: "diff", tool: "diff", description: "Diff against a revision." },
+      { action: "console", tool: "get_console_logs", description: "Recent console logs." },
+      { action: "fingerprint", tool: "get_fingerprint_profile", description: "Current fingerprint profile.", map: () => ({}) },
+      { action: "health", tool: "bridge_health", description: "Bridge/app health.", map: () => ({}) },
+      { action: "traffic", tool: "get_network_traffic", description: "Captured HTTP traffic." },
+      { action: "query", tool: "query_json_data", description: "Query captured JSON payloads." },
+      { action: "streams", tool: "list_realtime_streams", description: "Active WebSocket/SSE streams." },
+      { action: "clear", tool: "clear_capture", description: "Clear capture buffers." },
+      { action: "har", tool: "export_har", description: "Export captured traffic as HAR." }
+    ]
+  },
+  {
+    name: "human_in_loop",
+    description: "Human hand-off and desktop controls: request/status/resolve HIL, inspect/resume passive takeover, notify, show/hide or configure the tray.",
+    tier: null,
+    actions: [
+      { action: "request", tool: "request_human_intervention", description: "Ask the human for help." },
+      { action: "status", tool: "get_human_intervention_status", description: "Pending HIL request.", map: () => ({}) },
+      { action: "resolve", tool: "resolve_human_intervention", description: "Resolve a HIL request." },
+      { action: "activity", tool: "get_human_activity", description: "Passive takeover status.", map: () => ({}) },
+      { action: "resume", tool: "resume_agent", description: "Clear a passive takeover.", map: () => ({}) },
+      { action: "notify", tool: "send_notification", description: "Desktop notification." },
+      { action: "show", tool: "set_window_visibility", description: "Show/focus the app.", map: (args) => ({ visible: true, focus: args.focus ?? true }) },
+      { action: "hide", tool: "set_window_visibility", description: "Hide to tray.", map: () => ({ visible: false, focus: false }) },
+      { action: "tray", tool: "configure_system_tray", description: "Configure close-to-tray." }
+    ]
+  },
+  {
+    name: "browser_workspace",
+    description: "Stateful browser workspace: tabs, downloads, context profiles, recordings and the script vault.",
+    tier: null,
+    actions: [
+      { action: "tabs.list", tool: "list_tabs", description: "List tabs.", map: () => ({}) },
+      { action: "tabs.new", tool: "new_tab", description: "Open a tab." },
+      { action: "tabs.switch", tool: "switch_tab", description: "Switch tab." },
+      { action: "tabs.close", tool: "close_tab", description: "Close tab." },
+      { action: "downloads.list", tool: "list_downloads", description: "List downloads.", map: () => ({}) },
+      { action: "downloads.read", tool: "read_download", description: "Read a downloaded document." },
+      { action: "contexts.save", tool: "context_save", description: "Save cookies/storage." },
+      { action: "contexts.open", tool: "context_open", description: "Open a saved context." },
+      { action: "contexts.list", tool: "context_list", description: "List contexts.", map: () => ({}) },
+      { action: "contexts.delete", tool: "context_delete", description: "Delete a context." },
+      { action: "record.start", tool: "record_start", description: "Start a timelapse." },
+      { action: "record.stop", tool: "record_stop", description: "Stop and save a timelapse.", map: () => ({}) },
+      { action: "record.list", tool: "list_recordings", description: "List recordings." },
+      { action: "scripts.save", tool: "save_script", description: "Save a script." },
+      { action: "scripts.run", tool: "run_script", description: "Run a saved script." },
+      { action: "scripts.list", tool: "list_scripts", description: "List/search scripts." },
+      { action: "scripts.delete", tool: "delete_script", description: "Delete a script." }
+    ]
+  },
+  {
+    name: "shadow_iframes",
+    description: "Shadow DOM and iframe access: list frame controls and walk into closed shadow roots with trusted Tab steps.",
+    tier: null,
+    actions: [
+      { action: "frames", tool: "frames", description: "List iframes and their controls." },
+      { action: "focus_walk", tool: "focus_walk", description: "Tab into a closed shadow root." }
+    ]
+  },
+  {
+    name: "research",
+    description: "Read, search and crawl: URL-to-Markdown, multi-engine search, LLM surfaces, BFS crawl and cited topic research.",
+    tier: null,
+    actions: [
+      { action: "read", tool: "read_url", description: "Read a URL as Markdown." },
+      { action: "search", tool: "search_web", description: "Multi-engine web search." },
+      { action: "surface", tool: "llm_surface", description: "Check for an LLM-friendly surface." },
+      { action: "fetch", tool: "llm_fetch", description: "Fetch the advertised surface." },
+      { action: "crawl", tool: "deep_crawl", description: "Breadth-first crawl." },
+      { action: "topic", tool: "research_topic", description: "Search, gather and cite sources." },
+      { action: "prerender", tool: "prerender_links", description: "Pre-render candidate links." }
+    ]
+  },
+  {
+    name: "memory",
+    description: "Local Cortex memory: recall, browsing history and bookmarks.",
+    tier: null,
+    actions: [
+      { action: "recall", tool: "recall_memory", description: "Hybrid semantic recall." },
+      { action: "history", tool: "browsing_history", description: "Chronological history." },
+      { action: "history_clear", tool: "browsing_history_clear", description: "Prune history." },
+      { action: "bookmark_add", tool: "add_bookmark", description: "Save a bookmark." },
+      { action: "bookmark_list", tool: "list_bookmarks", description: "List/search bookmarks." },
+      { action: "bookmark_delete", tool: "delete_bookmark", description: "Delete a bookmark." }
+    ]
+  }
+];
+var META_TOOL_NAMES = new Set(TOOL_GROUPS.map((group) => group.name));
+var CONSOLIDATED_GROUPED_TOOLS = new Set(
+  TOOL_GROUPS.flatMap((group) => group.actions.map((action) => action.tool))
+);
+var CONSOLIDATED_HIDDEN_TOOLS = /* @__PURE__ */ new Set([
+  ...CONSOLIDATED_GROUPED_TOOLS,
+  "collect_all",
+  "expect",
+  "press_key",
+  "fill_form",
+  "recipe"
+]);
 
 // src/shared/version.ts
 var APP_VERSION = "1.6.2";
@@ -38776,6 +38929,125 @@ var IMAGE_TOOLS = /* @__PURE__ */ new Set([
   "take_economy_screenshot",
   "list_marks"
 ]);
+async function executeCatalogTool(tool, args) {
+  try {
+    logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
+    const body = tool.payload ? tool.payload(args) : args;
+    const endpoint = tool.endpointFor ? tool.endpointFor(args) : tool.endpoint;
+    logMcp(`[HTTP Forward] ${tool.method || "POST"} ${endpoint} body: ${preview(body)}`);
+    const data = await callBridge(endpoint, tool.method || "POST", body);
+    if (tool.name === "frames") {
+      const images = Array.isArray(data?.images) ? data.images : [];
+      const text2 = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
+      const content = [{ type: "text", text: text2 }];
+      for (const image of images) {
+        const raw = typeof image?.base64Image === "string" ? image.base64Image.replace(/^data:image\/[a-z]+;base64,/, "") : "";
+        if (!raw) continue;
+        content.push({
+          type: "text",
+          text: `Frame image \uFFFD?" ${image.name ? `"${image.name}" ` : ""}${image.url || image.frameId} (${image.width}x${image.height})`
+        });
+        content.push({ type: "image", data: raw, mimeType: image.mimeType || "image/jpeg" });
+      }
+      logMcp(`[Tool Success] "frames" returning text + ${images.length} frame image(s)`);
+      return { content };
+    }
+    if (IMAGE_TOOLS.has(tool.name)) {
+      const rawBase64 = extractCleanBase64(data);
+      const screenshot = data.screenshot || data;
+      const filePath = screenshot.filePath || "";
+      const w = screenshot.width || 0;
+      const h = screenshot.height || 0;
+      const marks = Array.isArray(data.marks) ? data.marks : [];
+      const withMarks = tool.name !== "take_screenshot" || args?.marks === true;
+      let text2;
+      if (withMarks) {
+        const marksTable = marks.map((m) => formatMark(m)).join("\n");
+        const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.` : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
+        text2 = clampText(`${header}
+
+Interactive Elements:
+${marksTable}
+
+Actuate via act(mark_id, action) \uFFFD?" action defaults to "click"; "type" for inputs (text=...), "hover" for menus, "press" for keys.`);
+      } else {
+        text2 = filePath ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).` : `Screenshot captured (${w}x${h}px).`;
+      }
+      const content = [{ type: "text", text: text2 }];
+      if (rawBase64) {
+        content.push({
+          type: "image",
+          data: rawBase64,
+          mimeType: screenshot.mimeType || (filePath.endsWith(".png") ? "image/png" : "image/jpeg")
+        });
+      }
+      logMcp(`[Tool Success] "${tool.name}" returning text${rawBase64 ? " + image part" : " only"} (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
+      return { content };
+    }
+    const rawText = tool.format ? tool.format(data, args) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    const text = clampText(typeof rawText === "string" ? rawText : String(rawText ?? ""));
+    logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
+    let outputText = text;
+    const staleNote = await versionNoteOnce();
+    if (staleNote && !versionNoteShown) {
+      versionNoteShown = true;
+      outputText = `${staleNote}
+
+${text}`;
+    }
+    if (tool.name === "observe" && data?.as === "components" && Array.isArray(data.components)) {
+      const components = data.components.slice(0, 120).map((c) => ({
+        id: c.id,
+        role: c.role,
+        name: c.name,
+        actions: c.actions
+      }));
+      return {
+        content: [
+          { type: "text", text },
+          { type: "text", text: JSON.stringify({ components }) }
+        ]
+      };
+    }
+    return { content: [{ type: "text", text: outputText }] };
+  } catch (err) {
+    logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, "error");
+    return {
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `[Hyperbolic Browser MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`
+        }
+      ]
+    };
+  }
+}
+function registerToolGroup(server, group) {
+  const actions = group.actions.map((action) => action.action);
+  const actionList = group.actions.map((action) => `${action.action} (${action.description})`).join("; ");
+  const tier = group.tier;
+  const prefix = tier ? `[${TIER_LABELS[tier]}] ` : "";
+  server.registerTool(
+    group.name,
+    {
+      description: `${prefix}${group.description} Actions: ${actionList}`,
+      inputSchema: external_exports.object({ action: external_exports.enum(actions) }).passthrough()
+    },
+    async (args) => {
+      const action = group.actions.find((entry) => entry.action === args?.action);
+      if (!action) {
+        return { isError: true, content: [{ type: "text", text: `Unknown action "${args?.action}". Use one of: ${group.actions.map((entry) => entry.action).join(", ")}` }] };
+      }
+      const target = TOOLS_CATALOG.find((tool) => tool.name === action.tool);
+      if (!target) {
+        return { isError: true, content: [{ type: "text", text: `Action "${action.action}" is unavailable.` }] };
+      }
+      const { action: _action, ...rest } = args || {};
+      return executeCatalogTool(target, action.map ? action.map(rest) : rest);
+    }
+  );
+}
 async function createBridgeMcpServer() {
   const server = new McpServer({
     name: "hb-browser",
@@ -38811,100 +39083,16 @@ async function createBridgeMcpServer() {
     const tier = TOOL_TIERS[tool.name];
     const details = toolPreferences.instructions[tool.name] || tool.description;
     const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
-    server.tool(tool.name, `${prefix}${details}`, tool.parameters, async (args) => {
-      try {
-        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
-        const body = tool.payload ? tool.payload(args) : args;
-        const endpoint = tool.endpointFor ? tool.endpointFor(args) : tool.endpoint;
-        logMcp(`[HTTP Forward] ${tool.method || "POST"} ${endpoint} body: ${preview(body)}`);
-        const data = await callBridge(endpoint, tool.method || "POST", body);
-        if (tool.name === "frames") {
-          const images = Array.isArray(data?.images) ? data.images : [];
-          const text2 = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
-          const content = [{ type: "text", text: text2 }];
-          for (const image of images) {
-            const raw = typeof image?.base64Image === "string" ? image.base64Image.replace(/^data:image\/[a-z]+;base64,/, "") : "";
-            if (!raw) continue;
-            content.push({
-              type: "text",
-              text: `Frame image \u2014 ${image.name ? `"${image.name}" ` : ""}${image.url || image.frameId} (${image.width}x${image.height})`
-            });
-            content.push({ type: "image", data: raw, mimeType: image.mimeType || "image/jpeg" });
-          }
-          logMcp(`[Tool Success] "frames" returning text + ${images.length} frame image(s)`);
-          return { content };
-        }
-        if (IMAGE_TOOLS.has(tool.name)) {
-          const rawBase64 = extractCleanBase64(data);
-          const screenshot = data.screenshot || data;
-          const filePath = screenshot.filePath || "";
-          const w = screenshot.width || 0;
-          const h = screenshot.height || 0;
-          const marks = Array.isArray(data.marks) ? data.marks : [];
-          const withMarks = tool.name !== "take_screenshot" || args?.marks === true;
-          let text2;
-          if (withMarks) {
-            const marksTable = marks.map((m) => formatMark(m)).join("\n");
-            const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.` : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
-            text2 = clampText(`${header}
-
-Interactive Elements:
-${marksTable}
-
-Actuate via act(mark_id, action) \u2014 action defaults to "click"; "type" for inputs (text=...), "hover" for menus, "press" for keys.`);
-          } else {
-            text2 = filePath ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).` : `Screenshot captured (${w}x${h}px).`;
-          }
-          const content = [{ type: "text", text: text2 }];
-          if (rawBase64) {
-            content.push({
-              type: "image",
-              data: rawBase64,
-              mimeType: screenshot.mimeType || (filePath.endsWith(".png") ? "image/png" : "image/jpeg")
-            });
-          }
-          logMcp(`[Tool Success] "${tool.name}" returning text${rawBase64 ? " + image part" : " only"} (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
-          return { content };
-        }
-        const rawText = tool.format ? tool.format(data, args) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
-        const text = clampText(typeof rawText === "string" ? rawText : String(rawText ?? ""));
-        logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
-        let outputText = text;
-        const staleNote = await versionNoteOnce();
-        if (staleNote && !versionNoteShown) {
-          versionNoteShown = true;
-          outputText = `${staleNote}
-
-${text}`;
-        }
-        if (tool.name === "observe" && data?.as === "components" && Array.isArray(data.components)) {
-          const components = data.components.slice(0, 120).map((c) => ({
-            id: c.id,
-            role: c.role,
-            name: c.name,
-            actions: c.actions
-          }));
-          return {
-            content: [
-              { type: "text", text },
-              { type: "text", text: JSON.stringify({ components }) }
-            ]
-          };
-        }
-        return { content: [{ type: "text", text: outputText }] };
-      } catch (err) {
-        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, "error");
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `[Hyperbolic Browser MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`
-            }
-          ]
-        };
-      }
-    });
+    server.tool(
+      tool.name,
+      `${prefix}${details}`,
+      tool.parameters,
+      async (args) => executeCatalogTool(tool, args)
+    );
+  }
+  for (const group of TOOL_GROUPS) {
+    if (disabledTools.has(group.name)) continue;
+    registerToolGroup(server, group);
   }
   const OKF_SKILL_GUIDE = `# \u{1F9ED} MARK ELEVEN: OPERATIONAL KNOWLEDGE FORMAT (OKF)
 
@@ -39247,7 +39435,17 @@ Rules of thumb:
     server.server._requestHandlers.set("tools/list", async (request, extra) => {
       const result = await rawListHandler(request, extra);
       if (result && Array.isArray(result.tools)) {
-        const visible = result.tools.filter((t) => !HIDDEN_TOOLS.has(t.name));
+        const surfaceRank = new Map(DEFAULT_TOOL_ORDER.map((name, index) => [name, index]));
+        const visible = result.tools.filter((t) => !HIDDEN_TOOLS.has(t.name) && !CONSOLIDATED_HIDDEN_TOOLS.has(t.name)).sort((a, b) => {
+          const aRank = surfaceRank.get(a.name);
+          const bRank = surfaceRank.get(b.name);
+          if (aRank !== void 0 || bRank !== void 0) {
+            if (aRank === void 0) return 1;
+            if (bRank === void 0) return -1;
+            if (aRank !== bRank) return aRank - bRank;
+          }
+          return a.name.localeCompare(b.name);
+        });
         result.tools = visible.map((t) => {
           const rawSchema = t.inputSchema || {};
           const schema = {

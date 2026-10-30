@@ -10,13 +10,37 @@ The standalone stdio server executable ([`scripts/mcp-server.js`](../../scripts/
 
 ---
 
-## 🧰 Registered MCP Tool Domains (68 Advertised +2 Optional Tools)
+## 🧰 Consolidated MCP Surface (15 Advertised +2 Optional Tools)
 
 **Tool manager:** Settings → **Tools** controls which advertised tools appear in `tools/list`, their order within a tier, and an optional per-tool instruction override. The saved configuration lives in `<userData>/tool-settings.json`; the bridge exposes it read-only at `GET /tools/config`. Changes apply to new MCP sessions.
 
-Deprecated aliases are hidden from `tools/list` (they still work by name); the canonical name is listed here.
+The advertised surface is grouped; old flat names remain callable by name but are hidden from `tools/list`.
 
-**Tier map** (mirrors the `[TIER n]` prefixes on the advertised descriptions): **TIER 1 · prefer** — `navigate_to`, `observe`, `act`, `wait_for`, `find`, `extract`, `collect_all`, `expect`, `page_state`, `diff`; **TIER 2 · fallback** — `take_screenshot`, `snapshot_rendered_page`, `press_key`; **TIER 3 · use deliberately** — `evaluate_javascript` (powerful, just not the default). Every other tool is **unprefixed** (the only tool for the job). Start with `navigate_to` → `observe` → `act` → `wait_for` → `find` → `extract` / `collect_all`.
+| Tool | Actions / scope |
+| --- | --- |
+| `navigate` | `open`, `back`, `forward`, `reload`, `consent`, `scroll` |
+| `observe` | markdown, text, AX, Set-of-Marks, components |
+| `find` | semantic target search |
+| `act` | click/focus/hover/type/press/scroll |
+| `wait_for` | readiness gate |
+| `extract` | structured reads and lazy-list `collect` |
+| `capture` | screenshot or rendered snapshot |
+| `evaluate_javascript` | deliberate page JS |
+| `devtools` | state, diff, console, network, streams, HAR, JSON query, fingerprint, health |
+| `human_in_loop` | HIL, activity/resume, notify, window and tray |
+| `browser_workspace` | tabs, downloads, contexts, recordings, scripts |
+| `shadow_iframes` | `frames`, `focus_walk` |
+| `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |
+| `memory` | recall, history, bookmarks |
+| `help` | categorized cheatsheet |
+| `drive` *(optional)* | goal loop when configured |
+| `decide` *(optional)* | typed decision when configured |
+
+**Tier map:** **TIER 1 · prefer** — `navigate`, `observe`, `act`, `wait_for`, `find`, `extract`; **TIER 2 · fallback** — `capture`; **TIER 3 · use deliberately** — `evaluate_javascript`. `drive`/`decide` are Tier 1 when configured.
+
+### Underlying catalog (hidden aliases)
+
+The list below documents the flat catalog. Most names are hidden from `tools/list` behind the groups above but remain callable by name.
 
 1. **Navigation & History (2 Tools):** `navigate_to`, `navigate_history`.
 2. **Autonomous Shield & Consent (1 Tool):** `dismiss_consent`.
@@ -36,14 +60,14 @@ Deprecated aliases are hidden from `tools/list` (they still work by name); the c
 16. **Optional Decision Layer (2 Tools, only when configured):** `decide` (one typed decision) and `drive` (observe → decide → act loop), registered first when a decision backend is configured.
 17. **Navigation Recipes (1 Tool):** `recipe` (save/list/replay/delete zero-model navigation paths).
 
-In addition to the 68 advertised tools, `bridge-server.ts` registers **7 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://tools/recommended` (the canonical "what to use when" order across the five common jobs), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
+In addition to the 15 advertised tools, `bridge-server.ts` registers **7 MCP resources**: `mark-eleven://skills/guide` (the operational manual), `mark-eleven://tools/recommended` (the canonical "what to use when" order across the five common jobs), `mark-eleven://okf/manifest`, and four OKF partition playbooks (selector-and-som, captcha-and-anti-bot, browser-navigation, primitives-and-workflows).
 
 ---
 
 ## 📄 Key Source Files
 
 - **[`tools-catalog.ts`](./tools-catalog.ts)**:
-  Central repository of the tool definitions (**88 registered**, of which **19 deprecated aliases are hidden from `tools/list`** - plus 4 legacy names cloned at runtime - **68 advertised** including the built-in `help`), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters. Because the `endpoint`/`method` here must match `src/main/http-bridge.ts` exactly, **run `npm run test:mcp:contract` after editing this file** — it fails if any entry maps to a route the bridge does not serve. `npm run test:mcp:surface` verifies the hidden/canonical split.
+  Central repository of the tool definitions (**88 registered**, of which most are hidden behind the 15 advertised groups; deprecated aliases remain callable by name), Zod schemas, HTTP endpoints, argument coercion/aliasing, and markdown formatters. Because the `endpoint`/`method` here must match `src/main/http-bridge.ts` exactly, **run `npm run test:mcp:contract` after editing this file** — it fails if any entry maps to a route the bridge does not serve. `npm run test:mcp:surface` verifies the hidden/canonical split.
 - **[`bridge-server.ts`](./bridge-server.ts)**:
   Factory `createBridgeMcpServer()` configuring `@modelcontextprotocol/sdk` to forward tool calls to the active browser chassis via `http://127.0.0.1:4111` and package dual text + native base64 PNG image blocks.
 - **[`bin/mcp-server.cjs`](../../bin/mcp-server.cjs)** & **[`scripts/mcp-server.js`](../../scripts/mcp-server.js)**:

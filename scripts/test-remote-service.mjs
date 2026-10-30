@@ -54,7 +54,8 @@ try {
   await client.connect(transport);
   try {
     const tools = await client.listTools();
-    assert.ok(tools.tools.length >= 60);
+    assert.ok(tools.tools.length >= 15);
+    assert.ok(tools.tools.some((tool) => tool.name === 'devtools'));
   } finally {
     await client.close();
   }

@@ -9,6 +9,12 @@ export interface ToolSettings {
   instructions: Record<string, string>;
 }
 
+export interface ToolManagerAction {
+  name: string;
+  description: string;
+  tool: string;
+}
+
 export interface ToolManagerEntry {
   name: string;
   description: string;
@@ -16,6 +22,7 @@ export interface ToolManagerEntry {
   tierLabel: string;
   enabled: boolean;
   instruction: string;
+  actions?: ToolManagerAction[];
 }
 
 export interface ToolManagerState {

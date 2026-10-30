@@ -7,7 +7,7 @@
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-1.6.1-22d3ee" />
-  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-68%20%2B2%20optional-a3e635" />
+  <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-15%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-64748b" />
@@ -21,7 +21,7 @@
 - **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
 - **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
-- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (68 advertised +2 optional)](#sec-standardized-semantic-mcp-tools-63-advertised) · [REST wrappers](#sec-rest-wrappers-hb-rest)
+- **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (15 advertised +2 optional)](#sec-standardized-semantic-mcp-tools-63-advertised) · [REST wrappers](#sec-rest-wrappers-hb-rest)
 - **Building on it** — [Architecture lowdown](./docs/CODEBASE.md) · [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
 - **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Control layer: targeting, consent, human takeover](./docs/CONTROL_LAYER.md) · [Shadow DOM & iframes: what Hyperbolic Gateway can see and click](./docs/SHADOW_DOM_AND_FRAMES.md) · [Shadow Walk: sealed-content plan](./docs/SHADOW_WALK.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 - **Release notes** — [What shipped](#sec-release-notes) · [All releases](./CHANGELOG.md)
@@ -427,15 +427,39 @@ Hyperbolic Gateway features an embedded, serverless vector database (**LanceDB**
 
 <a id="sec-standardized-semantic-mcp-tools-63-advertised" name="sec-standardized-semantic-mcp-tools-63-advertised"></a>
 
-## 🔌 Standardized Semantic MCP Tools (68 advertised · +2 optional)
+## 🔌 Consolidated Semantic MCP Tools (15 advertised · +2 optional)
 
-> **+2 optional, listed first when active:** `drive` and `decide` — rows marked ⌥ — appear only when a decision model is configured. The rest of this table is always available.
+> **Advertised surface:** 15 grouped tools, plus `drive` and `decide` when a decision model is configured. The old flat names remain callable by name but are hidden from `tools/list`; they are listed below as the underlying catalog.
 >
-> **68 advertised tools** (88 registered catalog entries; deprecated aliases are hidden from `tools/list` but stay callable by name and return a `deprecated → use "X"` notice — rows marked `†` below). Seven MCP **resources** are also exposed: `mark-eleven://skills/guide`, `mark-eleven://tools/recommended`, `mark-eleven://okf/manifest`, and four partition playbooks.
->
-> **Tool manager:** Settings → Tools controls enablement, order and per-tool instruction overrides. The default order starts with `navigate_to` → `observe` → `act` → `wait_for` → `find` → `extract`.
+> **Tool manager:** Settings → Tools controls enablement, order and per-tool instruction overrides. The default order starts with `navigate` → `observe` → `act` → `wait_for` → `find` → `extract`.
 
-> **Tier map** (mirrors the `[TIER n]` prefixes the MCP surface puts on the advertised descriptions). **TIER 1 · prefer:** `navigate_to` · `observe` · `act` · `wait_for` · `expect` · `find` · `extract` · `collect_all` · `page_state` · `diff`. **TIER 2 · fallback:** `take_screenshot` · `snapshot_rendered_page` · `press_key`. **TIER 3 · use deliberately:** `evaluate_javascript` — powerful, just not the default. Every **other** tool is **unprefixed** — it is the only way to do its job. Start with `navigate_to` → `observe` → `act` → `wait_for` → `find` → `extract`/`collect_all`; the **Primitives & Abstraction** block is listed first for exactly that reason. The in-app manual links to the developer bundle; this table is the canonical Markdown view.
+> **Tier map:** **TIER 1 · prefer:** `navigate`, `observe`, `act`, `wait_for`, `find`, `extract`; **TIER 2 · fallback:** `capture`; **TIER 3 · deliberate:** `evaluate_javascript`. `drive` and `decide` are Tier 1 when a decision model is configured.
+
+| Tool | Actions / scope |
+| --- | --- |
+| `navigate` | `open`, `back`, `forward`, `reload`, `consent`, `scroll` |
+| `observe` | markdown, text, AX, Set-of-Marks and components projections |
+| `find` | Semantic target search returning mark refs |
+| `act` | click, focus, hover, type, press, scroll and fill via one target address |
+| `wait_for` | Declarative readiness gate |
+| `extract` | list, table(s), app data, schema.org and lazy-list `collect` |
+| `capture` | viewport/Set-of-Marks screenshot or rendered snapshot |
+| `evaluate_javascript` | Deliberate page JS execution |
+| `devtools` | state, diff, console, network, streams, HAR, JSON query, fingerprint, health |
+| `human_in_loop` | request/status/resolve HIL, activity/resume, notify, window and tray |
+| `browser_workspace` | tabs, downloads, contexts, recordings and scripts |
+| `shadow_iframes` | `frames`, `focus_walk` |
+| `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |
+| `memory` | recall, browsing history and bookmarks |
+| `help` | Categorized operational cheatsheet |
+| `drive` *(optional)* | Goal-driven observe → decide → act loop |
+| `decide` *(optional)* | Typed decision model |
+
+### Underlying catalog (hidden aliases)
+
+The table below documents the flat catalog entries. Most are hidden from
+`tools/list` behind the groups above; they remain callable by name for
+compatibility and are useful when editing tool instructions.
 
 | Category                      | Tool                            | Parameters                                                                                                                                                                                                                                                                  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | :---------------------------- | :------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -545,7 +569,7 @@ process, its own config entry and its own bridge token.
 | :---------- | :------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
 | Binary      | `bin/mcp-server.cjs`                         | `bin/wrap-server.cjs`                                                                                                           |
 | Server name | `hb-browser` (legacy: `kuang`)               | `hb-rest` (legacy: `kuang-wrap`)                                                                                                |
-| Surface     | 68 browser tools (+2 optional decision tools) | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` (configurable via `HB_WRAP_MAX_TOOLS` or legacy `KUANG_WRAP_MAX_TOOLS`) |
+| Surface     | 15 advertised browser tools (+2 optional decision tools) | 10 `wrap_*` meta-tools + up to 40 generated `wrap_<id>` (configurable via `HB_WRAP_MAX_TOOLS` or legacy `KUANG_WRAP_MAX_TOOLS`) |
 | Env         | `HB_BRIDGE_URL` (legacy: `KUANG_BRIDGE_URL`) | `HB_WRAP_TOKEN_FILE` (legacy: `KUANG_WRAP_TOKEN_FILE`)                                                                          |
 
 **What it is for:** agent access to JSON APIs (dashboards, internal tools, SaaS). The wrapper

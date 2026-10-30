@@ -9,8 +9,8 @@ status: stable
 # Browser MCP API
 
 `hb-browser` is the MCP server that drives the visible Chromium session. It
-exposes 68 advertised tools plus two optional decision tools and a small set of
-MCP resources. It is configured and started by the agent client; the app must
+exposes 15 grouped tools plus two optional decision tools and a small set of MCP
+resources. It is configured and started by the agent client; the app must
 already be running.
 
 - Binary: `bin/mcp-server.cjs`
@@ -62,10 +62,30 @@ The local bridge exposes the saved settings read-only at `GET /tools/config`
 for the stdio and remote MCP server processes. The HTTP route cannot write
 settings.
 
-## Tool groups
+## Advertised groups
 
-The group names below are a reading aid. Some advanced primitives overlap with
-older tools; use the canonical name from `tools/list`.
+| Tool | Actions / scope |
+| --- | --- |
+| `navigate` | `open`, `back`, `forward`, `reload`, `consent`, `scroll` |
+| `observe` | markdown, text, AX, Set-of-Marks and components |
+| `find` | semantic target search |
+| `act` | click, focus, hover, type, press, scroll |
+| `wait_for` | readiness gate |
+| `extract` | structured reads and lazy-list `collect` |
+| `capture` | screenshot or rendered snapshot |
+| `evaluate_javascript` | deliberate page JS |
+| `devtools` | state, diff, console, network, streams, HAR, JSON query, fingerprint, health |
+| `human_in_loop` | HIL, activity/resume, notify, window and tray |
+| `browser_workspace` | tabs, downloads, contexts, recordings, scripts |
+| `shadow_iframes` | `frames`, `focus_walk` |
+| `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |
+| `memory` | recall, history, bookmarks |
+| `help` | categorized cheatsheet |
+
+## Underlying tool groups
+
+The group names below document the flat catalog. Most names are hidden from
+`tools/list` but remain callable by name.
 
 ### Navigation and history
 

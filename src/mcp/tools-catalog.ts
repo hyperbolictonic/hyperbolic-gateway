@@ -1253,9 +1253,10 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       'Structured, read-only extraction (no page JS injection). kind="list" finds the repeating item container and returns deduped rows {text, href, aria, mark}. ' +
       'kind="table" returns {headers, rows, records} from one <table> or ARIA grid; kind="tables" returns EVERY table on the page. ' +
       'kind="schema_org" parses <script type="application/ld+json"> into typed items (flattens @graph; pass `type` to keep just e.g. "Recipe"/"Product"/"FAQPage"/"HowTo"). ' +
-      'kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs.',
+      'kind="app_data" returns embedded JSON from __NEXT_DATA__ / JSON-LD / inline state blobs. ' +
+      'kind="collect" scrolls a lazy/virtualized list to the end and returns every distinct row.',
     parameters: {
-      kind: z.enum(['list', 'table', 'tables', 'app_data', 'schema_org']).default('list').describe('Extraction kind'),
+      kind: z.enum(['list', 'table', 'tables', 'app_data', 'schema_org', 'collect']).default('list').describe('Extraction kind'),
       ref: z.coerce.number().optional().describe('Scope to a mark id (from list_marks/find)'),
       selector: z.string().optional().describe('Scope to a CSS selector (default: whole page)'),
       type: z.string().optional().describe('schema_org only: filter to one schema.org @type (e.g. "Recipe")'),
@@ -1263,10 +1264,24 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       include_frames: z.coerce.boolean().optional().default(false).describe('Also extract from child frames; returns per-frame results'),
       max_frames: z.coerce.number().optional().describe('Child frames to visit (default 6)'),
       timeout_ms: z.coerce.number().optional().describe('Per-frame extraction timeout (default 2000)'),
+      scroll: z.enum(['container', 'window']).optional().describe('collect only: scroll target'),
+      step: z.coerce.number().optional().describe('collect only: pixels per step'),
+      delay_ms: z.coerce.number().optional().describe('collect only: wait after each scroll'),
+      max_scrolls: z.coerce.number().optional().describe('collect only: scroll safety cap'),
+      max: z.coerce.number().optional().describe('collect only: max rows'),
     },
     endpoint: '/extract',
-    payload: (args) => ({ kind: args?.kind || 'list', ref: args?.ref, selector: args?.selector, type: args?.type, limit: args?.limit, include_frames: args?.include_frames, max_frames: args?.max_frames, timeout_ms: args?.timeout_ms }),
-    format: (data) => {
+    endpointFor: (args) => (args?.kind === 'collect' ? '/collect' : '/extract'),
+    endpoints: ['/extract', '/collect'],
+    payload: (args) => args?.kind === 'collect'
+      ? { kind: 'collect', selector: args?.selector, ref: args?.ref, scroll: args?.scroll || 'container', step: args?.step, delay_ms: args?.delay_ms, max_scrolls: args?.max_scrolls, max: args?.max }
+      : { kind: args?.kind || 'list', ref: args?.ref, selector: args?.selector, type: args?.type, limit: args?.limit, include_frames: args?.include_frames, max_frames: args?.max_frames, timeout_ms: args?.timeout_ms },
+    format: (data, args) => {
+      if (args?.kind === 'collect') {
+        if (data.error) return `extract(collect) failed: ${data.error}`;
+        const rows = (data.rows || []).map((r: any, i: number) => `${i + 1}. ${r.text}${r.href ? ` -> ${r.href}` : ''}`);
+        return `# extract(collect) - ${data.count} distinct rows after ${data.scrolls} scrolls\n${rows.join('\n')}`;
+      }
       const frameSummary = Array.isArray(data.frames) && data.frames.length
         ? `\n\n# child frames (${data.frames.length})\n${data.frames.map((f: any) => {
             if (!f.ok) return `- ${f.url || f.frameId}: ${f.error || 'failed'}`;
@@ -1870,12 +1885,27 @@ export const TOOL_TIERS: Record<string, 1 | 2 | 3> = {
  * act -> wait -> find -> extract. Tools absent here fall back to catalog order.
  */
 export const DEFAULT_TOOL_ORDER: string[] = [
-  'navigate_to',
+  'navigate',
   'observe',
   'act',
   'wait_for',
   'find',
   'extract',
+  'capture',
+  'evaluate_javascript',
+  'devtools',
+  'human_in_loop',
+  'browser_workspace',
+  'shadow_iframes',
+  'research',
+  'memory',
+  'recipe',
+  'help',
+  // Hidden aliases remain ordered for stateful clients that call them by name.
+  'navigate_to',
+  'navigate_history',
+  'dismiss_consent',
+  'scroll_page',
   'collect_all',
   'expect',
   'page_state',
@@ -1883,10 +1913,6 @@ export const DEFAULT_TOOL_ORDER: string[] = [
   'take_screenshot',
   'snapshot_rendered_page',
   'press_key',
-  'evaluate_javascript',
-  'dismiss_consent',
-  'scroll_page',
-  'navigate_history',
   'fill_form',
   'new_tab',
   'switch_tab',
@@ -1929,7 +1955,6 @@ export const DEFAULT_TOOL_ORDER: string[] = [
   'set_window_visibility',
   'configure_system_tray',
   'drive',
-  'recipe',
   'decide',
   'frames',
   'focus_walk',
@@ -1939,5 +1964,4 @@ export const DEFAULT_TOOL_ORDER: string[] = [
   'context_open',
   'context_list',
   'context_delete',
-  'help',
 ];

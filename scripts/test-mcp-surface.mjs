@@ -36,14 +36,11 @@ const HIDDEN = [
   'focus_window',
   'clear_network_traffic',
   'clear_stream_messages',
-];
-// Canonical replacements that MUST appear.
-const CANONICAL = [
   'navigate_to',
+  'snapshot_rendered_page',
   'take_screenshot',
-  'observe',
-  'act',
-  'send_notification',
+  'expect',
+  'press_key',
   'query_json_data',
   'bridge_health',
   'context_save',
@@ -61,6 +58,24 @@ const CANONICAL = [
   'search_web',
   'deep_crawl',
   'research_topic',
+];
+// Consolidated surface that MUST appear.
+const CANONICAL = [
+  'navigate',
+  'observe',
+  'act',
+  'wait_for',
+  'find',
+  'extract',
+  'capture',
+  'evaluate_javascript',
+  'devtools',
+  'human_in_loop',
+  'browser_workspace',
+  'shadow_iframes',
+  'research',
+  'memory',
+  'help',
 ];
 
 const results = [];
@@ -101,7 +116,7 @@ try {
   const describes = (n) => byName.get(n)?.description || '';
   check(
     'tiered tools carry a [TIER n] prefix',
-    describes('observe').startsWith('[TIER 1') && describes('act').startsWith('[TIER 1') && describes('take_screenshot').startsWith('[TIER 2') && describes('evaluate_javascript').startsWith('[TIER 3'),
+    describes('observe').startsWith('[TIER 1') && describes('act').startsWith('[TIER 1') && describes('capture').startsWith('[TIER 2') && describes('evaluate_javascript').startsWith('[TIER 3'),
     `observe: "${describes('observe').slice(0, 24)}..."`,
   );
   check(
@@ -109,7 +124,13 @@ try {
     describes('act').includes('mark_id') && describes('act').includes('CSS selector') && /coordinates/.test(describes('act')),
     `act: "${describes('act').slice(0, 80)}..."`,
   );
-  check('un-tiered tools stay unprefixed', !describes('scroll_page').startsWith('[TIER'));
+  check('un-tiered tools stay unprefixed', !describes('devtools').startsWith('[TIER'));
+
+  const metaHealth = await client.callTool({ name: 'devtools', arguments: { action: 'health' } });
+  check(
+    'grouped tools dispatch actions',
+    JSON.stringify(metaHealth.content || '').includes('status'),
+  );
 
   const { resources } = await client.listResources();
   check('mark-eleven://tools/recommended is registered', resources.some((r) => r.uri === 'mark-eleven://tools/recommended'));

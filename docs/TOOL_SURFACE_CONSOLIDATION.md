@@ -1,6 +1,7 @@
 # Tool surface consolidation
 
-**Status:** proposal, not implemented  
+**Status:** phase 1 implemented (15 advertised +2 optional); action overrides and presets pending
+
 **Related:** [`TOOL_CATALOG_REVIEW.md`](./TOOL_CATALOG_REVIEW.md), [`../developer/api/browser-mcp.md`](../developer/api/browser-mcp.md)
 
 ## Problem
@@ -17,9 +18,11 @@ The goal is **fewer names, shorter descriptions and unchanged capability**.
 Detailed guidance belongs in `help` and the OKF resources, not in every tool
 description.
 
-## Target surface
+## Implemented surface
 
-15 base tools, plus optional decision tools when configured.
+15 base tools, plus optional decision tools when configured. Old flat names are
+hidden aliases and remain callable by name; `fill_form` and `recipe` are also
+compatibility aliases rather than part of the advertised surface.
 
 | Tool | Absorbs | Action shape |
 | --- | --- | --- |
@@ -33,18 +36,18 @@ description.
 | `evaluate` | `evaluate_javascript` | deliberate JS execution |
 | `devtools` | `page_state`, `diff`, `get_console_logs`, `get_fingerprint_profile`, `bridge_health`, `get_network_traffic`, `query_json_data`, `list_realtime_streams`, `clear_capture`, `export_har` | `state`, `diff`, `console`, `fingerprint`, `health`, `traffic`, `query`, `streams`, `clear`, `har` |
 | `human_in_loop` | HIL requests, status/resolve, activity/resume, notifications, window visibility, tray | `request`, `status`, `activity`, `resolve`, `resume`, `notify`, `show`, `hide`, `tray` |
-| `browser_chores` | tabs, downloads, contexts, recordings, scripts | domain-prefixed actions |
+| `browser_workspace` | tabs, downloads, contexts, recordings, scripts | domain-prefixed actions |
 | `shadow_iframes` | `frames`, `focus_walk` | `frames`, `focus_walk` |
 | `research` | `read_url`, `search_web`, `llm_surface`, `llm_fetch`, `deep_crawl`, `research_topic`, `prerender_links` | discovery/read actions |
 | `memory` | `recall_memory`, browsing history, bookmarks | recall/history/bookmark actions |
 | `help` | `help` | docs lookup |
 | `drive` *(optional)* | `drive` | Tier 1 when a decision model is configured |
 | `decide` *(optional)* | `decide` | Tier 1 when a decision model is configured |
-| `recipe` *(optional)* | `recipe` | Tier 2 until recipes exist |
+| `recipe` *(hidden compatibility)* | `recipe` | Callable by name; not advertised until the action UI lands |
 
 `devtools` is deliberately read-only. `evaluate` stays separate because it can
 mutate the page and must remain a deliberate Tier 3 action. `export_har`,
-network capture and console access belong here, not in `browser_chores`.
+network capture and console access belong here, not in `browser_workspace`.
 
 ## Description policy
 
@@ -67,7 +70,7 @@ The default order follows the operational sequence:
 Then capture/evaluate, then domain tools, then `help`.
 
 When a decision model is configured, `drive` and `decide` lead the surface and
-are Tier 1. `recipe` stays Tier 2 until the workspace has a reusable path.
+are Tier 1. `recipe` remains a hidden compatibility alias until the action UI lands.
 
 ## Settings shape
 

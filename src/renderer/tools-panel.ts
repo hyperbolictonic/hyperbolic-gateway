@@ -203,6 +203,30 @@ function renderDetail(): void {
     const length = (settings.instructions[tool.name] || '').length;
     overrideChars.textContent = length ? `${length.toLocaleString()} chars` : 'using default';
   }
+  const actionsSection = byId<HTMLElement>('settings-tools-actions-section');
+  const actionsHost = byId<HTMLElement>('settings-tools-actions');
+  const actionsCount = byId<HTMLElement>('settings-tools-actions-count');
+  if (actionsSection && actionsHost && actionsCount) {
+    const actions = tool.actions || [];
+    actionsSection.classList.toggle('hidden', actions.length === 0);
+    actionsCount.textContent = actions.length ? `(${actions.length})` : '';
+    actionsHost.replaceChildren();
+    for (const action of actions) {
+      const row = document.createElement('div');
+      row.className = 'flex flex-wrap items-baseline gap-2 rounded bg-base-200/40 px-2 py-1';
+      const name = document.createElement('code');
+      name.className = 'font-mono text-[10px] text-accent';
+      name.textContent = action.name;
+      const desc = document.createElement('span');
+      desc.className = 'text-[10px] text-base-content/60 flex-1 min-w-0';
+      desc.textContent = action.description;
+      const target = document.createElement('span');
+      target.className = 'font-mono text-[9px] text-base-content/35';
+      target.textContent = action.tool;
+      row.append(name, desc, target);
+      actionsHost.append(row);
+    }
+  }
   setDetailResult(tool.instruction ? 'Custom instructions active.' : 'Using catalog default.');
 }
 

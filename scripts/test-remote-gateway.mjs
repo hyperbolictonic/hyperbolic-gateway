@@ -87,8 +87,9 @@ try {
   await client.connect(transport);
   try {
     const tools = await client.listTools();
-    assert.ok(tools.tools.length >= 60, `expected browser tools, got ${tools.tools.length}`);
-    assert.ok(tools.tools.some((tool) => tool.name === 'bridge_health'));
+    assert.ok(tools.tools.length >= 15, `expected the consolidated browser surface, got ${tools.tools.length}`);
+    assert.ok(tools.tools.some((tool) => tool.name === 'devtools'));
+    assert.ok(tools.tools.some((tool) => tool.name === 'human_in_loop'));
     toolCount = tools.tools.length;
   } finally {
     await client.close();

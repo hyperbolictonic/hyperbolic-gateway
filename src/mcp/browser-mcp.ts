@@ -3,6 +3,12 @@ import path from 'node:path';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { DEFAULT_TOOL_ORDER, TOOLS_CATALOG, TOOL_TIERS, TIER_LABELS } from './tools-catalog.js';
+import type { ToolCatalogItem } from './tools-catalog.js';
+import {
+  CONSOLIDATED_HIDDEN_TOOLS,
+  TOOL_GROUPS,
+  type ToolGroupDefinition,
+} from './tool-groups.js';
 import { formatMark } from './format-mark.js';
 import { APP_VERSION } from '../shared/version.js';
 import { decisionStatus } from '../main/decide/decision-client.js';
@@ -258,6 +264,142 @@ const IMAGE_TOOLS = new Set([
   'list_marks',
 ]);
 
+async function executeCatalogTool(tool: ToolCatalogItem, args: any) {
+  try {
+    logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
+    const body = tool.payload ? tool.payload(args) : args;
+    const endpoint = tool.endpointFor ? tool.endpointFor(args) : tool.endpoint;
+    logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${endpoint} body: ${preview(body)}`);
+    const data = await callBridge(endpoint, tool.method || 'POST', body);
+
+    // Frame inventory: text summary plus one image per visible frame. Handled before the
+    // single-image branch because an iframe result is inherently multi-image.
+    if (tool.name === 'frames') {
+      const images = Array.isArray(data?.images) ? data.images : [];
+      const text = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
+      const content: any[] = [{ type: 'text', text }];
+      for (const image of images) {
+        const raw = typeof image?.base64Image === 'string' ? image.base64Image.replace(/^data:image\/[a-z]+;base64,/, '') : '';
+        if (!raw) continue;
+        content.push({
+          type: 'text',
+          text: `Frame image �?" ${image.name ? `"${image.name}" ` : ''}${image.url || image.frameId} (${image.width}x${image.height})`,
+        });
+        content.push({ type: 'image', data: raw, mimeType: image.mimeType || 'image/jpeg' });
+      }
+      logMcp(`[Tool Success] "frames" returning text + ${images.length} frame image(s)`);
+      return { content };
+    }
+
+    // Image-bearing tools: plain viewport screenshots and Set-of-Marks scans.
+    // After the Phase-3 merge these funnel through take_screenshot (legacy
+    // names remain as hidden aliases), so branch on the target, not the name.
+    if (IMAGE_TOOLS.has(tool.name)) {
+      const rawBase64 = extractCleanBase64(data);
+      const screenshot = data.screenshot || data;
+      const filePath = screenshot.filePath || '';
+      const w = screenshot.width || 0;
+      const h = screenshot.height || 0;
+      const marks = Array.isArray(data.marks) ? data.marks : [];
+      const withMarks = tool.name !== 'take_screenshot' || args?.marks === true;
+
+      let text: string;
+      if (withMarks) {
+        const marksTable = marks.map((m: any) => formatMark(m)).join('\n');
+        const header = filePath
+          ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.`
+          : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
+        text = clampText(`${header}\n\nInteractive Elements:\n${marksTable}\n\nActuate via act(mark_id, action) �?" action defaults to "click"; "type" for inputs (text=...), "hover" for menus, "press" for keys.`);
+      } else {
+        text = filePath
+          ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).`
+          : `Screenshot captured (${w}x${h}px).`;
+      }
+
+      const content: any[] = [{ type: 'text', text }];
+      if (rawBase64) {
+        content.push({
+          type: 'image',
+          data: rawBase64,
+          mimeType: screenshot.mimeType || (filePath.endsWith('.png') ? 'image/png' : 'image/jpeg'),
+        });
+      }
+      logMcp(`[Tool Success] "${tool.name}" returning text${rawBase64 ? ' + image part' : ' only'} (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
+      return { content };
+    }
+
+    const rawText = tool.format
+      ? tool.format(data, args)
+      : typeof data === 'string'
+        ? data
+        : JSON.stringify(data, null, 2);
+    const text = clampText(typeof rawText === 'string' ? rawText : String(rawText ?? ''));
+    logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
+
+    // A stale server silently rejects arguments the app already supports; say so once.
+    let outputText = text;
+    const staleNote = await versionNoteOnce();
+    if (staleNote && !versionNoteShown) {
+      versionNoteShown = true;
+      outputText = `${staleNote}\n\n${text}`;
+    }
+
+    // observe(as:"components") is the input to the decision loop, so hand back the machine
+    // table too �?" decide(state: <this>, guard:{components: [ids]}) can consume it verbatim
+    // instead of the agent re-typing ids out of the prose projection.
+    if (tool.name === 'observe' && data?.as === 'components' && Array.isArray(data.components)) {
+      const components = data.components.slice(0, 120).map((c: any) => ({
+        id: c.id, role: c.role, name: c.name, actions: c.actions,
+      }));
+      return {
+        content: [
+          { type: 'text', text },
+          { type: 'text', text: JSON.stringify({ components }) },
+        ],
+      };
+    }
+
+    return { content: [{ type: 'text', text: outputText }] };
+  } catch (err: any) {
+    logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, 'error');
+    return {
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: `[Hyperbolic Browser MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`,
+        },
+      ],
+    };
+  }
+}
+
+function registerToolGroup(server: McpServer, group: ToolGroupDefinition): void {
+  const actions = group.actions.map((action) => action.action) as [string, ...string[]];
+  const actionList = group.actions.map((action) => `${action.action} (${action.description})`).join('; ');
+  const tier = group.tier;
+  const prefix = tier ? `[${TIER_LABELS[tier]}] ` : '';
+  server.registerTool(
+    group.name,
+    {
+      description: `${prefix}${group.description} Actions: ${actionList}`,
+      inputSchema: z.object({ action: z.enum(actions) }).passthrough(),
+    },
+    async (args: any): Promise<any> => {
+      const action = group.actions.find((entry) => entry.action === args?.action);
+      if (!action) {
+        return { isError: true, content: [{ type: 'text', text: `Unknown action "${args?.action}". Use one of: ${group.actions.map((entry) => entry.action).join(', ')}` }] };
+      }
+      const target = TOOLS_CATALOG.find((tool) => tool.name === action.tool);
+      if (!target) {
+        return { isError: true, content: [{ type: 'text', text: `Action "${action.action}" is unavailable.` }] };
+      }
+      const { action: _action, ...rest } = args || {};
+      return executeCatalogTool(target, action.map ? action.map(rest) : rest);
+    },
+  );
+}
+
 export async function createBridgeMcpServer() {
   const server = new McpServer({
     name: 'hb-browser',
@@ -320,115 +462,14 @@ export async function createBridgeMcpServer() {
       : tier
         ? `[${TIER_LABELS[tier]}] `
         : '';
-    server.tool(tool.name, `${prefix}${details}`, tool.parameters, async (args) => {
-      try {
-        logMcp(`[Tool Dispatch] "${tool.name}" with args: ${preview(args)}`);
-        const body = tool.payload ? tool.payload(args) : args;
-        const endpoint = tool.endpointFor ? tool.endpointFor(args) : tool.endpoint;
-        logMcp(`[HTTP Forward] ${tool.method || 'POST'} ${endpoint} body: ${preview(body)}`);
-        const data = await callBridge(endpoint, tool.method || 'POST', body);
+    server.tool(tool.name, `${prefix}${details}`, tool.parameters, async (args: any): Promise<any> =>
+      executeCatalogTool(tool, args),
+    );
+  }
 
-        // Frame inventory: text summary plus one image per visible frame. Handled before the
-        // single-image branch because an iframe result is inherently multi-image.
-        if (tool.name === 'frames') {
-          const images = Array.isArray(data?.images) ? data.images : [];
-          const text = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
-          const content: any[] = [{ type: 'text', text }];
-          for (const image of images) {
-            const raw = typeof image?.base64Image === 'string' ? image.base64Image.replace(/^data:image\/[a-z]+;base64,/, '') : '';
-            if (!raw) continue;
-            content.push({
-              type: 'text',
-              text: `Frame image — ${image.name ? `"${image.name}" ` : ''}${image.url || image.frameId} (${image.width}x${image.height})`,
-            });
-            content.push({ type: 'image', data: raw, mimeType: image.mimeType || 'image/jpeg' });
-          }
-          logMcp(`[Tool Success] "frames" returning text + ${images.length} frame image(s)`);
-          return { content };
-        }
-
-        // Image-bearing tools: plain viewport screenshots and Set-of-Marks scans.
-        // After the Phase-3 merge these funnel through take_screenshot (legacy
-        // names remain as hidden aliases), so branch on the target, not the name.
-        if (IMAGE_TOOLS.has(tool.name)) {
-          const rawBase64 = extractCleanBase64(data);
-          const screenshot = data.screenshot || data;
-          const filePath = screenshot.filePath || '';
-          const w = screenshot.width || 0;
-          const h = screenshot.height || 0;
-          const marks = Array.isArray(data.marks) ? data.marks : [];
-          const withMarks = tool.name !== 'take_screenshot' || args?.marks === true;
-
-          let text: string;
-          if (withMarks) {
-            const marksTable = marks.map((m: any) => formatMark(m)).join('\n');
-            const header = filePath
-              ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.`
-              : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
-            text = clampText(`${header}\n\nInteractive Elements:\n${marksTable}\n\nActuate via act(mark_id, action) — action defaults to "click"; "type" for inputs (text=...), "hover" for menus, "press" for keys.`);
-          } else {
-            text = filePath
-              ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).`
-              : `Screenshot captured (${w}x${h}px).`;
-          }
-
-          const content: any[] = [{ type: 'text', text }];
-          if (rawBase64) {
-            content.push({
-              type: 'image',
-              data: rawBase64,
-              mimeType: screenshot.mimeType || (filePath.endsWith('.png') ? 'image/png' : 'image/jpeg'),
-            });
-          }
-          logMcp(`[Tool Success] "${tool.name}" returning text${rawBase64 ? ' + image part' : ' only'} (${rawBase64.length} chars base64, ${marks.length} marks, path: ${filePath})`);
-          return { content };
-        }
-
-        const rawText = tool.format
-          ? tool.format(data, args)
-          : typeof data === 'string'
-            ? data
-            : JSON.stringify(data, null, 2);
-        const text = clampText(typeof rawText === 'string' ? rawText : String(rawText ?? ''));
-        logMcp(`[Tool Success] "${tool.name}" result: ${text.slice(0, 100)}`);
-
-        // A stale server silently rejects arguments the app already supports; say so once.
-        let outputText = text;
-        const staleNote = await versionNoteOnce();
-        if (staleNote && !versionNoteShown) {
-          versionNoteShown = true;
-          outputText = `${staleNote}\n\n${text}`;
-        }
-
-        // observe(as:"components") is the input to the decision loop, so hand back the machine
-        // table too — decide(state: <this>, guard:{components: [ids]}) can consume it verbatim
-        // instead of the agent re-typing ids out of the prose projection.
-        if (tool.name === 'observe' && data?.as === 'components' && Array.isArray(data.components)) {
-          const components = data.components.slice(0, 120).map((c: any) => ({
-            id: c.id, role: c.role, name: c.name, actions: c.actions,
-          }));
-          return {
-            content: [
-              { type: 'text', text },
-              { type: 'text', text: JSON.stringify({ components }) },
-            ],
-          };
-        }
-
-        return { content: [{ type: 'text', text: outputText }] };
-      } catch (err: any) {
-        logMcp(`[Tool Error] "${tool.name}": ${err?.message || err}`, 'error');
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text',
-              text: `[Hyperbolic Browser MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`,
-            },
-          ],
-        };
-      }
-    });
+  for (const group of TOOL_GROUPS) {
+    if (disabledTools.has(group.name)) continue;
+    registerToolGroup(server, group);
   }
 
   // Register standard MCP Resource: mark-eleven://skills/guide
@@ -732,7 +773,19 @@ Rules of thumb:
     (server as any).server._requestHandlers.set('tools/list', async (request: any, extra: any) => {
       const result = await rawListHandler(request, extra);
       if (result && Array.isArray(result.tools)) {
-        const visible = result.tools.filter((t: any) => !HIDDEN_TOOLS.has(t.name));
+        const surfaceRank = new Map(DEFAULT_TOOL_ORDER.map((name, index) => [name, index]));
+        const visible = result.tools
+          .filter((t: any) => !HIDDEN_TOOLS.has(t.name) && !CONSOLIDATED_HIDDEN_TOOLS.has(t.name))
+          .sort((a: any, b: any) => {
+            const aRank = surfaceRank.get(a.name);
+            const bRank = surfaceRank.get(b.name);
+            if (aRank !== undefined || bRank !== undefined) {
+              if (aRank === undefined) return 1;
+              if (bRank === undefined) return -1;
+              if (aRank !== bRank) return aRank - bRank;
+            }
+            return a.name.localeCompare(b.name);
+          });
         result.tools = visible.map((t: any) => {
           const rawSchema = t.inputSchema || {};
           const schema = {

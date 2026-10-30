@@ -4,7 +4,8 @@
 
 * **Creation**: Added the Settings -> Tools tool manager: enable/disable, tiered drag order, per-tool instruction overrides, per-tool and global reset.
 * **Update**: Added the curated `tools/list` order (`navigate_to` -> `observe` -> `act` -> `wait_for` -> `find` -> `extract`) and made `navigate_to` Tier 1.
-* **Creation**: Documented the proposed 15-tool consolidated surface and nested action-accordion settings shape in `docs/TOOL_SURFACE_CONSOLIDATION.md`.
+* **Creation**: Implemented the 15-tool consolidated surface, hidden legacy aliases, and grouped action dispatch.
+* **Creation**: Documented the consolidated surface and nested action-accordion settings shape in `docs/TOOL_SURFACE_CONSOLIDATION.md`.
 
 ## 2026-10-28
 
