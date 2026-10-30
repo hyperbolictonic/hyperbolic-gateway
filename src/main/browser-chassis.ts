@@ -83,6 +83,13 @@ const PAGE_SCROLLBAR_GUTTER = 16;
 /** Width of the Cyberdeck panel (docked and floating). */
 const PANEL_WIDTH = 420;
 
+/** Orb chip size and screen margin used when the deck is collapsed. */
+const DECK_ORB_SIZE = 56;
+const DECK_ORB_MARGIN = 12;
+
+/** Sidebar transition duration, shared by the native bounds animation and the panel's CSS reveal. */
+const SIDEBAR_TRANSITION_MS = 240;
+
 export class BrowserChassis {
   private mainWindow: BrowserWindow | null = null;
   /** Recent decision-model calls, mirrored to the HUD (newest last, capped at 50). */
@@ -132,6 +139,8 @@ export class BrowserChassis {
     return raw === 'accept' || raw === 'reject' ? (raw as ConsentPolicy) : 'essential';
   })();
   private lastOpenSidebarMode: 'docked' | 'floating' = 'floating';
+  /** Running sidebar bounds animation, so a new target or a snap can cancel it. */
+  private sidebarBoundsAnimation: { cancelled: boolean } | null = null;
   /** False while a full-window settings/dialog surface is open. */
   private sidebarOverlayVisible = true;
   private utilQueue: Promise<void> = Promise.resolve();
@@ -470,7 +479,9 @@ export class BrowserChassis {
 
   public getViewportBounds(): { x: number; y: number; width: number; height: number } {
     if (!this.mainWindow) return { x: 0, y: 0, width: 0, height: 0 };
-    const [winWidth, winHeight] = this.mainWindow.getSize();
+    // Child-view bounds are relative to the content area (excluding the title
+    // bar and menu), so size the page viewport from the content size.
+    const [winWidth, winHeight] = this.mainWindow.getContentSize();
     const rightPanelWidth = this.sidebarMode === 'docked' ? 420 : 0;
     // With tab bar, top bar height is 100px (64px navbar + 36px tab bar)
     const topBarHeight = 100;
@@ -493,8 +504,7 @@ export class BrowserChassis {
   /**
    * How much of the browsing view (from its right edge) the Cyberdeck panel
    * covers in page coordinates. Docked mode resizes the browsing view instead,
-   * and the collapsed rail is too small to matter, so only the floating panel
-   * reports an inset.
+   * and the collapsed orb is small, so only the floating panel reports an inset.
    */
   public getSidebarPageInset(): number {
     if (!this.sidebarOverlayVisible) return 0;
@@ -505,11 +515,49 @@ export class BrowserChassis {
   public setSidebarMode(mode: 'docked' | 'floating' | 'collapsed'): void {
     if (mode !== 'docked' && mode !== 'floating' && mode !== 'collapsed') return;
     if (mode === 'docked' || mode === 'floating') this.lastOpenSidebarMode = mode;
+    const previous = this.sidebarMode;
     this.sidebarMode = mode;
     this.addLog('action', `Sidebar mode: ${mode}`);
-    this.positionSidebar();
+    // Animate only real transitions; arriving in the requested mode again snaps.
+    this.positionSidebar(mode !== previous);
     this.tabManager?.updateActiveTabBounds();
     this.broadcastSidebarMode();
+  }
+
+  /**
+   * Interpolate the sidebar view into `target` bounds. Native views cannot be
+   * moved by CSS, so the main process steps the bounds on the same easing the
+   * panel's DOM reveal uses, keeping view and content in lockstep.
+   */
+  private animateSidebarBounds(target: Electron.Rectangle): void {
+    if (!this.mainWindow || !this.sidebarView) return;
+    if (this.sidebarBoundsAnimation) this.sidebarBoundsAnimation.cancelled = true;
+    const token = { cancelled: false };
+    this.sidebarBoundsAnimation = token;
+
+    const start = this.sidebarView.getBounds();
+    const dx = target.x - start.x;
+    const dy = target.y - start.y;
+    const dw = target.width - start.width;
+    const dh = target.height - start.height;
+    if (!dx && !dy && !dw && !dh) return;
+
+    const startedAt = Date.now();
+    const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
+
+    const step = (): void => {
+      if (token.cancelled || !this.sidebarView || !this.sidebarView.webContents) return;
+      const progress = Math.min(1, (Date.now() - startedAt) / SIDEBAR_TRANSITION_MS);
+      const eased = easeOutCubic(progress);
+      this.sidebarView.setBounds({
+        x: Math.round(start.x + dx * eased),
+        y: Math.round(start.y + dy * eased),
+        width: Math.round(start.width + dw * eased),
+        height: Math.round(start.height + dh * eased),
+      });
+      if (progress < 1) setTimeout(step, 16);
+    };
+    step();
   }
 
   public toggleSidebarMode(): void {
@@ -534,14 +582,19 @@ export class BrowserChassis {
     this.sendToSurfaces('chassis:sidebar-mode', this.sidebarMode);
   }
 
-  private positionSidebar(): void {
+  private positionSidebar(animate = false): void {
     if (!this.mainWindow || !this.sidebarView) return;
+    // A snap (window resize, visibility change) invalidates a running
+    // transition; the direct setBounds below must be its final word.
+    if (this.sidebarBoundsAnimation) this.sidebarBoundsAnimation.cancelled = true;
     if (!this.sidebarOverlayVisible) {
       this.sidebarView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       return;
     }
 
-    const [winWidth, winHeight] = this.mainWindow.getSize();
+    // Child-view bounds are relative to the content area (excluding the title
+    // bar and menu), so read the content size instead of the outer size.
+    const [winWidth, winHeight] = this.mainWindow.getContentSize();
     // Leave the page's right-edge scrollbar out from under the panel. The browsing view spans the
     // full window width (floating panels sit *over* the page), so a panel flush to the right edge
     // covers the scrollbar track completely and the page becomes undraggable by hand.
@@ -549,26 +602,30 @@ export class BrowserChassis {
     const usableWidth = Math.max(0, winWidth - scrollbarGutter);
 
     if (this.sidebarMode === 'collapsed') {
-      // Keep the collapsed overlay small so it only captures the toggle, not
-      // the page's right-edge scrollbar.
-      const width = 36;
-      const height = 60;
-      this.sidebarView.setBounds({
-        x: Math.max(0, usableWidth - width),
-        y: 108,
-        width: Math.min(width, usableWidth),
-        height: Math.min(height, Math.max(0, winHeight - 108)),
-      });
+      // The collapsed deck shrinks to a free-floating orb chip at the
+      // bottom-right of the page, clear of the scrollbar track. The view is
+      // exactly the chip: a transparent native view would otherwise swallow
+      // clicks meant for the page.
+      const bounds = {
+        x: Math.max(0, usableWidth - DECK_ORB_SIZE - DECK_ORB_MARGIN),
+        y: Math.max(0, winHeight - DECK_ORB_SIZE - DECK_ORB_MARGIN),
+        width: DECK_ORB_SIZE,
+        height: DECK_ORB_SIZE,
+      };
+      if (animate) this.animateSidebarBounds(bounds);
+      else this.sidebarView.setBounds(bounds);
       return;
     }
 
     const width = PANEL_WIDTH;
-    this.sidebarView.setBounds({
+    const bounds = {
       x: Math.max(0, usableWidth - width),
       y: 100,
       width: Math.min(width, usableWidth),
       height: Math.max(0, winHeight - 100),
-    });
+    };
+    if (animate) this.animateSidebarBounds(bounds);
+    else this.sidebarView.setBounds(bounds);
   }
 
   public async setResearchSettings(settings: ResearchSettings): Promise<void> {

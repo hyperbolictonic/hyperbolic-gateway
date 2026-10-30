@@ -103,31 +103,72 @@ html.sidebar-mode.sidebar-collapsed #sidebar-panel {
   display: none !important;
 }
 
-/* The small translucent handle that floats over the page when collapsed. */
+/* Panel reveal plays on every expand (display:none -> flex restarts it), in
+   lockstep with the native bounds animation from the main process. */
+html.sidebar-mode #sidebar-panel {
+  animation: deck-panel-in 240ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+@keyframes deck-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The free-floating deck orb that remains when the deck is collapsed. The
+   native view is exactly the chip's rectangle, so the button fills it and the
+   circle is drawn by the DOM over a transparent view. */
 html.sidebar-mode #sidebar-rail-toggle {
   display: none;
   position: fixed;
-  top: 8px;
-  right: 4px;
-  width: 28px;
-  height: 44px;
+  right: 0;
+  bottom: 0;
+  width: 56px;
+  height: 56px;
   align-items: center;
   justify-content: center;
   padding: 0;
-  border-radius: 0.5rem;
+  border-radius: 50%;
   border: 1px solid color-mix(in oklab, var(--color-accent) 45%, transparent);
-  background: color-mix(in oklab, var(--color-base-300) 60%, transparent);
+  background: color-mix(in oklab, var(--color-base-300) 62%, transparent);
   color: var(--color-accent);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 15px;
+  font-size: 19px;
   line-height: 1;
   cursor: pointer;
-  box-shadow: 0 4px 18px rgb(0 0 0 / 0.35);
+  box-shadow:
+    0 6px 24px rgb(0 0 0 / 0.45),
+    0 0 0 1px rgb(0 0 0 / 0.25);
   z-index: 2147483647;
+  transition:
+    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 160ms ease,
+    box-shadow 160ms ease;
+  animation: deck-orb-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 html.sidebar-mode.sidebar-collapsed #sidebar-rail-toggle {
   display: flex;
 }
 html.sidebar-mode #sidebar-rail-toggle:hover {
-  background: color-mix(in oklab, var(--color-base-300) 68%, transparent);
+  transform: scale(1.08);
+  background: color-mix(in oklab, var(--color-base-300) 74%, transparent);
+  box-shadow:
+    0 8px 28px rgb(0 0 0 / 0.5),
+    0 0 0 4px color-mix(in oklab, var(--color-accent) 18%, transparent);
+}
+html.sidebar-mode #sidebar-rail-toggle:active {
+  transform: scale(0.93);
+}
+@keyframes deck-orb-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
