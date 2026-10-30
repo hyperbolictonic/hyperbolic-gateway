@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -14,6 +14,7 @@ import { WrapAuditLog } from './wrap/audit.js';
 import { ResearchSettingsStore } from './research/settings.js';
 import { DEFAULT_SHADOW_WALK_SETTINGS, loadShadowWalkSettings, saveShadowWalkSettings } from './shadow-walk/settings.js';
 import { attachContextMenu } from './menu/context-menu.js';
+import { MenuPopup } from './ui/menu-popup.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { RemoteService } from './remote/service.js';
 import { ToolSettingsStore } from './tools/settings.js';
@@ -363,22 +364,28 @@ ipcMain.handle('collaboration:start-picker', async () => {
   }
 });
 
-ipcMain.handle('collaboration:show-menu', () => {
+ipcMain.handle('collaboration:show-menu', async (_event, anchor?: { x: number; y: number; width: number; height: number }) => {
   if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, error: 'Window is not ready.' };
-  const menu = Menu.buildFromTemplate([
-    {
-      label: 'Select element',
-      click: async () => {
-        const target = await chassis.pickCollaborationTarget();
-        if (target) mainWindow?.webContents.send('collaboration:target', target);
-      },
-    },
-    {
-      label: 'Open threads',
-      click: () => mainWindow?.webContents.send('collaboration:open'),
-    },
-  ]);
-  menu.popup({ window: mainWindow });
+  const items = [
+    { id: 'select-element', label: 'Add note', hint: 'pick an element on the page' },
+    { id: 'open-threads', label: 'Open threads', hint: 'read and reply' },
+  ];
+  const chosen = await MenuPopup.shared(path.join(__dirname, '../preload/index.js')).open(
+    mainWindow,
+    anchor ?? { x: 0, y: 64, width: 232, height: 0 },
+    items,
+  );
+  if (chosen === 'select-element') {
+    const target = await chassis.pickCollaborationTarget();
+    if (target) mainWindow?.webContents.send('collaboration:target', target);
+  } else if (chosen === 'open-threads') {
+    chassis.broadcast('collaboration:open');
+  }
+  return { ok: true };
+});
+
+ipcMain.handle('collaboration:open-threads', () => {
+  chassis.broadcast('collaboration:open');
   return { ok: true };
 });
 

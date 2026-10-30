@@ -80,14 +80,20 @@ import { Researcher, type ResearchOptions, type ResearchOutcome } from './resear
  */
 const PAGE_SCROLLBAR_GUTTER = 16;
 
-/** Width of the Cyberdeck panel (docked and floating). */
+/** Width of the Command Deck HUD (docked and floating). */
 const PANEL_WIDTH = 420;
 
-/** Orb chip size and screen margin used when the deck is collapsed. */
+/** Orb chip size and screen margin used when the deck is collapsed. The
+ *  native view is larger than the visible chip so hover scale, the pulse
+ *  ring and the count badge never clip at the view edge. */
 const DECK_ORB_SIZE = 56;
+const DECK_ORB_VIEW = 84;
+const DECK_ORB_VIEW_PAD = (DECK_ORB_VIEW - DECK_ORB_SIZE) / 2;
 const DECK_ORB_MARGIN = 12;
-/** Square stage the orb grows into while its radial menu is open. */
-const DECK_MENU_SIZE = 340;
+/** Square stage the orb grows into while its radial menu is open: big enough
+ *  that the outermost petal (r=165 from the hub centre) plus its hover scale
+ *  and shadow fits inside the native view. */
+const DECK_MENU_SIZE = 404;
 
 /** Sidebar transition duration, shared by the native bounds animation and the panel's CSS reveal. */
 const SIDEBAR_TRANSITION_MS = 240;
@@ -536,7 +542,7 @@ export class BrowserChassis {
     // Animate only real transitions; arriving in the requested mode again snaps.
     this.positionSidebar(mode !== previous);
     this.tabManager?.updateActiveTabBounds();
-    this.broadcastSidebarMode();
+    this.broadcastSidebarSurfaceState();
   }
 
   /**
@@ -599,17 +605,28 @@ export class BrowserChassis {
     }
   }
 
-  private broadcastSidebarMode(): void {
-    this.sendToSurfaces('chassis:sidebar-mode', this.sidebarMode);
-  }
-
-  private broadcastOrbEdge(): void {
-    this.sendToSurfaces('chassis:orb-edge', this.orbEdge);
-  }
-
   /** Broadcast an event to every render surface (shell and deck panel alike). */
   public broadcast(channel: string, payload?: unknown): void {
     this.sendToSurfaces(channel, payload);
+  }
+
+  /**
+   * The authoritative deck surface state. The sidebar renderer applies this
+   * verbatim on boot, on every broadcast and after reloads, so DOM classes and
+   * native bounds can never drift apart.
+   */
+  public getSidebarSurfaceState(): { mode: 'docked' | 'floating' | 'collapsed'; menuOpen: boolean; orbEdge: 'left' | 'right' } {
+    return { mode: this.sidebarMode, menuOpen: this.sidebarMenuOpen, orbEdge: this.orbEdge };
+  }
+
+  private broadcastSidebarSurfaceState(): void {
+    this.sendToSurfaces('chassis:sidebar-state', this.getSidebarSurfaceState());
+  }
+
+  /** Re-assert bounds + classes after (re)loads so a reload can never strand a stale shape. */
+  private syncSidebarSurface(): void {
+    this.positionSidebar();
+    this.broadcastSidebarSurfaceState();
   }
 
   private positionSidebar(animate = false): void {
@@ -632,17 +649,17 @@ export class BrowserChassis {
     const usableWidth = Math.max(0, winWidth - scrollbarGutter);
 
     if (this.sidebarMode === 'collapsed') {
-      // The collapsed deck shrinks to a free-floating orb chip at the
-      // bottom-right of the page, clear of the scrollbar track. The view is
-      // exactly the chip: a transparent native view would otherwise swallow
-      // clicks meant for the page. Opening the radial menu grows the same
-      // corner into a larger stage; the anchored corner never moves.
-      const size = this.sidebarMenuOpen ? DECK_MENU_SIZE : DECK_ORB_SIZE;
+      // The collapsed deck shrinks to a free-floating orb chip anchored at a
+      // bottom corner, clear of the scrollbar track. The native view is the
+      // chip plus padding (hover scale, pulse ring, count badge must not clip),
+      // and grows into the radial-menu stage around the *same* chip corner.
+      const size = this.sidebarMenuOpen ? DECK_MENU_SIZE : DECK_ORB_VIEW;
+      const anchorX = this.orbEdge === 'left'
+        ? Math.max(0, DECK_ORB_MARGIN - DECK_ORB_VIEW_PAD)
+        : usableWidth - DECK_ORB_MARGIN + DECK_ORB_VIEW_PAD;
       const bounds = {
-        x: this.orbEdge === 'left'
-          ? DECK_ORB_MARGIN
-          : Math.max(0, usableWidth - size - DECK_ORB_MARGIN),
-        y: Math.max(0, winHeight - size - DECK_ORB_MARGIN),
+        x: Math.max(0, anchorX - size),
+        y: Math.max(0, winHeight - DECK_ORB_MARGIN + DECK_ORB_VIEW_PAD - size),
         width: size,
         height: size,
       };
@@ -842,6 +859,10 @@ export class BrowserChassis {
 
     this.sidebarView.webContents.on('did-finish-load', () => {
       this.sidebarView?.webContents.send('chassis:decision-status', decisionStatus());
+      // A page reload resets the sidebar DOM to its optimistic state while the
+      // native bounds keep the previous shape; re-assert both so they can never
+      // diverge (this is the "stuck open" desync class of bugs).
+      this.syncSidebarSurface();
     });
 
     this.positionSidebar();
@@ -941,6 +962,7 @@ export class BrowserChassis {
     ipcMain.on('chassis:set-viewport-visibility', setVisibility);
 
     ipcMain.handle('chassis:get-sidebar-mode', () => this.getSidebarMode());
+    ipcMain.handle('chassis:get-sidebar-state', () => this.getSidebarSurfaceState());
     ipcMain.on('chassis:set-sidebar-mode', (_: any, mode: 'docked' | 'floating' | 'collapsed') =>
       this.setSidebarMode(mode),
     );
@@ -952,13 +974,14 @@ export class BrowserChassis {
       if (next === this.sidebarMenuOpen) return;
       this.sidebarMenuOpen = next;
       if (this.sidebarMode === 'collapsed') this.positionSidebar(true);
+      this.broadcastSidebarSurfaceState();
     });
     ipcMain.on('chassis:set-sidebar-orb-edge', (_: any, edge: 'left' | 'right') => {
       const next = edge === 'left' ? 'left' : 'right';
       if (next === this.orbEdge) return;
       this.orbEdge = next;
       if (this.sidebarMode === 'collapsed' && !this.sidebarMenuOpen) this.positionSidebar(true);
-      this.broadcastOrbEdge();
+      this.broadcastSidebarSurfaceState();
     });
     // Live drag: forward pointer deltas, clamped inside the content area.
     ipcMain.on('chassis:orbit-drag', (_: any, delta: { dx: number; dy: number }) => {
@@ -970,21 +993,23 @@ export class BrowserChassis {
       const dx = Number(delta?.dx);
       const dy = Number(delta?.dy);
       const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(value, max));
+      // The view is chip+padding; keep the visible chip inside the page area.
+      const maxX = Math.max(0, winWidth - PAGE_SCROLLBAR_GUTTER - DECK_ORB_VIEW + DECK_ORB_VIEW_PAD - DECK_ORB_MARGIN);
       const x = clamp(
         Number.isFinite(dx) ? current.x + dx : current.x,
-        DECK_ORB_MARGIN,
-        Math.max(DECK_ORB_MARGIN, winWidth - PAGE_SCROLLBAR_GUTTER - DECK_ORB_SIZE - DECK_ORB_MARGIN),
+        0,
+        maxX,
       );
       const y = clamp(
         Number.isFinite(dy) ? current.y + dy : current.y,
-        100 + DECK_ORB_MARGIN,
-        Math.max(100 + DECK_ORB_MARGIN, winHeight - DECK_ORB_SIZE - DECK_ORB_MARGIN),
+        100,
+        Math.max(100, winHeight - DECK_ORB_VIEW + DECK_ORB_VIEW_PAD - DECK_ORB_MARGIN),
       );
       this.sidebarView.setBounds({
         x: Math.round(x),
         y: Math.round(y),
-        width: DECK_ORB_SIZE,
-        height: DECK_ORB_SIZE,
+        width: DECK_ORB_VIEW,
+        height: DECK_ORB_VIEW,
       });
     });
     // Drop: dock to the nearest vertical edge with the standard margin.
@@ -995,7 +1020,7 @@ export class BrowserChassis {
       const current = this.sidebarView.getBounds();
       this.orbEdge = current.x + current.width / 2 < winWidth / 2 ? 'left' : 'right';
       this.positionSidebar(true);
-      this.broadcastOrbEdge();
+      this.broadcastSidebarSurfaceState();
     });
 
     // Cortex & Bookmarks IPC Handlers

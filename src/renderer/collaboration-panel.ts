@@ -215,13 +215,29 @@ async function resolve(thread: CollaborationThread): Promise<void> {
 export function initCollaborationPanel(): void {
   if (initialized) return;
   initialized = true;
-  byId<HTMLButtonElement>('collab-btn')?.addEventListener('click', async () => {
-    const result = await api?.showCollaborationMenu();
+  byId<HTMLButtonElement>('collab-btn')?.addEventListener('click', async (event) => {
+    const rect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect();
+    const anchor = rect && rect.width ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : undefined;
+    const result = await api?.showCollaborationMenu(anchor);
     if (!result?.ok) showResult('error', result?.error || 'Could not open the collaboration menu.');
   });
   byId<HTMLButtonElement>('collab-close-btn')?.addEventListener('click', closePanel);
   byId<HTMLButtonElement>('collab-refresh-btn')?.addEventListener('click', () => void refresh());
   byId<HTMLButtonElement>('collab-pick-btn')?.addEventListener('click', () => void startPicker());
+  // Escape is the intuitive exit: it closes the panel (and stops the picker).
+  // While typing in a field it steps out of the field first.
+  window.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const target = event.target as HTMLElement | null;
+    const editable =
+      !!target &&
+      (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable);
+    if (editable) {
+      target?.blur();
+      return;
+    }
+    if (panelOpen) closePanel();
+  });
   api?.onCollaborationTarget(() => {
     panelOpen = false;
     byId<HTMLElement>('collab-panel')?.classList.add('hidden');

@@ -3,12 +3,16 @@ import type { ChassisState, HarvestedConstruct, TelemetryEvent } from '../shared
 import { beginRecording, finishRecording } from './recording';
 import { refreshToolsPanel } from './tools-panel';
 import { initCollaborationPanel } from './collaboration-panel';
+import { bootMenuPopup } from './menu-popup';
 
 declare global {
   interface Window {
     electronAPI: ElectronAPI;
   }
 }
+
+const MENU_POPUP_MODE = new URLSearchParams(window.location.search).has('menupopup');
+if (MENU_POPUP_MODE) bootMenuPopup();
 
 // UI Elements
 const urlForm = document.getElementById('url-form') as HTMLFormElement;
@@ -129,8 +133,8 @@ function applySidebarMode(mode: SidebarMode): void {
     sidebarToggleBtn.textContent = mode === 'collapsed' ? '◨' : '◧';
     sidebarToggleBtn.title =
       mode === 'collapsed'
-        ? 'Show the floating Cyberdeck panel (Ctrl+Shift+B)'
-        : 'Collapse the Cyberdeck panel (Ctrl+Shift+B)';
+        ? 'Show the Command Deck (Ctrl+Shift+B)'
+        : 'Collapse the Command Deck (Ctrl+Shift+B)';
   }
 
   if (sidebarDockBtn) {
@@ -159,20 +163,49 @@ sidebarDockBtn?.addEventListener('click', () => {
 const deckMenuRoot = document.getElementById('deck-menu');
 let deckMenuOpen = false;
 
-function closeDeckMenuLocally(): void {
-  deckMenuOpen = false;
-  deckMenuRoot?.classList.remove('open');
-  deckMenuRoot?.setAttribute('aria-hidden', 'true');
-  sidebarRailToggle?.classList.remove('orb-menu-open');
-}
-
-function setDeckMenu(open: boolean): void {
+function setDeckMenuOpenVisuals(open: boolean): void {
   deckMenuOpen = open;
   deckMenuRoot?.classList.toggle('open', open);
   deckMenuRoot?.setAttribute('aria-hidden', String(!open));
   sidebarRailToggle?.classList.toggle('orb-menu-open', open);
+}
+
+function setDeckMenu(open: boolean): void {
+  setDeckMenuOpenVisuals(open);
   window.electronAPI?.setSidebarMenuOpen(open);
 }
+
+/**
+ * Apply the authoritative sidebar state from the main process. The native
+ * view bounds and the DOM classes come from the same object, so they can
+ * never disagree (the stuck-open / dead-zone class of bugs).
+ */
+function applySidebarState(state: {
+  mode: 'docked' | 'floating' | 'collapsed';
+  menuOpen: boolean;
+  orbEdge: 'left' | 'right';
+}): void {
+  applySidebarMode(state.mode);
+  setDeckMenuOpenVisuals(state.menuOpen && state.mode === 'collapsed');
+  sidebarRailToggle?.classList.toggle('orb-left', state.orbEdge === 'left');
+  try {
+    localStorage.setItem('deck.orb-edge', state.orbEdge);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+// A trusted press anywhere outside the orb/menu closes the radial menu.
+document.addEventListener(
+  'pointerdown',
+  (event) => {
+    if (!deckMenuOpen) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest?.('#sidebar-rail-toggle, #deck-menu')) return;
+    setDeckMenu(false);
+  },
+  true,
+);
 
 sidebarRailToggle?.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return;
@@ -218,31 +251,43 @@ sidebarRailToggle?.addEventListener('keydown', (event) => {
 });
 
 // Petals: one action each, then the stage collapses back into the orb.
+function dispatchTrustedClick(el: HTMLElement | null): void {
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  const base = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 } as const;
+  el.dispatchEvent(new PointerEvent('pointerdown', { ...base, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+  el.dispatchEvent(new PointerEvent('pointerup', { ...base, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+  el.dispatchEvent(new MouseEvent('click', base));
+}
+
 deckMenuRoot?.querySelectorAll<HTMLButtonElement>('.deck-petal').forEach((petal) => {
   petal.addEventListener('click', () => {
     switch (petal.dataset.action) {
       case 'deck':
-        closeDeckMenuLocally();
-        applySidebarMode('floating');
+        // Expanding the deck broadcasts menu=false; no IPC round needed.
         window.electronAPI?.setSidebarMode('floating');
         break;
       case 'collab':
-        closeDeckMenuLocally();
-        applySidebarMode('floating');
         window.electronAPI?.setSidebarMode('floating');
-        document.getElementById('collab-btn')?.click();
+        void window.electronAPI?.openCollaborationPanel();
         break;
       case 'note':
         setDeckMenu(false);
         void window.electronAPI?.startCollaborationPicker();
         break;
       case 'harvest':
+        // Harvest = a markdown view of the page: open the deck on CONSTRUCT.
         setDeckMenu(false);
-        document.getElementById('harvest-btn')?.click();
+        window.electronAPI?.setSidebarMode('floating');
+        dispatchTrustedClick(document.getElementById('harvest-btn'));
         break;
       case 'record':
+        // Record = the timelapse screen recorder; the orb's red pulse is the
+        // running indicator, so the deck stays closed.
         setDeckMenu(false);
-        document.getElementById('record-btn')?.click();
+        dispatchTrustedClick(document.getElementById('record-btn'));
         break;
       default:
         setDeckMenu(false);
@@ -256,16 +301,7 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-// Orb status lights and dock-side persistence.
-const syncOrbEdge = (edge: 'left' | 'right'): void => {
-  sidebarRailToggle?.classList.toggle('orb-left', edge === 'left');
-  try {
-    localStorage.setItem('deck.orb-edge', edge);
-  } catch {
-    /* storage unavailable */
-  }
-};
-window.electronAPI?.onOrbEdge(syncOrbEdge);
+// Orb status lights (the docked side is handled by applySidebarState).
 window.electronAPI?.onRecordingStatus((state: unknown) => {
   sidebarRailToggle?.classList.toggle('is-recording', Boolean((state as { recording?: boolean })?.recording));
 });
@@ -274,7 +310,6 @@ window.electronAPI?.onHilCleared(() => sidebarRailToggle?.classList.remove('is-h
 try {
   const savedEdge = localStorage.getItem('deck.orb-edge');
   if (savedEdge === 'left' || savedEdge === 'right') {
-    sidebarRailToggle?.classList.toggle('orb-left', savedEdge === 'left');
     window.electronAPI?.setSidebarOrbEdge(savedEdge);
   }
 } catch {
@@ -292,13 +327,13 @@ window.addEventListener('keydown', (event) => {
 // round-trip. If the main process reports docked/collapsed, the response
 // replaces this immediately.
 if (SIDEBAR_MODE) applySidebarMode('floating');
-window.electronAPI?.getSidebarMode().then(applySidebarMode).catch(() => undefined);
-window.electronAPI?.onSidebarMode((mode) => applySidebarMode(mode as SidebarMode));
+window.electronAPI?.getSidebarState?.().then(applySidebarState).catch(() => undefined);
+window.electronAPI?.onSidebarState(applySidebarState);
 resizeCanvas();
 
 // Render loop for organic Ghost Cursor trail
 function renderTrail() {
-  if (SIDEBAR_MODE || !ctx || !canvas) return;
+  if (SIDEBAR_MODE || MENU_POPUP_MODE || !ctx || !canvas) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (let i = cursorTrail.length - 1; i >= 0; i--) {
@@ -915,7 +950,7 @@ function showHilBanner(req: { id: string; reason: string }) {
 
   btn.addEventListener('click', async () => {
     btn.textContent = 'RESUMING...';
-    await window.electronAPI.resolveHil(req.id, 'User clicked DONE in Cyberdeck HUD');
+    await window.electronAPI.resolveHil(req.id, 'User clicked DONE in Command Deck HUD');
     removeHilBanner();
   });
 }

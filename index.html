@@ -9,6 +9,10 @@
       if (new URLSearchParams(location.search).has('sidebar')) {
         document.documentElement.classList.add('sidebar-mode');
       }
+      if (new URLSearchParams(location.search).has('menupopup')) {
+        document.documentElement.classList.add('menu-popup-mode');
+        document.title = 'Menu';
+      }
     </script>
   </head>
   <body class="h-full flex flex-col overflow-hidden bg-base-200 font-sans">
@@ -159,15 +163,18 @@
         </div>
       </div>
 
-      <!-- Right Cyberdeck Telemetry & Tactical Panel (420px fixed, minimizable) -->
+      <!-- Right Command Deck HUD (agent operations, 420px fixed, minimizable) -->
       <aside id="sidebar-panel" class="w-[420px] bg-base-200 border-l border-base-300 flex flex-col z-30 shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-3 py-1.5 border-b border-base-300 bg-base-300/40">
-          <span class="font-mono text-[10px] uppercase tracking-wider text-base-content/50">Cyberdeck Panel</span>
+          <div class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-accent" aria-hidden="true"></span>
+            <span class="font-mono text-[10px] uppercase tracking-wider text-base-content/50">Command Deck</span>
+          </div>
           <div class="flex items-center gap-1">
             <button id="sidebar-dock-btn" class="btn btn-xs btn-ghost font-mono text-[10px]" title="Switch between floating over the page and docked beside it">
               DOCK
             </button>
-            <button id="sidebar-collapse-btn" class="btn btn-xs btn-ghost font-mono text-[10px]" title="Collapse to the floating toggle (Ctrl+Shift+B)">
+            <button id="sidebar-collapse-btn" class="btn btn-xs btn-ghost font-mono text-[10px]" title="Collapse to the deck orb (Ctrl+Shift+B)">
               MINIMIZE ⟩
             </button>
           </div>
@@ -288,7 +295,7 @@
           </div>
         </div>
 
-        <!-- Cyberdeck Status Footer -->
+        <!-- Command Deck status footer -->
         <footer class="p-2.5 bg-base-300 border-t border-base-300 flex items-center justify-between text-[10px] font-mono text-base-content/60">
           <div class="flex items-center gap-1.5">
             <span class="text-success">●</span>
@@ -303,14 +310,14 @@
     </div>
 
     <!-- Reappears as the free-floating deck orb when the deck is collapsed -->
-    <button id="sidebar-rail-toggle" type="button" title="Open the Cyberdeck (Ctrl+Shift+B)">
+    <button id="sidebar-rail-toggle" type="button" title="Command Deck — open actions (Ctrl+Shift+B)">
       <span aria-hidden="true">&#9672;</span>
       <span id="deck-orb-count" class="hidden">0</span>
     </button>
 
     <!-- Radial petal menu that grows out of the deck orb (bounds handled natively) -->
     <div id="deck-menu" aria-hidden="true">
-      <button type="button" class="deck-petal" data-action="deck" style="--dx: -6px; --dy: -165px; --i: 0" title="Open the Cyberdeck panel">
+      <button type="button" class="deck-petal" data-action="deck" style="--dx: -6px; --dy: -165px; --i: 0" title="Open the Command Deck">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
           <rect x="3" y="4.5" width="18" height="15" rx="2"></rect>
           <path d="M15 4.5v15"></path>
@@ -346,6 +353,9 @@
         <span>REC</span>
       </button>
     </div>
+
+    <!-- Themed dropdown surface (MenuPopup window in src/main/ui/menu-popup.ts renders here) -->
+    <div id="menu-popup-host" aria-hidden="true"></div>
 
     <!-- Help & About Modal -->
     <!-- Collaboration side panel -->

@@ -1,0 +1,23 @@
+/** Shared types for the themed popup menu and the deck surface state. */
+
+/** One row of a themed popup menu (rendered by src/renderer/menu-popup.ts). */
+export interface PopupMenuItem {
+  id: string;
+  label: string;
+  hint?: string;
+}
+
+/** Where a popup should anchor, in shell content-area coordinates. */
+export interface PopupAnchor {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Authoritative deck-surface state; native bounds and DOM classes derive from it. */
+export interface SidebarSurfaceState {
+  mode: 'docked' | 'floating' | 'collapsed';
+  menuOpen: boolean;
+  orbEdge: 'left' | 'right';
+}

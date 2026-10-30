@@ -198,7 +198,7 @@ All five phases are implemented (2026-10-30):
   language: system font for prose, monospace only for data, roomier spacing,
   human notes in amber and agent messages in cyan to match the page overlays.
 - **Phase C — placement insets.** The picker and overlay are told how much of
-  the page the floating Cyberdeck panel covers (`getSidebarPageInset`), so the
+  the page the floating Command Deck covers (`getSidebarPageInset`), so the
   drawer clamps inside the visible page area and cannot be placed underneath
   the panel. Docked mode resizes the browsing view, so it needs no inset.
 - **Phase D — save feedback.** Submitting shows a saving state; the overlay

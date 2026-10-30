@@ -3,6 +3,7 @@ import type { ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } fro
 import type { RemoteStatus } from '../shared/remote.js';
 import type { ToolManagerResult, ToolSettings } from '../shared/tool-settings.js';
 import type { CollaborationThread, CollaborationTarget } from '../shared/collaboration.js';
+import type { PopupAnchor, PopupMenuItem, SidebarSurfaceState } from '../shared/menu.js';
 
 export interface ElectronAPI {
   getState: () => Promise<ChassisState>;
@@ -31,11 +32,12 @@ export interface ElectronAPI {
   setSidebarMode: (mode: 'docked' | 'floating' | 'collapsed') => void;
   toggleSidebarMode: () => void;
   onSidebarMode: (callback: (mode: 'docked' | 'floating' | 'collapsed') => void) => () => void;
+  getSidebarState: () => Promise<SidebarSurfaceState>;
+  onSidebarState: (callback: (state: SidebarSurfaceState) => void) => () => void;
   setSidebarMenuOpen: (open: boolean) => void;
   setSidebarOrbEdge: (edge: 'left' | 'right') => void;
   orbitDragMove: (dx: number, dy: number) => void;
   orbitDragEnd: () => void;
-  onOrbEdge: (callback: (edge: 'left' | 'right') => void) => () => void;
   getTabs: () => Promise<TabSummary[]>;
   createTab: (url?: string) => Promise<TabSummary>;
   switchTab: (tabId: string) => Promise<void>;
@@ -101,7 +103,13 @@ export interface ElectronAPI {
   resolveCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
   startCollaborationPicker: () => Promise<{ ok: boolean; target?: CollaborationTarget | null; message?: string; error?: string }>;
   stopCollaborationPicker: () => Promise<{ ok: boolean }>;
-  showCollaborationMenu: () => Promise<{ ok: boolean; error?: string }>;
+  showCollaborationMenu: (anchor?: PopupAnchor) => Promise<{ ok: boolean; error?: string }>;
+  openCollaborationPanel: () => Promise<{ ok: boolean }>;
+  // Popup-menu surface (the small themed dropdown window only).
+  getMenuPopupItems: () => Promise<PopupMenuItem[]>;
+  onMenuPopupShow: (callback: (items: PopupMenuItem[]) => void) => () => void;
+  menuPopupSelect: (id: string) => void;
+  menuPopupClose: () => void;
   onCollaborationOpen: (callback: () => void) => () => void;
   onCollaborationTarget: (callback: (target: CollaborationTarget) => void) => () => void;
   onCollaborationUpdated: (callback: () => void) => () => void;
@@ -246,10 +254,11 @@ const api: ElectronAPI = {
   setSidebarOrbEdge: (edge: 'left' | 'right') => ipcRenderer.send('chassis:set-sidebar-orb-edge', edge),
   orbitDragMove: (dx, dy) => ipcRenderer.send('chassis:orbit-drag', { dx, dy }),
   orbitDragEnd: () => ipcRenderer.send('chassis:orbit-drag-end'),
-  onOrbEdge: (callback) => {
-    const handler = (_: any, edge: 'left' | 'right') => callback(edge);
-    ipcRenderer.on('chassis:orb-edge', handler);
-    return () => ipcRenderer.removeListener('chassis:orb-edge', handler);
+  getSidebarState: () => ipcRenderer.invoke('chassis:get-sidebar-state'),
+  onSidebarState: (callback) => {
+    const handler = (_: any, state: SidebarSurfaceState) => callback(state);
+    ipcRenderer.on('chassis:sidebar-state', handler);
+    return () => ipcRenderer.removeListener('chassis:sidebar-state', handler);
   },
 
   getTabs: () => ipcRenderer.invoke('chassis:get-tabs'),
@@ -350,7 +359,16 @@ const api: ElectronAPI = {
   resolveCollaborationThread: (input: any) => ipcRenderer.invoke('collaboration:resolve', input),
   startCollaborationPicker: () => ipcRenderer.invoke('collaboration:start-picker'),
   stopCollaborationPicker: () => ipcRenderer.invoke('collaboration:stop-picker'),
-  showCollaborationMenu: () => ipcRenderer.invoke('collaboration:show-menu'),
+  showCollaborationMenu: (anchor?: PopupAnchor) => ipcRenderer.invoke('collaboration:show-menu', anchor),
+  openCollaborationPanel: () => ipcRenderer.invoke('collaboration:open-threads'),
+  getMenuPopupItems: () => ipcRenderer.invoke('menu-popup:items'),
+  onMenuPopupShow: (callback) => {
+    const handler = (_: any, items: PopupMenuItem[]) => callback(Array.isArray(items) ? items : []);
+    ipcRenderer.on('menu-popup:show', handler);
+    return () => ipcRenderer.removeListener('menu-popup:show', handler);
+  },
+  menuPopupSelect: (id: string) => ipcRenderer.send('menu-popup:select', id),
+  menuPopupClose: () => ipcRenderer.send('menu-popup:close'),
   onCollaborationOpen: (callback) => {
     const handler = () => callback();
     ipcRenderer.on('collaboration:open', handler);

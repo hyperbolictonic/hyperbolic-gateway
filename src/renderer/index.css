@@ -90,8 +90,24 @@ html.sidebar-mode #sidebar-panel {
   border-left: 1px solid color-mix(in oklab, var(--color-base-300) 82%, transparent);
   box-shadow: none;
 }
+/* Floating mode paints the Command Deck as a detached HUD card: inset from
+   the view edges, rounded, with an accent edge and depth — a heads-up display
+   hovering over the page rather than a docked column. Docked mode keeps the
+   flush edge-to-edge look by design. */
 html.sidebar-mode.sidebar-floating #sidebar-panel {
-  background: color-mix(in oklab, var(--color-base-200) 84%, transparent) !important;
+  position: fixed;
+  top: 10px;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  width: auto !important;
+  height: auto;
+  border: 1px solid color-mix(in oklab, var(--color-accent) 22%, var(--color-base-300));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--color-base-200) 88%, transparent) !important;
+  box-shadow:
+    0 12px 34px rgb(0 0 0 / 0.5),
+    inset 0 1px 0 rgb(255 255 255 / 0.04);
 }
 html.sidebar-mode.sidebar-floating #sidebar-panel .bg-base-100 {
   background-color: color-mix(in oklab, var(--color-base-100) 78%, transparent);
@@ -120,13 +136,14 @@ html.sidebar-mode #sidebar-panel {
 }
 
 /* The free-floating deck orb that remains when the deck is collapsed. The
-   native view is exactly the chip's rectangle, so the button fills it and the
-   circle is drawn by the DOM over a transparent view. */
+   native view is the chip plus a 14px breathing ring (so the hover scale,
+   pulse rings and count badge never clip at the view edge), and the chip is
+   centred inside it; the circle itself is drawn by the DOM. */
 html.sidebar-mode #sidebar-rail-toggle {
   display: none;
   position: fixed;
-  right: 0;
-  bottom: 0;
+  right: 14px;
+  bottom: 14px;
   width: 56px;
   height: 56px;
   align-items: center;
@@ -185,14 +202,14 @@ html.sidebar-mode #sidebar-rail-toggle.orb-dragging {
 /* Docked to the left edge (drag-to-dock). */
 html.sidebar-mode #sidebar-rail-toggle.orb-left {
   right: auto;
-  left: 0;
+  left: 14px;
 }
 /* Status lights: red pulse while recording, amber pulse during a human hand-off. */
 html.sidebar-mode #sidebar-rail-toggle.is-recording::after,
 html.sidebar-mode #sidebar-rail-toggle.is-hil::after {
   content: '';
   position: absolute;
-  inset: -5px;
+  inset: -4px;
   border-radius: 50%;
   pointer-events: none;
   animation: deck-orb-pulse 1.5s ease-out infinite;
@@ -210,7 +227,7 @@ html.sidebar-mode #sidebar-rail-toggle.is-hil::after {
     opacity: 0.9;
   }
   100% {
-    transform: scale(1.55);
+    transform: scale(1.26);
     opacity: 0;
   }
 }
@@ -232,7 +249,7 @@ html.sidebar-mode #deck-orb-count {
   box-shadow: 0 0 0 2px rgb(13 18 33 / 0.9);
 }
 
-/* Radial petal menu stage. The native view grows to 340x340 around the same
+/* Radial petal menu stage. The native view grows to 404x404 around the same
    corner; petals fan out from under the hub with a staggered spring. The
    container never captures clicks outside its petals (`pointer-events: none`). */
 html.sidebar-mode #deck-menu {
@@ -240,8 +257,8 @@ html.sidebar-mode #deck-menu {
   position: fixed;
   right: 0;
   bottom: 0;
-  width: 340px;
-  height: 340px;
+  width: 404px;
+  height: 404px;
   z-index: 2147483000;
   pointer-events: none;
 }
@@ -250,8 +267,8 @@ html.sidebar-mode #deck-menu.open {
 }
 html.sidebar-mode .deck-petal {
   position: absolute;
-  right: 2px;
-  bottom: 2px;
+  right: 16px;
+  bottom: 16px;
   width: 52px;
   height: 52px;
   display: flex;
@@ -291,4 +308,56 @@ html.sidebar-mode #deck-menu.open .deck-petal:hover {
   box-shadow:
     0 8px 26px rgb(0 0 0 / 0.5),
     0 0 0 4px color-mix(in oklab, var(--color-accent) 16%, transparent);
+}
+
+/* ── Themed popup menu (MenuPopup window surface, ?menupopup=1) ─────────── */
+html.menu-popup-mode,
+html.menu-popup-mode body {
+  background: transparent !important;
+  overflow: hidden;
+}
+html.menu-popup-mode > body > *:not(#menu-popup-host) {
+  display: none !important;
+}
+#menu-popup-host {
+  display: none;
+}
+html.menu-popup-mode #menu-popup-host {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: fixed;
+  inset: 6px;
+  padding: 6px;
+  background: color-mix(in oklab, var(--color-base-100) 96%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 26%, var(--color-base-300));
+  border-radius: 12px;
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.5);
+}
+.menu-popup-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-base-content);
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.menu-popup-item:hover,
+.menu-popup-item:focus-visible {
+  background: color-mix(in oklab, var(--color-accent) 13%, transparent);
+  outline: none;
+}
+.menu-popup-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.menu-popup-hint {
+  font-size: 10px;
+  color: color-mix(in oklab, var(--color-base-content) 45%, transparent);
 }
