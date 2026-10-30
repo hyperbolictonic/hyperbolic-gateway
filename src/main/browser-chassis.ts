@@ -6,6 +6,7 @@ import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, Tab
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { loadInputProfile, saveInputProfile, type InputProfile } from './telemetry/input-profile.js';
 import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
+import { classifyNavigationFailure } from './navigation-error.js';
 import { bump } from './metrics.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
@@ -1106,7 +1107,17 @@ export class BrowserChassis {
       this.scheduleConsentSweep();
     }
 
-    await navPromise;
+    try {
+      await navPromise;
+    } catch (error: any) {
+      const failure = classifyNavigationFailure(formattedUrl, error);
+      const wrapped = new Error(failure.message) as Error & { code?: string; cause?: string; url?: string };
+      wrapped.code = failure.code;
+      wrapped.cause = failure.cause;
+      wrapped.url = failure.url;
+      this.addLog('warn', failure.message);
+      throw wrapped;
+    }
     this.bumpRevision();
     return `Navigated to ${formattedUrl}`;
   }

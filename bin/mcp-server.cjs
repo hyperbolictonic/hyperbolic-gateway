@@ -39373,7 +39373,8 @@ Rules of thumb:
         "memory",
         "macros",
         "network",
-        "system"
+        "system",
+        "skills"
       ]).optional().default("all").describe("Optional category to filter help")
     },
     async ({ category }) => {
@@ -39446,7 +39447,14 @@ Rules of thumb:
 - request_human_intervention(reason, timeout_seconds?, bring_to_front?): Alerts user with desktop notification, HUD banner, and unhides window when login/CAPTCHA is needed.
 - get_human_activity(): Reports the passive human-takeover window that blocks synthetic input (distinct from HIL requests).
 - resume_agent(): Clears that passive takeover window after the human confirms they are done. It does not resolve a pending HIL request.
-- send_notification(title, message, urgency?, sound?): Sends native OS notification.`
+- send_notification(title, message, urgency?, sound?): Sends native OS notification.`,
+          skills: `### Installable Skills
+- hb-browser: https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
+- hb-wrap: https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
+- Hermes: hermes skills install <raw-url>
+- Skills CLI: npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
+- Skills CLI: npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+- MCP resources are not auto-installed as Hermes skills; use the raw GitHub URL.`
         };
         return { content: [{ type: "text", text: docs[category] || "Category not found." }] };
       }

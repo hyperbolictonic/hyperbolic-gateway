@@ -15,6 +15,7 @@ saved REST tools on top of the app. It is not the end-user manual.
 
 * [Install and run](getting-started/installation.md) - local app, build from source, and the bridge.
 * [Connect an MCP client](getting-started/mcp-clients.md) - `hb-browser`, `hb-rest`, bundled runtime, and environment variables.
+* [Agent skills](getting-started/skills.md) - install the `hb-browser` and `hb-wrap` skills from GitHub.
 * [First browser session](getting-started/first-session.md) - health check, navigate, observe, act, and wait.
 * [Examples](examples/index.md) - a complete browser task and a complete REST wrapper.
 

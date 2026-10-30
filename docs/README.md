@@ -16,6 +16,7 @@ handoffs are intentionally not published here; links to them go back to the repo
 
 - [Developer guide](../developer/index.html) — the standard OKF v0.2 bundle for API and integration work.
 - [Connect an MCP client](../developer/getting-started/mcp-clients.html) — `hb-browser`, `hb-rest`, bundled runtime and environment variables.
+- [Agent skills](../developer/getting-started/skills.html) — install the `hb-browser` and `hb-wrap` skills from GitHub.
 - [Browser MCP API](../developer/api/browser-mcp.html) — tool groups, resources and call shape.
 - [REST MCP API](../developer/api/rest-mcp.html) — meta-tools, generated tools and result shapes.
 - [Remote MCP gateway (experimental)](../developer/api/remote-mcp.html) — Streamable HTTP gateway, bearer/OAuth modes, and named Cloudflare Tunnel. Third-party client support is experimental; Gemini Connected Apps is known to be flaky.

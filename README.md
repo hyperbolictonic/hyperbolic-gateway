@@ -106,6 +106,9 @@ To _use_ it with an AI assistant you already have: no — you paste one line of 
 **What's an "MCP server", in plain terms?**
 MCP is a standard plug shape for AI tools. If your AI app accepts MCP plugins, it can use this one. Claude Desktop, Cursor and several other apps speak it.
 
+**Can I install an agent skill too?**
+Yes. The `hb-browser` and `hb-wrap` skills are at [`skills/`](./skills/README.md). Hermes and other skill-aware clients can install them from the raw GitHub URL, or with `npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser`.
+
 **Which AI can drive it?**
 Any assistant that supports MCP — a cloud service, or a model running on your own computer. You choose, and you aren't locked to one provider.
 

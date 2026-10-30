@@ -24,6 +24,18 @@ code as the contract and the message as human guidance.
 | `HUMAN_IN_PROGRESS` | A human is using the browser; synthetic input is paused. | Wait for the human to go idle, then re-observe. |
 | `NO_LLM_SURFACE` | A site advertises no fetchable Markdown/Text representation. | Use `observe(as:"markdown")` or `read_url` with a detached render. |
 | `FETCH_BLOCKED` | The representation fetch was blocked or failed. | Fall back to a normal rendered read and report the reason. |
+| `NAVIGATION_HOST_NOT_FOUND` | DNS could not resolve the target host. | Check the URL and DNS; this is a client error, not a gateway crash. |
+| `NAVIGATION_CONNECTION_REFUSED` | The host refused the connection. | Check the port and whether the server is running. |
+| `NAVIGATION_TIMEOUT` | The connection timed out. | Check reachability; retry deliberately. |
+| `NAVIGATION_OFFLINE` | The machine has no network connection. | Restore connectivity and retry. |
+| `NAVIGATION_UNREACHABLE` | The host is unreachable. | Check the network and target host. |
+| `NAVIGATION_TOO_MANY_REDIRECTS` | The redirect cap was exceeded. | Use the final URL or fix the redirect chain. |
+| `NAVIGATION_CERTIFICATE` | The TLS certificate was rejected. | Check the certificate; do not bypass it silently. |
+| `NAVIGATION_ABORTED` | Navigation was aborted by the page or client. | Retry once, then inspect the page/Browser state. |
+| `NAVIGATION_FAILED` | Chromium could not load the URL for another reason. | Inspect the message and the target URL. |
+
+Navigation failures are returned as `400`, not `500`. Always show the message,
+the code and the failing URL.
 
 Other errors may be surfaced by Chromium, the bridge, or a tool-specific
 implementation. Always show the message and the failing tool name.
