@@ -310,26 +310,29 @@
     <!-- Help & About Modal -->
     <!-- Collaboration side panel -->
 <aside id="collab-panel" class="hidden fixed top-0 right-0 h-screen w-[420px] max-w-[100vw] bg-base-200 border-l border-base-300 z-[80] shadow-2xl flex flex-col">
-  <div class="flex items-center justify-between px-3 py-2 border-b border-base-300 bg-base-300/40">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-base-300 bg-base-300/40">
     <div>
-      <div class="font-mono text-xs font-bold text-accent">COLLABORATION</div>
-      <div id="collab-status" class="font-mono text-[10px] text-base-content/50">Human and agent notes</div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-warning shrink-0"></span>
+        <span class="text-[13px] font-semibold text-base-content">Collaboration</span>
+      </div>
+      <div id="collab-status" class="text-[11px] text-base-content/50 mt-0.5">Human and agent notes on this page</div>
     </div>
-    <button id="collab-close-btn" type="button" class="btn btn-xs btn-ghost font-mono text-[10px]">CLOSE</button>
+    <button id="collab-close-btn" type="button" class="btn btn-xs btn-ghost">Close</button>
   </div>
 
-  <div class="p-3 border-b border-base-300 space-y-2">
-    <button id="collab-pick-btn" type="button" class="btn btn-sm btn-accent w-full font-mono text-xs">ADD A NOTE</button>
-    <p id="collab-pick-hint" class="font-mono text-[10px] text-base-content/50">Opens the picker — click an element on the page, then write in the note card. Escape cancels.</p>
+  <div class="p-3 border-b border-base-300">
+    <button id="collab-pick-btn" type="button" class="btn btn-sm btn-warning w-full text-[12px] font-semibold">Add a note</button>
+    <p id="collab-pick-hint" class="text-[11px] text-base-content/50 mt-2">Opens the picker — click an element on the page, then write in the note card. Escape cancels.</p>
   </div>
 
   <div class="px-3 py-2 border-b border-base-300 flex items-center justify-between">
-    <span class="font-mono text-[10px] uppercase tracking-wider text-base-content/50">THREADS</span>
-    <button id="collab-refresh-btn" type="button" class="btn btn-xs btn-ghost font-mono text-[10px]">REFRESH</button>
+    <span class="text-[11px] uppercase tracking-wider text-base-content/50">Threads</span>
+    <button id="collab-refresh-btn" type="button" class="btn btn-xs btn-ghost text-[11px]">Refresh</button>
   </div>
   <div id="collab-list" class="flex-1 overflow-y-auto p-2 space-y-2"></div>
   <div id="collab-detail" class="hidden border-t border-base-300 p-3 space-y-2 max-h-[45vh] overflow-y-auto bg-base-100/50"></div>
-  <div id="collab-result" class="hidden alert alert-sm font-mono text-[10px] m-2"></div>
+  <div id="collab-result" class="hidden alert alert-sm text-[11px] m-2"></div>
 </aside>
 
 <!-- Settings: full-viewport, tabbed -->

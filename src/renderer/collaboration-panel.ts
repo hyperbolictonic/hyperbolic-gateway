@@ -17,7 +17,7 @@ function setStatus(text: string): void {
 function showResult(kind: 'success' | 'error' | 'info', text: string): void {
   const el = byId<HTMLElement>('collab-result');
   if (!el) return;
-  el.className = `alert alert-${kind} alert-sm font-mono text-[10px] m-2`;
+  el.className = `alert alert-${kind} text-[11px] m-2`;
   el.textContent = text;
   el.classList.remove('hidden');
 }
@@ -65,16 +65,18 @@ function renderList(): void {
   list.replaceChildren();
   if (!threads.length) {
     const empty = document.createElement('div');
-    empty.className = 'font-mono text-[10px] text-base-content/40 p-3 text-center';
-    empty.textContent = 'No collaboration threads yet.';
+    empty.className = 'text-[11px] text-base-content/40 p-6 text-center leading-relaxed';
+    empty.textContent = 'No threads yet. Pick an element on the page and leave a note to start one.';
     list.append(empty);
     return;
   }
   for (const thread of threads) {
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = `w-full text-left rounded border p-2 font-mono ${
-      thread.id === selectedId ? 'border-accent bg-base-100' : 'border-base-300 bg-base-200/30 hover:border-base-content/30'
+    card.className = `w-full text-left rounded-lg border p-2.5 transition-colors ${
+      thread.id === selectedId
+        ? 'border-warning/70 bg-base-100'
+        : 'border-base-300 bg-base-200/40 hover:border-base-content/25 hover:bg-base-200/70'
     }`;
     card.addEventListener('click', () => {
       selectedId = thread.id;
@@ -84,14 +86,14 @@ function renderList(): void {
     const head = document.createElement('div');
     head.className = 'flex items-center justify-between gap-2';
     const title = document.createElement('span');
-    title.className = 'text-[11px] text-accent truncate';
+    title.className = 'text-[12px] font-medium text-base-content truncate';
     title.textContent = targetLabel(thread.target);
     const status = document.createElement('span');
-    status.className = `badge badge-xs ${thread.status === 'open' ? 'badge-warning' : thread.status === 'answered' ? 'badge-info' : 'badge-ghost'}`;
+    status.className = `badge badge-sm shrink-0 ${thread.status === 'open' ? 'badge-warning' : thread.status === 'answered' ? 'badge-info' : 'badge-ghost'}`;
     status.textContent = thread.status;
     head.append(title, status);
     const text = document.createElement('div');
-    text.className = 'text-[10px] text-base-content/60 mt-1 line-clamp-2';
+    text.className = 'text-[11px] text-base-content/60 mt-1 line-clamp-2 leading-relaxed';
     text.textContent = thread.messages[0]?.text || thread.intent || '';
     card.append(head, text);
     list.append(card);
@@ -112,15 +114,18 @@ function renderDetail(): void {
   detail.replaceChildren();
 
   const title = document.createElement('div');
-  title.className = 'font-mono text-[11px] font-bold text-accent';
+  title.className = 'text-[12px] font-semibold text-base-content';
   title.textContent = targetLabel(thread.target);
   detail.append(title);
 
   for (const message of thread.messages) {
+    const fromHuman = message.author === 'human';
     const row = document.createElement('div');
-    row.className = `rounded p-2 text-[10px] ${message.author === 'human' ? 'bg-info/10 border border-info/30' : 'bg-base-200 border border-base-300'}`;
+    row.className = `rounded-lg p-2.5 text-[12px] leading-relaxed ${
+      fromHuman ? 'bg-warning/10 border border-warning/30' : 'bg-info/10 border border-info/30'
+    }`;
     const who = document.createElement('div');
-    who.className = 'font-mono text-[9px] text-base-content/40';
+    who.className = `text-[10px] uppercase tracking-wider ${fromHuman ? 'text-warning/80' : 'text-info/80'}`;
     who.textContent = `${message.author} · ${message.kind}`;
     const body = document.createElement('div');
     body.className = 'mt-1 whitespace-pre-wrap break-words';
@@ -132,11 +137,11 @@ function renderDetail(): void {
   const question = thread.messages.find((message) => message.kind === 'question' && message.choices?.length);
   if (question?.choices?.length && thread.status !== 'resolved') {
     const choices = document.createElement('div');
-    choices.className = 'flex flex-wrap gap-1';
+    choices.className = 'flex flex-wrap gap-1.5';
     for (const choice of question.choices) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'btn btn-xs btn-outline btn-info font-mono text-[10px]';
+      button.className = 'btn btn-xs btn-outline btn-info text-[11px]';
       button.textContent = choice;
       button.addEventListener('click', () => void reply(thread, choice, 'answer', choice));
       choices.append(button);
@@ -146,17 +151,17 @@ function renderDetail(): void {
 
   if (thread.status !== 'resolved') {
     const replyBox = document.createElement('textarea');
-    replyBox.className = 'textarea textarea-sm w-full h-16 font-mono text-[10px]';
+    replyBox.className = 'textarea textarea-sm w-full h-16 text-[12px] leading-relaxed';
     replyBox.placeholder = 'Reply to the agent…';
     const replyBtn = document.createElement('button');
     replyBtn.type = 'button';
-    replyBtn.className = 'btn btn-xs btn-primary font-mono text-[10px]';
-    replyBtn.textContent = 'REPLY';
+    replyBtn.className = 'btn btn-xs btn-warning font-semibold text-[11px]';
+    replyBtn.textContent = 'Reply';
     replyBtn.addEventListener('click', () => void reply(thread, replyBox.value, 'comment'));
     const resolveBtn = document.createElement('button');
     resolveBtn.type = 'button';
-    resolveBtn.className = 'btn btn-xs btn-ghost btn-error font-mono text-[10px]';
-    resolveBtn.textContent = 'RESOLVE';
+    resolveBtn.className = 'btn btn-xs btn-ghost text-error hover:bg-error/10 text-[11px]';
+    resolveBtn.textContent = 'Resolve';
     resolveBtn.addEventListener('click', () => void resolve(thread));
     const actions = document.createElement('div');
     actions.className = 'flex items-center gap-2';
