@@ -252,6 +252,11 @@ export function initCollaborationPanel(): void {
     openPanel();
     showCompose(target);
   });
+  api?.onCollaborationCompose(() => {
+    openPanel();
+    if (pendingTarget) showCompose(pendingTarget);
+    else setStatus('Pick an element first');
+  });
   api?.onCollaborationUpdated(() => {
     if (panelOpen) void refresh();
   });

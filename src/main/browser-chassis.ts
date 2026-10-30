@@ -7,7 +7,7 @@ import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { loadInputProfile, saveInputProfile, type InputProfile } from './telemetry/input-profile.js';
 import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
 import { classifyNavigationFailure } from './navigation-error.js';
-import { COLLABORATION_SELECT_PREFIX, collaborationPickerScript } from './collaboration/overlay.js';
+import { COLLABORATION_ADD_NOTE_PREFIX, COLLABORATION_SELECT_PREFIX, collaborationPickerScript } from './collaboration/overlay.js';
 import type { CollaborationTarget } from '../shared/collaboration.js';
 import { bump } from './metrics.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
@@ -131,6 +131,7 @@ export class BrowserChassis {
   /** Monotonic page revision: bumped on navigation and every mutating action. */
   private revision = 0;
   private onCollaborationTarget?: (target: CollaborationTarget) => void;
+  private onCollaborationAddNote?: () => void;
 
   private state: ChassisState = {
     currentUrl: 'about:blank',
@@ -432,6 +433,9 @@ export class BrowserChassis {
             const target = JSON.parse(log.message.slice(COLLABORATION_SELECT_PREFIX.length));
             this.onCollaborationTarget?.(target);
           } catch {}
+        }
+        if (log.message.trim() === COLLABORATION_ADD_NOTE_PREFIX) {
+          this.onCollaborationAddNote?.();
         }
       },
     });
@@ -949,6 +953,10 @@ export class BrowserChassis {
 
   public setOnCollaborationTarget(callback: (target: CollaborationTarget) => void): void {
     this.onCollaborationTarget = callback;
+  }
+
+  public setOnCollaborationAddNote(callback: () => void): void {
+    this.onCollaborationAddNote = callback;
   }
 
   /** Start the human element picker. The selected target arrives through onCollaborationTarget. */

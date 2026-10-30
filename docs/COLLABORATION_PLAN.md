@@ -155,8 +155,10 @@ human reply/choice controls in the COLLAB side panel.
 
 The **PICK ELEMENT** control injects a crosshair overlay. A trusted click
 reports a target descriptor over the existing console channel; the main process
-then opens the compose box. Escape cancels. The target stores selector, role,
-visible text, mark id and rect so it can be re-resolved later.
+then opens the compose box. Escape cancels. The selected outline stays visible
+and carries an **Add note** icon at its outer top-right with a tooltip; clicking
+it opens/focuses the compose box. The target stores selector, role, visible
+text, mark id and rect so it can be re-resolved later.
 
 ## Human interface
 

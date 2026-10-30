@@ -1,6 +1,7 @@
 import type { CollaborationThread } from '../../shared/collaboration.js';
 
 export const COLLABORATION_SELECT_PREFIX = '__KUANG_COLLAB_SELECT__:';
+export const COLLABORATION_ADD_NOTE_PREFIX = '__KUANG_COLLAB_ADD_NOTE__';
 
 /** Human element picker. The click is reported through the existing console channel. */
 export function collaborationPickerScript(): string {
@@ -101,7 +102,25 @@ export function collaborationPickerScript(): string {
         font: '10px ui-monospace, monospace', whiteSpace: 'nowrap',
       });
       label.textContent = 'SELECTED';
-      keep.append(label);
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.title = 'Add note';
+      add.setAttribute('aria-label', 'Add note');
+      Object.assign(add.style, {
+        position: 'absolute', right: '-14px', top: rect.top > 36 ? '-14px' : '4px',
+        width: '24px', height: '24px', padding: '0', border: '1px solid #f59e0b',
+        borderRadius: '50%', background: '#111827', color: '#f59e0b',
+        cursor: 'pointer', pointerEvents: 'auto', display: 'grid',
+        placeItems: 'center', boxShadow: '0 0 0 2px rgba(245,158,11,0.22)',
+        zIndex: '2147483647',
+      });
+      add.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+      add.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        console.log(${JSON.stringify(COLLABORATION_ADD_NOTE_PREFIX)});
+      });
+      keep.append(label, add);
       document.documentElement.appendChild(keep);
       finish(target);
     };
