@@ -155,15 +155,31 @@ human reply/choice controls in the COLLAB side panel.
 
 The **COLLAB** control is an icon with a tooltip and a native action menu. Its
 first action is **Select element**, which injects a crosshair overlay. A trusted
-click creates an anchored note drawer: beside the element when there is room,
-below it when there is not, and above it when the lower edge is crowded. The
-drawer follows the element on scroll and resize. The selected outline stays
-visible and carries an **Add note** icon at its outer top-right with a tooltip;
-clicking it expands/focuses the drawer. Escape or the drawer close button
-cancels. A minimize control collapses the drawer to a compact note bar without
-losing the draft. The target stores selector, role, visible text, mark id and
-rect so it can be re-resolved later. The drawer submits directly to the
-collaboration store, so the global side panel is not required to write a note.
+click creates an anchored note composer.
+
+The composer is a popover card, not a panel: it is placed outside the element
+on the side that has room (right, then left, then below, then above), vertically
+centred on the element, and it floats in the bottom-right corner when the
+element fills the viewport. A small arrow points back at the element, and the
+card is clamped to the viewport so it can never leave the screen. It follows
+the element on scroll and resize.
+
+The selected element keeps an amber outline with a badge that names the
+selector, plus an **Add note** icon on its outer top-right corner. Clicking the
+icon expands and focuses the composer.
+
+The card header can be dragged; a dragged card detaches from the element and an
+anchor button re-attaches it. A minimize control collapses the composer to a
+compact note pill next to the element without losing the draft. Escape, the
+close button and **Cancel** discard the draft; **Ctrl + Enter** saves.
+
+The target stores selector, role, visible text, mark id and rect so it can be
+re-resolved later. The composer submits directly to the collaboration store, so
+the global side panel is not required to write a note.
+
+Agent highlights use the same visual language: a dashed cyan outline with a
+compact card placed outside the element, clamped to the viewport and expanded
+on click.
 
 ## Human interface
 
