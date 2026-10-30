@@ -201,6 +201,7 @@ async function saveNote(): Promise<void> {
   if (byId<HTMLTextAreaElement>('collab-comment')) byId<HTMLTextAreaElement>('collab-comment')!.value = '';
   if (byId<HTMLInputElement>('collab-tags')) byId<HTMLInputElement>('collab-tags')!.value = '';
   selectedId = result.thread?.id || null;
+  await api?.stopCollaborationPicker();
   await refresh();
   showResult('success', 'Note added.');
 }

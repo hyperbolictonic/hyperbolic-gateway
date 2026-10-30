@@ -972,6 +972,8 @@ export class BrowserChassis {
           if (typeof window.__kuangCollabPickerCancel === 'function') window.__kuangCollabPickerCancel();
           const el = document.getElementById('__kuang_collab_picker');
           if (el) el.remove();
+          const selected = document.getElementById('__kuang_collab_selection');
+          if (selected) selected.remove();
           window.__kuangCollabPicking = false;
         })()
       `);

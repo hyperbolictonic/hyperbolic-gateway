@@ -8,6 +8,8 @@ export function collaborationPickerScript(): string {
     const layerId = '__kuang_collab_picker';
     const old = document.getElementById(layerId);
     if (old) old.remove();
+    const oldSelection = document.getElementById('__kuang_collab_selection');
+    if (oldSelection) oldSelection.remove();
     const layer = document.createElement('div');
     layer.id = layerId;
     Object.assign(layer.style, {
@@ -81,7 +83,27 @@ export function collaborationPickerScript(): string {
       if (!el || el === layer || el === outline) return;
       event.preventDefault();
       event.stopPropagation();
-      finish(describe(el));
+      const target = describe(el);
+      const rect = el.getBoundingClientRect();
+      const keep = document.createElement('div');
+      keep.id = '__kuang_collab_selection';
+      Object.assign(keep.style, {
+        position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+        width: rect.width + 'px', height: rect.height + 'px',
+        border: '2px solid #f59e0b', borderRadius: '4px',
+        boxShadow: '0 0 0 2px rgba(245,158,11,0.18), 0 0 18px rgba(245,158,11,0.35)',
+        pointerEvents: 'none', zIndex: '2147483645',
+      });
+      const label = document.createElement('div');
+      Object.assign(label.style, {
+        position: 'absolute', left: '0', top: '-20px', padding: '1px 5px',
+        background: '#f59e0b', color: '#111827', borderRadius: '3px',
+        font: '10px ui-monospace, monospace', whiteSpace: 'nowrap',
+      });
+      label.textContent = 'SELECTED';
+      keep.append(label);
+      document.documentElement.appendChild(keep);
+      finish(target);
     };
     const onKey = (event) => {
       if (event.key === 'Escape') { event.preventDefault(); finish(null); }
