@@ -954,7 +954,9 @@ export class BrowserChassis {
   /** Start the human element picker. The selected target arrives through onCollaborationTarget. */
   public async startCollaborationSelection(): Promise<string> {
     const wc = this.getActiveWebContents();
-    await wc.executeJavaScript(collaborationPickerScript());
+    void wc.executeJavaScript(collaborationPickerScript()).then((target) => {
+      if (target) this.onCollaborationTarget?.(target);
+    }).catch(() => null);
     return 'Collaboration picker active. Click an element, or press Escape to cancel.';
   }
 
@@ -963,6 +965,7 @@ export class BrowserChassis {
       const wc = this.getActiveWebContents();
       await wc.executeJavaScript(`
         (() => {
+          if (typeof window.__kuangCollabPickerCancel === 'function') window.__kuangCollabPickerCancel();
           const el = document.getElementById('__kuang_collab_picker');
           if (el) el.remove();
           window.__kuangCollabPicking = false;

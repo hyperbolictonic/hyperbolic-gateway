@@ -4,7 +4,7 @@ export const COLLABORATION_SELECT_PREFIX = '__KUANG_COLLAB_SELECT__:';
 
 /** Human element picker. The click is reported through the existing console channel. */
 export function collaborationPickerScript(): string {
-  return `(() => {
+  return `new Promise((resolve) => {
     const layerId = '__kuang_collab_picker';
     const old = document.getElementById(layerId);
     if (old) old.remove();
@@ -70,24 +70,28 @@ export function collaborationPickerScript(): string {
       document.removeEventListener('click', onClick, true);
       document.removeEventListener('keydown', onKey, true);
       window.__kuangCollabPicking = false;
+      delete window.__kuangCollabPickerCancel;
+    };
+    const finish = (value) => {
+      cleanup();
+      resolve(value);
     };
     const onClick = (event) => {
       const el = document.elementFromPoint(event.clientX, event.clientY);
       if (!el || el === layer || el === outline) return;
       event.preventDefault();
       event.stopPropagation();
-      console.log(${JSON.stringify(COLLABORATION_SELECT_PREFIX)} + JSON.stringify(describe(el)));
-      cleanup();
+      finish(describe(el));
     };
     const onKey = (event) => {
-      if (event.key === 'Escape') { event.preventDefault(); cleanup(); }
+      if (event.key === 'Escape') { event.preventDefault(); finish(null); }
     };
     window.__kuangCollabPicking = true;
+    window.__kuangCollabPickerCancel = () => finish(null);
     document.addEventListener('mousemove', onMove, true);
     document.addEventListener('click', onClick, true);
     document.addEventListener('keydown', onKey, true);
-    return 'picking';
-  })()`;
+  })`;
 }
 
 
