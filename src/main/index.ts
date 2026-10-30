@@ -356,7 +356,8 @@ ipcMain.handle('collaboration:resolve', (_event, input: any) => {
 
 ipcMain.handle('collaboration:start-picker', async () => {
   try {
-    return { ok: true, message: await chassis.startCollaborationSelection() };
+    const target = await chassis.pickCollaborationTarget();
+    return { ok: true, target };
   } catch (error: any) {
     return { ok: false, error: error?.message || String(error) };
   }

@@ -233,9 +233,18 @@ export function initCollaborationPanel(): void {
   byId<HTMLButtonElement>('collab-refresh-btn')?.addEventListener('click', () => void refresh());
   byId<HTMLButtonElement>('collab-pick-btn')?.addEventListener('click', async () => {
     openPanel();
+    setStatus('Picking — click a page element');
     const result = await api?.startCollaborationPicker();
-    if (!result?.ok) showResult('error', result?.error || 'Could not start the picker.');
-    else setStatus('Picking — click a page element');
+    if (!result?.ok) {
+      showResult('error', result?.error || 'Could not start the picker.');
+      return;
+    }
+    if (result.target) {
+      showCompose(result.target);
+      setStatus('Element captured — add a note');
+    } else {
+      setStatus('Picker cancelled');
+    }
   });
   byId<HTMLButtonElement>('collab-save-btn')?.addEventListener('click', () => void saveNote());
   api?.onCollaborationTarget((target) => {

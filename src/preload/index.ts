@@ -94,7 +94,7 @@ export interface ElectronAPI {
   createCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
   replyCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
   resolveCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
-  startCollaborationPicker: () => Promise<{ ok: boolean; message?: string; error?: string }>;
+  startCollaborationPicker: () => Promise<{ ok: boolean; target?: CollaborationTarget | null; message?: string; error?: string }>;
   stopCollaborationPicker: () => Promise<{ ok: boolean }>;
   onCollaborationTarget: (callback: (target: CollaborationTarget) => void) => () => void;
   onCollaborationUpdated: (callback: () => void) => () => void;

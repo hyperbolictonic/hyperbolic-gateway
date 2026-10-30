@@ -952,11 +952,15 @@ export class BrowserChassis {
   }
 
   /** Start the human element picker. The selected target arrives through onCollaborationTarget. */
-  public async startCollaborationSelection(): Promise<string> {
+  public async pickCollaborationTarget(): Promise<CollaborationTarget | null> {
     const wc = this.getActiveWebContents();
-    void wc.executeJavaScript(collaborationPickerScript()).then((target) => {
+    return await wc.executeJavaScript(collaborationPickerScript()).catch(() => null);
+  }
+
+  public async startCollaborationSelection(): Promise<string> {
+    void this.pickCollaborationTarget().then((target) => {
       if (target) this.onCollaborationTarget?.(target);
-    }).catch(() => null);
+    });
     return 'Collaboration picker active. Click an element, or press Escape to cancel.';
   }
 
