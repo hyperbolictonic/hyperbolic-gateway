@@ -161,8 +161,10 @@ The composer is a popover card, not a panel: it is placed outside the element
 on the side that has room (right, then left, then below, then above), vertically
 centred on the element, and it floats in the bottom-right corner when the
 element fills the viewport. A small arrow points back at the element, and the
-card is clamped to the viewport so it can never leave the screen. It follows
-the element on scroll and resize.
+card is clamped inside the viewport at placement time so it can never be
+created off-screen. Placement happens once in viewport space and is then
+anchored in document coordinates, so the composer scrolls with the page
+instead of pinning itself to the viewport. A resize re-checks placement.
 
 The selected element keeps an amber outline with a badge that names the
 selector, plus an **Add note** icon on its outer top-right corner. Clicking the
@@ -177,9 +179,9 @@ The target stores selector, role, visible text, mark id and rect so it can be
 re-resolved later. The composer submits directly to the collaboration store, so
 the global side panel is not required to write a note.
 
-Agent highlights use the same visual language: a dashed cyan outline with a
-compact card placed outside the element, clamped to the viewport and expanded
-on click.
+Agent highlights use the same visual language and the same document anchoring:
+a dashed cyan outline with a compact card placed outside the element, clamped
+inside the viewport and expanded on click.
 
 ## Human interface
 

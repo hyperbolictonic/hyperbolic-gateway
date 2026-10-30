@@ -11,7 +11,7 @@ export const COLLABORATION_NOTE_PREFIX = '__KUANG_COLLAB_NOTE__:';
  */
 const COLLAB_CSS = `
 #__kuang_collab_drawer {
-  position: fixed !important;
+  position: absolute !important;
   z-index: 2147483647 !important;
   box-sizing: border-box !important;
   margin: 0 !important;
@@ -178,7 +178,7 @@ const COLLAB_CSS = `
 #__kuang_collab_drawer .hb-arrow.is-up { display: block; top: -6px; transform: rotate(45deg); }
 #__kuang_collab_drawer .hb-arrow.is-down { display: block; bottom: -6px; transform: rotate(225deg); }
 #__kuang_collab_selection {
-  position: fixed !important;
+  position: absolute !important;
   z-index: 2147483645 !important;
   box-sizing: border-box !important;
   margin: 0 !important;
@@ -229,7 +229,7 @@ const COLLAB_CSS = `
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
 }
 #__kuang_collaboration_layer .hb-box {
-  position: fixed;
+  position: absolute;
   box-sizing: border-box;
   border: 2px dashed rgba(34, 211, 238, 0.85);
   border-radius: 8px;
@@ -237,7 +237,7 @@ const COLLAB_CSS = `
   box-shadow: 0 0 18px rgba(34, 211, 238, 0.22);
 }
 #__kuang_collaboration_layer .hb-agent {
-  position: fixed;
+  position: absolute;
   box-sizing: border-box;
   width: 250px;
   max-width: calc(100vw - 24px);
@@ -420,16 +420,14 @@ export function collaborationNoteDrawerScript(): string {
 
     const position = () => {
       const rect = el.getBoundingClientRect();
+      const offsetX = scrollX;
+      const offsetY = scrollY;
       const vw = innerWidth;
       const vh = innerHeight;
       const margin = 12;
       const gap = 12;
-      const visible = rect.bottom > -24 && rect.top < vh + 24 && rect.right > -24 && rect.left < vw + 24;
-      keep.style.visibility = visible ? 'visible' : 'hidden';
-      drawer.style.visibility = visible ? 'visible' : 'hidden';
-      if (!visible) return;
-      keep.style.left = rect.left + 'px';
-      keep.style.top = rect.top + 'px';
+      keep.style.left = rect.left + offsetX + 'px';
+      keep.style.top = rect.top + offsetY + 'px';
       keep.style.width = rect.width + 'px';
       keep.style.height = rect.height + 'px';
       tag.style.top = rect.top > 20 ? '-10px' : '2px';
@@ -476,8 +474,8 @@ export function collaborationNoteDrawerScript(): string {
       }
       left = clamp(left, margin, Math.max(margin, vw - width - margin));
       top = clamp(top, margin, Math.max(margin, vh - height - margin));
-      drawer.style.left = Math.round(left) + 'px';
-      drawer.style.top = Math.round(top) + 'px';
+      drawer.style.left = Math.round(left + offsetX) + 'px';
+      drawer.style.top = Math.round(top + offsetY) + 'px';
       if (side === 'none') {
         arrow.className = 'hb-arrow';
         return;
@@ -512,7 +510,6 @@ export function collaborationNoteDrawerScript(): string {
     const remove = () => {
       keep.remove();
       drawer.remove();
-      window.removeEventListener('scroll', position, true);
       window.removeEventListener('resize', position);
       document.removeEventListener('keydown', onKey, true);
       delete window.__kuangCollabSelectionCancel;
@@ -561,8 +558,10 @@ export function collaborationNoteDrawerScript(): string {
       setFree(true);
       const width = card.offsetWidth;
       const height = card.offsetHeight;
-      const left = clamp(event.clientX - dragOffsetX, 8, Math.max(8, innerWidth - width - 8));
-      const top = clamp(event.clientY - dragOffsetY, 8, Math.max(8, innerHeight - height - 8));
+      const docWidth = Math.max(innerWidth, document.documentElement.scrollWidth);
+      const docHeight = Math.max(innerHeight, document.documentElement.scrollHeight);
+      const left = clamp(event.clientX - dragOffsetX + scrollX, 8, Math.max(8, docWidth - width - 8));
+      const top = clamp(event.clientY - dragOffsetY + scrollY, 8, Math.max(8, docHeight - height - 8));
       drawer.style.left = Math.round(left) + 'px';
       drawer.style.top = Math.round(top) + 'px';
       arrow.className = 'hb-arrow';
@@ -755,7 +754,7 @@ export function collaborationOverlayScript(threads: CollaborationThread[]): stri
     if (!threads.length) return;
     const layer = document.createElement('div');
     layer.id = layerId;
-    layer.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;');
+    layer.setAttribute('style', 'position:absolute;inset:0;z-index:2147483646;pointer-events:none;');
     const rectFor = (target) => {
       try {
         if (target.markId !== undefined) {
@@ -775,10 +774,12 @@ export function collaborationOverlayScript(threads: CollaborationThread[]): stri
     for (const thread of threads) {
       const rect = rectFor(thread.target);
       if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+      const offsetX = scrollX;
+      const offsetY = scrollY;
       const box = document.createElement('div');
       box.className = 'hb-box';
       Object.assign(box.style, {
-        left: rect.left + 'px', top: rect.top + 'px',
+        left: rect.left + offsetX + 'px', top: rect.top + offsetY + 'px',
         width: Math.max(8, rect.width) + 'px', height: Math.max(8, rect.height) + 'px',
       });
       const card = document.createElement('div');
@@ -814,8 +815,8 @@ export function collaborationOverlayScript(threads: CollaborationThread[]): stri
       }
       top = clamp(top, margin, Math.max(margin, innerHeight - height - margin));
       const left = clamp(rect.left, margin, Math.max(margin, innerWidth - width - margin));
-      card.style.left = Math.round(left) + 'px';
-      card.style.top = Math.round(top) + 'px';
+      card.style.left = Math.round(left + offsetX) + 'px';
+      card.style.top = Math.round(top + offsetY) + 'px';
       if (pointingUp) {
         arrow.style.top = '-6px';
         arrow.style.left = clamp(rect.left + rect.width / 2 - left - 5, 12, Math.max(12, width - 22)) + 'px';
