@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -361,6 +361,25 @@ ipcMain.handle('collaboration:start-picker', async () => {
   } catch (error: any) {
     return { ok: false, error: error?.message || String(error) };
   }
+});
+
+ipcMain.handle('collaboration:show-menu', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, error: 'Window is not ready.' };
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'Select element',
+      click: async () => {
+        const target = await chassis.pickCollaborationTarget();
+        if (target) mainWindow?.webContents.send('collaboration:target', target);
+      },
+    },
+    {
+      label: 'Open threads',
+      click: () => mainWindow?.webContents.send('collaboration:open'),
+    },
+  ]);
+  menu.popup({ window: mainWindow });
+  return { ok: true };
 });
 
 ipcMain.handle('collaboration:stop-picker', async () => {

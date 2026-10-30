@@ -27,19 +27,13 @@ function targetLabel(target: CollaborationTarget): string {
   return target.name || target.text || target.selector || target.reference || target.url;
 }
 
-function closeMenu(): void {
-  byId<HTMLElement>('collab-menu')?.classList.add('hidden');
-}
-
 function openPanel(): void {
   panelOpen = true;
-  closeMenu();
   byId<HTMLElement>('collab-panel')?.classList.remove('hidden');
   void refresh();
 }
 
 async function startPicker(): Promise<void> {
-  closeMenu();
   setStatus('Picking — click a page element');
   const result = await api?.startCollaborationPicker();
   if (!result?.ok) {
@@ -251,27 +245,21 @@ async function resolve(thread: CollaborationThread): Promise<void> {
 export function initCollaborationPanel(): void {
   if (initialized) return;
   initialized = true;
-  byId<HTMLButtonElement>('collab-btn')?.addEventListener('click', (event) => {
-    event.stopPropagation();
-    byId<HTMLElement>('collab-menu')?.classList.toggle('hidden');
+  byId<HTMLButtonElement>('collab-btn')?.addEventListener('click', async () => {
+    const result = await api?.showCollaborationMenu();
+    if (!result?.ok) showResult('error', result?.error || 'Could not open the collaboration menu.');
   });
-  byId<HTMLButtonElement>('collab-action-pick')?.addEventListener('click', () => void startPicker());
-  byId<HTMLButtonElement>('collab-action-open')?.addEventListener('click', openPanel);
   byId<HTMLButtonElement>('collab-close-btn')?.addEventListener('click', closePanel);
   byId<HTMLButtonElement>('collab-refresh-btn')?.addEventListener('click', () => void refresh());
   byId<HTMLButtonElement>('collab-pick-btn')?.addEventListener('click', () => void startPicker());
-  document.addEventListener('click', (event) => {
-    const menu = byId<HTMLElement>('collab-menu');
-    if (!menu || menu.classList.contains('hidden')) return;
-    if (!(event.target as HTMLElement).closest('#collab-menu, #collab-btn')) closeMenu();
-  });
   byId<HTMLButtonElement>('collab-save-btn')?.addEventListener('click', () => void saveNote());
-  api?.onCollaborationTarget((target) => {
-    openPanel();
-    showCompose(target);
+  api?.onCollaborationTarget(() => {
+    panelOpen = false;
+    byId<HTMLElement>('collab-panel')?.classList.add('hidden');
+    setStatus('Note drawer open on the page');
   });
+  api?.onCollaborationOpen(() => openPanel());
   api?.onCollaborationCompose(() => {
-    openPanel();
     if (pendingTarget) showCompose(pendingTarget);
     else setStatus('Pick an element first');
   });

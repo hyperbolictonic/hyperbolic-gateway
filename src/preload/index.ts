@@ -96,6 +96,8 @@ export interface ElectronAPI {
   resolveCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
   startCollaborationPicker: () => Promise<{ ok: boolean; target?: CollaborationTarget | null; message?: string; error?: string }>;
   stopCollaborationPicker: () => Promise<{ ok: boolean }>;
+  showCollaborationMenu: () => Promise<{ ok: boolean; error?: string }>;
+  onCollaborationOpen: (callback: () => void) => () => void;
   onCollaborationTarget: (callback: (target: CollaborationTarget) => void) => () => void;
   onCollaborationCompose: (callback: () => void) => () => void;
   onCollaborationUpdated: (callback: () => void) => () => void;
@@ -335,6 +337,12 @@ const api: ElectronAPI = {
   resolveCollaborationThread: (input: any) => ipcRenderer.invoke('collaboration:resolve', input),
   startCollaborationPicker: () => ipcRenderer.invoke('collaboration:start-picker'),
   stopCollaborationPicker: () => ipcRenderer.invoke('collaboration:stop-picker'),
+  showCollaborationMenu: () => ipcRenderer.invoke('collaboration:show-menu'),
+  onCollaborationOpen: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('collaboration:open', handler);
+    return () => ipcRenderer.removeListener('collaboration:open', handler);
+  },
   onCollaborationTarget: (callback) => {
     const handler = (_: any, target: CollaborationTarget) => callback(target);
     ipcRenderer.on('collaboration:target', handler);
