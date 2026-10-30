@@ -183,6 +183,25 @@ Agent highlights use the same visual language and the same document anchoring:
 a dashed cyan outline with a compact card placed outside the element, clamped
 inside the viewport and expanded on click.
 
+### UI hardening phases
+
+- **Phase A — one composer.** The side panel stops composing notes. Its
+  **Pick element** action starts the in-page picker and the drawer does the
+  writing. The panel compose block and the `collaboration:compose` event are
+  retired end to end (renderer, preload, main).
+- **Phase B — panel restyle.** The thread panel adopts the drawer's design
+  language: system font for prose, monospace only for data, roomier spacing,
+  human notes in amber and agent messages in cyan to match the page overlays.
+- **Phase C — placement insets.** The picker is told how much of the page the
+  floating Cyberdeck panel covers, and the drawer clamps inside the visible
+  page area so it cannot be placed underneath the panel.
+- **Phase D — save feedback.** Submitting shows a saving state; the overlay
+  refresh dispatches a DOM event that confirms the save. If no confirmation
+  arrives the draft is kept with a retry error instead of being lost silently.
+- **Phase E — chrome polish.** The open-thread badge hides at zero, agent cards
+  offset instead of stacking on each other, and leftover jargon copy in the
+  shell (URL placeholder, CHASSIS badge, SHADOW PATCH chip) is cleaned up.
+
 ## Human interface
 
 - **COLLAB** button in the header.

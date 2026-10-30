@@ -1,7 +1,6 @@
 import type { CollaborationThread } from '../../shared/collaboration.js';
 
 export const COLLABORATION_SELECT_PREFIX = '__KUANG_COLLAB_SELECT__:';
-export const COLLABORATION_ADD_NOTE_PREFIX = '__KUANG_COLLAB_ADD_NOTE__';
 export const COLLABORATION_NOTE_PREFIX = '__KUANG_COLLAB_NOTE__:';
 
 /**

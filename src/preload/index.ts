@@ -99,7 +99,6 @@ export interface ElectronAPI {
   showCollaborationMenu: () => Promise<{ ok: boolean; error?: string }>;
   onCollaborationOpen: (callback: () => void) => () => void;
   onCollaborationTarget: (callback: (target: CollaborationTarget) => void) => () => void;
-  onCollaborationCompose: (callback: () => void) => () => void;
   onCollaborationUpdated: (callback: () => void) => () => void;
   getRemoteInfo: () => Promise<{
     ok: boolean;
@@ -347,11 +346,6 @@ const api: ElectronAPI = {
     const handler = (_: any, target: CollaborationTarget) => callback(target);
     ipcRenderer.on('collaboration:target', handler);
     return () => ipcRenderer.removeListener('collaboration:target', handler);
-  },
-  onCollaborationCompose: (callback) => {
-    const handler = () => callback();
-    ipcRenderer.on('collaboration:compose', handler);
-    return () => ipcRenderer.removeListener('collaboration:compose', handler);
   },
   onCollaborationUpdated: (callback) => {
     const handler = () => callback();

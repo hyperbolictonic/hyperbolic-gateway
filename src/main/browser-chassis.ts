@@ -8,7 +8,6 @@ import { loadInputProfile, saveInputProfile, type InputProfile } from './telemet
 import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
 import { classifyNavigationFailure } from './navigation-error.js';
 import {
-  COLLABORATION_ADD_NOTE_PREFIX,
   COLLABORATION_NOTE_PREFIX,
   COLLABORATION_SELECT_PREFIX,
   collaborationPickerScript,
@@ -136,7 +135,7 @@ export class BrowserChassis {
   /** Monotonic page revision: bumped on navigation and every mutating action. */
   private revision = 0;
   private onCollaborationTarget?: (target: CollaborationTarget) => void;
-  private onCollaborationAddNote?: () => void;
+
   private onCollaborationNote?: (input: { target: CollaborationTarget; text: string; tags: string[] }) => void;
 
   private state: ChassisState = {
@@ -439,9 +438,6 @@ export class BrowserChassis {
             const target = JSON.parse(log.message.slice(COLLABORATION_SELECT_PREFIX.length));
             this.onCollaborationTarget?.(target);
           } catch {}
-        }
-        if (log.message.trim() === COLLABORATION_ADD_NOTE_PREFIX) {
-          this.onCollaborationAddNote?.();
         }
         if (log.message.startsWith(COLLABORATION_NOTE_PREFIX)) {
           try {
@@ -971,10 +967,6 @@ export class BrowserChassis {
 
   public setOnCollaborationTarget(callback: (target: CollaborationTarget) => void): void {
     this.onCollaborationTarget = callback;
-  }
-
-  public setOnCollaborationAddNote(callback: () => void): void {
-    this.onCollaborationAddNote = callback;
   }
 
   public setOnCollaborationNote(

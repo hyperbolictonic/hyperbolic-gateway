@@ -8,7 +8,6 @@ let initialized = false;
 let panelOpen = false;
 let threads: CollaborationThread[] = [];
 let selectedId: string | null = null;
-let pendingTarget: CollaborationTarget | null = null;
 
 function setStatus(text: string): void {
   const el = byId<HTMLElement>('collab-status');
@@ -34,7 +33,7 @@ function openPanel(): void {
 }
 
 async function startPicker(): Promise<void> {
-  setStatus('Picking — click a page element');
+  setStatus('Pick an element on the page');
   const result = await api?.startCollaborationPicker();
   if (!result?.ok) {
     showResult('error', result?.error || 'Could not start the picker.');
@@ -43,7 +42,7 @@ async function startPicker(): Promise<void> {
   if (result.target) {
     panelOpen = false;
     byId<HTMLElement>('collab-panel')?.classList.add('hidden');
-    setStatus('Note drawer open on the page');
+    setStatus('Note card open on the page');
   } else {
     setStatus('Picker cancelled');
   }
@@ -183,45 +182,6 @@ async function refresh(): Promise<void> {
   }
 }
 
-function showCompose(target: CollaborationTarget): void {
-  pendingTarget = target;
-  const compose = byId<HTMLElement>('collab-compose');
-  const label = byId<HTMLElement>('collab-target');
-  if (label) label.textContent = targetLabel(target);
-  compose?.classList.remove('hidden');
-  setStatus('Element captured — add a note');
-  byId<HTMLTextAreaElement>('collab-comment')?.focus();
-}
-
-async function saveNote(): Promise<void> {
-  if (!pendingTarget) {
-    showResult('error', 'Pick an element first.');
-    return;
-  }
-  const text = byId<HTMLTextAreaElement>('collab-comment')?.value.trim() || '';
-  if (!text) {
-    showResult('error', 'Write a note first.');
-    return;
-  }
-  const tags = (byId<HTMLInputElement>('collab-tags')?.value || '')
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
-  const result = await api?.createCollaborationThread({ target: pendingTarget, text, tags, kind: 'comment' });
-  if (!result?.ok) {
-    showResult('error', result?.error || 'Could not save the note.');
-    return;
-  }
-  pendingTarget = null;
-  byId<HTMLElement>('collab-compose')?.classList.add('hidden');
-  if (byId<HTMLTextAreaElement>('collab-comment')) byId<HTMLTextAreaElement>('collab-comment')!.value = '';
-  if (byId<HTMLInputElement>('collab-tags')) byId<HTMLInputElement>('collab-tags')!.value = '';
-  selectedId = result.thread?.id || null;
-  await api?.stopCollaborationPicker();
-  await refresh();
-  showResult('success', 'Note added.');
-}
-
 async function reply(thread: CollaborationThread, text: string, kind: 'comment' | 'answer', answer?: string): Promise<void> {
   const value = text.trim();
   if (!value) return;
@@ -252,17 +212,12 @@ export function initCollaborationPanel(): void {
   byId<HTMLButtonElement>('collab-close-btn')?.addEventListener('click', closePanel);
   byId<HTMLButtonElement>('collab-refresh-btn')?.addEventListener('click', () => void refresh());
   byId<HTMLButtonElement>('collab-pick-btn')?.addEventListener('click', () => void startPicker());
-  byId<HTMLButtonElement>('collab-save-btn')?.addEventListener('click', () => void saveNote());
   api?.onCollaborationTarget(() => {
     panelOpen = false;
     byId<HTMLElement>('collab-panel')?.classList.add('hidden');
-    setStatus('Note drawer open on the page');
+    setStatus('Note card open on the page');
   });
   api?.onCollaborationOpen(() => openPanel());
-  api?.onCollaborationCompose(() => {
-    if (pendingTarget) showCompose(pendingTarget);
-    else setStatus('Pick an element first');
-  });
   api?.onCollaborationUpdated(() => {
     if (panelOpen) void refresh();
   });

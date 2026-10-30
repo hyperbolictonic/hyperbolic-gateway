@@ -589,9 +589,6 @@ async function createWindow() {
     chassis.setOnCollaborationTarget((target) => {
       mainWindow?.webContents.send('collaboration:target', target);
     });
-    chassis.setOnCollaborationAddNote(() => {
-      mainWindow?.webContents.send('collaboration:compose');
-    });
     chassis.setOnCollaborationNote((note) => {
       try {
         activeCollaborationService?.create({
