@@ -683,6 +683,19 @@ export function collaborationPickerScript(options: CollaborationPickerOptions = 
   return `new Promise((resolve) => {
     ${collaborationNoteDrawerScript()}
     const RIGHT_INSET = ${JSON.stringify(rightInset)};
+    // Visible status chip so "the picker is armed" is never a mystery.
+    const chip = document.createElement('div');
+    chip.textContent = 'ADD NOTE — click an element to pin the note · Esc to cancel';
+    Object.assign(chip.style, {
+      position: 'fixed', top: '12px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: '2147483647', padding: '8px 14px', borderRadius: '999px',
+      border: '1px solid rgba(245,158,11,0.55)',
+      background: 'rgba(245,158,11,0.14)',
+      color: '#fbbf24', font: '600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      letterSpacing: '0.06em', boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+      pointerEvents: 'none',
+    });
+    chip.id = '__kuang_collab_pick_chip';
     const layerId = '__kuang_collab_picker';
     const old = document.getElementById(layerId);
     if (old) old.remove();
@@ -748,6 +761,7 @@ export function collaborationPickerScript(options: CollaborationPickerOptions = 
     };
     const cleanup = () => {
       layer.remove();
+      document.getElementById('__kuang_collab_pick_chip')?.remove();
       document.removeEventListener('mousemove', onMove, true);
       document.removeEventListener('click', onClick, true);
       document.removeEventListener('keydown', onKey, true);
