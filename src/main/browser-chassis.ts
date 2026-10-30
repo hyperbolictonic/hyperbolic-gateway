@@ -1002,6 +1002,7 @@ export class BrowserChassis {
       await wc.executeJavaScript(`
         (() => {
           if (typeof window.__kuangCollabPickerCancel === 'function') window.__kuangCollabPickerCancel();
+          if (typeof window.__kuangCollabSelectionCancel === 'function') window.__kuangCollabSelectionCancel();
           const el = document.getElementById('__kuang_collab_picker');
           if (el) el.remove();
           const selected = document.getElementById('__kuang_collab_selection');

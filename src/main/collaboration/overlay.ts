@@ -121,22 +121,9 @@ export function collaborationPickerScript(): string {
 
       const drawer = document.createElement('div');
       drawer.id = '__kuang_collab_drawer';
-      const drawerWidth = 280;
-      const sideRoom = rect.right + drawerWidth + 24 < innerWidth;
-      const leftRoom = rect.left - drawerWidth - 24 > 0;
-      const left = sideRoom
-        ? rect.right + 12
-        : leftRoom
-          ? rect.left - drawerWidth - 12
-          : Math.max(8, Math.min(rect.left, innerWidth - drawerWidth - 8));
-      const top = sideRoom || leftRoom
-        ? Math.max(8, Math.min(rect.top, innerHeight - 230))
-        : rect.bottom + 12 + 200 < innerHeight
-          ? rect.bottom + 12
-          : Math.max(8, rect.top - 212);
+      const drawerWidth = 300;
       Object.assign(drawer.style, {
-        position: 'fixed', left: left + 'px', top: top + 'px',
-        width: drawerWidth + 'px', padding: '9px', borderRadius: '6px',
+        position: 'fixed', padding: '9px', borderRadius: '6px',
         background: 'rgba(15,23,42,0.98)', color: '#e2e8f0',
         border: '1px solid #f59e0b', boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
         font: '11px ui-monospace, monospace', zIndex: '2147483647', pointerEvents: 'auto',
@@ -145,12 +132,17 @@ export function collaborationPickerScript(): string {
       drawerTitle.style.cssText = 'display:flex;justify-content:space-between;align-items:center;color:#f59e0b;font-weight:700;margin-bottom:6px;';
       const drawerHeading = document.createElement('span');
       drawerHeading.textContent = 'ADD NOTE';
+      const minimize = document.createElement('button');
+      minimize.type = 'button';
+      minimize.title = 'Minimize note';
+      minimize.textContent = '−';
+      minimize.style.cssText = 'background:none;border:0;color:#94a3b8;font-size:16px;cursor:pointer;line-height:1;margin-left:auto;';
       const close = document.createElement('button');
       close.type = 'button';
       close.title = 'Cancel';
       close.textContent = '×';
       close.style.cssText = 'background:none;border:0;color:#94a3b8;font-size:16px;cursor:pointer;line-height:1;';
-      drawerTitle.append(drawerHeading, close);
+      drawerTitle.append(drawerHeading, minimize, close);
       const note = document.createElement('textarea');
       note.placeholder = 'What should the agent know about this element?';
       note.style.cssText = 'width:100%;height:82px;resize:vertical;background:#020617;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:6px;font:10px ui-monospace,monospace;';
@@ -163,8 +155,57 @@ export function collaborationPickerScript(): string {
       save.type = 'button';
       save.textContent = 'ADD NOTE';
       save.style.cssText = 'background:#f59e0b;color:#111827;border:0;border-radius:4px;padding:5px 9px;font:bold 10px ui-monospace,monospace;cursor:pointer;';
-      const remove = () => { keep.remove(); drawer.remove(); };
+      let collapsed = false;
+      const remove = () => {
+        keep.remove();
+        drawer.remove();
+        window.removeEventListener('scroll', positionDrawer, true);
+        window.removeEventListener('resize', positionDrawer);
+        delete window.__kuangCollabSelectionCancel;
+      };
+      const positionDrawer = () => {
+        const r = el.getBoundingClientRect();
+        const width = collapsed ? 190 : drawerWidth;
+        const height = collapsed ? 38 : 245;
+        const gap = 10;
+        let left;
+        let top;
+        if (r.right + width + gap <= innerWidth) {
+          left = r.right + gap;
+          top = r.top;
+        } else if (r.left - width - gap >= 0) {
+          left = r.left - width - gap;
+          top = r.top;
+        } else if (r.bottom + height + gap <= innerHeight) {
+          left = r.left;
+          top = r.bottom + gap;
+        } else {
+          left = r.left;
+          top = r.top - height - gap;
+        }
+        left = Math.max(8, Math.min(left, innerWidth - width - 8));
+        top = Math.max(8, Math.min(top, innerHeight - height - 8));
+        keep.style.left = r.left + 'px';
+        keep.style.top = r.top + 'px';
+        keep.style.width = r.width + 'px';
+        keep.style.height = r.height + 'px';
+        add.style.top = r.top > 36 ? '-14px' : '4px';
+        drawer.style.left = left + 'px';
+        drawer.style.top = top + 'px';
+        drawer.style.width = width + 'px';
+      };
+      const setCollapsed = (value) => {
+        collapsed = value;
+        note.style.display = value ? 'none' : 'block';
+        tags.style.display = value ? 'none' : 'block';
+        actions.style.display = value ? 'none' : 'flex';
+        drawerHeading.textContent = value ? 'NOTE' : 'ADD NOTE';
+        minimize.textContent = value ? '+' : '−';
+        minimize.title = value ? 'Expand note' : 'Minimize note';
+        positionDrawer();
+      };
       close.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); remove(); });
+      minimize.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setCollapsed(!collapsed); });
       save.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -180,11 +221,16 @@ export function collaborationPickerScript(): string {
       add.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (collapsed) setCollapsed(false);
         note.focus();
       });
       actions.append(save);
       drawer.append(drawerTitle, note, tags, actions);
       document.documentElement.appendChild(drawer);
+      window.addEventListener('scroll', positionDrawer, true);
+      window.addEventListener('resize', positionDrawer);
+      positionDrawer();
+      window.__kuangCollabSelectionCancel = remove;
       note.focus();
       finish(target);
     };
