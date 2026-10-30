@@ -2,6 +2,7 @@ import type { ElectronAPI } from '../preload/index.js';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent } from '../shared/types.js';
 import { beginRecording, finishRecording } from './recording';
 import { refreshToolsPanel } from './tools-panel';
+import { initCollaborationPanel } from './collaboration-panel';
 
 declare global {
   interface Window {
@@ -3363,3 +3364,5 @@ if (bkmkSaveBtn) {
     checkCurrentBookmarkState(activeUrl);
   });
 }
+
+initCollaborationPanel();

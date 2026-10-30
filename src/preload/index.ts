@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
 import type { RemoteStatus } from '../shared/remote.js';
 import type { ToolManagerResult, ToolSettings } from '../shared/tool-settings.js';
+import type { CollaborationThread, CollaborationTarget } from '../shared/collaboration.js';
 
 export interface ElectronAPI {
   getState: () => Promise<ChassisState>;
@@ -89,6 +90,14 @@ export interface ElectronAPI {
   getToolManager: () => Promise<ToolManagerResult>;
   saveToolManager: (settings: Pick<ToolSettings, 'order' | 'disabled' | 'instructions' | 'actionInstructions'>) => Promise<ToolManagerResult>;
   resetToolManager: () => Promise<ToolManagerResult>;
+  listCollaborationThreads: (filter?: any) => Promise<{ ok: boolean; threads?: CollaborationThread[]; error?: string }>;
+  createCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
+  replyCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
+  resolveCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
+  startCollaborationPicker: () => Promise<{ ok: boolean; message?: string; error?: string }>;
+  stopCollaborationPicker: () => Promise<{ ok: boolean }>;
+  onCollaborationTarget: (callback: (target: CollaborationTarget) => void) => () => void;
+  onCollaborationUpdated: (callback: () => void) => () => void;
   getRemoteInfo: () => Promise<{
     ok: boolean;
     status?: RemoteStatus;
@@ -319,6 +328,22 @@ const api: ElectronAPI = {
   getToolManager: () => ipcRenderer.invoke('tools:get'),
   saveToolManager: (settings) => ipcRenderer.invoke('tools:save', settings),
   resetToolManager: () => ipcRenderer.invoke('tools:reset'),
+  listCollaborationThreads: (filter?: any) => ipcRenderer.invoke('collaboration:list', filter),
+  createCollaborationThread: (input: any) => ipcRenderer.invoke('collaboration:create', input),
+  replyCollaborationThread: (input: any) => ipcRenderer.invoke('collaboration:reply', input),
+  resolveCollaborationThread: (input: any) => ipcRenderer.invoke('collaboration:resolve', input),
+  startCollaborationPicker: () => ipcRenderer.invoke('collaboration:start-picker'),
+  stopCollaborationPicker: () => ipcRenderer.invoke('collaboration:stop-picker'),
+  onCollaborationTarget: (callback) => {
+    const handler = (_: any, target: CollaborationTarget) => callback(target);
+    ipcRenderer.on('collaboration:target', handler);
+    return () => ipcRenderer.removeListener('collaboration:target', handler);
+  },
+  onCollaborationUpdated: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('collaboration:updated', handler);
+    return () => ipcRenderer.removeListener('collaboration:updated', handler);
+  },
   getRemoteInfo: () => ipcRenderer.invoke('remote:info'),
   setRemoteEnabled: (enabled: boolean) => ipcRenderer.invoke('remote:set-enabled', enabled),
   rotateRemoteToken: () => ipcRenderer.invoke('remote:rotate-token'),

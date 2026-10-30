@@ -1,6 +1,6 @@
 # Collaboration plan
 
-**Status:** phase 1 implemented (store, bridge routes, `collaborate` tool, agent highlight overlay); human selection/reply UI next
+**Status:** phases 1-2 implemented (store, bridge routes, `collaborate` tool, overlay, human picker, thread panel and human replies/choices); demonstration recording next
 
 
 **Related:** [`TOOL_SURFACE_CONSOLIDATION.md`](./TOOL_SURFACE_CONSOLIDATION.md), [`CONTROL_LAYER.md`](./CONTROL_LAYER.md), [`../src/main/hil/README.md`](../src/main/hil/README.md)
@@ -148,8 +148,15 @@ POST /collaboration/resolve
 
 Storage is `<userData>/collaboration.json`. The agent-facing `collaborate`
 tool maps to these routes and the overlay is refreshed after create, reply and
-resolve. The overlay is read-only until Phase 2 adds selection and reply
-controls.
+resolve. Phase 2 adds the human picker, comment compose box, thread list and
+human reply/choice controls in the COLLAB side panel.
+
+### Human picker
+
+The **PICK ELEMENT** control injects a crosshair overlay. A trusted click
+reports a target descriptor over the existing console channel; the main process
+then opens the compose box. Escape cancels. The target stores selector, role,
+visible text, mark id and rect so it can be re-resolved later.
 
 ## Human interface
 
@@ -220,9 +227,9 @@ This is an extension of the same thread, not a new mode.
 ## Phases
 
 1. Store + target schema + bridge routes + `collaborate` tool.
-2. Human selection, comments, thread panel and agent highlight overlay.
-3. Voice notes: push-to-talk, local transcription, editable transcript.
-4. Choices, async questions and blocking `ask`.
+2. Human selection, comments, thread panel and agent highlight overlay. **Done**
+3. Choices, async questions and blocking `ask`. **Done (choice UI)**
+4. Voice notes: push-to-talk, local transcription, editable transcript.
 5. Demonstration recorder and recipe generation.
 6. CSS/style targets and inspect/edit actions.
 7. Optional remote exposure through the authenticated gateway.

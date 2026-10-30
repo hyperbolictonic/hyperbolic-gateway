@@ -100,6 +100,7 @@ export interface CreateThreadInput {
   intent?: string;
   tags?: string[];
   kind?: 'comment' | 'question';
+  author?: 'human' | 'agent';
   text: string;
   choices?: string[];
 }
@@ -154,7 +155,7 @@ export class CollaborationStore {
     const now = Date.now();
     const message: CollaborationMessage = {
       id: `msg_${crypto.randomUUID()}`,
-      author: 'agent',
+      author: input.author === 'human' ? 'human' : 'agent',
       kind: input.kind === 'question' ? 'question' : 'comment',
       text,
       choices: cleanChoices(input.choices),

@@ -7,6 +7,8 @@ import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { loadInputProfile, saveInputProfile, type InputProfile } from './telemetry/input-profile.js';
 import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
 import { classifyNavigationFailure } from './navigation-error.js';
+import { COLLABORATION_SELECT_PREFIX, collaborationPickerScript } from './collaboration/overlay.js';
+import type { CollaborationTarget } from '../shared/collaboration.js';
 import { bump } from './metrics.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
@@ -128,6 +130,7 @@ export class BrowserChassis {
   private utilQueue: Promise<void> = Promise.resolve();
   /** Monotonic page revision: bumped on navigation and every mutating action. */
   private revision = 0;
+  private onCollaborationTarget?: (target: CollaborationTarget) => void;
 
   private state: ChassisState = {
     currentUrl: 'about:blank',
@@ -424,6 +427,12 @@ export class BrowserChassis {
         // Takeover channel: the page reports trusted pointer/key/wheel activity with a magic prefix.
         const human = this.humanMonitor.ingest(log.message);
         if (human) this.noteHumanInput(human);
+        if (log.message.startsWith(COLLABORATION_SELECT_PREFIX)) {
+          try {
+            const target = JSON.parse(log.message.slice(COLLABORATION_SELECT_PREFIX.length));
+            this.onCollaborationTarget?.(target);
+          } catch {}
+        }
       },
     });
 
@@ -936,6 +945,30 @@ export class BrowserChassis {
       activeForMs: active ? this.humanActiveUntil - Date.now() : 0,
       last: this.humanMonitor.getLastHuman(),
     };
+  }
+
+  public setOnCollaborationTarget(callback: (target: CollaborationTarget) => void): void {
+    this.onCollaborationTarget = callback;
+  }
+
+  /** Start the human element picker. The selected target arrives through onCollaborationTarget. */
+  public async startCollaborationSelection(): Promise<string> {
+    const wc = this.getActiveWebContents();
+    await wc.executeJavaScript(collaborationPickerScript());
+    return 'Collaboration picker active. Click an element, or press Escape to cancel.';
+  }
+
+  public async stopCollaborationSelection(): Promise<void> {
+    try {
+      const wc = this.getActiveWebContents();
+      await wc.executeJavaScript(`
+        (() => {
+          const el = document.getElementById('__kuang_collab_picker');
+          if (el) el.remove();
+          window.__kuangCollabPicking = false;
+        })()
+      `);
+    } catch {}
   }
 
   /** Clear the takeover window (the agent asks to resume, or the HUD button does). */

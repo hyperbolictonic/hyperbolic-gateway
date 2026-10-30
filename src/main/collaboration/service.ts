@@ -11,9 +11,12 @@ export class CollaborationService {
   readonly store: CollaborationStore;
   private readonly chassis: BrowserChassis;
 
-  constructor(store: CollaborationStore, chassis: BrowserChassis) {
+  private readonly onChange?: () => void;
+
+  constructor(store: CollaborationStore, chassis: BrowserChassis, onChange?: () => void) {
     this.store = store;
     this.chassis = chassis;
+    this.onChange = onChange;
   }
 
   list(filter: CollaborationFilter = {}): CollaborationThread[] {
@@ -27,18 +30,21 @@ export class CollaborationService {
   create(input: CreateThreadInput): CollaborationThread {
     const thread = this.store.create(input);
     void this.refreshOverlay();
+    this.onChange?.();
     return thread;
   }
 
   reply(id: string, message: Omit<CollaborationMessage, 'id' | 'createdAt'>): CollaborationThread {
     const thread = this.store.addMessage(id, message, message.kind === 'answer' ? 'answered' : undefined);
     void this.refreshOverlay();
+    this.onChange?.();
     return thread;
   }
 
   resolve(id: string, notes?: string): CollaborationThread {
     const thread = this.store.resolve(id, notes);
     void this.refreshOverlay();
+    this.onChange?.();
     return thread;
   }
 

@@ -136,6 +136,7 @@ let activeWrapStore: WrapStore | null = null;
 let activeWrapSecrets: SecretStore | null = null;
 let activeWrapAudit: WrapAuditLog | null = null;
 let activeRemoteService: RemoteService | null = null;
+let activeCollaborationService: CollaborationService | null = null;
 
 function createSecretCipher(): SecretCipher {
   let available = false;
@@ -310,6 +311,61 @@ ipcMain.handle('app:connect-info', () => {
 function remoteFailure(message: string) {
   return { ok: false, error: message };
 }
+
+ipcMain.handle('collaboration:list', (_event, filter?: any) => {
+  if (!activeCollaborationService) return { ok: false, threads: [], error: 'Collaboration is not ready yet.' };
+  try {
+    return { ok: true, threads: activeCollaborationService.list(filter || {}) };
+  } catch (error: any) {
+    return { ok: false, threads: [], error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('collaboration:create', (_event, input: any) => {
+  if (!activeCollaborationService) return { ok: false, error: 'Collaboration is not ready yet.' };
+  try {
+    return { ok: true, thread: activeCollaborationService.create({ ...input, author: 'human' }) };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('collaboration:reply', (_event, input: any) => {
+  if (!activeCollaborationService) return { ok: false, error: 'Collaboration is not ready yet.' };
+  try {
+    const thread = activeCollaborationService.reply(String(input?.id || ''), {
+      author: 'human',
+      kind: input?.kind === 'answer' ? 'answer' : 'comment',
+      text: String(input?.text || ''),
+      answer: input?.answer,
+    });
+    return { ok: true, thread };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('collaboration:resolve', (_event, input: any) => {
+  if (!activeCollaborationService) return { ok: false, error: 'Collaboration is not ready yet.' };
+  try {
+    return { ok: true, thread: activeCollaborationService.resolve(String(input?.id || ''), input?.notes) };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('collaboration:start-picker', async () => {
+  try {
+    return { ok: true, message: await chassis.startCollaborationSelection() };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('collaboration:stop-picker', async () => {
+  await chassis.stopCollaborationSelection();
+  return { ok: true };
+});
 
 ipcMain.handle('remote:info', () => {
   if (!activeRemoteService) return remoteFailure('Remote access is not ready yet.');
@@ -507,7 +563,12 @@ async function createWindow() {
     const collaboration = new CollaborationService(
       new CollaborationStore(path.join(app.getPath('userData'), 'collaboration.json')),
       chassis,
+      () => mainWindow?.webContents.send('collaboration:updated'),
     );
+    activeCollaborationService = collaboration;
+    chassis.setOnCollaborationTarget((target) => {
+      mainWindow?.webContents.send('collaboration:target', target);
+    });
     startHttpBridge(
       chassis,
       bridgePort,

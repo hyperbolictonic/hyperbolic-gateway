@@ -1,5 +1,96 @@
 import type { CollaborationThread } from '../../shared/collaboration.js';
 
+export const COLLABORATION_SELECT_PREFIX = '__KUANG_COLLAB_SELECT__:';
+
+/** Human element picker. The click is reported through the existing console channel. */
+export function collaborationPickerScript(): string {
+  return `(() => {
+    const layerId = '__kuang_collab_picker';
+    const old = document.getElementById(layerId);
+    if (old) old.remove();
+    const layer = document.createElement('div');
+    layer.id = layerId;
+    Object.assign(layer.style, {
+      position: 'fixed', inset: '0', zIndex: '2147483647',
+      pointerEvents: 'none', cursor: 'crosshair',
+    });
+    const outline = document.createElement('div');
+    Object.assign(outline.style, {
+      position: 'fixed', display: 'none', pointerEvents: 'none',
+      border: '2px solid #f59e0b', background: 'rgba(245,158,11,0.10)',
+      borderRadius: '3px', zIndex: '2147483647',
+    });
+    layer.append(outline);
+    document.documentElement.appendChild(layer);
+    const selectorFor = (el) => {
+      if (el.id) return '#' + CSS.escape(el.id);
+      const parts = [];
+      let node = el;
+      while (node && node.nodeType === 1 && parts.length < 5) {
+        let part = node.tagName.toLowerCase();
+        if (node.classList && node.classList.length) {
+          part += '.' + [...node.classList].slice(0, 2).map((c) => CSS.escape(c)).join('.');
+        }
+        const parent = node.parentElement;
+        if (parent) {
+          const siblings = [...parent.children].filter((x) => x.tagName === node.tagName);
+          if (siblings.length > 1) part += ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')';
+        }
+        parts.unshift(part);
+        node = node.parentElement;
+      }
+      return parts.join(' > ');
+    };
+    const describe = (el) => {
+      const rect = el.getBoundingClientRect();
+      const text = (el.getAttribute('aria-label') || el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 240);
+      return {
+        kind: 'element',
+        url: location.href,
+        markId: el.getAttribute('data-mark-id') ? Number(el.getAttribute('data-mark-id')) : undefined,
+        selector: selectorFor(el),
+        role: el.getAttribute('role') || el.tagName.toLowerCase(),
+        name: text.slice(0, 120),
+        text,
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      };
+    };
+    const onMove = (event) => {
+      const el = document.elementFromPoint(event.clientX, event.clientY);
+      if (!el || el === layer || el === outline) return;
+      const rect = el.getBoundingClientRect();
+      Object.assign(outline.style, {
+        display: 'block', left: rect.left + 'px', top: rect.top + 'px',
+        width: rect.width + 'px', height: rect.height + 'px',
+      });
+    };
+    const cleanup = () => {
+      layer.remove();
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('keydown', onKey, true);
+      window.__kuangCollabPicking = false;
+    };
+    const onClick = (event) => {
+      const el = document.elementFromPoint(event.clientX, event.clientY);
+      if (!el || el === layer || el === outline) return;
+      event.preventDefault();
+      event.stopPropagation();
+      console.log(${JSON.stringify(COLLABORATION_SELECT_PREFIX)} + JSON.stringify(describe(el)));
+      cleanup();
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); cleanup(); }
+    };
+    window.__kuangCollabPicking = true;
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKey, true);
+    return 'picking';
+  })()`;
+}
+
+
 /**
  * Pure in-page projection for collaboration threads. The overlay is read-only in
  * Phase 1; Phase 2 adds human selection/reply controls.
