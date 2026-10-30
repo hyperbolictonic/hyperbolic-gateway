@@ -7,12 +7,15 @@ export interface ToolSettings {
   disabled: string[];
   /** Per-tool description overrides. An empty value means "use the catalog default". */
   instructions: Record<string, string>;
+  /** Per-action instruction overrides for grouped tools: tool -> action -> text. */
+  actionInstructions: Record<string, Record<string, string>>;
 }
 
 export interface ToolManagerAction {
   name: string;
   description: string;
   tool: string;
+  instruction: string;
 }
 
 export interface ToolManagerEntry {

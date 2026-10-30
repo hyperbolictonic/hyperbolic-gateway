@@ -142,6 +142,7 @@ interface ToolPreferences {
   order: string[];
   disabled: string[];
   instructions: Record<string, string>;
+  actionInstructions: Record<string, Record<string, string>>;
 }
 
 let cachedToolPreferences: { value: ToolPreferences; at: number } | null = null;
@@ -164,11 +165,22 @@ async function loadToolPreferences(): Promise<ToolPreferences> {
         if (typeof text === 'string' && text.trim()) instructions[name] = text.trim();
       }
     }
-    const value = { order, disabled, instructions };
+    const actionInstructions: Record<string, Record<string, string>> = {};
+    if (data?.actionInstructions && typeof data.actionInstructions === 'object' && !Array.isArray(data.actionInstructions)) {
+      for (const [toolName, rawActions] of Object.entries(data.actionInstructions)) {
+        if (!rawActions || typeof rawActions !== 'object' || Array.isArray(rawActions)) continue;
+        const actions: Record<string, string> = {};
+        for (const [actionName, text] of Object.entries(rawActions)) {
+          if (typeof text === 'string' && text.trim()) actions[actionName] = text.trim();
+        }
+        if (Object.keys(actions).length) actionInstructions[toolName] = actions;
+      }
+    }
+    const value = { order, disabled, instructions, actionInstructions };
     cachedToolPreferences = { value, at: Date.now() };
     return value;
   } catch {
-    return { order: [], disabled: [], instructions: {} };
+    return { order: [], disabled: [], instructions: {}, actionInstructions: {} };
   }
 }
 
@@ -374,9 +386,18 @@ async function executeCatalogTool(tool: ToolCatalogItem, args: any) {
   }
 }
 
-function registerToolGroup(server: McpServer, group: ToolGroupDefinition): void {
+function registerToolGroup(
+  server: McpServer,
+  group: ToolGroupDefinition,
+  preferences: ToolPreferences,
+): void {
   const actions = group.actions.map((action) => action.action) as [string, ...string[]];
-  const actionList = group.actions.map((action) => `${action.action} (${action.description})`).join('; ');
+  const actionList = group.actions
+    .map((action) => {
+      const custom = preferences.actionInstructions?.[group.name]?.[action.action];
+      return `${action.action} (${custom || action.description})`;
+    })
+    .join('; ');
   const tier = group.tier;
   const prefix = tier ? `[${TIER_LABELS[tier]}] ` : '';
   server.registerTool(
@@ -469,7 +490,7 @@ export async function createBridgeMcpServer() {
 
   for (const group of TOOL_GROUPS) {
     if (disabledTools.has(group.name)) continue;
-    registerToolGroup(server, group);
+    registerToolGroup(server, group, toolPreferences);
   }
 
   // Register standard MCP Resource: mark-eleven://skills/guide

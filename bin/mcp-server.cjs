@@ -38854,11 +38854,22 @@ async function loadToolPreferences() {
         if (typeof text === "string" && text.trim()) instructions[name] = text.trim();
       }
     }
-    const value = { order, disabled, instructions };
+    const actionInstructions = {};
+    if (data?.actionInstructions && typeof data.actionInstructions === "object" && !Array.isArray(data.actionInstructions)) {
+      for (const [toolName, rawActions] of Object.entries(data.actionInstructions)) {
+        if (!rawActions || typeof rawActions !== "object" || Array.isArray(rawActions)) continue;
+        const actions = {};
+        for (const [actionName, text] of Object.entries(rawActions)) {
+          if (typeof text === "string" && text.trim()) actions[actionName] = text.trim();
+        }
+        if (Object.keys(actions).length) actionInstructions[toolName] = actions;
+      }
+    }
+    const value = { order, disabled, instructions, actionInstructions };
     cachedToolPreferences = { value, at: Date.now() };
     return value;
   } catch {
-    return { order: [], disabled: [], instructions: {} };
+    return { order: [], disabled: [], instructions: {}, actionInstructions: {} };
   }
 }
 async function callBridge(endpoint, method = "GET", body = null) {
@@ -39023,9 +39034,12 @@ ${text}`;
     };
   }
 }
-function registerToolGroup(server, group) {
+function registerToolGroup(server, group, preferences) {
   const actions = group.actions.map((action) => action.action);
-  const actionList = group.actions.map((action) => `${action.action} (${action.description})`).join("; ");
+  const actionList = group.actions.map((action) => {
+    const custom2 = preferences.actionInstructions?.[group.name]?.[action.action];
+    return `${action.action} (${custom2 || action.description})`;
+  }).join("; ");
   const tier = group.tier;
   const prefix = tier ? `[${TIER_LABELS[tier]}] ` : "";
   server.registerTool(
@@ -39092,7 +39106,7 @@ async function createBridgeMcpServer() {
   }
   for (const group of TOOL_GROUPS) {
     if (disabledTools.has(group.name)) continue;
-    registerToolGroup(server, group);
+    registerToolGroup(server, group, toolPreferences);
   }
   const OKF_SKILL_GUIDE = `# \u{1F9ED} MARK ELEVEN: OPERATIONAL KNOWLEDGE FORMAT (OKF)
 

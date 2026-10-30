@@ -13,7 +13,7 @@ const byId = <T extends HTMLElement>(id: string): T | null => document.getElemen
 
 let initialized = false;
 let entries: ToolManagerEntry[] = [];
-let settings: ToolSettings = { schemaVersion: 1, order: [], disabled: [], instructions: {} };
+let settings: ToolSettings = { schemaVersion: 1, order: [], disabled: [], instructions: {}, actionInstructions: {} };
 let selected: string | null = null;
 let dragging: string | null = null;
 let dirty = false;
@@ -212,8 +212,10 @@ function renderDetail(): void {
     actionsCount.textContent = actions.length ? `(${actions.length})` : '';
     actionsHost.replaceChildren();
     for (const action of actions) {
-      const row = document.createElement('div');
-      row.className = 'flex flex-wrap items-baseline gap-2 rounded bg-base-200/40 px-2 py-1';
+      const row = document.createElement('details');
+      row.className = 'rounded bg-base-200/40 px-2 py-1';
+      const summary = document.createElement('summary');
+      summary.className = 'flex flex-wrap items-baseline gap-2 cursor-pointer';
       const name = document.createElement('code');
       name.className = 'font-mono text-[10px] text-accent';
       name.textContent = action.name;
@@ -223,7 +225,28 @@ function renderDetail(): void {
       const target = document.createElement('span');
       target.className = 'font-mono text-[9px] text-base-content/35';
       target.textContent = action.tool;
-      row.append(name, desc, target);
+      const custom = document.createElement('span');
+      custom.className = `badge badge-xs font-mono text-[9px] ${action.instruction ? 'badge-info' : 'hidden'}`;
+      custom.textContent = 'CUSTOM';
+      summary.append(name, desc, target, custom);
+      const editor = document.createElement('textarea');
+      editor.className = 'textarea textarea-xs w-full mt-2 h-20 font-mono text-[10px]';
+      editor.placeholder = `Default: ${action.description}`;
+      editor.value = action.instruction;
+      editor.addEventListener('input', () => {
+        if (!selected) return;
+        const all = { ...(settings.actionInstructions || {}) };
+        const group = { ...(all[selected] || {}) };
+        if (editor.value.trim()) group[action.name] = editor.value;
+        else delete group[action.name];
+        if (Object.keys(group).length) all[selected] = group;
+        else delete all[selected];
+        settings = { ...settings, actionInstructions: all };
+        action.instruction = editor.value.trim();
+        custom.classList.toggle('hidden', !action.instruction);
+        setDirty(true);
+      });
+      row.append(summary, editor);
       actionsHost.append(row);
     }
   }
@@ -255,11 +278,12 @@ function setEnabled(name: string, enabled: boolean): void {
   renderDetail();
 }
 
-function currentPayload(): Pick<ToolSettings, 'order' | 'disabled' | 'instructions'> {
+function currentPayload(): Pick<ToolSettings, 'order' | 'disabled' | 'instructions' | 'actionInstructions'> {
   return {
     order: entries.map((tool) => tool.name),
     disabled: settings.disabled,
     instructions: settings.instructions,
+    actionInstructions: settings.actionInstructions || {},
   };
 }
 
@@ -306,6 +330,26 @@ async function resetAll(): Promise<void> {
   showResult('success', 'All tools reset to defaults.');
 }
 
+const PRESETS: Record<string, Set<string>> = {
+  core: new Set(['navigate', 'observe', 'find', 'act', 'wait_for', 'extract', 'capture', 'evaluate_javascript', 'human_in_loop', 'help']),
+  research: new Set(['navigate', 'observe', 'find', 'act', 'wait_for', 'extract', 'capture', 'evaluate_javascript', 'human_in_loop', 'help', 'devtools', 'research', 'memory']),
+  automation: new Set(['navigate', 'observe', 'find', 'act', 'wait_for', 'extract', 'capture', 'evaluate_javascript', 'human_in_loop', 'help', 'devtools', 'browser_workspace', 'shadow_iframes']),
+};
+
+function applyPreset(name: string): void {
+  if (name !== 'full' && !PRESETS[name]) return;
+  const preset = name === 'full' ? null : PRESETS[name];
+  settings = {
+    ...settings,
+    disabled: entries.filter((tool) => preset ? !preset.has(tool.name) : false).map((tool) => tool.name),
+  };
+  for (const tool of entries) tool.enabled = preset ? preset.has(tool.name) : true;
+  setDirty(true);
+  renderList();
+  renderDetail();
+  showResult('info', `${name.toUpperCase()} preset applied. Save changes to keep it.`);
+}
+
 function resetTool(): void {
   const tool = selected ? entry(selected) : undefined;
   if (!tool) return;
@@ -314,7 +358,9 @@ function resetTool(): void {
   disabled.delete(tool.name);
   const instructions = { ...settings.instructions };
   delete instructions[tool.name];
-  settings = { ...settings, disabled: [...disabled], instructions };
+  const actionInstructions = { ...(settings.actionInstructions || {}) };
+  delete actionInstructions[tool.name];
+  settings = { ...settings, disabled: [...disabled], instructions, actionInstructions };
   setDirty(true);
   renderList();
   renderDetail();
@@ -326,6 +372,11 @@ export function initToolsPanel(): void {
 
   byId<HTMLButtonElement>('settings-tools-save')?.addEventListener('click', () => void save());
   byId<HTMLButtonElement>('settings-tools-reset-all')?.addEventListener('click', () => void resetAll());
+  byId<HTMLSelectElement>('settings-tools-preset')?.addEventListener('change', (event) => {
+    const target = event.currentTarget as HTMLSelectElement;
+    if (target.value) applyPreset(target.value);
+    target.value = '';
+  });
   byId<HTMLButtonElement>('settings-tools-reset')?.addEventListener('click', resetTool);
   byId<HTMLInputElement>('settings-tools-enabled')?.addEventListener('change', (event) => {
     const target = event.currentTarget as HTMLInputElement;

@@ -1,6 +1,6 @@
 # Tool surface consolidation
 
-**Status:** phase 1 implemented (15 advertised +2 optional); action overrides and presets pending
+**Status:** phase 2 implemented (15 advertised +2 optional; presets and per-action instruction overrides)
 
 **Related:** [`TOOL_CATALOG_REVIEW.md`](./TOOL_CATALOG_REVIEW.md), [`../developer/api/browser-mcp.md`](../developer/api/browser-mcp.md)
 
@@ -78,13 +78,14 @@ Keep one top-level **Tools** tab with master-detail:
 
 ```text
 Settings -> Tools
-  Profile: Core / Research / Automation / Full
+  Preset: Core / Research / Automation / Full
   Tier groups -> tool cards -> detail
   Grouped tools -> inline action accordion
 ```
 
-No extra navigation level. Action rows can carry per-action instruction
-overrides. Initial implementation should avoid per-action on/off switches.
+No extra navigation level. Action rows carry per-action instruction overrides.
+Per-action on/off switches are deliberately not implemented; the tool-level
+switch remains the unit of enablement.
 
 ## Compatibility
 
@@ -97,8 +98,8 @@ overrides. Initial implementation should avoid per-action on/off switches.
 
 ## Implementation phases
 
-1. Group metadata and dispatch layer.
-2. Hidden-alias migration and compatibility tests.
-3. Tools panel action accordion and profile selector.
-4. Per-action instruction overrides and migration.
-5. Docs and release notes.
+1. Group metadata and dispatch layer. **Done**
+2. Hidden-alias migration and compatibility tests. **Done**
+3. Tools panel action accordion and preset selector. **Done**
+4. Per-action instruction overrides and migration. **Done**
+5. Docs and release notes. **Pending**

@@ -12,7 +12,7 @@ The standalone stdio server executable ([`scripts/mcp-server.js`](../../scripts/
 
 ## 🧰 Consolidated MCP Surface (15 Advertised +2 Optional Tools)
 
-**Tool manager:** Settings → **Tools** controls which advertised tools appear in `tools/list`, their order within a tier, and an optional per-tool instruction override. The saved configuration lives in `<userData>/tool-settings.json`; the bridge exposes it read-only at `GET /tools/config`. Changes apply to new MCP sessions.
+**Tool manager:** Settings → **Tools** controls which advertised tools appear in `tools/list`, their order within a tier, per-tool instructions, per-action instructions for grouped tools, and Core/Research/Automation/Full presets. The saved configuration lives in `<userData>/tool-settings.json`; the bridge exposes it read-only at `GET /tools/config`. Changes apply to new MCP sessions.
 
 The advertised surface is grouped; old flat names remain callable by name but are hidden from `tools/list`.
 

@@ -87,7 +87,7 @@ export interface ElectronAPI {
   startRecording: (name?: string) => Promise<{ filename: string; config: any }>;
   stopRecording: () => Promise<any>;
   getToolManager: () => Promise<ToolManagerResult>;
-  saveToolManager: (settings: Pick<ToolSettings, 'order' | 'disabled' | 'instructions'>) => Promise<ToolManagerResult>;
+  saveToolManager: (settings: Pick<ToolSettings, 'order' | 'disabled' | 'instructions' | 'actionInstructions'>) => Promise<ToolManagerResult>;
   resetToolManager: () => Promise<ToolManagerResult>;
   getRemoteInfo: () => Promise<{
     ok: boolean;

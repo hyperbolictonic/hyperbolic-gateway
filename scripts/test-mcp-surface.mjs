@@ -131,6 +131,10 @@ try {
     'grouped tools dispatch actions',
     JSON.stringify(metaHealth.content || '').includes('status'),
   );
+  const metaTabs = await client.callTool({ name: 'browser_workspace', arguments: { action: 'tabs.list' } });
+  check('namespaced actions dispatch', JSON.stringify(metaTabs.content || '').length > 2);
+  const metaActivity = await client.callTool({ name: 'human_in_loop', arguments: { action: 'activity' } });
+  check('human-in-loop actions dispatch', JSON.stringify(metaActivity.content || '').includes('active'));
 
   const { resources } = await client.listResources();
   check('mark-eleven://tools/recommended is registered', resources.some((r) => r.uri === 'mark-eleven://tools/recommended'));

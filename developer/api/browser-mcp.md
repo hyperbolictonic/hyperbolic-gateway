@@ -47,6 +47,8 @@ Settings → **Tools** controls the advertised surface:
 - enable or disable individual tools;
 - drag tools to reorder them within their tier;
 - replace verbose catalog instructions with a shorter per-tool override;
+- override individual action descriptions for grouped tools;
+- apply a Core, Research, Automation or Full preset;
 - reset one tool or every tool to the catalog defaults.
 
 The default order follows the operational sequence: `navigate_to` → `observe` →

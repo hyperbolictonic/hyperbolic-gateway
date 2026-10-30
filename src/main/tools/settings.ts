@@ -13,13 +13,14 @@ export const DEFAULT_TOOL_SETTINGS: ToolSettings = {
   order: [],
   disabled: [],
   instructions: {},
+  actionInstructions: {},
 };
 
 const MAX_INSTRUCTION_CHARS = 12_000;
 const MAX_NAMES = 500;
 
 function cloneDefaults(): ToolSettings {
-  return { ...DEFAULT_TOOL_SETTINGS, order: [], disabled: [], instructions: {} };
+  return { ...DEFAULT_TOOL_SETTINGS, order: [], disabled: [], instructions: {}, actionInstructions: {} };
 }
 
 function uniqueNames(value: unknown): string[] {
@@ -48,6 +49,18 @@ function normalizeInstructions(value: unknown): Record<string, string> {
   return out;
 }
 
+function normalizeActionInstructions(value: unknown): Record<string, Record<string, string>> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out: Record<string, Record<string, string>> = {};
+  for (const [rawTool, rawActions] of Object.entries(value)) {
+    const tool = rawTool.trim();
+    if (!tool || !rawActions || typeof rawActions !== 'object' || Array.isArray(rawActions)) continue;
+    const actions = normalizeInstructions(rawActions);
+    if (Object.keys(actions).length) out[tool] = actions;
+  }
+  return out;
+}
+
 export function normalizeToolSettings(input: unknown): ToolSettingsValidation {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return { ok: false, errors: ['tool settings must be an object'] };
@@ -61,6 +74,7 @@ export function normalizeToolSettings(input: unknown): ToolSettingsValidation {
       order: uniqueNames(source.order),
       disabled: uniqueNames(source.disabled),
       instructions: normalizeInstructions(source.instructions),
+      actionInstructions: normalizeActionInstructions(source.actionInstructions),
     },
   };
 }

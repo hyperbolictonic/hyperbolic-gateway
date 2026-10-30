@@ -431,7 +431,7 @@ Hyperbolic Gateway features an embedded, serverless vector database (**LanceDB**
 
 > **Advertised surface:** 15 grouped tools, plus `drive` and `decide` when a decision model is configured. The old flat names remain callable by name but are hidden from `tools/list`; they are listed below as the underlying catalog.
 >
-> **Tool manager:** Settings → Tools controls enablement, order and per-tool instruction overrides. The default order starts with `navigate` → `observe` → `act` → `wait_for` → `find` → `extract`.
+> **Tool manager:** Settings → Tools controls enablement, order, per-tool instructions, per-action instructions for grouped tools, and Core/Research/Automation/Full presets. The default order starts with `navigate` → `observe` → `act` → `wait_for` → `find` → `extract`.
 
 > **Tier map:** **TIER 1 · prefer:** `navigate`, `observe`, `act`, `wait_for`, `find`, `extract`; **TIER 2 · fallback:** `capture`; **TIER 3 · deliberate:** `evaluate_javascript`. `drive` and `decide` are Tier 1 when a decision model is configured.
 

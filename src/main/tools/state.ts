@@ -13,6 +13,9 @@ const ADVERTISED_NAMES = new Set([
   ...ADVERTISED_CATALOG.map((tool) => tool.name),
   ...META_TOOL_NAMES,
 ]);
+const GROUP_ACTIONS = new Map(
+  TOOL_GROUPS.map((group) => [group.name, new Set(group.actions.map((action) => action.action))]),
+);
 
 export function sanitizeToolSettings(input: unknown): ToolSettings {
   const source = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
@@ -28,11 +31,26 @@ export function sanitizeToolSettings(input: unknown): ToolSettings {
       }
     }
   }
+  const actionInstructions: Record<string, Record<string, string>> = {};
+  if (source.actionInstructions && typeof source.actionInstructions === 'object' && !Array.isArray(source.actionInstructions)) {
+    for (const [toolName, rawActions] of Object.entries(source.actionInstructions)) {
+      const allowed = GROUP_ACTIONS.get(toolName);
+      if (!allowed || !rawActions || typeof rawActions !== 'object' || Array.isArray(rawActions)) continue;
+      const actions: Record<string, string> = {};
+      for (const [actionName, text] of Object.entries(rawActions)) {
+        if (allowed.has(actionName) && typeof text === 'string' && text.trim()) {
+          actions[actionName] = text.trim().slice(0, 4_000);
+        }
+      }
+      if (Object.keys(actions).length) actionInstructions[toolName] = actions;
+    }
+  }
   return {
     schemaVersion: 1,
     order: names(source.order),
     disabled: names(source.disabled),
     instructions,
+    actionInstructions,
   };
 }
 
@@ -68,6 +86,7 @@ export function buildToolManagerState(settings: ToolSettings): ToolManagerState 
       name: action.action,
       description: action.description,
       tool: action.tool,
+      instruction: settings.actionInstructions?.[group.name]?.[action.action] ?? '',
     })),
   }));
 
