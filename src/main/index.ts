@@ -573,6 +573,19 @@ async function createWindow() {
     chassis.setOnCollaborationAddNote(() => {
       mainWindow?.webContents.send('collaboration:compose');
     });
+    chassis.setOnCollaborationNote((note) => {
+      try {
+        activeCollaborationService?.create({
+          target: note.target,
+          text: note.text,
+          tags: note.tags,
+          kind: 'comment',
+          author: 'human',
+        });
+      } catch {
+        // The page drawer is best-effort; the persisted thread is authoritative.
+      }
+    });
     startHttpBridge(
       chassis,
       bridgePort,

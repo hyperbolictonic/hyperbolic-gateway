@@ -7,7 +7,12 @@ import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { loadInputProfile, saveInputProfile, type InputProfile } from './telemetry/input-profile.js';
 import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
 import { classifyNavigationFailure } from './navigation-error.js';
-import { COLLABORATION_ADD_NOTE_PREFIX, COLLABORATION_SELECT_PREFIX, collaborationPickerScript } from './collaboration/overlay.js';
+import {
+  COLLABORATION_ADD_NOTE_PREFIX,
+  COLLABORATION_NOTE_PREFIX,
+  COLLABORATION_SELECT_PREFIX,
+  collaborationPickerScript,
+} from './collaboration/overlay.js';
 import type { CollaborationTarget } from '../shared/collaboration.js';
 import { bump } from './metrics.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
@@ -132,6 +137,7 @@ export class BrowserChassis {
   private revision = 0;
   private onCollaborationTarget?: (target: CollaborationTarget) => void;
   private onCollaborationAddNote?: () => void;
+  private onCollaborationNote?: (input: { target: CollaborationTarget; text: string; tags: string[] }) => void;
 
   private state: ChassisState = {
     currentUrl: 'about:blank',
@@ -436,6 +442,18 @@ export class BrowserChassis {
         }
         if (log.message.trim() === COLLABORATION_ADD_NOTE_PREFIX) {
           this.onCollaborationAddNote?.();
+        }
+        if (log.message.startsWith(COLLABORATION_NOTE_PREFIX)) {
+          try {
+            const note = JSON.parse(log.message.slice(COLLABORATION_NOTE_PREFIX.length));
+            if (note?.target && typeof note.text === 'string') {
+              this.onCollaborationNote?.({
+                target: note.target,
+                text: note.text,
+                tags: Array.isArray(note.tags) ? note.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
+              });
+            }
+          } catch {}
         }
       },
     });
@@ -957,6 +975,12 @@ export class BrowserChassis {
 
   public setOnCollaborationAddNote(callback: () => void): void {
     this.onCollaborationAddNote = callback;
+  }
+
+  public setOnCollaborationNote(
+    callback: (input: { target: CollaborationTarget; text: string; tags: string[] }) => void,
+  ): void {
+    this.onCollaborationNote = callback;
   }
 
   /** Start the human element picker. The selected target arrives through onCollaborationTarget. */

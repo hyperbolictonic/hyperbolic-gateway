@@ -2,6 +2,7 @@ import type { CollaborationThread } from '../../shared/collaboration.js';
 
 export const COLLABORATION_SELECT_PREFIX = '__KUANG_COLLAB_SELECT__:';
 export const COLLABORATION_ADD_NOTE_PREFIX = '__KUANG_COLLAB_ADD_NOTE__';
+export const COLLABORATION_NOTE_PREFIX = '__KUANG_COLLAB_NOTE__:';
 
 /** Human element picker. The click is reported through the existing console channel. */
 export function collaborationPickerScript(): string {
@@ -115,13 +116,76 @@ export function collaborationPickerScript(): string {
         zIndex: '2147483647',
       });
       add.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
-      add.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        console.log(${JSON.stringify(COLLABORATION_ADD_NOTE_PREFIX)});
-      });
       keep.append(label, add);
       document.documentElement.appendChild(keep);
+
+      const drawer = document.createElement('div');
+      drawer.id = '__kuang_collab_drawer';
+      const drawerWidth = 280;
+      const sideRoom = rect.right + drawerWidth + 24 < innerWidth;
+      const leftRoom = rect.left - drawerWidth - 24 > 0;
+      const left = sideRoom
+        ? rect.right + 12
+        : leftRoom
+          ? rect.left - drawerWidth - 12
+          : Math.max(8, Math.min(rect.left, innerWidth - drawerWidth - 8));
+      const top = sideRoom || leftRoom
+        ? Math.max(8, Math.min(rect.top, innerHeight - 230))
+        : rect.bottom + 12 + 200 < innerHeight
+          ? rect.bottom + 12
+          : Math.max(8, rect.top - 212);
+      Object.assign(drawer.style, {
+        position: 'fixed', left: left + 'px', top: top + 'px',
+        width: drawerWidth + 'px', padding: '9px', borderRadius: '6px',
+        background: 'rgba(15,23,42,0.98)', color: '#e2e8f0',
+        border: '1px solid #f59e0b', boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
+        font: '11px ui-monospace, monospace', zIndex: '2147483647', pointerEvents: 'auto',
+      });
+      const drawerTitle = document.createElement('div');
+      drawerTitle.style.cssText = 'display:flex;justify-content:space-between;align-items:center;color:#f59e0b;font-weight:700;margin-bottom:6px;';
+      const drawerHeading = document.createElement('span');
+      drawerHeading.textContent = 'ADD NOTE';
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.title = 'Cancel';
+      close.textContent = '×';
+      close.style.cssText = 'background:none;border:0;color:#94a3b8;font-size:16px;cursor:pointer;line-height:1;';
+      drawerTitle.append(drawerHeading, close);
+      const note = document.createElement('textarea');
+      note.placeholder = 'What should the agent know about this element?';
+      note.style.cssText = 'width:100%;height:82px;resize:vertical;background:#020617;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:6px;font:10px ui-monospace,monospace;';
+      const tags = document.createElement('input');
+      tags.placeholder = 'tags: bug, design';
+      tags.style.cssText = 'width:100%;margin-top:6px;background:#020617;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:5px;font:10px ui-monospace,monospace;';
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:6px;margin-top:6px;';
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.textContent = 'ADD NOTE';
+      save.style.cssText = 'background:#f59e0b;color:#111827;border:0;border-radius:4px;padding:5px 9px;font:bold 10px ui-monospace,monospace;cursor:pointer;';
+      const remove = () => { keep.remove(); drawer.remove(); };
+      close.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); remove(); });
+      save.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const text = note.value.trim();
+        if (!text) { note.focus(); return; }
+        console.log(${JSON.stringify(COLLABORATION_NOTE_PREFIX)} + JSON.stringify({
+          target,
+          text,
+          tags: tags.value.split(',').map((tag) => tag.trim()).filter(Boolean),
+        }));
+        remove();
+      });
+      add.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        note.focus();
+      });
+      actions.append(save);
+      drawer.append(drawerTitle, note, tags, actions);
+      document.documentElement.appendChild(drawer);
+      note.focus();
       finish(target);
     };
     const onKey = (event) => {

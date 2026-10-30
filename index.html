@@ -92,9 +92,21 @@
             </svg>
           </button>
         </div>
-        <button id="collab-btn" type="button" class="btn btn-sm btn-ghost font-mono text-[10px] text-accent gap-1" aria-label="Open collaboration panel">
-          COLLAB <span id="collab-count" class="badge badge-xs badge-ghost">0</span>
-        </button>
+        <div class="tooltip tooltip-bottom z-50" data-tip="Collaboration">
+          <div class="relative">
+            <button id="collab-btn" type="button" class="btn btn-sm btn-ghost btn-square text-accent relative" aria-label="Collaboration actions">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3h6m-9.75 8.25 2.4-2.4h9.6a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 16.75 4.5h-9A2.25 2.25 0 0 0 5.5 6.75v8.1a2.25 2.25 0 0 0 .659 1.591l.591.591Z" />
+              </svg>
+              <span id="collab-count" class="badge badge-xs badge-warning absolute -top-1 -right-1 min-w-4 h-4 px-1">0</span>
+            </button>
+            <div id="collab-menu" class="hidden absolute right-0 top-full mt-2 w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-2xl z-[90]">
+              <div class="px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-base-content/40">Collaboration</div>
+              <button id="collab-action-pick" type="button" class="btn btn-sm btn-ghost w-full justify-start font-mono text-[11px] text-warning">SELECT ELEMENT</button>
+              <button id="collab-action-open" type="button" class="btn btn-sm btn-ghost w-full justify-start font-mono text-[11px]">OPEN THREADS</button>
+            </div>
+          </div>
+        </div>
         <div class="tooltip tooltip-bottom z-50" data-tip="Settings">
           <button id="settings-btn" class="btn btn-sm btn-ghost btn-square text-primary" aria-label="Settings">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">

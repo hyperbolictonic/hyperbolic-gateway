@@ -153,12 +153,15 @@ human reply/choice controls in the COLLAB side panel.
 
 ### Human picker
 
-The **PICK ELEMENT** control injects a crosshair overlay. A trusted click
-reports a target descriptor over the existing console channel; the main process
-then opens the compose box. Escape cancels. The selected outline stays visible
-and carries an **Add note** icon at its outer top-right with a tooltip; clicking
-it opens/focuses the compose box. The target stores selector, role, visible
-text, mark id and rect so it can be re-resolved later.
+The **COLLAB** control is an icon with a tooltip and a dropdown menu. Its first
+action is **Select element**, which injects a crosshair overlay. A trusted click
+creates an anchored note drawer beside the element when there is room, otherwise
+below it. The selected outline stays visible and carries an **Add note** icon at
+its outer top-right with a tooltip; clicking it focuses the drawer. Escape or the
+drawer close button cancels. The target stores selector, role, visible text,
+mark id and rect so it can be re-resolved later. The drawer submits directly to
+the collaboration store, so the global side panel is not required to write a
+note.
 
 ## Human interface
 
