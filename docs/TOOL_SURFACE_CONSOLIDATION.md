@@ -8,7 +8,7 @@
 
 The current `hb-browser` surface is broad and expensive to advertise:
 
-- 68 advertised tools plus two optional decision tools;
+- 68 flat catalog tools (15 advertised groups plus hidden aliases) and two optional decision tools;
 - many long, overlapping descriptions;
 - several families that are really one operation with different nouns
   (tabs, contexts, downloads, recordings, scripts);
