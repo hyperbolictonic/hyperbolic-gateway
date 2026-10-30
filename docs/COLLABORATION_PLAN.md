@@ -177,30 +177,38 @@ close button and **Cancel** discard the draft; **Ctrl + Enter** saves.
 
 The target stores selector, role, visible text, mark id and rect so it can be
 re-resolved later. The composer submits directly to the collaboration store, so
-the global side panel is not required to write a note.
+the global side panel is not required to write a note. Submitting shows a
+saving state; the in-page overlay refresh confirms it, and if no confirmation
+arrives the draft is kept with a retry message instead of being lost.
 
 Agent highlights use the same visual language and the same document anchoring:
 a dashed cyan outline with a compact card placed outside the element, clamped
-inside the viewport and expanded on click.
+inside the viewport, offset instead of stacked and expanded on click.
 
 ### UI hardening phases
 
+All five phases are implemented (2026-10-30):
+
 - **Phase A — one composer.** The side panel stops composing notes. Its
-  **Pick element** action starts the in-page picker and the drawer does the
-  writing. The panel compose block and the `collaboration:compose` event are
-  retired end to end (renderer, preload, main).
+  **Add a note** action starts the in-page picker and the drawer does the
+  writing. The panel compose block and the `collaboration:compose` event were
+  retired end to end (renderer, preload, main), along with the unused
+  `COLLABORATION_ADD_NOTE_PREFIX` console channel.
 - **Phase B — panel restyle.** The thread panel adopts the drawer's design
   language: system font for prose, monospace only for data, roomier spacing,
   human notes in amber and agent messages in cyan to match the page overlays.
-- **Phase C — placement insets.** The picker is told how much of the page the
-  floating Cyberdeck panel covers, and the drawer clamps inside the visible
-  page area so it cannot be placed underneath the panel.
+- **Phase C — placement insets.** The picker and overlay are told how much of
+  the page the floating Cyberdeck panel covers (`getSidebarPageInset`), so the
+  drawer clamps inside the visible page area and cannot be placed underneath
+  the panel. Docked mode resizes the browsing view, so it needs no inset.
 - **Phase D — save feedback.** Submitting shows a saving state; the overlay
-  refresh dispatches a DOM event that confirms the save. If no confirmation
-  arrives the draft is kept with a retry error instead of being lost silently.
+  refresh dispatches a `__hb_collab_refreshed` event that confirms the save.
+  If no confirmation arrives within four seconds the draft is kept with a
+  retry message.
 - **Phase E — chrome polish.** The open-thread badge hides at zero, agent cards
   offset instead of stacking on each other, and leftover jargon copy in the
-  shell (URL placeholder, CHASSIS badge, SHADOW PATCH chip) is cleaned up.
+  shell (URL placeholder, CHASSIS badge, SHADOW PATCH chip, window title) is
+  cleaned up.
 
 ## Human interface
 
