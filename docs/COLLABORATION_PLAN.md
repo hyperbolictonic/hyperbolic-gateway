@@ -64,6 +64,14 @@ interface ThreadMessage {
   author: 'human' | 'agent';
   kind: 'comment' | 'question' | 'choice' | 'answer' | 'status';
   text: string;
+  source?: 'text' | 'voice';
+  voice?: {
+    durationMs: number;
+    language?: string;
+    confidence?: number;
+    /** Omitted when audio retention is off. */
+    audioPath?: string;
+  };
   choices?: string[];
   answer?: string;
   createdAt: number;
@@ -135,6 +143,33 @@ persistent, structured review and demonstration.
 - Actions on a thread: reply, resolve, rebind stale target, save recipe.
 - **Record demonstration** start/stop control, separate from timelapse recording.
 
+## Voice notes
+
+Notes should not require a keyboard. Add push-to-talk in the selection popover,
+thread panel and demonstration recorder:
+
+1. Human selects an element and holds the mic button (or uses a global hotkey).
+2. Audio is transcribed locally by default.
+3. The transcript lands in the thread as a normal human comment; it is editable
+   before sending.
+4. Agent `collaborate.read` returns the transcript like any other message; the
+   agent can ask a follow-up through the same thread.
+5. Audio retention is off by default. If enabled, keep it beside the thread and
+   make its lifecycle explicit.
+
+Rules:
+
+- explicit recording indicator and stop control;
+- no cloud speech service by default;
+- never send raw audio to the model when a transcript is enough;
+- allow "retry transcription" without re-recording;
+- keep the raw audio local if retention is enabled;
+- typed text remains the fallback when no STT model is installed;
+- the same redaction rules apply to transcripts and audio paths.
+
+The optional agent action is `collaborate.request_note(target, prompt)` — ask
+for a spoken note on a target, returning a thread id immediately.
+
 ## Demonstration → recipe
 
 1. Human selects a target and writes the intent.
@@ -168,10 +203,11 @@ This is an extension of the same thread, not a new mode.
 
 1. Store + target schema + bridge routes + `collaborate` tool.
 2. Human selection, comments, thread panel and agent highlight overlay.
-3. Choices, async questions and blocking `ask`.
-4. Demonstration recorder and recipe generation.
-5. CSS/style targets and inspect/edit actions.
-6. Optional remote exposure through the authenticated gateway.
+3. Voice notes: push-to-talk, local transcription, editable transcript.
+4. Choices, async questions and blocking `ask`.
+5. Demonstration recorder and recipe generation.
+6. CSS/style targets and inspect/edit actions.
+7. Optional remote exposure through the authenticated gateway.
 
 ## Tests
 
@@ -180,6 +216,8 @@ This is an extension of the same thread, not a new mode.
 - target locator + stale detection;
 - choice validation and timeout;
 - overlay injection and selection message;
+- voice-note transcription and transcript editing;
+- audio retention off/on lifecycle;
 - demonstration capture → recipe compile;
 - recipe replay from a demonstration;
 - hidden/remote access policy;
@@ -192,3 +230,5 @@ This is an extension of the same thread, not a new mode.
 - Should console/network threads capture the relevant payload or only a reference?
 - Do we need a job/workspace concept above individual page threads?
 - Can a human record a demonstration across tabs, or only one tab?
+- Do we ship a local STT model, use an existing local runtime, or fall back to
+  the host OS dictation API when available?
