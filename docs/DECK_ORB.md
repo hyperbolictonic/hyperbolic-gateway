@@ -39,7 +39,10 @@ bottom of views clipped (or the chip pushed almost fully offscreen).
 - [x] Phase 1 — orb chip + bounds choreography (`40f8ec4`): floating ⇆ collapsed
       verified live; minimise collapses to the orb, clicking it re-expands.
 - [x] Pre-existing fix — content-size bounds (same commit).
-- [ ] Phase 2 — radial petal menu from the orb (Deck, Cortex recall, Harvest,
-      Collab, Record, Settings, mode dial).
-- [ ] Phase 3 — status duty on the orb (collab count dot, takeover / recording pulses).
-- [ ] Phase 4 — orb drag with edge magnetism, persisted position.
+- [x] Phase 2 — radial petal menu (`523732d`): Deck, Note, Collab, Harvest, Rec;
+      staggered spring fan-out, actions reuse the existing handlers.
+- [x] Phase 3 — status duty on the orb (`523732d`): collab count dot, amber
+      human-takeover pulse, red recording pulse (all surfaces get broadcasts).
+- [x] Phase 4 — orb drag with magnetic edge docking and persistence (`523732d`).
+- [x] Compositing fix — `invalidate()` after bounds shrink: a transparent view
+      kept ghost pixels of its previous frame behind the chip (same commit).
