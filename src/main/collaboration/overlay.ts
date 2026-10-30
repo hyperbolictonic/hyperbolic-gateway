@@ -418,6 +418,10 @@ export function collaborationNoteDrawerScript(): string {
     let dragging = false;
     let dragOffsetX = 0;
     let dragOffsetY = 0;
+    let saving = false;
+    let saveHandled = false;
+    let saveTimer = 0;
+    const SAVED_EVENT = '__hb_collab_refreshed';
 
     const position = () => {
       const rect = el.getBoundingClientRect();
@@ -513,17 +517,40 @@ export function collaborationNoteDrawerScript(): string {
       drawer.remove();
       window.removeEventListener('resize', position);
       document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener(SAVED_EVENT, onSavedEvent, true);
+      clearTimeout(saveTimer);
       delete window.__kuangCollabSelectionCancel;
     };
 
     const submit = () => {
       const text = note.value.trim();
       if (!text) { note.focus(); return; }
+      if (saving) return;
+      saveHandled = false;
+      saving = true;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      hint.textContent = 'Saving your note…';
+      hint.classList.remove('text-error');
+      document.addEventListener(SAVED_EVENT, onSavedEvent, true);
+      saveTimer = setTimeout(() => {
+        if (saveHandled) return;
+        saving = false;
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Add note';
+        hint.textContent = 'Save not confirmed — check the gateway and try again.';
+        hint.classList.add('text-error');
+      }, 4000);
       console.log(NOTE_PREFIX + JSON.stringify({
         target,
         text,
         tags: tags.value.split(',').map((tag) => tag.trim()).filter(Boolean),
       }));
+    };
+
+    const onSavedEvent = () => {
+      if (!saving) return;
+      saveHandled = true;
       remove();
     };
 
@@ -757,6 +784,7 @@ export function collaborationOverlayScript(
   }));
   return `(() => {
     const layerId = '__kuang_collaboration_layer';
+    document.dispatchEvent(new CustomEvent('__hb_collab_refreshed'));
     const old = document.getElementById(layerId);
     if (old) old.remove();
     const style = document.getElementById('__kuang_collab_style');
