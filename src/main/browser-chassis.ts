@@ -119,7 +119,7 @@ export class BrowserChassis {
   private jev = new JevEngine();
   private jevPolicyGate: () => { available: boolean; enforce: boolean } = () => ({ available: false, enforce: false });
   private jevBreaker = new FunnelBreaker();
-  private jevStats = { blocked: 0, bypassed: 0, loopBreaker: 0, blockedTokens: 0 };
+  private jevStats = { blocked: 0, precheck: 0, bypassed: 0, loopBreaker: 0, blockedTokens: 0 };
   private shieldBreaker: ShieldBreaker;
   private downloadManager: DownloadManager;
   private sessionVault: SessionVault;
@@ -314,6 +314,7 @@ export class BrowserChassis {
       evaluate: (script) => this.evaluateQuiet(script),
       harvest: (opts) => this.harvestMarkdown(opts),
     guardPageRead: (input) => this.guardJevPageRead(input),
+    precheckPageRead: (input) => this.precheckJevPageRead(input),
       injectMarks: (opts) => this.scanMarks(this.getActiveWebContents(), opts || {}),
       removeMarks: () => this.marksOverlay.removeMarks(this.getActiveWebContents()),
       getMarks: () => this.getActiveMarks(),
@@ -576,7 +577,7 @@ export class BrowserChassis {
     return this.getJevPolicy().enforce;
   }
 
-  public getJevStats(): { blocked: number; bypassed: number; loopBreaker: number; blockedTokens: number; breaker: Array<{ url: string; refusals: number; firstAt: number }> } {
+  public getJevStats(): { blocked: number; precheck: number; bypassed: number; loopBreaker: number; blockedTokens: number; breaker: Array<{ url: string; refusals: number; firstAt: number }> } {
     return { ...this.jevStats, breaker: this.jevBreaker.snapshot() };
   }
 
@@ -586,6 +587,70 @@ export class BrowserChassis {
       ...this.jev.status(policy.available),
       mode: policy.enforce ? 'enforce' : 'prefer',
       enforced: policy.enforce,
+    };
+  }
+
+  /**
+   * Cheap pre-harvest refusal: measure the DOM text length before paying for a
+   * full harvest. The post-harvest guard stays authoritative (inline marks and
+   * URLs can push real markdown over the threshold), so this is a latency
+   * optimization, not a second policy.
+   */
+  public async precheckJevPageRead(input: {
+    as: string;
+    region?: unknown;
+    budget?: number;
+    cursor?: unknown;
+    full?: boolean;
+  }): Promise<{ blocked: boolean; note?: string; refusal?: Record<string, any> }> {
+    const policy = this.getJevPolicy();
+    if (!policy.enforce) return { blocked: false };
+    if (input.as !== 'markdown' && input.as !== 'text') return { blocked: false };
+    if (input.full === true) return { blocked: false };
+    if (input.region !== undefined && input.region !== null) return { blocked: false };
+    if (input.cursor !== undefined && input.cursor !== null && input.cursor !== '') return { blocked: false };
+    if (typeof input.budget === 'number' && Number.isFinite(input.budget) && input.budget > 0) return { blocked: false };
+
+    const info = this.getPageInfo();
+    let chars = 0;
+    try {
+      // textContent, not innerText: no layout pass, and close enough to size the page.
+      const raw = await this.evaluateQuiet(
+        "(() => { const b = document.body; return b ? (b.textContent || '').length : 0; })()",
+      );
+      chars = Number(raw) || 0;
+    } catch {
+      // Unknown size: fall through to the harvest guard rather than guessing.
+      return { blocked: false };
+    }
+    const tokens = Math.ceil(chars / 4);
+    const decision = decideFunnel({ enforce: true, as: input.as, pageTokens: tokens });
+    if (decision.allowed) return { blocked: false };
+
+    const url = info.url || '';
+    if (this.jevBreaker.shouldRelease(url)) {
+      this.jevBreaker.reset(url);
+      this.jevStats.bypassed += 1;
+      this.jevStats.loopBreaker += 1;
+      return {
+        blocked: false,
+        note: 'JEV funnel bypassed: this page was refused twice in 60s, so the read was served. Prefer jev_index next time.',
+      };
+    }
+    this.jevBreaker.recordRefusal(url);
+    this.jevStats.blocked += 1;
+    this.jevStats.precheck += 1;
+    this.jevStats.blockedTokens += tokens;
+    return {
+      blocked: true,
+      refusal: {
+        page: { url, tokens, estimated: true },
+        next: [
+          { tool: 'jev_index' },
+          { tool: 'read_section', arguments: { section_id: 'sec_1' } },
+        ],
+        override: { parameter: 'full', value: true, note: 'bypasses the funnel and is logged' },
+      },
     };
   }
 

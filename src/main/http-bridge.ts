@@ -421,17 +421,24 @@ export function startHttpBridge(
         const includeMarks = url.searchParams.get('include_marks') !== 'false' && url.searchParams.get('marks') !== 'false';
         const includeOffscreen = ['1', 'true'].includes((url.searchParams.get('include_offscreen') || '').toLowerCase());
         const full = ['1', 'true'].includes((url.searchParams.get('full') || '').toLowerCase());
-        const construct = await chassis.harvestMarkdown({ includeMarks, includeOffscreen });
         // The hidden alias dumps the whole construct, so it passes through the same
         // hard funnel as observe(as:"markdown") with no budget or region.
-        const guard = chassis.guardJevPageRead({
-          as: 'markdown',
-          full,
-          pageTokens: construct.estimatedTokens || Math.ceil(String(construct.content || '').length / 4),
-          url: construct.url,
-          title: construct.title,
-          content: construct.content,
-        });
+        const pre = await chassis.precheckJevPageRead({ as: 'markdown', full });
+        if (pre.blocked) {
+          sendJson({ success: false, error: 'Unscoped page reads are disabled while JEV enforce is on. Call jev_index, then read_section.', code: 'JEV_REQUIRED', ...(pre.refusal || {}) }, 409);
+          return;
+        }
+        const construct = await chassis.harvestMarkdown({ includeMarks, includeOffscreen });
+        const guard: { allowed: boolean; note?: string; refusal?: Record<string, any> } = pre.note
+          ? { allowed: true, note: pre.note }
+          : chassis.guardJevPageRead({
+              as: 'markdown',
+              full,
+              pageTokens: construct.estimatedTokens || Math.ceil(String(construct.content || '').length / 4),
+              url: construct.url,
+              title: construct.title,
+              content: construct.content,
+            });
         if (!guard.allowed) {
           sendJson({ success: false, error: 'Unscoped page reads are disabled while JEV enforce is on. Call jev_index, then read_section.', code: 'JEV_REQUIRED', ...(guard.refusal || {}) }, 409);
           return;

@@ -63,6 +63,14 @@ export interface PrimitivesHost {
     note?: string;
     refusal?: Record<string, any>;
   };
+  /** Cheap pre-harvest check so an obviously oversized read is refused in ~30 ms. */
+  precheckPageRead?(input: {
+    as: string;
+    region?: unknown;
+    budget?: number;
+    cursor?: unknown;
+    full?: boolean;
+  }): Promise<{ blocked: boolean; note?: string; refusal?: Record<string, any> }>;
   injectMarks(opts?: { includeOffscreen?: boolean }): Promise<MarkItem[]>;
   removeMarks(): Promise<void>;
   getMarks(): MarkItem[];
@@ -872,6 +880,20 @@ export class Primitives {
     }
 
     if (as === 'text') {
+      const pre = await this.host.precheckPageRead?.({
+        as,
+        region: opts.region,
+        budget: opts.budget,
+        cursor: opts.cursor,
+        full: opts.full,
+      });
+      if (pre?.blocked) {
+        throw new PrimitiveError(
+          'JEV_REQUIRED',
+          'Unscoped page reads are disabled while JEV enforce is on. Call jev_index, then read_section for the sections you need.',
+          pre.refusal,
+        );
+      }
       const rootExpr =
         typeof opts.region === 'number'
           ? `document.querySelector('[data-mark-id="${opts.region}"]')`
@@ -882,20 +904,36 @@ export class Primitives {
         (await this.host
           .evaluate(`(() => { const r = ${rootExpr}; if (!r) return ''; return (r.innerText || r.textContent || ''); })()`)
           .catch(() => '')) || '';
-      const guard = this.checkPageReadFunnel(as, info, text, opts);
+      const guard = pre?.note ? pre.note : this.checkPageReadFunnel(as, info, text, opts);
       const result = this.pageText(as, revision, info, text, opts);
       return guard ? { ...result, text: `${result.text}\n\n[JEV] ${guard}` } : result;
     }
 
     // markdown (default)
+    const pre = await this.host.precheckPageRead?.({
+      as: 'markdown',
+      region: opts.region,
+      budget: opts.budget,
+      cursor: opts.cursor,
+      full: opts.full,
+    });
+    if (pre?.blocked) {
+      throw new PrimitiveError(
+        'JEV_REQUIRED',
+        'Unscoped page reads are disabled while JEV enforce is on. Call jev_index, then read_section for the sections you need.',
+        pre.refusal,
+      );
+    }
     const construct = await this.host.harvest({ includeMarks: true, includeOffscreen: opts.includeOffscreen === true });
-    const funnel = this.checkPageReadFunnel(
-      'markdown',
-      { url: construct.url || info.url, title: construct.title || info.title },
-      construct.content || '',
-      opts,
-      construct.content || '',
-    );
+    const funnel = pre?.note
+      ? pre.note
+      : this.checkPageReadFunnel(
+          'markdown',
+          { url: construct.url || info.url, title: construct.title || info.title },
+          construct.content || '',
+          opts,
+          construct.content || '',
+        );
     const result = this.pageText(
       'markdown',
       this.host.revision(),

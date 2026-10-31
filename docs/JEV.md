@@ -58,13 +58,18 @@ HTTP status is 409.
 
 ### Safety valves
 
+- **Cheap precheck**: before paying for a harvest, the guard measures
+  `document.body.textContent` and refuses an obviously oversized unscoped read
+  in ~30 ms. The post-harvest guard stays authoritative, because inline marks
+  and URLs can push the real markdown over the threshold.
 - **Fail-open**: harvest errors, zero sections, or an index that is not smaller
   than the page serve the read instead of refusing it.
 - **Loop breaker**: after two refusals for the same URL in 60 seconds, the next
   read is served with a note and counted as a bypass. A naive agent cannot burn
   its turn budget on the wall.
-- Telemetry: `GET /jev/stats` reports `blocked`, `bypassed`, `loopBreaker`,
-  `blockedTokens` and the active breaker entries.
+- Telemetry: `GET /jev/stats` reports `blocked`, `precheck` (refusals decided
+  before the harvest), `bypassed`, `loopBreaker`, `blockedTokens` and the active
+  breaker entries.
 
 ## Tools
 
