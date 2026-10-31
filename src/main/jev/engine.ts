@@ -173,8 +173,7 @@ export class JevEngine {
     const lines: string[] = [];
     lines.push('<!-- JEV_SURFACE_INDEX -->');
     lines.push(`# Page: ${session.title || 'Untitled'} (${session.url})`);
-    const indexTokens = estimateTokens(session.order.map((id) => id).join(' '));
-    lines.push(`Total Content: ~${fmt(session.totalTokens)} tokens | Index: ~${fmt(indexTokens)} tokens`);
+    lines.push(`Total Content: ~${fmt(session.totalTokens)} tokens | Index: ~__INDEX_TOKENS__ tokens`);
     lines.push('');
     lines.push('## Page Sections');
     const render = (id: string, indent: string): void => {
@@ -191,7 +190,9 @@ export class JevEngine {
     lines.push('<!-- END_INDEX -->');
     lines.push('');
     lines.push('Fetch a section body with read_section(section_id), or query the whole page with search_page(query).');
-    return lines.join('\n');
+    const body = lines.join('\n');
+    const indexTokens = estimateTokens(body.replace('__INDEX_TOKENS__', ''));
+    return body.replace('__INDEX_TOKENS__', fmt(indexTokens));
   }
 
   readSection(sectionId: string, includeChildren = false): {
