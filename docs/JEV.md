@@ -99,8 +99,10 @@ is the default way to read a page:
 
 Activation and mode are read when the MCP server starts, so after flipping the
 switch in Settings, reconnect the MCP client (or restart the app) to reorder
-`tools/list` and adopt the enforce text. The bridge side — the gate, the funnel,
-the navigate nudge, and the route errors — is live either way.
+`tools/list` and adopt the enforce text. While JEV is off the three tools are not
+registered at all — their schemas cost ~1k tokens per request, so a disabled
+feature must not bill. The bridge side — the gate, the funnel, the navigate
+nudge, and the route errors — is live either way.
 
 ## Implementation
 

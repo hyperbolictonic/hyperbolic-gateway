@@ -39206,6 +39206,7 @@ async function createBridgeMcpServer() {
   });
   for (const tool of orderedTools) {
     if ((tool.name === "decide" || tool.name === "drive") && !decisionConfigured) continue;
+    if (JEV_TOOL_NAMES.includes(tool.name) && !toolPreferences.jevAvailable) continue;
     if (!recordingToolsAvailable && RECORDING_TOOL_NAMES.has(tool.name)) continue;
     const tier = TOOL_TIERS[tool.name];
     let details = toolPreferences.instructions[tool.name] || tool.description;

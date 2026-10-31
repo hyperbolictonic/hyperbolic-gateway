@@ -502,6 +502,9 @@ export async function createBridgeMcpServer() {
     // registered at all (so they cannot appear in tools/list and cannot be called by name). The
     // bridge routes still exist and answer NOT_CONFIGURED with setup instructions.
     if ((tool.name === 'decide' || tool.name === 'drive') && !decisionConfigured) continue;
+    // Same economics for JEV: the three tool schemas cost ~1k tokens per request, so an
+    // unavailable feature must not appear in (and bill for) every prompt.
+    if (JEV_TOOL_NAMES.includes(tool.name) && !toolPreferences.jevAvailable) continue;
     if (!recordingToolsAvailable && RECORDING_TOOL_NAMES.has(tool.name)) continue;
 
     // Phase 4: fold discoverability guidance into the advertised description so it
