@@ -401,6 +401,7 @@
           <button type="button" id="settings-tab-clients" class="tab" data-settings-tab="clients">MCP CLIENTS</button>
         <button type="button" id="settings-tab-tools" class="tab" data-settings-tab="tools">TOOLS</button>
         <button type="button" id="settings-tab-remote" class="tab" data-settings-tab="remote">REMOTE</button>
+        <button type="button" id="settings-tab-experimental" class="tab" data-settings-tab="experimental">EXPERIMENTAL</button>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -1224,6 +1225,36 @@
           </div>
 
           <div id="settings-remote-result" class="alert alert-ghost alert-sm font-mono text-xs hidden"></div>
+        </div>
+      </section>
+
+      <!-- Experimental flags: opt-in features, off by default -->
+      <section data-settings-panel="experimental" class="hidden max-w-2xl mx-auto w-full">
+        <div>
+          <h3 class="font-mono text-sm font-bold text-primary">EXPERIMENTAL</h3>
+          <p class="text-xs text-base-content/60 mt-1">
+            Opt-in features that are still being designed. Off by default; expect rough edges and
+            changes. Saved to <code class="font-mono">experimental.json</code>.
+          </p>
+        </div>
+
+        <div class="mt-5 rounded-lg border border-warning/30 bg-warning/5 p-4">
+          <label class="flex items-start justify-between gap-4 cursor-pointer" for="settings-experimental-collab">
+            <div>
+              <div class="font-mono text-xs font-bold text-base-content">COLLABORATION</div>
+              <p class="text-[11px] text-base-content/60 mt-1 leading-relaxed">
+                Element notes pinned to the page, a collab toolbar on the deck orb (cycle notes,
+                concise list, pen) and resolve controls on note cards.
+              </p>
+            </div>
+            <input
+              id="settings-experimental-collab"
+              type="checkbox"
+              class="toggle toggle-warning mt-0.5"
+              aria-label="Enable collaboration mode"
+            />
+          </label>
+          <p id="settings-experimental-status" class="font-mono text-[10px] text-base-content/50 mt-3">OFF</p>
         </div>
       </section>
     </div>

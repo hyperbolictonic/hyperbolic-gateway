@@ -5,6 +5,7 @@ import type { ToolManagerResult, ToolSettings } from '../shared/tool-settings.js
 import type { CollaborationThread, CollaborationTarget } from '../shared/collaboration.js';
 import type { PopupAnchor, PopupMenuItem, SidebarSurfaceState } from '../shared/menu.js';
 import type { WebPageState } from '../shared/web-state.js';
+import type { ExperimentalSettings } from '../shared/experimental.js';
 
 export interface ElectronAPI {
   getState: () => Promise<ChassisState>;
@@ -57,6 +58,9 @@ export interface ElectronAPI {
   deleteBookmark: (urlOrId: string) => Promise<boolean>;
   isBookmarked: (url: string) => Promise<boolean>;
   getWebState: () => Promise<{ ok: boolean; state?: WebPageState; error?: string }>;
+  getExperimentalSettings: () => Promise<{ ok: boolean; settings: ExperimentalSettings }>;
+  saveExperimentalSettings: (patch: Partial<ExperimentalSettings>) => Promise<{ ok: boolean; settings: ExperimentalSettings }>;
+  onExperimentalSettings: (callback: (settings: ExperimentalSettings) => void) => () => void;
   getDecisionSettings: () => Promise<{ stored: any; status: any }>;  saveDecisionSettings: (config: any) => Promise<{ ok: boolean; status: any }>;
   testDecisionModel: () => Promise<any>;
   getDecisions: () => Promise<any[]>;
@@ -279,6 +283,13 @@ const api: ElectronAPI = {
   isBookmarked: (url: string) => ipcRenderer.invoke('cortex:is-bookmarked', url),
 
   getWebState: () => ipcRenderer.invoke('chassis:web-state'),
+  getExperimentalSettings: () => ipcRenderer.invoke('settings:get-experimental'),
+  saveExperimentalSettings: (patch: any) => ipcRenderer.invoke('settings:save-experimental', patch),
+  onExperimentalSettings: (callback) => {
+    const handler = (_: any, settings: any) => callback(settings);
+    ipcRenderer.on('experimental:settings', handler);
+    return () => ipcRenderer.removeListener('experimental:settings', handler);
+  },
   getDecisionSettings: () => ipcRenderer.invoke('settings:get-decision'),
   saveDecisionSettings: (config: any) => ipcRenderer.invoke('settings:save-decision', config),
   testDecisionModel: () => ipcRenderer.invoke('settings:test-decision'),

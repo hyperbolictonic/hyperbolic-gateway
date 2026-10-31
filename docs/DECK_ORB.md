@@ -135,3 +135,18 @@ title, URL breadcrumbs, visible cookies (name@domain + httpOnly flag) and
 localStorage / sessionStorage keys — refreshed on demand. This answers
 "what does the page look like to the session" for humans and mirrors the
 bridge's `get_page_info` surface.
+
+## Experimental gate
+
+Collab is now behind **Settings → EXPERIMENTAL → COLLABORATION**, persisted to
+`experimental.json` and **off by default**. When off:
+
+- the header collab icon and the COLLAB radial petal are hidden, and the collab
+  toolbar cannot be entered (main-process gate, not just CSS);
+- page overlays are cleared and not re-injected;
+- the open-note count badges are hidden.
+
+The gate is enforced in the chassis (`isCollabEnabled`) and in
+`CollaborationService.refreshOverlay`, so IPC/automation cannot bypass it. The
+stored threads and agent-facing tools remain intact while gated off.
+

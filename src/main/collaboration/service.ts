@@ -13,11 +13,13 @@ export class CollaborationService {
   private readonly chassis: BrowserChassis;
 
   private readonly onChange?: () => void;
+  private readonly isEnabled?: () => boolean;
 
-  constructor(store: CollaborationStore, chassis: BrowserChassis, onChange?: () => void) {
+  constructor(store: CollaborationStore, chassis: BrowserChassis, onChange?: () => void, isEnabled?: () => boolean) {
     this.store = store;
     this.chassis = chassis;
     this.onChange = onChange;
+    this.isEnabled = isEnabled;
   }
 
   list(filter: CollaborationFilter = {}): CollaborationThread[] {
@@ -67,12 +69,21 @@ export class CollaborationService {
 
   async refreshOverlay(): Promise<void> {
     try {
+      const wc = this.chassis.getActiveWebContents();
+      if (!wc || wc.isDestroyed()) return;
+      if (this.isEnabled && !this.isEnabled()) {
+        // Collab is gated off: make sure no stale highlights remain on the page.
+        await wc
+          .executeJavaScript(
+            "window.__hbCollabExitMode && window.__hbCollabExitMode(); document.getElementById('__kuang_collaboration_layer')?.remove();",
+          )
+          .catch(() => null);
+        return;
+      }
       const url = this.chassis.getPageInfo().url;
       // Resolved threads are history, not active page highlights. Keeping them
       // painted after Resolve makes the user think collab mode is still active.
       const threads = this.store.list({ url }).filter((thread) => thread.status !== 'resolved');
-      const wc = this.chassis.getActiveWebContents();
-      if (!wc || wc.isDestroyed()) return;
       const rightInset = this.chassis.getSidebarPageInset();
       await wc.executeJavaScript(collaborationOverlayScript(threads, { rightInset })).catch(() => null);
     } catch {

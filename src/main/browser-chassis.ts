@@ -647,7 +647,13 @@ export class BrowserChassis {
    * native bounds can never drift apart.
    */
   public getSidebarSurfaceState(): SidebarSurfaceState {
-    return { mode: this.sidebarMode, menuOpen: this.sidebarMenuOpen, collabMode: this.collabMode, orbEdge: this.orbEdge };
+    return {
+      mode: this.sidebarMode,
+      menuOpen: this.sidebarMenuOpen,
+      collabMode: this.collabMode,
+      collabEnabled: this.isCollabEnabled(),
+      orbEdge: this.orbEdge,
+    };
   }
 
   /**
@@ -657,6 +663,10 @@ export class BrowserChassis {
    */
   public setCollabMode(open: boolean): void {
     const next = Boolean(open);
+    if (next && !this.isCollabEnabled()) {
+      this.addLog('info', 'Collab mode is disabled — enable it in Settings → Experimental.');
+      return;
+    }
     if (next === this.collabMode) return;
     if (next && this.sidebarMode !== 'collapsed') this.setSidebarMode('collapsed');
     this.collabMode = next;
@@ -724,6 +734,7 @@ export class BrowserChassis {
    * flashed + scrolled into view by the page overlay (`__hbCollabShowThread`).
    */
   public collabNavigate(delta: number): void {
+    if (!this.isCollabEnabled()) return;
     const threads = this.collabThreads();
     if (!threads.length) return;
     const step = Math.sign(delta || 1);
@@ -769,6 +780,7 @@ export class BrowserChassis {
    * that note on the page.
    */
   public collabToggleList(anchor?: { x: number; y: number; width: number; height: number }): void {
+    if (!this.isCollabEnabled()) return;
     const pop = MenuPopup.shared(path.join(__dirname, '../preload/index.js'));
     if (pop.isOpen) {
       pop.dismiss();
@@ -845,6 +857,23 @@ export class BrowserChassis {
   }
 
   private collaborationClassListener?: (target: CollaborationTarget, added: string[], removed: string[]) => void;
+
+  /** Experimental gate for collab mode; wired by index.ts to the persisted flag. */
+  private collabEnabledGate: () => boolean = () => true;
+
+  public setCollabEnabledProvider(enabled: () => boolean): void {
+    this.collabEnabledGate = enabled;
+    if (!enabled()) this.setCollabMode(false);
+    this.broadcastSidebarSurfaceState();
+  }
+
+  public isCollabEnabled(): boolean {
+    try {
+      return this.collabEnabledGate();
+    } catch {
+      return false;
+    }
+  }
 
   /** Called by index.ts: forwards human class-list edits to the collab service. */
   public setCollaborationClassListener(listener: (target: CollaborationTarget, added: string[], removed: string[]) => void): void {

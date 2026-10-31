@@ -408,6 +408,12 @@ html.menu-popup-mode #menu-popup-host {
 }
 
 /* ── Collab-mode toolbar (the orb becomes the collab controls) ──────────── */
+html.collab-disabled #collab-btn,
+html.collab-disabled .deck-petal[data-action="collab"],
+html.collab-disabled #collab-toolbar,
+html.collab-disabled #collab-count {
+  display: none !important;
+}
 html.sidebar-mode #collab-toolbar {
   display: none;
   position: fixed;

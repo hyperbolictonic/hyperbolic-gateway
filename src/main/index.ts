@@ -21,6 +21,7 @@ import { ToolSettingsStore } from './tools/settings.js';
 import { registerToolSettingsIpc } from './tools/ipc.js';
 import { CollaborationStore } from './collaboration/store.js';
 import { CollaborationService } from './collaboration/service.js';
+import { ExperimentalSettingsStore } from './settings/experimental.js';
 import { dataPath } from './data-paths.js';
 import { APP_VERSION } from '../shared/version.js';
 import {
@@ -313,6 +314,25 @@ function remoteFailure(message: string) {
   return { ok: false, error: message };
 }
 
+/** Experimental feature flags (Settings → Experimental). Persisted; default off. */
+let experimentalStore: ExperimentalSettingsStore | null = null;
+function experimentalSettings(): ExperimentalSettingsStore {
+  experimentalStore ??= new ExperimentalSettingsStore(path.join(app.getPath('userData'), 'experimental.json'));
+  return experimentalStore;
+}
+
+ipcMain.handle('settings:get-experimental', () => ({ ok: true, settings: experimentalSettings().get() }));
+ipcMain.handle('settings:save-experimental', (_event, patch: unknown) => {
+  const settings = experimentalSettings().savePatch(patch);
+  chassis.broadcast('experimental:settings', settings);
+  // Turning the gate off must also leave collab mode and drop page highlights.
+  if (!settings.collab) {
+    chassis.setCollabMode(false);
+    void activeCollaborationService?.refreshOverlay();
+  }
+  return { ok: true, settings };
+});
+
 ipcMain.handle('collaboration:list', (_event, filter?: any) => {
   if (!activeCollaborationService) return { ok: false, threads: [], error: 'Collaboration is not ready yet.' };
   try {
@@ -562,8 +582,10 @@ async function createWindow() {
       new CollaborationStore(path.join(app.getPath('userData'), 'collaboration.json')),
       chassis,
       () => chassis.broadcast('collaboration:updated'),
+      () => experimentalSettings().get().collab,
     );
     activeCollaborationService = collaboration;
+    chassis.setCollabEnabledProvider(() => experimentalSettings().get().collab);
     // The deck toolbar's list + note cycling read exactly what the page overlay shows.
     chassis.setCollaborationThreadsProvider((filter) => collaboration.list(filter));
     chassis.setCollaborationOverlayRefresher(() => collaboration.refreshOverlay());

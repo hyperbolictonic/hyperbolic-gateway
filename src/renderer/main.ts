@@ -183,12 +183,14 @@ function applySidebarState(state: {
   mode: 'docked' | 'floating' | 'collapsed';
   menuOpen: boolean;
   collabMode: boolean;
+  collabEnabled: boolean;
   orbEdge: 'left' | 'right';
 }): void {
   const collapsed = state.mode === 'collapsed';
   applySidebarMode(state.mode);
   setDeckMenuOpenVisuals(state.menuOpen && collapsed);
   document.documentElement.classList.toggle('collab-mode', state.collabMode && collapsed);
+  document.documentElement.classList.toggle('collab-disabled', state.collabEnabled === false);
   collabModeOn = state.collabMode && collapsed;
   const collabButton = document.getElementById('collab-btn');
   collabButton?.classList.toggle('btn-warning', collabModeOn);
@@ -325,6 +327,38 @@ window.addEventListener('keydown', (event) => {
 // Orb status lights (the docked side is handled by applySidebarState).
 window.electronAPI?.onRecordingStatus((state: unknown) => {
   sidebarRailToggle?.classList.toggle('is-recording', Boolean((state as { recording?: boolean })?.recording));
+});
+
+/** Experimental flag UI: hide collab entry points unless the flag is on. */
+function applyExperimentalSettings(settings: { collab?: boolean } | null | undefined): void {
+  const collabEnabled = settings?.collab === true;
+  document.documentElement.classList.toggle('collab-disabled', !collabEnabled);
+  const toggle = document.getElementById('settings-experimental-collab') as HTMLInputElement | null;
+  if (toggle) toggle.checked = collabEnabled;
+  const status = document.getElementById('settings-experimental-status');
+  if (status) {
+    status.textContent = collabEnabled
+      ? 'ON — collab entry points are visible'
+      : 'OFF — collab entry points are hidden';
+  }
+  for (const id of ['collab-count', 'deck-orb-count']) {
+    if (!collabEnabled) document.getElementById(id)?.classList.add('hidden');
+  }
+  if (collabEnabled) void refreshCollaborationCount();
+}
+window.electronAPI?.onExperimentalSettings((settings) => applyExperimentalSettings(settings));
+void window.electronAPI
+  ?.getExperimentalSettings?.()
+  .then((result) => applyExperimentalSettings(result?.settings))
+  .catch(() => undefined);
+document.getElementById('settings-experimental-collab')?.addEventListener('change', async (event) => {
+  const input = event.currentTarget as HTMLInputElement;
+  const result = await window.electronAPI?.saveExperimentalSettings({ collab: input.checked });
+  if (result?.ok) {
+    applyExperimentalSettings(result.settings);
+  } else {
+    input.checked = !input.checked;
+  }
 });
 
 async function refreshCollaborationCount(): Promise<void> {
@@ -2347,6 +2381,12 @@ if (settingsBtn && settingsModal) {
     }
     if (tab === 'research') {
       void loadResearchSettings();
+    }
+    if (tab === 'experimental') {
+      void window.electronAPI
+        ?.getExperimentalSettings?.()
+        .then((result) => applyExperimentalSettings(result?.settings))
+        .catch(() => undefined);
     }
     if (tab === 'input') {
       void loadInputSettings();
