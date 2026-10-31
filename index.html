@@ -410,9 +410,12 @@
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto p-6 settings-scroll">
+      <!-- One shared column: every tab starts at the same left edge instead of
+           centering its own narrower max-width. -->
+      <div class="mx-auto w-full max-w-6xl">
       <!-- Decision model -->
-      <section data-settings-panel="decision" class="max-w-2xl mx-auto w-full">
+      <section data-settings-panel="decision" class="settings-pane">
         <div>
           <h3 class="font-mono text-sm font-bold text-primary">DECISION MODEL</h3>
           <p class="text-xs text-base-content/60 mt-1">
@@ -429,10 +432,10 @@
               <option value="typesafe">Hosted Jev (typesafe protocol)</option>
               <option value="local-onnx">Local ONNX (open-jev · experimental)</option>
             </select>
-            <p class="label font-mono text-[10px]">Hosted answers in 70–500 ms. Local runs on this machine (kev-0.6b, ≈0.34 GB) and measured 5/12 on the page-decision bench — treat it as experimental.</p>
+            <p class="label font-mono text-[10px] whitespace-normal">Hosted answers in 70–500 ms. Local runs on this machine (kev-0.6b, ≈0.34 GB) and measured 5/12 on the page-decision bench — treat it as experimental.</p>
           </fieldset>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="settings-grid settings-grid-2">
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">Model</legend>
               <input id="settings-model" type="text" class="input input-sm w-full font-mono text-xs" placeholder="jev-1.13 / kev-0.6b" />
@@ -450,11 +453,11 @@
           <fieldset class="fieldset">
             <legend class="fieldset-legend font-mono text-xs">Endpoint URL (hosted only)</legend>
             <input id="settings-url" type="url" class="input input-sm w-full font-mono text-xs" placeholder="https://opencode.ai/inference/systemone/v1/systemone" />
-            <p class="label font-mono text-[10px]">Base host or the full <code class="font-mono">…/v1/systemone</code> URL. Use the OpenCode Console key with the OpenCode endpoint, or a TypeSafe key with <code class="font-mono">api.typesafe.ai</code>.</p>
-            <p class="label font-mono text-[10px] text-warning">Screenshots in <code class="font-mono">decide</code> need <code class="font-mono">api.typesafe.ai</code>: the OpenCode gateway does not forward TypeSafe headers, so images are skipped when this endpoint is opencode.ai.</p>
+            <p class="label font-mono text-[10px] whitespace-normal">Base host or the full <code class="font-mono">…/v1/systemone</code> URL. Use the OpenCode Console key with the OpenCode endpoint, or a TypeSafe key with <code class="font-mono">api.typesafe.ai</code>.</p>
+            <p class="label font-mono text-[10px] text-warning whitespace-normal">Screenshots in <code class="font-mono">decide</code> need <code class="font-mono">api.typesafe.ai</code>: the OpenCode gateway does not forward TypeSafe headers, so images are skipped when this endpoint is opencode.ai.</p>
           </fieldset>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="settings-grid settings-grid-2">
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">API key (hosted only)</legend>
               <input id="settings-key" type="password" class="input input-sm w-full font-mono text-xs" placeholder="stored locally, never logged" autocomplete="off" />
@@ -473,11 +476,11 @@
           </div>
         </form>
 
-        <div class="mt-6 rounded-lg border border-info/30 bg-info/5 p-4">
+        <div class="mt-6 settings-card settings-card-info">
           <label class="flex items-start justify-between gap-4 cursor-pointer" for="settings-jev-enabled">
-            <div>
+            <div class="min-w-0">
               <div class="font-mono text-xs font-bold text-base-content">JEV PAGE COMPACTION</div>
-              <p class="text-[11px] text-base-content/60 mt-1 leading-relaxed">
+              <p class="text-[11px] text-base-content/60 mt-1 leading-relaxed max-w-prose">
                 Just-Enough-View: the agent gets a compact section index (headings, token weights,
                 one-line summaries) and fetches only the sections it asks for, instead of a full
                 page dump. Optional; requires the decision model above.
@@ -486,28 +489,28 @@
             <input
               id="settings-jev-enabled"
               type="checkbox"
-              class="toggle toggle-info mt-0.5"
+              class="toggle toggle-info mt-0.5 shrink-0"
               aria-label="Enable JEV page compaction"
             />
           </label>
-          <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-info/20 pt-3">
             <span class="font-mono text-[10px] uppercase tracking-wider text-base-content/50">Read mode</span>
             <div class="join" role="group" aria-label="JEV read mode">
               <button type="button" id="settings-jev-mode-prefer" class="btn btn-xs join-item font-mono" aria-pressed="true">PREFER</button>
               <button type="button" id="settings-jev-mode-enforce" class="btn btn-xs join-item font-mono" aria-pressed="false">ENFORCE</button>
             </div>
           </div>
-          <p class="mt-2 text-[10px] text-base-content/50 leading-relaxed">
+          <p class="mt-2 text-[10px] text-base-content/50 leading-relaxed max-w-prose">
             <span class="font-mono">PREFER</span>: the tool surface leads with JEV; full reads still work.
             <span class="font-mono">ENFORCE</span>: unscoped page reads are refused and steered to the index.
             <code class="font-mono">observe</code> stays available for marks, regions and bounded reads.
           </p>
-          <p id="settings-jev-status" class="font-mono text-[10px] text-base-content/50 mt-3">—</p>
+          <p id="settings-jev-status" class="font-mono text-[10px] text-base-content/50 mt-3 max-w-prose">—</p>
         </div>
       </section>
 
       <!-- Recording -->
-      <section data-settings-panel="input" class="hidden max-w-2xl mx-auto w-full">
+      <section data-settings-panel="input" class="hidden settings-pane">
         <div>
           <h3 class="font-mono text-sm font-bold text-primary">HUMAN INPUT</h3>
           <p class="text-xs text-base-content/60 mt-1">
@@ -560,7 +563,7 @@
       </section>
 
       <!-- Shadow Walk: closed roots, Tab walk, iframes -->
-      <section data-settings-panel="shadow" class="hidden max-w-3xl mx-auto w-full">
+      <section data-settings-panel="shadow" class="hidden settings-pane">
         <div class="flex items-start justify-between gap-4">
           <div>
             <h3 class="font-mono text-sm font-bold text-primary">SHADOW WALK</h3>
@@ -610,7 +613,7 @@
               <input id="shadow-tab-walk" type="checkbox" class="toggle toggle-sm toggle-warning" />
             </label>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <div class="settings-grid settings-grid-2 mt-2">
               <fieldset class="fieldset">
                 <legend class="fieldset-legend font-mono text-xs">Tab walk max steps</legend>
                 <input id="shadow-tab-steps" type="number" min="1" max="12" step="1" class="input input-sm w-full font-mono text-xs" />
@@ -640,7 +643,7 @@
               <input id="shadow-frame-screenshots" type="checkbox" class="toggle toggle-sm toggle-primary" />
             </label>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+            <div class="settings-grid settings-grid-3 mt-2">
               <fieldset class="fieldset">
                 <legend class="fieldset-legend font-mono text-xs">Max frames</legend>
                 <input id="shadow-max-frames" type="number" min="1" max="16" step="1" class="input input-sm w-full font-mono text-xs" />
@@ -688,7 +691,7 @@
         </form>
       </section>
 
-      <section data-settings-panel="recording" class="hidden max-w-3xl mx-auto w-full">
+      <section data-settings-panel="recording" class="hidden settings-pane">
         <div class="flex items-start justify-between gap-4">
           <div>
             <h3 class="font-mono text-sm font-bold text-primary">TIMELAPSE RECORDER</h3>
@@ -730,7 +733,7 @@
             <p class="label font-mono text-[10px]">Finished files are `.webm` (VP9). <code class="font-mono">list_recordings</code> returns their absolute paths from this folder, ready to type into a file-upload field.</p>
           </fieldset>
 
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="settings-grid settings-grid-4">
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">Capture every (ms)</legend>
               <input id="settings-rec-interval" type="number" min="200" step="100" class="input input-sm w-full font-mono text-xs" />
@@ -764,7 +767,7 @@
       </section>
 
       <!-- Research / stealth -->
-      <section data-settings-panel="research" class="hidden max-w-3xl mx-auto w-full">
+      <section data-settings-panel="research" class="hidden settings-pane">
         <h3 class="font-mono text-sm font-bold text-primary">RESEARCH &amp; STEALTH</h3>
         <p class="text-xs text-base-content/60 mt-1">
           Controls for <code class="font-mono">search_web</code>, <code class="font-mono">deep_crawl</code>, and
@@ -797,7 +800,7 @@
             <p class="label font-mono text-[10px]">Applied only to the isolated <code class="font-mono">persist:kuang-research</code> session, not your normal browsing tabs.</p>
           </fieldset>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="settings-grid settings-grid-2">
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">Domain cooldown (seconds)</legend>
               <input id="settings-research-cooldown" type="number" min="30" max="86400" step="30" class="input input-sm w-full font-mono text-xs" />
@@ -810,7 +813,7 @@
             </fieldset>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="settings-grid settings-grid-3">
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">Crawl concurrency</legend>
               <input id="settings-research-concurrency" type="number" min="1" max="4" step="1" class="input input-sm w-full font-mono text-xs" />
@@ -826,7 +829,7 @@
             </fieldset>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="settings-grid settings-grid-2">
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-mono text-xs">Default search results</legend>
               <input id="settings-research-max-results" type="number" min="1" max="25" step="1" class="input input-sm w-full font-mono text-xs" />
@@ -852,7 +855,7 @@
       </section>
 
       <!-- Hyperbolic Rest: wrappers + credentials -->
-      <section data-settings-panel="wrappers" class="hidden max-w-6xl mx-auto w-full">
+      <section data-settings-panel="wrappers" class="hidden settings-pane-wide">
         <h3 class="font-mono text-sm font-bold text-primary">HYPERBOLIC REST</h3>
         <p class="text-xs text-base-content/60 mt-1">
           Browse and edit saved REST wrappers, and manage the host-bound credentials they reference. Wrapper
@@ -908,7 +911,7 @@
           </div>
 
           <form id="settings-wrap-secret-form" class="mt-4 space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="settings-grid settings-grid-2">
               <fieldset class="fieldset">
                 <legend class="fieldset-legend font-mono text-xs">Secret name</legend>
                 <input id="settings-wrap-name" type="text" class="input input-sm w-full font-mono text-xs" placeholder="weather-key" autocomplete="off" />
@@ -950,7 +953,7 @@
               <p class="label font-mono text-[10px]">For an OAuth2 credential this is the client secret; it is encrypted and never leaves main.</p>
             </fieldset>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="settings-grid settings-grid-2">
               <fieldset class="fieldset">
                 <legend class="fieldset-legend font-mono text-xs">Allowed hosts</legend>
                 <input id="settings-wrap-hosts" type="text" class="input input-sm w-full font-mono text-xs" placeholder="api.example.com, *.example.com" autocomplete="off" />
@@ -979,7 +982,7 @@
       </section>
 
       <!-- MCP clients -->
-      <section data-settings-panel="clients" class="hidden max-w-4xl mx-auto w-full">
+      <section data-settings-panel="clients" class="hidden settings-pane">
         <h3 class="font-mono text-sm font-bold text-primary">MCP CLIENTS</h3>
         <p class="text-xs text-base-content/60 mt-1">
           Copy a ready-to-paste config for your agent client. The Cyberdeck must be running before the tools
@@ -1025,7 +1028,7 @@
       </section>
 
       <!-- MCP tool manager -->
-      <section data-settings-panel="tools" class="hidden max-w-6xl mx-auto w-full">
+      <section data-settings-panel="tools" class="hidden settings-pane-wide">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 class="font-mono text-sm font-bold text-primary">MCP TOOL MANAGER</h3>
@@ -1117,7 +1120,7 @@
       </section>
 
       <!-- Remote MCP gateway -->
-      <section data-settings-panel="remote" class="hidden max-w-4xl mx-auto w-full">
+      <section data-settings-panel="remote" class="hidden settings-pane">
         <div class="flex items-start justify-between gap-4">
           <div>
             <h3 class="font-mono text-sm font-bold text-primary">REMOTE ACCESS <span class="badge badge-warning badge-sm ml-1">EXPERIMENTAL</span></h3>
@@ -1261,7 +1264,7 @@
       </section>
 
       <!-- Experimental flags: opt-in features, off by default -->
-      <section data-settings-panel="experimental" class="hidden max-w-2xl mx-auto w-full">
+      <section data-settings-panel="experimental" class="hidden settings-pane">
         <div>
           <h3 class="font-mono text-sm font-bold text-primary">EXPERIMENTAL</h3>
           <p class="text-xs text-base-content/60 mt-1">
@@ -1270,7 +1273,7 @@
           </p>
         </div>
 
-        <div class="mt-5 rounded-lg border border-warning/30 bg-warning/5 p-4">
+        <div class="mt-5 settings-card settings-card-warning">
           <label class="flex items-start justify-between gap-4 cursor-pointer" for="settings-experimental-collab">
             <div>
               <div class="font-mono text-xs font-bold text-base-content">COLLABORATION</div>
@@ -1289,6 +1292,7 @@
           <p id="settings-experimental-status" class="font-mono text-[10px] text-base-content/50 mt-3">OFF</p>
         </div>
       </section>
+      </div>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">

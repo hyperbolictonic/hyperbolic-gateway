@@ -491,3 +491,69 @@ html.sidebar-mode.collab-mode #sidebar-rail-toggle {
   background: color-mix(in oklab, var(--color-error) 22%, transparent);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-error) 16%, transparent);
 }
+
+/* ---------------------------------------------------------------- settings */
+/* One reusable pane for every settings tab except the data-table surfaces
+   (Tools, Wrappers). A single width means every panel starts on the same
+   column and form rows line up when you switch tabs. */
+#settings-modal .settings-pane {
+  width: 100%;
+  max-width: 56rem; /* 896px */
+}
+#settings-modal .settings-pane-wide {
+  width: 100%;
+  max-width: 72rem; /* 1152px */
+}
+/* daisyUI's .label is white-space: nowrap, which made help text overflow its
+   fieldset and drift past the input it belongs to. */
+#settings-modal p.label {
+  white-space: normal;
+}
+#settings-modal .settings-pane .fieldset {
+  margin-top: 0;
+}
+/* Keep the pane x-position stable whether or not the panel scrolls. */
+#settings-modal .settings-scroll {
+  scrollbar-gutter: stable;
+}
+
+/* Reusable settings layout primitives. Use these instead of per-tab widths:
+ *   .settings-pane        form-shaped tabs (max 56rem)
+ *   .settings-pane-wide   data-table tabs (max 72rem)
+ *   .settings-grid        field row; card rows use the -2/-3/-4 variants
+ *   .settings-card        bordered feature block (+ .settings-card-info)
+ *   p.label               helper text under a field (wraps; daisyUI is nowrap)
+ */
+#settings-modal .settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem 1rem;
+}
+@media (min-width: 640px) {
+  #settings-modal .settings-grid-2,
+  #settings-modal .settings-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #settings-modal .settings-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  #settings-modal .settings-grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+#settings-modal .settings-card {
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 14%, transparent);
+  background: color-mix(in oklab, var(--color-base-content) 3%, transparent);
+  padding: 1rem;
+}
+#settings-modal .settings-card-info {
+  border-color: color-mix(in oklab, var(--color-info) 30%, transparent);
+  background: color-mix(in oklab, var(--color-info) 5%, transparent);
+}
+#settings-modal .settings-card-warning {
+  border-color: color-mix(in oklab, var(--color-warning) 30%, transparent);
+  background: color-mix(in oklab, var(--color-warning) 5%, transparent);
+}

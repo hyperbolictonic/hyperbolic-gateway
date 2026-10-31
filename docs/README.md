@@ -32,6 +32,7 @@ handoffs are intentionally not published here; links to them go back to the repo
 - [Research mode](./RESEARCH_STEALTH.html) — isolated research sessions, proxies and challenge backoff.
 - [Cortex embeddings](./EMBEDDING_PROVIDERS.html) — embedding providers and local recall.
 - [Decision models](./DECISION_MODELS.html) — the optional `decide` / `drive` layer.
+- [Settings layout](./SETTINGS_LAYOUT.html) — the shared panes, field grids and cards used by every settings tab.
 
 ## Hyperbolic Rest
 
