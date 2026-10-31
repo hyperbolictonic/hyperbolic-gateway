@@ -54,6 +54,7 @@
     "test:mcp:surface": "node scripts/test-mcp-surface.mjs",
     "test:navigation": "node scripts/test-navigation-error.mjs",
     "test:collaboration": "node scripts/test-collaboration-store.mjs",
+    "test:jev": "node scripts/test-jev-engine.mjs",
     "test:focus": "node scripts/test-input-focus-independence.mjs",
     "test:cortex:bookmarks": "node scripts/test-bookmarks-search.mjs",
     "test:llm": "node scripts/test-llm-surface.mjs",

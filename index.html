@@ -472,6 +472,26 @@
             <button type="submit" class="btn btn-sm btn-primary font-mono text-xs">SAVE</button>
           </div>
         </form>
+
+        <div class="mt-6 rounded-lg border border-info/30 bg-info/5 p-4">
+          <label class="flex items-start justify-between gap-4 cursor-pointer" for="settings-jev-enabled">
+            <div>
+              <div class="font-mono text-xs font-bold text-base-content">JEV PAGE COMPACTION</div>
+              <p class="text-[11px] text-base-content/60 mt-1 leading-relaxed">
+                Just-Enough-View: the agent gets a compact section index (headings, token weights,
+                one-line summaries) and fetches only the sections it asks for, instead of a full
+                page dump. Optional; requires the decision model above.
+              </p>
+            </div>
+            <input
+              id="settings-jev-enabled"
+              type="checkbox"
+              class="toggle toggle-info mt-0.5"
+              aria-label="Enable JEV page compaction"
+            />
+          </label>
+          <p id="settings-jev-status" class="font-mono text-[10px] text-base-content/50 mt-3">—</p>
+        </div>
       </section>
 
       <!-- Recording -->

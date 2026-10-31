@@ -150,3 +150,10 @@ The gate is enforced in the chassis (`isCollabEnabled`) and in
 `CollaborationService.refreshOverlay`, so IPC/automation cannot bypass it. The
 stored threads and agent-facing tools remain intact while gated off.
 
+## Known gaps
+
+- The radial petal layout is fixed per petal (`--dx/--dy`), so hiding a petal
+  (NOTE retired, or COLLAB gated off) leaves a gap instead of re-spacing the
+  remaining actions. Recompute offsets from the visible set when that matters.
+
+

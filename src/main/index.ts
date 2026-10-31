@@ -22,6 +22,8 @@ import { registerToolSettingsIpc } from './tools/ipc.js';
 import { CollaborationStore } from './collaboration/store.js';
 import { CollaborationService } from './collaboration/service.js';
 import { ExperimentalSettingsStore } from './settings/experimental.js';
+import { JevSettingsStore } from './settings/jev.js';
+import { decisionStatus } from './decide/decision-client.js';
 import { dataPath } from './data-paths.js';
 import { APP_VERSION } from '../shared/version.js';
 import {
@@ -321,6 +323,16 @@ function experimentalSettings(): ExperimentalSettingsStore {
   return experimentalStore;
 }
 
+/** Optional JEV page compaction (requires a configured decision model). Default off. */
+let jevStore: JevSettingsStore | null = null;
+function jevSettings(): JevSettingsStore {
+  jevStore ??= new JevSettingsStore(path.join(app.getPath('userData'), 'jev.json'));
+  return jevStore;
+}
+function jevAvailable(): boolean {
+  return jevSettings().get().enabled && decisionStatus().configured;
+}
+
 ipcMain.handle('settings:get-experimental', () => ({ ok: true, settings: experimentalSettings().get() }));
 ipcMain.handle('settings:save-experimental', (_event, patch: unknown) => {
   const settings = experimentalSettings().savePatch(patch);
@@ -331,6 +343,13 @@ ipcMain.handle('settings:save-experimental', (_event, patch: unknown) => {
     void activeCollaborationService?.refreshOverlay();
   }
   return { ok: true, settings };
+});
+
+ipcMain.handle('settings:get-jev', () => ({ ok: true, settings: jevSettings().get(), available: jevAvailable(), decisionConfigured: decisionStatus().configured }));
+ipcMain.handle('settings:save-jev', (_event, patch: unknown) => {
+  const settings = jevSettings().savePatch(patch);
+  chassis.broadcast('jev:settings', settings);
+  return { ok: true, settings, available: jevAvailable(), decisionConfigured: decisionStatus().configured };
 });
 
 ipcMain.handle('collaboration:list', (_event, filter?: any) => {
@@ -586,6 +605,7 @@ async function createWindow() {
     );
     activeCollaborationService = collaboration;
     chassis.setCollabEnabledProvider(() => experimentalSettings().get().collab);
+    chassis.setJevEnabledProvider(() => jevAvailable());
     // The deck toolbar's list + note cycling read exactly what the page overlay shows.
     chassis.setCollaborationThreadsProvider((filter) => collaboration.list(filter));
     chassis.setCollaborationOverlayRefresher(() => collaboration.refreshOverlay());

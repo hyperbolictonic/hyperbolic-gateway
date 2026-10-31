@@ -61,6 +61,9 @@ export interface ElectronAPI {
   getExperimentalSettings: () => Promise<{ ok: boolean; settings: ExperimentalSettings }>;
   saveExperimentalSettings: (patch: Partial<ExperimentalSettings>) => Promise<{ ok: boolean; settings: ExperimentalSettings }>;
   onExperimentalSettings: (callback: (settings: ExperimentalSettings) => void) => () => void;
+  getJevSettings: () => Promise<{ ok: boolean; settings: { enabled: boolean }; available: boolean; decisionConfigured: boolean }>;
+  saveJevSettings: (patch: { enabled: boolean }) => Promise<{ ok: boolean; settings: { enabled: boolean }; available: boolean; decisionConfigured: boolean }>;
+  onJevSettings: (callback: (settings: { enabled: boolean }) => void) => () => void;
   getDecisionSettings: () => Promise<{ stored: any; status: any }>;  saveDecisionSettings: (config: any) => Promise<{ ok: boolean; status: any }>;
   testDecisionModel: () => Promise<any>;
   getDecisions: () => Promise<any[]>;
@@ -289,6 +292,13 @@ const api: ElectronAPI = {
     const handler = (_: any, settings: any) => callback(settings);
     ipcRenderer.on('experimental:settings', handler);
     return () => ipcRenderer.removeListener('experimental:settings', handler);
+  },
+  getJevSettings: () => ipcRenderer.invoke('settings:get-jev'),
+  saveJevSettings: (patch: { enabled: boolean }) => ipcRenderer.invoke('settings:save-jev', patch),
+  onJevSettings: (callback) => {
+    const handler = (_: any, settings: any) => callback(settings);
+    ipcRenderer.on('jev:settings', handler);
+    return () => ipcRenderer.removeListener('jev:settings', handler);
   },
   getDecisionSettings: () => ipcRenderer.invoke('settings:get-decision'),
   saveDecisionSettings: (config: any) => ipcRenderer.invoke('settings:save-decision', config),

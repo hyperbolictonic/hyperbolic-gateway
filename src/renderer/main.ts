@@ -2478,6 +2478,40 @@ if (settingsBtn && settingsModal) {
     resultEl.textContent = text;
   };
 
+  const jevToggle = document.getElementById('settings-jev-enabled') as HTMLInputElement | null;
+  const jevStatusEl = document.getElementById('settings-jev-status');
+
+  /** JEV is optional: only offerable once a decision model is configured. */
+  const applyJevSettings = (result: any) => {
+    const enabled = result?.settings?.enabled === true;
+    const decisionConfigured = result?.decisionConfigured === true;
+    if (jevToggle) {
+      jevToggle.checked = enabled;
+      jevToggle.disabled = !decisionConfigured;
+    }
+    if (jevStatusEl) {
+      jevStatusEl.textContent = !decisionConfigured
+        ? 'Requires a configured decision model.'
+        : enabled
+          ? 'ON — agents receive a section index; sections are fetched on demand.'
+          : 'OFF — agents receive full page markdown.';
+    }
+  };
+  const loadJevSettings = async (): Promise<void> => {
+    try {
+      applyJevSettings(await window.electronAPI!.getJevSettings());
+    } catch {
+      // Best effort: the toggle keeps its last state.
+    }
+  };
+  jevToggle?.addEventListener('change', async () => {
+    if (!jevToggle) return;
+    const result = await window.electronAPI?.saveJevSettings({ enabled: jevToggle.checked });
+    if (result?.ok) applyJevSettings(result);
+    else jevToggle.checked = !jevToggle.checked;
+  });
+  window.electronAPI?.onJevSettings(() => void loadJevSettings());
+
   const showStatus = (status: any, stored: any) => {
     if (status?.configured) {
       badgeEl.className = 'badge badge-success font-mono text-xs whitespace-nowrap';
@@ -2504,6 +2538,7 @@ if (settingsBtn && settingsModal) {
       showStatus(null, null);
       showResult('error', `Could not read settings: ${err?.message || err}`);
     }
+    void loadJevSettings();
     settingsModal.showModal();
     const activeTab = settingsTabs.find((button) => button.classList.contains('tab-active'))?.dataset.settingsTab;
     if (activeTab === 'recording') void loadRecordingSettings();

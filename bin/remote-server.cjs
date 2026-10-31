@@ -39957,6 +39957,50 @@ var TOOLS_CATALOG = [
     }
   },
   {
+    name: "jev_index",
+    description: "Just-Enough-View (JEV) surface index for the active page: a compact map of sections with IDs, headings, token weights and one-line summaries instead of a full markdown dump (~95% smaller). Follow with read_section(section_id) to fetch only what is needed, or search_page(query) to locate text without expanding. Requires a configured decision model and the optional JEV setting.",
+    parameters: {},
+    endpoint: "/jev/index",
+    method: "GET",
+    format: (data) => data?.ok ? data.index : data?.error || "JEV unavailable"
+  },
+  {
+    name: "read_section",
+    description: 'Fetch the complete Markdown body for a section ID from the current JEV page index (e.g. "sec_1.1"). Set include_children=true to pull nested subsections too.',
+    parameters: {
+      section_id: external_exports.string().describe('Section ID from jev_index, e.g. "sec_2" or "sec_1.1"'),
+      include_children: external_exports.coerce.boolean().optional().default(false).describe("Also return nested subsections (default: false)")
+    },
+    endpoint: "/jev/read",
+    method: "POST",
+    payload: (args) => ({ section_id: args?.section_id ?? args?.sectionId ?? "", include_children: args?.include_children === true }),
+    format: (data) => {
+      if (!data?.ok) return data?.error || "Section unavailable";
+      const folded = (data.folded || []).join("\n");
+      return `${data.content}${folded ? `
+
+---
+Auto-fold hint:
+${folded}` : ""}`;
+    }
+  },
+  {
+    name: "search_page",
+    description: "Run a fast keyword/regex query over all folded JEV section text without expanding it. Returns matching section IDs, counts and snippets; then call read_section for context.",
+    parameters: {
+      query: external_exports.string().describe("Keyword or regular expression to find across the page")
+    },
+    endpoint: "/jev/search",
+    method: "POST",
+    payload: (args) => ({ query: args?.query ?? args?.text ?? "" }),
+    format: (data) => {
+      if (!data?.ok) return data?.error || "Search unavailable";
+      const hits = Array.isArray(data.hits) ? data.hits : [];
+      if (!hits.length) return "No matches.";
+      return hits.map((hit) => `- [${hit.section_id}] ${hit.heading} (${hit.matches} match${hit.matches === 1 ? "" : "es"}) \u2014 ${hit.snippet}`).join("\n");
+    }
+  },
+  {
     name: "evaluate_javascript",
     description: "Executes a JavaScript expression or script in the active page context and returns the serialized result. A powerful tool that can read AND mutate the page \u2014 reach for it deliberately: observe/extract cover most reads and act covers clicks and typing, and heavy injected JS is a bot-detection signal.",
     parameters: {

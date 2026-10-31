@@ -19,6 +19,7 @@ import type { SidebarSurfaceState } from '../shared/menu.js';
 import { bump } from './metrics.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
+import { JevEngine, type JevStatus } from './jev/engine.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
 import { readStoredDecisionConfig, saveDecisionConfig, decisionStatus, runDecision, onDecision, type DecisionEvent } from './decide/decision-client.js';
 import { targetBoxScript, focusControlScript, DEEP_DOM_HELPERS, type TargetBox } from './primitives/dom-targeting.js';
@@ -113,6 +114,9 @@ export class BrowserChassis {
   private tabManager: TabManager | null = null;
   private simulator: HumanizedInputSimulator;
   private harvester: ConstructHarvester;
+  /** JEV page compaction: surface index + in-memory depth store. */
+  private jev = new JevEngine();
+  private jevEnabledGate: () => boolean = () => false;
   private shieldBreaker: ShieldBreaker;
   private downloadManager: DownloadManager;
   private sessionVault: SessionVault;
@@ -543,6 +547,62 @@ export class BrowserChassis {
 
   public getSidebarMode(): 'docked' | 'floating' | 'collapsed' {
     return this.sidebarMode;
+  }
+
+  /** Experimental/optional gate for JEV; wired by index.ts to settings + decision status. */
+  public setJevEnabledProvider(enabled: () => boolean): void {
+    this.jevEnabledGate = enabled;
+  }
+
+  public isJevEnabled(): boolean {
+    try {
+      return this.jevEnabledGate();
+    } catch {
+      return false;
+    }
+  }
+
+  public getJevStatus(): JevStatus {
+    return this.jev.status(this.isJevEnabled());
+  }
+
+  /** Build (or refresh) the JEV surface index for the active page. */
+  public async jevIndex(): Promise<{ ok: boolean; error?: string; index?: string; status?: JevStatus }> {
+    if (!this.isJevEnabled()) {
+      return { ok: false, error: 'JEV is disabled. Enable it in Settings → Decision Model (it requires a configured decision model).' };
+    }
+    try {
+      const info = this.getPageInfo();
+      const current = this.jev.current;
+      if (!current || current.url !== info.url) {
+        const construct = await this.harvestMarkdown();
+        this.jev.build(construct.content || '', construct.url || info.url, construct.title || info.title || '');
+      }
+      return { ok: true, index: this.jev.renderIndex(), status: this.getJevStatus() };
+    } catch (error: any) {
+      return { ok: false, error: error?.message || String(error) };
+    }
+  }
+
+  /** Fetch one section body from the depth store on demand. */
+  public jevReadSection(
+    sectionId: string,
+    includeChildren = false,
+  ): { ok: boolean; section_id?: string; tokens?: number; content?: string; folded?: string[]; error?: string } {
+    if (!this.isJevEnabled()) {
+      return { ok: false, error: 'JEV is disabled. Enable it in Settings → Decision Model.' };
+    }
+    if (this.jev.current && this.getPageInfo().url !== this.jev.current.url) this.jev.purge();
+    return this.jev.readSection(sectionId, includeChildren);
+  }
+
+  /** Keyword/regex query over the folded depth store. */
+  public jevSearch(query: string): { ok: boolean; hits?: Array<{ section_id: string; heading: string; matches: number; snippet: string }>; error?: string } {
+    if (!this.isJevEnabled()) {
+      return { ok: false, error: 'JEV is disabled. Enable it in Settings → Decision Model.' };
+    }
+    if (this.jev.current && this.getPageInfo().url !== this.jev.current.url) this.jev.purge();
+    return this.jev.search(query);
   }
 
   /**
@@ -1147,6 +1207,7 @@ export class BrowserChassis {
 
   // Tab Operations
   public createTab(url?: string): TabSummary {
+    this.jev.purge();
     if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
     this.addLog('action', `MCP Directive: new_tab(${url || 'about:blank'})`);
     const tab = this.tabManager.createTab(url);
@@ -1165,12 +1226,14 @@ export class BrowserChassis {
   public switchTab(tabId: string): void {
     if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
     this.addLog('action', `MCP Directive: switch_tab(${tabId})`);
+    this.jev.purge();
     this.tabManager.switchTab(tabId);
   }
 
   public closeTab(tabId?: string): void {
     if (!this.tabManager) throw new Error('Browser Chassis uninitialized');
     this.addLog('action', `MCP Directive: close_tab(${tabId || 'active'})`);
+    this.jev.purge();
     this.tabManager.closeTab(tabId);
   }
 
@@ -1585,6 +1648,7 @@ export class BrowserChassis {
   // MCP Operations on Active Tab
   public async navigateTo(url: string, autoDismissConsent: boolean = true): Promise<string> {
     bump('nav');
+    this.jev.purge();
     const wc = this.getActiveWebContents();
     await this.syncForceOpenFor(wc);
     this.state.agentStatus = 'TRAVERSING';
@@ -2466,6 +2530,7 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     await this.syncForceOpenFor(wc);
     if (wc.navigationHistory.canGoBack()) {
+      this.jev.purge();
       wc.navigationHistory.goBack();
       this.bumpRevision();
       this.broadcastState();
@@ -2478,6 +2543,7 @@ export class BrowserChassis {
     const wc = this.getActiveWebContents();
     await this.syncForceOpenFor(wc);
     if (wc.navigationHistory.canGoForward()) {
+      this.jev.purge();
       wc.navigationHistory.goForward();
       this.bumpRevision();
       this.broadcastState();
@@ -2489,6 +2555,7 @@ export class BrowserChassis {
   public async reload(): Promise<string> {
     const wc = this.getActiveWebContents();
     await this.syncForceOpenFor(wc);
+    this.jev.purge();
     wc.reload();
     this.bumpRevision();
     this.broadcastState();

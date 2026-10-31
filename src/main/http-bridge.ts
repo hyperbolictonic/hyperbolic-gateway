@@ -412,6 +412,25 @@ export function startHttpBridge(
         return;
       }
 
+      // JEV (Just-Enough-View) page compaction. Requires a decision model and the
+      // optional JEV toggle; otherwise each route returns a clear error.
+      if (req.method === 'GET' && pathname === '/jev/index') {
+        sendJson(await chassis.jevIndex());
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/jev/read') {
+        const body = await readBody();
+        const sectionId = String(body.section_id ?? body.sectionId ?? '');
+        const includeChildren = body.include_children === true || body.includeChildren === true;
+        sendJson(chassis.jevReadSection(sectionId, includeChildren));
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/jev/search') {
+        const body = await readBody();
+        sendJson(chassis.jevSearch(String(body.query ?? '')));
+        return;
+      }
+
       if (req.method === 'GET' && pathname === '/screenshot') {
         const maxWidthParam = url.searchParams.get('max_width');
         const maxWidth = maxWidthParam !== null ? Number(maxWidthParam) : 768;
