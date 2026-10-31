@@ -2,6 +2,7 @@ import type { BrowserChassis } from '../browser-chassis.js';
 import type {
   CollaborationFilter,
   CollaborationMessage,
+  CollaborationTarget,
   CollaborationThread,
 } from '../../shared/collaboration.js';
 import { CollaborationStore, type CreateThreadInput } from './store.js';
@@ -31,6 +32,22 @@ export class CollaborationService {
     const thread = this.store.create(input);
     void this.refreshOverlay();
     this.onChange?.();
+    return thread;
+  }
+
+  /**
+   * Record a human class-list edit on a pinned element as a thread, so the
+   * agent can read the human's intent (+added / -removed selectors ride the
+   * same store as notes).
+   */
+  recordClassEdit(target: CollaborationTarget, added: string[], removed: string[]): CollaborationThread {
+    const parts = [...added.map((cls) => '+' + cls), ...removed.map((cls) => '-' + cls)];
+    const summary = parts.length ? 'Class edit: ' + parts.join(' ') : 'Class edit (no changes)';
+    const thread = this.create({
+      target,
+      text: summary,
+      tags: ['class-edit', ...added],
+    });
     return thread;
   }
 

@@ -212,7 +212,7 @@
             CONSTRUCT
           </button>
           <button id="tab-btn-logs" role="tab" class="tab font-mono text-xs">
-            MATRIX LOGS
+            WEB STATE
           </button>
           <button id="tab-btn-decisions" role="tab" class="tab font-mono text-xs hidden">
             DECISIONS
@@ -264,16 +264,16 @@
           </div>
         </div>
 
-        <!-- Tab 3: Matrix Logs -->
+        <!-- Tab 3: WEB STATE (page signals) -->
         <div id="tab-content-logs" class="flex-1 p-3 overflow-hidden flex-col hidden font-mono text-xs">
           <div class="flex items-center justify-between mb-2">
-            <span class="font-bold text-base-content text-[11px]">MCP DIRECTIVE STREAM</span>
-            <div class="flex items-center gap-2">
-              <span id="log-count" class="badge badge-xs badge-neutral">0 events</span>
-              <button id="copy-logs-btn" class="btn btn-xs btn-outline font-mono text-[10px]" title="Copy the log stream">COPY</button>
-            </div>
+            <span class="font-bold text-base-content text-[11px]">WEB STATE</span>
+            <button id="webstate-refresh-btn" class="btn btn-xs btn-outline font-mono text-[10px]" title="Refresh page signals">REFRESH</button>
           </div>
-          <div id="logs-container" class="flex-1 bg-base-100 border border-base-300 rounded p-2 overflow-y-auto space-y-1.5 text-[11px]">
+          <div id="webstate-view" class="space-y-2 text-[11px]">
+            <div class="text-base-content/40 italic text-center py-4">Open a page, then REFRESH for breadcrumbs, cookies and storage.</div>
+          </div>
+          <div id="logs-container" class="flex-1 bg-base-100 border border-base-300 rounded p-2 overflow-y-auto space-y-1.5 text-[11px] mt-2 hidden">
             <div class="text-base-content/40 italic text-center py-4">Listening on MCP Stdio transport...</div>
           </div>
         </div>
@@ -298,8 +298,8 @@
         <!-- Command Deck status footer -->
         <footer class="p-2.5 bg-base-300 border-t border-base-300 flex items-center justify-between text-[10px] font-mono text-base-content/60">
           <div class="flex items-center gap-1.5">
-            <span class="text-success">●</span>
-            <span>ICEBREAKER READY</span>
+            <svg viewBox="0 0 24 24" class="w-3 h-3 text-success" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"></path></svg>
+            <span>READY</span>
           </div>
           <div class="flex items-center gap-2">
             <kbd class="kbd kbd-xs">Ctrl+H</kbd>
@@ -356,6 +356,26 @@
 
     <!-- Themed dropdown surface (MenuPopup window in src/main/ui/menu-popup.ts renders here) -->
     <div id="menu-popup-host" aria-hidden="true"></div>
+
+    <!-- Collab-mode toolbar: replaces the orb while collab mode is active.
+         Amber = human voice; the deck orb hands control to these actions.
+         prev/next: cycle notes · list: concise note list · pen: pick an element
+         to work on · ESC: leave collab mode. -->
+    <div id="collab-toolbar" aria-label="Collaboration mode toolbar" class="hidden">
+      <button id="collab-prev-btn" type="button" class="collab-tb-btn" title="Previous note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+      </button>
+      <button id="collab-next-btn" type="button" class="collab-tb-btn" title="Next note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+      </button>
+      <button id="collab-list-btn" type="button" class="collab-tb-btn" title="Concise list of notes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
+      </button>
+      <button id="collab-pick-btn" type="button" class="collab-tb-btn" title="Select an element to work on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4.5 19.5l1-4L16 5l3 3L8.5 18.5l-4 1z"></path><path d="M13.5 7.5l3 3"></path></svg>
+      </button>
+      <button id="collab-exit-btn" type="button" class="collab-tb-exit" title="Leave collab mode (Esc)">ESC</button>
+    </div>
 
     <!-- Help & About Modal -->
     <!-- Collaboration side panel -->

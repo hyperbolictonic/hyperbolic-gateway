@@ -2,6 +2,8 @@ import type { CollaborationThread } from '../../shared/collaboration.js';
 
 export const COLLABORATION_SELECT_PREFIX = '__KUANG_COLLAB_SELECT__:';
 export const COLLABORATION_NOTE_PREFIX = '__KUANG_COLLAB_NOTE__:';
+/** Human class-list edits on a selected element (the LLM reads these). */
+export const COLLABORATION_CLASS_PREFIX = '__KUANG_COLLAB_CLASS__:';
 
 /**
  * Shared styling for both collaboration surfaces. Everything is namespaced under
@@ -307,6 +309,149 @@ const COLLAB_CSS = `
 #__kuang_collaboration_layer .hb-agent.hb-human .hb-agent-arrow {
   border-color: rgba(245, 158, 11, 0.35);
 }
+#__kuang_collaboration_layer .hb-box.hb-focus-ring {
+  border-width: 3px;
+  border-color: rgba(245, 158, 11, 0.95);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.28), 0 0 26px rgba(245, 158, 11, 0.35);
+}
+#__kuang_collaboration_layer .hb-box.hb-flash {
+  animation: hb-thread-flash 1500ms ease-out;
+}
+@keyframes hb-thread-flash {
+  0% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.55); }
+  100% { box-shadow: 0 0 18px rgba(245, 158, 11, 0.2); }
+}
+/* Element selection keeps a persistent amber outline so the human always
+   knows which element the collab toolbar is attached to. */
+.hb-el-selected {
+  outline: 2px solid rgba(245, 158, 11, 0.9) !important;
+  outline-offset: 1px;
+}
+#__kuang_collab_elementbar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(17, 22, 40, 0.96);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: 10px;
+  padding: 4px 5px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+#__kuang_collab_elementbar .hb-el-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+#__kuang_collab_elementbar .hb-el-btn:hover {
+  background: rgba(245, 158, 11, 0.24);
+}
+#__kuang_collab_elementbar .hb-el-close {
+  width: auto;
+  padding: 0 8px;
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.1);
+  color: rgba(226, 232, 240, 0.75);
+  font-size: 10px;
+}
+#__kuang_collab_csspop {
+  position: fixed;
+  z-index: 2147483647;
+  width: 248px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  background: rgba(13, 18, 33, 0.97);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+#__kuang_collab_csspop .hb-css-title {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(148, 163, 184, 0.85);
+  margin-bottom: 6px;
+}
+#__kuang_collab_csspop .hb-css-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 7px;
+  max-height: 96px;
+  overflow: auto;
+}
+#__kuang_collab_csspop .hb-css-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  background: rgba(34, 211, 238, 0.1);
+  color: #67e8f9;
+  font-size: 10px;
+  cursor: pointer;
+}
+#__kuang_collab_csspop .hb-css-chip:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+#__kuang_collab_csspop .hb-css-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  border-radius: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.08);
+  color: #e2e8f0;
+  font-size: 11px;
+  outline: none;
+}
+#__kuang_collab_csspop .hb-css-input:focus {
+  border-color: rgba(34, 211, 238, 0.45);
+}
+#__kuang_collab_csspop .hb-css-addrow {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+#__kuang_collab_csspop .hb-css-add {
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  background: rgba(34, 211, 238, 0.14);
+  color: #67e8f9;
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#__kuang_collab_csspop .hb-css-send {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#__kuang_collab_csspop .hb-css-send:hover {
+  background: rgba(245, 158, 11, 0.26);
+}
 `;
 
 /**
@@ -320,6 +465,7 @@ export function collaborationNoteDrawerScript(): string {
   return `(() => {
   const CSS_TEXT = ${JSON.stringify(COLLAB_CSS)};
   const NOTE_PREFIX = ${JSON.stringify(COLLABORATION_NOTE_PREFIX)};
+  const CLASS_PREFIX = ${JSON.stringify(COLLABORATION_CLASS_PREFIX)};
   const ICON = {
     minus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>',
     plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
@@ -667,6 +813,170 @@ export function collaborationNoteDrawerScript(): string {
     note.focus();
     return { remove, position, setCollapsed, card, drawer };
   };
+
+  /**
+   * Element collab toolbar: pins to the freshly selected element with a
+   * persistent amber outline. Pen = compose a note; CSS = edit the element
+   * class list (human intent the agent can read); DONE = finish working on
+   * the element. Survives page scrolls; Escape/another selection closes it.
+   */
+  window.__hbCollabClearElementBar = function () {
+    const bar = document.getElementById('__kuang_collab_elementbar');
+    if (bar) bar.remove();
+    const pop = document.getElementById('__kuang_collab_csspop');
+    if (pop) pop.remove();
+    document.querySelectorAll('.hb-el-selected').forEach(function (node) {
+      node.classList.remove('hb-el-selected');
+    });
+  };
+
+  window.__hbCollabShowElementToolbar = function (el, target) {
+    ensureStyle();
+    window.__hbCollabClearElementBar();
+    el.classList.add('hb-el-selected');
+    window.__hbCollabSelection = { el: el, target: target };
+    const bar = document.createElement('div');
+    bar.id = '__kuang_collab_elementbar';
+    const pen = document.createElement('button');
+    pen.className = 'hb-el-btn hb-el-pen';
+    pen.textContent = '\\u270E';
+    pen.title = 'Attach a note to this element';
+    const cssBtn = document.createElement('button');
+    cssBtn.className = 'hb-el-btn hb-el-css';
+    cssBtn.textContent = 'CSS';
+    cssBtn.title = 'Edit this element class list — the agent reads it';
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'hb-el-btn hb-el-close';
+    closeBtn.textContent = 'DONE';
+    closeBtn.title = 'Finish working on this element';
+    bar.append(pen, cssBtn, closeBtn);
+    document.body.appendChild(bar);
+    const place = function () {
+      const rect = el.getBoundingClientRect();
+      if (!document.getElementById('__kuang_collab_elementbar')) {
+        window.removeEventListener('scroll', place, true);
+        window.removeEventListener('scroll', place, false);
+        return;
+      }
+      const left = Math.max(6, Math.min(rect.left + rect.width - 6, window.innerWidth - 200));
+      const top = rect.top > 48 ? Math.max(6, rect.top - 44) : Math.max(6, rect.bottom + 8);
+      bar.style.left = left + 'px';
+      bar.style.top = top + 'px';
+    };
+    window.addEventListener('scroll', place, true);
+    closeBtn.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      window.__hbCollabClearElementBar();
+      delete window.__hbCollabSelection;
+    });
+    pen.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      bar.remove();
+      window.__hbCollabOpenNoteDrawer(el, target);
+    });
+    cssBtn.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      window.__hbCollabOpenCssEditor(el, target, bar);
+    });
+    place();
+  };
+
+  /**
+   * Class-list editor for the selected element. On open it snapshots the
+   * current classes; chips reactively toggle real classList membership; SEND
+   * reports the delta (+added -removed) over the class channel so the agent
+   * can read the human's intent.
+   */
+  window.__hbCollabOpenCssEditor = function (el, target, bar) {
+    const existing = document.getElementById('__kuang_collab_csspop');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+    const pop = document.createElement('div');
+    pop.id = '__kuang_collab_csspop';
+    const title = document.createElement('div');
+    title.className = 'hb-css-title';
+    title.textContent = 'CLASSES — click one to remove';
+    const chips = document.createElement('div');
+    chips.className = 'hb-css-chips';
+    let current = (el.className || '').split(/\\s+/).filter(Boolean);
+    const original = current.slice();
+    const renderChips = function () {
+      chips.replaceChildren();
+      if (!current.length) {
+        const empty = document.createElement('span');
+        empty.textContent = 'no classes';
+        empty.style.color = 'rgba(148,163,184,0.55)';
+        empty.style.fontSize = '10px';
+        chips.append(empty);
+        return;
+      }
+      current.forEach(function (cls) {
+        const chip = document.createElement('button');
+        chip.className = 'hb-css-chip';
+        chip.textContent = cls + ' \\u00D7';
+        chip.title = 'Remove ' + cls;
+        chip.addEventListener('click', function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (current.indexOf(cls) === -1) return;
+          current = current.filter(function (c) { return c !== cls; });
+          el.classList.remove(cls);
+          renderChips();
+        });
+        chips.append(chip);
+      });
+    };
+    renderChips();
+    const addRow = document.createElement('div');
+    addRow.className = 'hb-css-addrow';
+    const input = document.createElement('input');
+    input.className = 'hb-css-input';
+    input.placeholder = 'add class names, space separated';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'hb-css-add';
+    addBtn.textContent = 'ADD';
+    const applyToken = function () {
+      (input.value || '').trim().split(/\\s+/).filter(Boolean).forEach(function (token) {
+        if (current.indexOf(token) === -1) {
+          current.push(token);
+          el.classList.add(token);
+        }
+      });
+      input.value = '';
+      renderChips();
+    };
+    addBtn.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      applyToken();
+    });
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        applyToken();
+      }
+    });
+    addRow.append(input, addBtn);
+    const send = document.createElement('button');
+    send.className = 'hb-css-send';
+    send.textContent = 'SEND CLASSES TO AGENT';
+    send.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const added = current.filter(function (cls) { return original.indexOf(cls) === -1; });
+      const removed = original.filter(function (cls) { return current.indexOf(cls) === -1; });
+      console.log(CLASS_PREFIX + JSON.stringify({ target: target, added: added, removed: removed }));
+      pop.remove();
+    });
+    pop.append(title, chips, addRow, send);
+    document.body.appendChild(pop);
+  };
 })();`;
 }
 
@@ -778,7 +1088,7 @@ export function collaborationPickerScript(options: CollaborationPickerOptions = 
       event.preventDefault();
       event.stopPropagation();
       const target = describe(el);
-      window.__hbCollabOpenNoteDrawer(el, target, { rightInset: RIGHT_INSET });
+      window.__hbCollabShowElementToolbar(el, target);
       finish(target);
     };
     const onKey = (event) => {
@@ -828,10 +1138,33 @@ export function collaborationOverlayScript(
     }
     const threads = ${JSON.stringify(payload)};
     const RIGHT_INSET = ${JSON.stringify(rightInset)};
-    if (!threads.length) return;
     const layer = document.createElement('div');
     layer.id = layerId;
     layer.setAttribute('style', 'position:absolute;inset:0;z-index:2147483646;pointer-events:none;');
+    document.body.appendChild(layer);
+    // Focus navigation (orb toolbar back/forward + note list): always present,
+    // even with zero threads, so collab mode stays responsive.
+    window.__hbCollabFocusId = window.__hbCollabFocusId || null;
+    window.__hbCollabShowThread = function (id) {
+      window.__hbCollabFocusId = id;
+      const thread = threads.find(function (t) { return t.id === id; });
+      layer.querySelectorAll('.hb-focus-ring').forEach(function (node) {
+        node.classList.remove('hb-focus-ring');
+      });
+      if (!thread) return;
+      const box = layer.querySelector('[data-thread-id="' + id + '"]');
+      if (box) {
+        box.classList.add('hb-focus-ring');
+        box.classList.remove('hb-flash');
+      }
+      if (thread.target.selector) {
+        try {
+          const el = document.querySelector(thread.target.selector);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch {}
+      }
+      if (box) box.classList.add('hb-flash');
+    };
     const rectFor = (target) => {
       try {
         if (target.markId !== undefined) {
@@ -857,6 +1190,7 @@ export function collaborationOverlayScript(
       const offsetY = scrollY;
       const box = document.createElement('div');
       box.className = 'hb-box' + (thread.humanOnly ? ' hb-human' : '');
+      box.setAttribute('data-thread-id', thread.id);
       Object.assign(box.style, {
         left: rect.left + offsetX + 'px', top: rect.top + offsetY + 'px',
         width: Math.max(8, rect.width) + 'px', height: Math.max(8, rect.height) + 'px',
@@ -924,5 +1258,8 @@ export function collaborationOverlayScript(
       card.append(arrow);
     }
     document.documentElement.appendChild(layer);
+    if (window.__hbCollabFocusId && threads.some(function (t) { return t.id === window.__hbCollabFocusId; })) {
+      window.__hbCollabShowThread(window.__hbCollabFocusId);
+    }
   })()`;
 }

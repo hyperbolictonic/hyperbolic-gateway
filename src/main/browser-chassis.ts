@@ -8,11 +8,13 @@ import { loadInputProfile, saveInputProfile, type InputProfile } from './telemet
 import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
 import { classifyNavigationFailure } from './navigation-error.js';
 import {
+  COLLABORATION_CLASS_PREFIX,
   COLLABORATION_NOTE_PREFIX,
   COLLABORATION_SELECT_PREFIX,
   collaborationPickerScript,
 } from './collaboration/overlay.js';
-import type { CollaborationTarget } from '../shared/collaboration.js';
+import type { CollaborationTarget, CollaborationThread } from '../shared/collaboration.js';
+import type { SidebarSurfaceState } from '../shared/menu.js';
 import { bump } from './metrics.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
@@ -72,6 +74,7 @@ import { PrerenderEngine, type PrerenderOptions } from './prerender/prerender-en
 import { LlmSurface, type LlmSurfaceReport, type LlmSurfaceKind, type LlmFetchResult, type ReadUrlResult } from './llm/llm-surface.js';
 import { SearchHub, type SearchOutcome } from './search/search-engine.js';
 import { Crawler, type CrawlOptions, type CrawlOutcome } from './crawl/crawler.js';
+import { MenuPopup } from './ui/menu-popup.js';
 import { Researcher, type ResearchOptions, type ResearchOutcome } from './research/researcher.js';
 
 /**
@@ -94,6 +97,8 @@ const DECK_ORB_MARGIN = 12;
  *  that the outermost petal (r=165 from the hub centre) plus its hover scale
  *  and shadow fits inside the native view. */
 const DECK_MENU_SIZE = 404;
+/** Collab-mode toolbar pill: the orb is replaced by this bar. */
+const TOOLBAR_BAR_WIDTH = 212;
 
 /** Sidebar transition duration, shared by the native bounds animation and the panel's CSS reveal. */
 const SIDEBAR_TRANSITION_MS = 240;
@@ -151,6 +156,10 @@ export class BrowserChassis {
   private sidebarBoundsAnimation: { cancelled: boolean } | null = null;
   /** Radial orb menu stage (only meaningful while the deck is collapsed). */
   private sidebarMenuOpen = false;
+  /** Collab mode: the orb is replaced by the collaborations toolbar pill. */
+  private collabMode = false;
+  /** Current note in the back/forward cycle through open collaboration threads. */
+  private collabFocusIndex = -1;
   /** Which vertical edge the collapsed orb docks to (survives restarts via the sidebar renderer). */
   private orbEdge: 'left' | 'right' = 'right';
   /** False while a full-window settings/dialog surface is open. */
@@ -482,6 +491,18 @@ export class BrowserChassis {
             }
           } catch {}
         }
+        if (log.message.startsWith(COLLABORATION_CLASS_PREFIX)) {
+          try {
+            const edit = JSON.parse(log.message.slice(COLLABORATION_CLASS_PREFIX.length));
+            if (edit?.target) {
+              this.collaborationClassListener?.(
+                edit.target,
+                Array.isArray(edit.added) ? edit.added.map(String) : [],
+                Array.isArray(edit.removed) ? edit.removed.map(String) : [],
+              );
+            }
+          } catch {}
+        }
       },
     });
 
@@ -538,6 +559,11 @@ export class BrowserChassis {
     this.sidebarMode = mode;
     // Any deck state change cancels the radial menu; the orb stays collapsed.
     this.sidebarMenuOpen = false;
+    // Leaving collapsed mode also leaves collab mode.
+    if (mode !== 'collapsed' && this.collabMode) {
+      this.collabMode = false;
+      this.collabFocusIndex = -1;
+    }
     this.addLog('action', `Sidebar mode: ${mode}`);
     // Animate only real transitions; arriving in the requested mode again snaps.
     this.positionSidebar(mode !== previous);
@@ -615,8 +641,127 @@ export class BrowserChassis {
    * verbatim on boot, on every broadcast and after reloads, so DOM classes and
    * native bounds can never drift apart.
    */
-  public getSidebarSurfaceState(): { mode: 'docked' | 'floating' | 'collapsed'; menuOpen: boolean; orbEdge: 'left' | 'right' } {
-    return { mode: this.sidebarMode, menuOpen: this.sidebarMenuOpen, orbEdge: this.orbEdge };
+  public getSidebarSurfaceState(): SidebarSurfaceState {
+    return { mode: this.sidebarMode, menuOpen: this.sidebarMenuOpen, collabMode: this.collabMode, orbEdge: this.orbEdge };
+  }
+
+  /**
+   * Collab mode: while the deck is collapsed, the orb is replaced by a small
+   * collaborations toolbar (cycle notes, concise list, pick element) wired to
+   * the page overlay. Entering cancels the radial stage and any picking.
+   */
+  public setCollabMode(open: boolean): void {
+    const next = Boolean(open);
+    if (next === this.collabMode) return;
+    if (next && this.sidebarMode !== 'collapsed') return;
+    this.collabMode = next;
+    this.collabFocusIndex = -1;
+    if (next) {
+      this.sidebarMenuOpen = false;
+      void this.stopCollaborationSelection();
+    }
+    this.positionSidebar(true);
+    this.broadcastSidebarSurfaceState();
+  }
+
+  /** The deck's page layer. Set by index.ts once the collaboration service exists. */
+  private collaborationThreadsProvider?: (filter: { url: string }) => CollaborationThread[];
+  private overlayRefresher?: () => Promise<void> | void;
+
+  /**
+   * Move the collab note cycle by `delta` (-1/1). The focused thread is
+   * flashed + scrolled into view by the page overlay (`__hbCollabShowThread`).
+   */
+  public collabNavigate(delta: number): void {
+    const threads = this.collabThreads();
+    if (!threads.length) return;
+    const next = this.collabFocusIndex + Math.sign(delta || 1);
+    this.collabFocusIndex = Math.max(0, Math.min(threads.length - 1, next));
+    this.cycleTo(threads[this.collabFocusIndex].id);
+  }
+
+  /** Apply focus to a thread id; ensures the page overlay exists first. */
+  private cycleTo(threadId: string): void {
+    void (async () => {
+      try {
+        await this.overlayRefresher?.();
+      } catch {
+        // Refresh failures are non-fatal; the focus attempt is the visible part.
+      }
+      this.collabShowThread(threadId);
+    })();
+  }
+
+  /** The same thread set the page overlay displays, in display order. */
+  private collabThreads(): CollaborationThread[] {
+    try {
+      return this.collaborationThreadsProvider?.({ url: this.getPageInfo().url }) ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  private collabShowThread(threadId: string): void {
+    try {
+      const wc = this.getActiveWebContents();
+      void wc.executeJavaScript(`window.__hbCollabShowThread && window.__hbCollabShowThread(${JSON.stringify(threadId)})`).catch(() => undefined);
+    } catch {
+      // Page may be mid-navigation; the overlay refreshs re-establishes it.
+    }
+  }
+
+  /**
+   * Toggle the concise note list — a themed MenuPopup with one row per open
+   * thread, anchored to the left of the toolbar pill. Clicking a row cycles to
+   * that note on the page.
+   */
+  public collabToggleList(anchor?: { x: number; y: number; width: number; height: number }): void {
+    const pop = MenuPopup.shared(path.join(__dirname, '../preload/index.js'));
+    if (pop.isOpen) {
+      pop.dismiss();
+      return;
+    }
+    const threads = this.collabThreads();
+    if (!threads.length) {
+      this.addLog('info', 'Collab list: no threads on this page yet — pick an element to add one.');
+      return;
+    }
+    const items = threads.map((thread, index) => {
+      const text = thread.messages[0]?.text || thread.intent || thread.target.text || '';
+      return {
+        id: thread.id,
+        label: `${index === this.collabFocusIndex ? '▸ ' : ''}${thread.target.text || thread.target.name || 'element'}`.slice(0, 40),
+        hint: `${thread.status} · ${text.slice(0, 46)}${text.length > 46 ? '…' : ''}`,
+      };
+    });
+    const sidebarBounds = this.sidebarView?.getBounds();
+    const pillAnchor =
+      sidebarBounds && this.mainWindow && !this.mainWindow.isDestroyed()
+        ? { x: sidebarBounds.x, y: sidebarBounds.y, width: 0, height: 0 }
+        : (anchor ?? { x: 0, y: 0, width: 0, height: 0 });
+    void pop.open(this.mainWindow as BrowserWindow, pillAnchor, items, { align: 'left-of', itemHeight: 48 })
+      .then((id) => {
+        if (!id) return;
+        this.collabFocusIndex = threads.findIndex((thread) => thread.id === id);
+        if (this.collabFocusIndex >= 0) this.cycleTo(id);
+      });
+  }
+
+  /** Called by index.ts once the collaboration service exists. */
+  public setCollaborationThreadsProvider(provider: (filter: { url: string }) => CollaborationThread[]): void {
+    this.collaborationThreadsProvider = provider;
+  }
+
+  /** Ensure the page overlay (and its focus helper) is injected before navigating. */
+  public setCollaborationOverlayRefresher(refresh: () => Promise<void> | void): void {
+    this.overlayRefresher = refresh;
+  }
+
+  private collaborationClassListener?: (target: CollaborationTarget, added: string[], removed: string[]) => void;
+
+  /** Called by index.ts: forwards human class-list edits to the collab service. */
+  public setCollaborationClassListener(listener: (target: CollaborationTarget, added: string[], removed: string[]) => void): void {
+    this.collaborationClassListener = listener;
   }
 
   private broadcastSidebarSurfaceState(): void {
@@ -653,15 +798,24 @@ export class BrowserChassis {
       // bottom corner, clear of the scrollbar track. The native view is the
       // chip plus padding (hover scale, pulse ring, count badge must not clip),
       // and grows into the radial-menu stage around the *same* chip corner.
-      const size = this.sidebarMenuOpen ? DECK_MENU_SIZE : DECK_ORB_VIEW;
+      // In collab mode the orb is replaced by a horizontal toolbar pill with
+      // its own sized view, same corner.
+      const menuStage = { width: DECK_MENU_SIZE, height: DECK_MENU_SIZE };
+      const orbView = { width: DECK_ORB_VIEW, height: DECK_ORB_VIEW };
+      const pillView = { width: TOOLBAR_BAR_WIDTH + 2 * DECK_ORB_VIEW_PAD, height: DECK_ORB_VIEW };
+      const viewSize = this.sidebarMenuOpen
+        ? menuStage
+        : this.collabMode
+          ? pillView
+          : orbView;
       const anchorX = this.orbEdge === 'left'
         ? Math.max(0, DECK_ORB_MARGIN - DECK_ORB_VIEW_PAD)
         : usableWidth - DECK_ORB_MARGIN + DECK_ORB_VIEW_PAD;
       const bounds = {
-        x: Math.max(0, anchorX - size),
-        y: Math.max(0, winHeight - DECK_ORB_MARGIN + DECK_ORB_VIEW_PAD - size),
-        width: size,
-        height: size,
+        x: Math.max(0, anchorX - viewSize.width),
+        y: Math.max(0, winHeight - DECK_ORB_MARGIN + DECK_ORB_VIEW_PAD - viewSize.height),
+        width: viewSize.width,
+        height: viewSize.height,
       };
       if (animate) this.animateSidebarBounds(bounds);
       else {
@@ -963,6 +1117,8 @@ export class BrowserChassis {
 
     ipcMain.handle('chassis:get-sidebar-mode', () => this.getSidebarMode());
     ipcMain.handle('chassis:get-sidebar-state', () => this.getSidebarSurfaceState());
+    // TEMP instrumentation: live bounds for verifying collab-mode geometry.
+    ipcMain.handle('chassis:get-sidebar-bounds', () => this.sidebarView?.getBounds() ?? null);
     ipcMain.on('chassis:set-sidebar-mode', (_: any, mode: 'docked' | 'floating' | 'collapsed') =>
       this.setSidebarMode(mode),
     );
@@ -1022,6 +1178,12 @@ export class BrowserChassis {
       this.positionSidebar(true);
       this.broadcastSidebarSurfaceState();
     });
+
+    // Collab mode: toolbar pill, note cycling, concise list.
+    ipcMain.on('chassis:set-collab-mode', (_: any, open: boolean) => this.setCollabMode(Boolean(open)));
+    ipcMain.on('chassis:collab-navigate', (_: any, delta: number) => this.collabNavigate(delta));
+    ipcMain.on('chassis:collab-toggle-list', (_: any, anchor?: { x: number; y: number; width: number; height: number }) =>
+      this.collabToggleList(anchor));
 
     // Cortex & Bookmarks IPC Handlers
     ipcMain.handle('cortex:recall', async (_, query: string, options?: any) => {

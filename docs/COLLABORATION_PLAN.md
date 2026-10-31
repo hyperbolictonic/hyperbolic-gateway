@@ -194,9 +194,10 @@ All five phases are implemented (2026-10-30):
   writing. The panel compose block and the `collaboration:compose` event were
   retired end to end (renderer, preload, main), along with the unused
   `COLLABORATION_ADD_NOTE_PREFIX` console channel.
-- **Phase B — panel restyle.** The thread panel adopts the drawer's design
-  language: system font for prose, monospace only for data, roomier spacing,
-  human notes in amber and agent messages in cyan to match the page overlays.
+- **Phase B — panel restyle.** The thread panel adopted the drawer's design
+  language (system font for prose, amber human / cyan agent bubbles) — later
+  superseded: the panel component is retired in favour of the deck toolbar's
+  collab mode (the orb becomes the collab controls) and concise themed popovers.
 - **Phase C — placement insets.** The picker and overlay are told how much of
   the page the floating Command Deck covers (`getSidebarPageInset`), so the
   drawer clamps inside the visible page area and cannot be placed underneath

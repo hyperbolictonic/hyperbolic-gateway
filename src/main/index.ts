@@ -15,6 +15,7 @@ import { ResearchSettingsStore } from './research/settings.js';
 import { DEFAULT_SHADOW_WALK_SETTINGS, loadShadowWalkSettings, saveShadowWalkSettings } from './shadow-walk/settings.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import { MenuPopup } from './ui/menu-popup.js';
+import type { WebPageState } from '../shared/web-state.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { RemoteService } from './remote/service.js';
 import { ToolSettingsStore } from './tools/settings.js';
@@ -379,19 +380,50 @@ ipcMain.handle('collaboration:show-menu', async (_event, anchor?: { x: number; y
     const target = await chassis.pickCollaborationTarget();
     if (target) mainWindow?.webContents.send('collaboration:target', target);
   } else if (chosen === 'open-threads') {
-    chassis.broadcast('collaboration:open');
+    chassis.collabToggleList();
   }
-  return { ok: true };
-});
-
-ipcMain.handle('collaboration:open-threads', () => {
-  chassis.broadcast('collaboration:open');
   return { ok: true };
 });
 
 ipcMain.handle('collaboration:stop-picker', async () => {
   await chassis.stopCollaborationSelection();
   return { ok: true };
+});
+
+/** Page signals for the Command Deck WEB STATE tab (breadcrumb, cookies, storage). */
+ipcMain.handle('chassis:web-state', async () => {
+  try {
+    const wc = chassis.getActiveWebContents();
+    const page = await wc.executeJavaScript(
+      '(() => { ' +
+      'const crumbs = (location.pathname || "").split("/").filter(Boolean);' +
+      'const ls = {}; const ss = {};' +
+      'try { for (let i = 0; i < localStorage.length && i < 50; i++) { const k = localStorage.key(i); ls[k] = (localStorage.getItem(k) || "").slice(0, 120); } } catch {}' +
+      'try { for (let i = 0; i < sessionStorage.length && i < 50; i++) { const k = sessionStorage.key(i); ss[k] = (sessionStorage.getItem(k) || "").slice(0, 120); } } catch {}' +
+      'return JSON.stringify({ url: location.href, host: location.host, title: document.title, crumbs: crumbs, ls: ls, ss: ss });' +
+      '})()',
+      ).then((raw: string) => JSON.parse(raw));
+    let cookies: WebPageState['cookies'] = [];
+    try {
+      cookies = (await wc.session.cookies.get({}))
+        .slice(0, 40)
+        .map((cookie) => ({ name: cookie.name, domain: cookie.domain || '', httpOnly: Boolean(cookie.httpOnly) }));
+    } catch {
+      cookies = [];
+    }
+    const state: WebPageState = {
+      url: String(page?.url ?? ''),
+      host: String(page?.host ?? ''),
+      title: String(page?.title ?? ''),
+      crumbs: Array.isArray(page?.crumbs) ? page.crumbs.map(String) : [],
+      cookies,
+      local: page?.ls ?? {},
+      session: page?.ss ?? {},
+    };
+    return { ok: true, state };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || String(error) };
+  }
 });
 
 ipcMain.handle('remote:info', () => {
@@ -591,6 +623,16 @@ async function createWindow() {
       () => mainWindow?.webContents.send('collaboration:updated'),
     );
     activeCollaborationService = collaboration;
+    // The deck toolbar's list + note cycling read exactly what the page overlay shows.
+    chassis.setCollaborationThreadsProvider((filter) => collaboration.list(filter));
+    chassis.setCollaborationOverlayRefresher(() => collaboration.refreshOverlay());
+    chassis.setCollaborationClassListener((target, added, removed) => {
+      try {
+        activeCollaborationService?.recordClassEdit(target, added, removed);
+      } catch {
+        // Class-edit bookkeeping is best-effort; the page already applied it.
+      }
+    });
     chassis.setOnCollaborationTarget((target) => {
       mainWindow?.webContents.send('collaboration:target', target);
     });

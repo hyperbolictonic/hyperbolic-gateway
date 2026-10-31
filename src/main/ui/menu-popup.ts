@@ -53,25 +53,47 @@ export class MenuPopup {
     return Boolean(this.resolver);
   }
 
+  /** Close a visible popup (resolves its open promise with null). */
+  dismiss(): void {
+    this.finish(null);
+  }
+
   /**
-   * Show `items` anchored below `anchor` (coordinates in the parent window's
-   * content area). Resolves with the clicked item id, or null if dismissed.
+   * Show `items` anchored to `anchor` (coordinates in the parent window's
+   * content area). `align` picks where the popup lands relative to the anchor:
+   * snapped below the trigger and right-aligned (default), or placed to the
+   * left of the trigger with tops aligned. Resolves with the clicked item id,
+   * or null if dismissed.
    */
-  open(parent: BrowserWindow, anchor: PopupAnchor, items: PopupMenuItem[]): Promise<string | null> {
+  open(
+    parent: BrowserWindow,
+    anchor: PopupAnchor,
+    items: PopupMenuItem[],
+    opts: { align?: 'below-right' | 'left-of'; itemHeight?: number; width?: number } = {},
+  ): Promise<string | null> {
     this.finish(null);
     if (parent.isDestroyed() || !items.length) return Promise.resolve(null);
     this.items = items;
 
-    const height = POPUP_PADDING + items.length * POPUP_ITEM_HEIGHT;
+    const width = Math.max(POPUP_WIDTH, opts.width ?? POPUP_WIDTH);
+    const itemHeight = opts.itemHeight ?? POPUP_ITEM_HEIGHT;
+    const height = POPUP_PADDING + items.length * itemHeight;
     const content = parent.getContentBounds();
     const area = screen.getDisplayMatching(content).workArea;
-    let x = Math.round(content.x + anchor.x + anchor.width - POPUP_WIDTH);
-    let y = Math.round(content.y + anchor.y + anchor.height + 4);
-    x = Math.max(area.x + 6, Math.min(x, area.x + area.width - POPUP_WIDTH - 6));
+    let x: number;
+    let y: number;
+    if (opts.align === 'left-of') {
+      x = Math.round(content.x + anchor.x - width - 8);
+      y = Math.round(content.y + anchor.y);
+    } else {
+      x = Math.round(content.x + anchor.x + anchor.width - width);
+      y = Math.round(content.y + anchor.y + anchor.height + 4);
+    }
+    x = Math.max(area.x + 6, Math.min(x, area.x + area.width - width - 6));
     if (y + height > area.y + area.height) y = Math.max(area.y + 6, content.y + anchor.y - height - 4);
 
     const win = this.ensureWindow();
-    win.setBounds({ x, y, width: POPUP_WIDTH, height });
+    win.setBounds({ x, y, width, height });
     const deliver = (): void => {
       if (!this.resolver || !this.win || this.win.isDestroyed()) return;
       this.win.webContents.send('menu-popup:show', this.items);

@@ -67,21 +67,60 @@ bottom of views clipped (or the chip pushed almost fully offscreen).
 - [x] Phase 1 — orb chip + bounds choreography (`40f8ec4`): floating ⇆ collapsed
       verified live; minimise collapses to the orb, clicking it re-expands.
 - [x] Pre-existing fix — content-size bounds (same commit).
-- [x] Phase 2 — radial petal menu (`523732d`, `command-deck` build): Deck,
-      Note, Collab, Harvest, Rec; staggered spring fan-out.
+- [x] Phase 2 — radial petal menu (`523732d`): Deck, Note, Collab, Harvest, Rec;
+      staggered spring fan-out.
 - [x] Phase 3 — status duty on the orb (`523732d`): collab count dot, amber
       human-takeover pulse, red recording pulse (all surfaces get broadcasts).
 - [x] Phase 4 — orb drag with magnetic edge docking and persistence (`523732d`).
 - [x] Compositing fix — `invalidate()` after bounds shrink (`523732d`).
-- [x] State-sync hardening (`command-deck` build): authoritative sidebar
-      surface state, reload re-sync, chip padding, 404 stage.
+- [x] State-sync hardening (`edf6fc6`): authoritative sidebar surface state,
+      reload re-sync, chip padding, themed popup menus.
+- [x] Collab-mode toolbar replacing panel-based notes (Oct 31 build):
+      COLLAB petal turns the orb into the collab toolbar pill; the old threads
+      panel no longer opens from any collab entry point. Petals remain: Deck
+      expands the panel, Note starts the picker, Harvest opens CONSTRUCT
+      (markdown view), Rec toggles the timelapse recorder.
+- [x] Element toolbar after selection (same build): pinned bar with pen (note
+      drawer) + CSS class editor; class-list deltas travel into the store as
+      `class-edit` threads readable by agents.
+- [x] WEB STATE tab (same build): URL/title/crumbs/cookies/local & session
+      storage for the active page (formerly the dead MATRIX LOGS tab).
 
-## Petal semantics
 
-| Petal | Action |
+## Collab mode
+
+Pressing the **COLLAB** petal does not open a panel — the orb itself turns
+into the collaborations toolbar (the panel component is retired; the only
+UIs left are this pill and themed popovers):
+
+| Control | Action |
 | --- | --- |
-| Deck | Expand the Command Deck panel. |
-| Note | Start the element picker (note drawer opens on the page). |
-| Collab | Expand the deck with the collaboration threads panel inside it. |
-| Harvest | Harvest the page and open the deck's CONSTRUCT tab — the markdown view. |
-| Rec | Toggle the timelapse screen recorder; the orb's red pulse is the indicator. |
+| ‹ / › | Cycle notes on the page (the focused thread keeps a persistent amber ring and flash, and stays on until you switch threads or leave collab mode). |
+| List | Concise note list — a themed MenuPopup row per thread; clicking a row cycles to it. |
+| Pen | Arm the element picker: click an element → the element toolbar (below) attaches. |
+| ESC | Leave collab mode. |
+
+The pill lives in the same collapsed native view family as the orb
+(`TOOLBAR_BAR_WIDTH` + padding, same corner rules).
+
+## Element toolbar & class edits
+
+Selecting an element (picker pen) shows a small toolbar pinned to it
+(`__hbCollabShowElementToolbar`, page-level): a persistent amber outline +
+**✎ attach a note** (the existing anchored drawer) and **CSS** — the class
+editor. The editor snapshots the element's classes; chips reactively add /
+remove real `classList` membership (the page responds live, so the human can
+compose the look), and **SEND TO AGENT** reports the delta
+(`+added -removed`) over the `__KUANG_COLLAB_CLASS__:` console channel into
+the thread store as a `class-edit` tagged thread — the same way the agent
+consumes every other human signal, so "human meaning" is machine-visible
+without clunky panel forms.
+
+## WEB STATE tab
+
+The deck's fourth tab (was MATRIX LOGS) became **WEB STATE**: current URL,
+title, URL breadcrumbs, visible cookies (name@domain + httpOnly flag) and
+localStorage / sessionStorage keys — refreshed on demand. This answers
+"what does the page look like to the session" for humans and mirrors the
+bridge's `get_page_info` surface.
+

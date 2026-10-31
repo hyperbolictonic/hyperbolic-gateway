@@ -4,6 +4,7 @@ import type { RemoteStatus } from '../shared/remote.js';
 import type { ToolManagerResult, ToolSettings } from '../shared/tool-settings.js';
 import type { CollaborationThread, CollaborationTarget } from '../shared/collaboration.js';
 import type { PopupAnchor, PopupMenuItem, SidebarSurfaceState } from '../shared/menu.js';
+import type { WebPageState } from '../shared/web-state.js';
 
 export interface ElectronAPI {
   getState: () => Promise<ChassisState>;
@@ -33,8 +34,12 @@ export interface ElectronAPI {
   toggleSidebarMode: () => void;
   onSidebarMode: (callback: (mode: 'docked' | 'floating' | 'collapsed') => void) => () => void;
   getSidebarState: () => Promise<SidebarSurfaceState>;
+  getSidebarBounds?: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
   onSidebarState: (callback: (state: SidebarSurfaceState) => void) => () => void;
   setSidebarMenuOpen: (open: boolean) => void;
+  setCollabMode: (open: boolean) => void;
+  collabNavigate: (delta: number) => void;
+  collabToggleList: (anchor?: PopupAnchor) => void;
   setSidebarOrbEdge: (edge: 'left' | 'right') => void;
   orbitDragMove: (dx: number, dy: number) => void;
   orbitDragEnd: () => void;
@@ -50,8 +55,8 @@ export interface ElectronAPI {
   listBookmarks: (options?: any) => Promise<any[]>;
   deleteBookmark: (urlOrId: string) => Promise<boolean>;
   isBookmarked: (url: string) => Promise<boolean>;
-  getDecisionSettings: () => Promise<{ stored: any; status: any }>;
-  saveDecisionSettings: (config: any) => Promise<{ ok: boolean; status: any }>;
+  getWebState: () => Promise<{ ok: boolean; state?: WebPageState; error?: string }>;
+  getDecisionSettings: () => Promise<{ stored: any; status: any }>;  saveDecisionSettings: (config: any) => Promise<{ ok: boolean; status: any }>;
   testDecisionModel: () => Promise<any>;
   getDecisions: () => Promise<any[]>;
   copyToClipboard: (text: string) => Promise<{ ok: boolean }>;
@@ -104,7 +109,6 @@ export interface ElectronAPI {
   startCollaborationPicker: () => Promise<{ ok: boolean; target?: CollaborationTarget | null; message?: string; error?: string }>;
   stopCollaborationPicker: () => Promise<{ ok: boolean }>;
   showCollaborationMenu: (anchor?: PopupAnchor) => Promise<{ ok: boolean; error?: string }>;
-  openCollaborationPanel: () => Promise<{ ok: boolean }>;
   // Popup-menu surface (the small themed dropdown window only).
   getMenuPopupItems: () => Promise<PopupMenuItem[]>;
   onMenuPopupShow: (callback: (items: PopupMenuItem[]) => void) => () => void;
@@ -254,7 +258,11 @@ const api: ElectronAPI = {
   setSidebarOrbEdge: (edge: 'left' | 'right') => ipcRenderer.send('chassis:set-sidebar-orb-edge', edge),
   orbitDragMove: (dx, dy) => ipcRenderer.send('chassis:orbit-drag', { dx, dy }),
   orbitDragEnd: () => ipcRenderer.send('chassis:orbit-drag-end'),
+  setCollabMode: (open: boolean) => ipcRenderer.send('chassis:set-collab-mode', Boolean(open)),
+  collabNavigate: (delta: number) => ipcRenderer.send('chassis:collab-navigate', delta),
+  collabToggleList: (anchor?: PopupAnchor) => ipcRenderer.send('chassis:collab-toggle-list', anchor),
   getSidebarState: () => ipcRenderer.invoke('chassis:get-sidebar-state'),
+  getSidebarBounds: () => ipcRenderer.invoke('chassis:get-sidebar-bounds'),
   onSidebarState: (callback) => {
     const handler = (_: any, state: SidebarSurfaceState) => callback(state);
     ipcRenderer.on('chassis:sidebar-state', handler);
@@ -275,6 +283,7 @@ const api: ElectronAPI = {
   deleteBookmark: (urlOrId: string) => ipcRenderer.invoke('cortex:delete-bookmark', urlOrId),
   isBookmarked: (url: string) => ipcRenderer.invoke('cortex:is-bookmarked', url),
 
+  getWebState: () => ipcRenderer.invoke('chassis:web-state'),
   getDecisionSettings: () => ipcRenderer.invoke('settings:get-decision'),
   saveDecisionSettings: (config: any) => ipcRenderer.invoke('settings:save-decision', config),
   testDecisionModel: () => ipcRenderer.invoke('settings:test-decision'),
@@ -360,7 +369,6 @@ const api: ElectronAPI = {
   startCollaborationPicker: () => ipcRenderer.invoke('collaboration:start-picker'),
   stopCollaborationPicker: () => ipcRenderer.invoke('collaboration:stop-picker'),
   showCollaborationMenu: (anchor?: PopupAnchor) => ipcRenderer.invoke('collaboration:show-menu', anchor),
-  openCollaborationPanel: () => ipcRenderer.invoke('collaboration:open-threads'),
   getMenuPopupItems: () => ipcRenderer.invoke('menu-popup:items'),
   onMenuPopupShow: (callback) => {
     const handler = (_: any, items: PopupMenuItem[]) => callback(Array.isArray(items) ? items : []);
