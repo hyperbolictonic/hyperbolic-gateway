@@ -99,7 +99,7 @@ const DECK_ORB_MARGIN = 12;
  *  and shadow fits inside the native view. */
 const DECK_MENU_SIZE = 404;
 /** Collab-mode toolbar pill: the orb is replaced by this bar. */
-const TOOLBAR_BAR_WIDTH = 212;
+const TOOLBAR_BAR_WIDTH = 248;
 
 /** Sidebar transition duration, shared by the native bounds animation and the panel's CSS reveal. */
 const SIDEBAR_TRANSITION_MS = 240;

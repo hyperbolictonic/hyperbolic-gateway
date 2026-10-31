@@ -98,7 +98,7 @@ component is retired; the only UIs left are this pill and themed popovers):
 | ‹ / › | Cycle notes on the page (the focused thread keeps a persistent amber ring and flash, and stays on until you switch threads or leave collab mode). |
 | List | Concise list of unresolved notes — click a row to cycle to it. |
 | Pen | Arm the element picker: click an element → the element toolbar (below) attaches. |
-| ESC | Leave collab mode. |
+| ✕ EXIT / Escape | Leave collab mode. The deck orb's icon slot becomes this prominent exit control while collab mode is active. |
 
 The pill lives in the same collapsed native view family as the orb
 (`TOOLBAR_BAR_WIDTH` + padding, same corner rules).

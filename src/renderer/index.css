@@ -413,7 +413,7 @@ html.sidebar-mode #collab-toolbar {
   position: fixed;
   right: 14px;
   bottom: 14px;
-  width: 212px;
+  width: 248px;
   height: 56px;
   align-items: center;
   justify-content: center;
@@ -459,17 +459,29 @@ html.sidebar-mode.collab-mode #sidebar-rail-toggle {
   transform: translateY(-1px);
 }
 .collab-tb-exit {
-  height: 38px;
-  padding: 0 8px;
-  border-radius: 10px;
+  width: 68px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 7px;
+  border-radius: 12px;
   border: 1px solid color-mix(in oklab, var(--color-error) 40%, transparent);
   background: color-mix(in oklab, var(--color-error) 12%, transparent);
   color: var(--color-error);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.06em;
   cursor: pointer;
+}
+.collab-tb-exit svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
 }
 .collab-tb-exit:hover {
   background: color-mix(in oklab, var(--color-error) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-error) 16%, transparent);
 }

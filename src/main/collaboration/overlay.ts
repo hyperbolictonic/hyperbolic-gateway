@@ -697,6 +697,7 @@ export function collaborationNoteDrawerScript(): string {
     const remove = () => {
       keep.remove();
       drawer.remove();
+      if (window.__hbCollabClearElementBar) window.__hbCollabClearElementBar();
       window.removeEventListener('resize', position);
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener(SAVED_EVENT, onSavedEvent, true);
@@ -850,6 +851,11 @@ export function collaborationNoteDrawerScript(): string {
     document.querySelectorAll('.hb-el-selected').forEach(function (node) {
       node.classList.remove('hb-el-selected');
     });
+    if (window.__hbCollabElementEscapeHandler) {
+      document.removeEventListener('keydown', window.__hbCollabElementEscapeHandler, true);
+      delete window.__hbCollabElementEscapeHandler;
+    }
+    delete window.__hbCollabSelection;
   };
 
   window.__hbCollabShowElementToolbar = function (el, target) {
@@ -888,6 +894,22 @@ export function collaborationNoteDrawerScript(): string {
       bar.style.top = top + 'px';
     };
     window.addEventListener('scroll', place, true);
+    window.__hbCollabElementEscapeHandler = function (event) {
+      if (event.key !== 'Escape') return;
+      if (window.__hbCollabMode) return;
+      if (document.getElementById('__kuang_collab_drawer')) return;
+      const cssEditor = document.getElementById('__kuang_collab_csspop');
+      if (cssEditor) {
+        cssEditor.remove();
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.__hbCollabClearElementBar();
+    };
+    document.addEventListener('keydown', window.__hbCollabElementEscapeHandler, true);
     closeBtn.addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();

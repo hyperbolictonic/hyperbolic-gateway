@@ -369,7 +369,7 @@
     <!-- Collab-mode toolbar: replaces the orb while collab mode is active.
          Amber = human voice; the deck orb hands control to these actions.
          prev/next: cycle notes · list: concise note list · pen: pick an element
-         to work on · ESC: leave collab mode. -->
+         to work on · the deck orb becomes the ✕ exit control. -->
     <div id="collab-toolbar" aria-label="Collaboration mode toolbar" class="hidden">
       <button id="collab-prev-btn" type="button" class="collab-tb-btn" title="Previous note">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
@@ -383,7 +383,10 @@
       <button id="collab-pick-btn" type="button" class="collab-tb-btn" title="Select an element to work on">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4.5 19.5l1-4L16 5l3 3L8.5 18.5l-4 1z"></path><path d="M13.5 7.5l3 3"></path></svg>
       </button>
-      <button id="collab-exit-btn" type="button" class="collab-tb-exit" title="Leave collab mode (Esc)">ESC</button>
+      <button id="collab-exit-btn" type="button" class="collab-tb-exit" title="Exit collab mode (Escape)" aria-label="Exit collaboration mode">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        <span>EXIT</span>
+      </button>
     </div>
 
     <!-- Help & About Modal -->
