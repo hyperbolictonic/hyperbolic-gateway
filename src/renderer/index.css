@@ -495,14 +495,18 @@ html.sidebar-mode.collab-mode #sidebar-rail-toggle {
 /* ---------------------------------------------------------------- settings */
 /* One reusable pane for every settings tab except the data-table surfaces
    (Tools, Wrappers). A single width means every panel starts on the same
-   column and form rows line up when you switch tabs. */
+   column and form rows line up when you switch tabs. Panes are centred in the
+   modal column so the leftover space is balanced instead of piling up on the
+   right. */
 #settings-modal .settings-pane {
   width: 100%;
   max-width: 56rem; /* 896px */
+  margin-inline: auto;
 }
 #settings-modal .settings-pane-wide {
   width: 100%;
   max-width: 72rem; /* 1152px */
+  margin-inline: auto;
 }
 /* daisyUI's .label is white-space: nowrap, which made help text overflow its
    fieldset and drift past the input it belongs to. */

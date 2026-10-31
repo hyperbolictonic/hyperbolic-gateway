@@ -13,7 +13,9 @@ inventing a width, grid or card per feature.
 
 Apply the pane class to the `<section data-settings-panel="…">` element. The modal
 wrapper already supplies a `72rem` outer column, padding and a stable scrollbar
-gutter, so every pane starts on the same left edge.
+gutter, so every pane starts on the same left edge; panes are centred in that
+column, which splits the leftover space evenly instead of leaving it all on the
+right.
 
 ```html
 <section data-settings-panel="research" class="hidden settings-pane">
