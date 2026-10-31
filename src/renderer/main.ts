@@ -281,10 +281,6 @@ deckMenuRoot?.querySelectorAll<HTMLButtonElement>('.deck-petal').forEach((petal)
         // Collab mode: the orb becomes the collaborations toolbar — no panel.
         window.electronAPI?.setCollabMode(true);
         break;
-      case 'note':
-        setDeckMenu(false);
-        void window.electronAPI?.startCollaborationPicker();
-        break;
       case 'harvest':
         // Harvest = a markdown view of the page: open the deck on CONSTRUCT.
         setDeckMenu(false);

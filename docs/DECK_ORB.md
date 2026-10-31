@@ -5,7 +5,8 @@ Deck**: a floating HUD for agent operations (telemetry, decisions, construct,
 logs), styled in the deck theme. Its collapsed state used to be a small "◧"
 handle pinned to the top-right of the page; the deck now collapses to a
 free-floating **orb** chip, animated by real bounds choreography, with a
-radial petal menu (Deck, Note, Collab, Harvest, Rec) growing out of it.
+radial petal menu (Deck, Collab, Harvest, Rec) growing out of it. Notes are
+created from collab mode's pen control, so there is no standalone NOTE petal.
 
 ## Architecture
 
@@ -71,7 +72,7 @@ bottom of views clipped (or the chip pushed almost fully offscreen).
       verified live; minimise collapses to the orb, clicking it re-expands.
 - [x] Pre-existing fix — content-size bounds (same commit).
 - [x] Phase 2 — radial petal menu (`523732d`): Deck, Note, Collab, Harvest, Rec;
-      staggered spring fan-out.
+      staggered spring fan-out (Note retired later — see below).
 - [x] Phase 3 — status duty on the orb (`523732d`): collab count dot, amber
       human-takeover pulse, red recording pulse (all surfaces get broadcasts).
 - [x] Phase 4 — orb drag with magnetic edge docking and persistence (`523732d`).
@@ -81,8 +82,10 @@ bottom of views clipped (or the chip pushed almost fully offscreen).
 - [x] Collab-mode toolbar replacing panel-based notes (Oct 31 build):
       COLLAB petal turns the orb into the collab toolbar pill; the old threads
       panel no longer opens from any collab entry point. Petals remain: Deck
-      expands the panel, Note starts the picker, Harvest opens CONSTRUCT
-      (markdown view), Rec toggles the timelapse recorder.
+      expands the panel, Collab enters collab mode, Harvest opens CONSTRUCT
+      (markdown view), Rec toggles the timelapse recorder. The former NOTE
+      petal was removed — its picker now lives behind collab mode's pen, which
+      avoids a second, panel-less note entry point.
 - [x] Element toolbar after selection (same build): pinned bar with pen (note
       drawer) + CSS class editor; class-list deltas travel into the store as
       `class-edit` threads readable by agents.
