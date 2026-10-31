@@ -173,7 +173,9 @@ export function startHttpBridge(
 
       if (req.method === 'GET' && pathname === '/tools/config') {
         const settings = toolSettings?.load() ?? DEFAULT_TOOL_SETTINGS;
-        sendJson({ success: true, ...settings });
+        // JEV availability is live bridge state, not a saved preference: the MCP server reads it
+        // to lead tools/list with the index/read path and to mark the full-page dump as a fallback.
+        sendJson({ success: true, ...settings, jev: { available: chassis.isJevEnabled() } });
         return;
       }
 
@@ -345,7 +347,11 @@ export function startHttpBridge(
         const body = await readBody();
         const autoDismiss = body.autoDismissConsent !== undefined ? Boolean(body.autoDismissConsent) : true;
         let targetUrl = body.url || body.destination || body.target || body.link || ''; if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) { targetUrl = 'https://' + targetUrl; } const result = await chassis.navigateTo(targetUrl, autoDismiss);
-        sendJson({ success: true, result });
+        // Live nudge at the moment reading starts: the index is cheap, the dump is not.
+        const guided = chassis.isJevEnabled()
+          ? `${result} | JEV ACTIVE: call jev_index before reading this page, then read_section for only what you need.`
+          : result;
+        sendJson({ success: true, result: guided });
         return;
       }
 

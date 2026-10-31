@@ -1918,6 +1918,10 @@ export const TOOL_TIERS: Record<string, 1 | 2 | 3> = {
   collect_all: 1,
   page_state: 1,
   diff: 1,
+  // JEV page reading (preferred when enabled + decision model configured).
+  jev_index: 1,
+  read_section: 1,
+  search_page: 1,
   // TIER 2 — fallbacks when the preferred path cannot do it.
   take_screenshot: 2,
   snapshot_rendered_page: 2,

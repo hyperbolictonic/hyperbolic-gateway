@@ -22,6 +22,28 @@ Optional, not experimental:
 | `read_section` | `POST /jev/read` | Fetch one section body (`include_children` for nested subsections). |
 | `search_page` | `POST /jev/search` | Keyword/regex scan over all folded section text, with snippets. |
 
+## Preferred reading path
+
+JEV is not just available when it is active — the tool surface is arranged so it
+is the default way to read a page:
+
+- `tools/list` leads with `jev_index`, `read_section`, `search_page` (after
+  `drive`/`decide` when a decision model is configured).
+- `jev_index` is described as the **preferred reading path**; `observe` and
+  `decide` carry a "JEV ACTIVE" note that points reading at the index and keeps
+  `observe(as:"markdown")` for acting on `[#ID]` marks or short pages.
+- The OKF guide (`mark-eleven://skills/guide`) swaps its "read a page" recipe to
+  `jev_index → read_section` while JEV is active.
+- `navigate` responses end with a one-line JEV nudge, so the reminder arrives at
+  the moment an agent is about to read.
+- `GET /tools/config` reports `jev.available`, which is how the MCP server
+  learns the gate at startup (`enabled && decision model configured`).
+
+Activation is read when the MCP server starts, so after flipping the toggle in
+Settings, reconnect the MCP client (or restart the app) to reorder `tools/list`.
+The bridge-side behaviour — the gate, the navigate nudge, and the route errors —
+is live either way.
+
 ## Implementation
 
 - `src/main/jev/engine.ts`: splits harvested markdown at heading boundaries

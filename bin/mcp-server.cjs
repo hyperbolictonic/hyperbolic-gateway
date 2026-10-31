@@ -38462,6 +38462,10 @@ var TOOL_TIERS = {
   collect_all: 1,
   page_state: 1,
   diff: 1,
+  // JEV page reading (preferred when enabled + decision model configured).
+  jev_index: 1,
+  read_section: 1,
+  search_page: 1,
   // TIER 2 — fallbacks when the preferred path cannot do it.
   take_screenshot: 2,
   snapshot_rendered_page: 2,
@@ -38948,11 +38952,11 @@ async function loadToolPreferences() {
         if (Object.keys(actions).length) actionInstructions[toolName] = actions;
       }
     }
-    const value = { order, disabled, instructions, actionInstructions };
+    const value = { order, disabled, instructions, actionInstructions, jevAvailable: data?.jev?.available === true };
     cachedToolPreferences = { value, at: Date.now() };
     return value;
   } catch {
-    return { order: [], disabled: [], instructions: {}, actionInstructions: {} };
+    return { order: [], disabled: [], instructions: {}, actionInstructions: {}, jevAvailable: false };
   }
 }
 async function callBridge(endpoint, method = "GET", body = null) {
@@ -39169,11 +39173,15 @@ async function createBridgeMcpServer() {
   const decisionConfigured = decisionStatus().configured;
   const toolPreferences = await loadToolPreferences();
   const disabledTools = new Set(toolPreferences.disabled);
-  const baseTools = decisionConfigured ? [
-    ...TOOLS_CATALOG.filter((t) => t.name === "drive" || t.name === "decide"),
-    ...TOOLS_CATALOG.filter((t) => t.name !== "drive" && t.name !== "decide")
+  const JEV_TOOL_NAMES = ["jev_index", "read_section", "search_page"];
+  const jevActive = decisionConfigured && toolPreferences.jevAvailable;
+  const lead = [...decisionConfigured ? ["drive", "decide"] : [], ...jevActive ? JEV_TOOL_NAMES : []];
+  const surfaceOrder = [...lead, ...DEFAULT_TOOL_ORDER.filter((name) => !lead.includes(name))];
+  const baseTools = lead.length ? [
+    ...TOOLS_CATALOG.filter((t) => lead.includes(t.name)),
+    ...TOOLS_CATALOG.filter((t) => !lead.includes(t.name))
   ] : TOOLS_CATALOG;
-  const defaultOrder = decisionConfigured ? ["drive", "decide", ...DEFAULT_TOOL_ORDER.filter((name) => name !== "drive" && name !== "decide")] : DEFAULT_TOOL_ORDER;
+  const defaultOrder = surfaceOrder;
   const baseRank = new Map(defaultOrder.map((name, index) => [name, index]));
   const configuredRank = new Map(toolPreferences.order.map((name, index) => [name, index]));
   const orderedTools = baseTools.filter((tool) => !disabledTools.has(tool.name)).sort((a, b) => {
@@ -39190,7 +39198,16 @@ async function createBridgeMcpServer() {
     if ((tool.name === "decide" || tool.name === "drive") && !decisionConfigured) continue;
     if (!recordingToolsAvailable && RECORDING_TOOL_NAMES.has(tool.name)) continue;
     const tier = TOOL_TIERS[tool.name];
-    const details = toolPreferences.instructions[tool.name] || tool.description;
+    let details = toolPreferences.instructions[tool.name] || tool.description;
+    if (jevActive) {
+      if (tool.name === "jev_index") {
+        details = `PREFERRED READING PATH \u2014 call this first for the active page. ${details}`;
+      } else if (tool.name === "observe") {
+        details += ' JEV ACTIVE: for page CONTENT prefer jev_index then read_section (a small index plus one section replaces a 10k+ token dump). Use as:"markdown" when you must act on [#ID] marks, or when the page is small.';
+      } else if (tool.name === "decide") {
+        details += " JEV ACTIVE: read page content via jev_index then read_section before deciding.";
+      }
+    }
     const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
     server.tool(
       tool.name,
@@ -39209,11 +39226,12 @@ async function createBridgeMcpServer() {
   - Visual Browser: Active visible Chromium window ('headless: false') with B\xE9zier ghost-cursor telemetry.
   - Zero Context Bleed: Tools return compact 1-line markdown or distilled structures instead of raw JSON.
   - PREFERENTIAL SEQUENCE (Tokens & Anti-Shadowban):
-    * TIER 1 (First Choice): observe(as:"markdown") -> clean text with inline [#ID] marks. Actuate via act(mark_id, action) (or act(selector) / act(x, y) when you have no badge). Zero vision tokens burned!
+    * TIER 1 (First Choice): ${jevActive ? 'JEV IS ACTIVE \u2014 for page CONTENT call jev_index, then read_section(section_id) for only the sections the job needs (search_page to locate text). Use observe(as:"markdown") when you must act on inline [#ID] marks or the page is small.' : 'observe(as:"markdown") -> clean text with inline [#ID] marks.'} Actuate via act(mark_id, action) (or act(selector) / act(x, y) when you have no badge). Zero vision tokens burned!
     * TIER 2 (Fallback): take_screenshot(marks:true, detail:"economy") -> downscaled 640px JPEG Set-of-Marks. Use ONLY when visual layout/CAPTCHA requires vision.
     * TIER 3 (Use deliberately): evaluate_javascript() -> arbitrary page JS that can read AND mutate. A powerful tool for what the primitives cannot express \u2014 prefer observe/extract for reads and act for clicks/typing, since heavy injected JS is a bot-detection signal (untrusted events).
   - Start non-trivial sessions with bridge_health() to read capabilities[], revision and input.transport.
-  - QUICK DECISION ORDER (5 common jobs): read a page -> observe(as:"markdown"); find an element -> find(); act -> act(mark_id | selector | x,y, action); wait -> wait_for(conditions[]); harvest a lazy list -> collect_all(). Full detail: mark-eleven://tools/recommended.
+  - QUICK DECISION ORDER (5 common jobs): read a page -> ${jevActive ? "jev_index -> read_section(section_id)" : 'observe(as:"markdown")'}; find an element -> find(); act -> act(mark_id | selector | x,y, action); wait -> wait_for(conditions[]); harvest a lazy list -> collect_all(). Full detail: mark-eleven://tools/recommended.
+  - JEV-FIRST READING${jevActive ? " (ACTIVE)" : " (inactive)"}: ${jevActive ? 'the active page is read as an index first (jev_index), then per section (read_section). Whole-page observe(as:"markdown") is the exception for acting on marks or short pages; do not use it as the default read. The depth store is per-page and in-memory, so re-run jev_index after navigation.' : "not available. It appears (and becomes the preferred read path) once Settings \u2192 Decision Model has a configured model AND the JEV toggle is on."}
   - DECISION-FIRST NAVIGATION (when a decision model is configured \u2014 see tools/list for decide/drive):
     * USE IT WHEN THE CHOICE IS GENUINELY AMBIGUOUS: two or more visible controls could plausibly be the right one (sort tabs, filter chips, date cells, result rows), the page is unfamiliar, or you need a judgement ("is this goal already met?"). Then: observe(as:"components") -> decide(...) -> act(mark_id) -> verify.
     * DO NOT USE IT WHEN THE ANSWER IS DETERMINISTIC: a known URL, a known form field, a stable selector, a control find(role,name) already identifies, or a step you are about to repeat mechanically. decide costs ~0.5s and a paid model call and is not reproducible; find/act/navigate are faster and exact. Rule of thumb: if exactly one control matches, do not ask.
@@ -39552,7 +39570,7 @@ Rules of thumb:
     server.server._requestHandlers.set("tools/list", async (request, extra) => {
       const result = await rawListHandler(request, extra);
       if (result && Array.isArray(result.tools)) {
-        const surfaceRank = new Map(DEFAULT_TOOL_ORDER.map((name, index) => [name, index]));
+        const surfaceRank = new Map(surfaceOrder.map((name, index) => [name, index]));
         const visible = result.tools.filter((t) => !HIDDEN_TOOLS.has(t.name) && !CONSOLIDATED_HIDDEN_TOOLS.has(t.name)).sort((a, b) => {
           const aRank = surfaceRank.get(a.name);
           const bRank = surfaceRank.get(b.name);
