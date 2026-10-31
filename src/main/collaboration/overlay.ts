@@ -1044,6 +1044,7 @@ export function collaborationPickerScript(options: CollaborationPickerOptions = 
       pointerEvents: 'none',
     });
     chip.id = '__kuang_collab_pick_chip';
+    document.body.appendChild(chip);
     const layerId = '__kuang_collab_picker';
     const old = document.getElementById(layerId);
     if (old) old.remove();
@@ -1199,8 +1200,6 @@ export function collaborationOverlayScript(
       }
       window.__hbCollabModeKeyHandler = function (event) {
         if (event.key !== 'Escape' || !window.__hbCollabMode) return;
-        // Let the more local tools close first. A second Escape leaves collab mode.
-        if (window.__kuangCollabPicking || document.getElementById('__kuang_collab_drawer')) return;
         const cssEditor = document.getElementById('__kuang_collab_csspop');
         if (cssEditor) {
           cssEditor.remove();
@@ -1208,6 +1207,10 @@ export function collaborationOverlayScript(
           event.stopImmediatePropagation();
           return;
         }
+        // Escape from note mode cancels its current tool and exits collab mode
+        // in one press; the page must never look selected after the toolbar is gone.
+        if (window.__kuangCollabPicking) window.__kuangCollabPickerCancel?.();
+        if (document.getElementById('__kuang_collab_drawer')) window.__kuangCollabSelectionCancel?.();
         event.preventDefault();
         event.stopImmediatePropagation();
         console.log(${JSON.stringify(COLLABORATION_EXIT_PREFIX)});
