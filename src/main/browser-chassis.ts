@@ -9,8 +9,9 @@ import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type Hum
 import { classifyNavigationFailure } from './navigation-error.js';
 import {
   COLLABORATION_CLASS_PREFIX,
+  COLLABORATION_EXIT_PREFIX,
   COLLABORATION_NOTE_PREFIX,
-  COLLABORATION_SELECT_PREFIX,
+  COLLABORATION_RESOLVE_PREFIX,
   collaborationPickerScript,
 } from './collaboration/overlay.js';
 import type { CollaborationTarget, CollaborationThread } from '../shared/collaboration.js';
@@ -167,8 +168,6 @@ export class BrowserChassis {
   private utilQueue: Promise<void> = Promise.resolve();
   /** Monotonic page revision: bumped on navigation and every mutating action. */
   private revision = 0;
-  private onCollaborationTarget?: (target: CollaborationTarget) => void;
-
   private onCollaborationNote?: (input: { target: CollaborationTarget; text: string; tags: string[] }) => void;
 
   private state: ChassisState = {
@@ -473,11 +472,16 @@ export class BrowserChassis {
         // Takeover channel: the page reports trusted pointer/key/wheel activity with a magic prefix.
         const human = this.humanMonitor.ingest(log.message);
         if (human) this.noteHumanInput(human);
-        if (log.message.startsWith(COLLABORATION_SELECT_PREFIX)) {
+        if (log.message === COLLABORATION_EXIT_PREFIX) {
+          this.setCollabMode(false);
+        }
+        if (log.message.startsWith(COLLABORATION_RESOLVE_PREFIX)) {
           try {
-            const target = JSON.parse(log.message.slice(COLLABORATION_SELECT_PREFIX.length));
-            this.onCollaborationTarget?.(target);
-          } catch {}
+            const payload = JSON.parse(log.message.slice(COLLABORATION_RESOLVE_PREFIX.length));
+            if (typeof payload?.id === 'string') void this.resolveCollaborationNote(payload.id);
+          } catch {
+            this.addLog('warn', 'Collaboration note resolve signal was invalid.');
+          }
         }
         if (log.message.startsWith(COLLABORATION_NOTE_PREFIX)) {
           try {
@@ -563,6 +567,7 @@ export class BrowserChassis {
     if (mode !== 'collapsed' && this.collabMode) {
       this.collabMode = false;
       this.collabFocusIndex = -1;
+      void this.exitCollabModeOnPage();
     }
     this.addLog('action', `Sidebar mode: ${mode}`);
     // Animate only real transitions; arriving in the requested mode again snaps.
@@ -653,20 +658,43 @@ export class BrowserChassis {
   public setCollabMode(open: boolean): void {
     const next = Boolean(open);
     if (next === this.collabMode) return;
-    if (next && this.sidebarMode !== 'collapsed') return;
+    if (next && this.sidebarMode !== 'collapsed') this.setSidebarMode('collapsed');
     this.collabMode = next;
     this.collabFocusIndex = -1;
     if (next) {
       this.sidebarMenuOpen = false;
-      void this.stopCollaborationSelection();
+      void this.enterCollabModeOnPage();
+    } else {
+      void this.exitCollabModeOnPage();
     }
     this.positionSidebar(true);
     this.broadcastSidebarSurfaceState();
   }
 
+  private async enterCollabModeOnPage(): Promise<void> {
+    try {
+      await this.overlayRefresher?.();
+      const wc = this.getActiveWebContents();
+      await wc.executeJavaScript('window.__hbCollabEnterMode && window.__hbCollabEnterMode()').catch(() => undefined);
+    } catch {
+      // The page may be navigating; the mode state remains and re-syncs on load.
+    }
+  }
+
+  private async exitCollabModeOnPage(): Promise<void> {
+    try {
+      await this.stopCollaborationSelection();
+      const wc = this.getActiveWebContents();
+      await wc.executeJavaScript('window.__hbCollabExitMode && window.__hbCollabExitMode()').catch(() => undefined);
+    } catch {
+      // The active tab may be closing or navigating.
+    }
+  }
+
   /** The deck's page layer. Set by index.ts once the collaboration service exists. */
   private collaborationThreadsProvider?: (filter: { url: string }) => CollaborationThread[];
   private overlayRefresher?: () => Promise<void> | void;
+  private collaborationResolver?: (id: string) => Promise<unknown> | unknown;
 
   /**
    * Move the collab note cycle by `delta` (-1/1). The focused thread is
@@ -675,8 +703,9 @@ export class BrowserChassis {
   public collabNavigate(delta: number): void {
     const threads = this.collabThreads();
     if (!threads.length) return;
-    const next = this.collabFocusIndex + Math.sign(delta || 1);
-    this.collabFocusIndex = Math.max(0, Math.min(threads.length - 1, next));
+    const step = Math.sign(delta || 1);
+    const base = this.collabFocusIndex < 0 ? (step < 0 ? 0 : -1) : this.collabFocusIndex;
+    this.collabFocusIndex = (base + step + threads.length) % threads.length;
     this.cycleTo(threads[this.collabFocusIndex].id);
   }
 
@@ -695,7 +724,8 @@ export class BrowserChassis {
   /** The same thread set the page overlay displays, in display order. */
   private collabThreads(): CollaborationThread[] {
     try {
-      return this.collaborationThreadsProvider?.({ url: this.getPageInfo().url }) ?? [];
+      return (this.collaborationThreadsProvider?.({ url: this.getPageInfo().url }) ?? [])
+        .filter((thread) => thread.status !== 'resolved');
     } catch {
       return [];
     }
@@ -722,29 +752,43 @@ export class BrowserChassis {
       return;
     }
     const threads = this.collabThreads();
-    if (!threads.length) {
-      this.addLog('info', 'Collab list: no threads on this page yet — pick an element to add one.');
-      return;
-    }
-    const items = threads.map((thread, index) => {
+    const items = threads.length ? threads.map((thread, index) => {
       const text = thread.messages[0]?.text || thread.intent || thread.target.text || '';
       return {
         id: thread.id,
         label: `${index === this.collabFocusIndex ? '▸ ' : ''}${thread.target.text || thread.target.name || 'element'}`.slice(0, 40),
         hint: `${thread.status} · ${text.slice(0, 46)}${text.length > 46 ? '…' : ''}`,
       };
-    });
+    }) : [{ id: '__empty__', label: 'No open notes on this page', hint: 'Use the pen to select an element and add one.', disabled: true }];
     const sidebarBounds = this.sidebarView?.getBounds();
     const pillAnchor =
       sidebarBounds && this.mainWindow && !this.mainWindow.isDestroyed()
         ? { x: sidebarBounds.x, y: sidebarBounds.y, width: 0, height: 0 }
         : (anchor ?? { x: 0, y: 0, width: 0, height: 0 });
-    void pop.open(this.mainWindow as BrowserWindow, pillAnchor, items, { align: 'left-of', itemHeight: 48 })
-      .then((id) => {
-        if (!id) return;
-        this.collabFocusIndex = threads.findIndex((thread) => thread.id === id);
-        if (this.collabFocusIndex >= 0) this.cycleTo(id);
+    void pop.open(this.mainWindow as BrowserWindow, pillAnchor, items, { align: 'left-of', itemHeight: 56, width: 320 })
+      .then((selection) => {
+        if (!selection || selection.id === '__empty__') return;
+        this.collabFocusIndex = threads.findIndex((thread) => thread.id === selection.id);
+        if (this.collabFocusIndex >= 0) this.cycleTo(selection.id);
       });
+  }
+
+  /** Resolve from the in-page annotation card, then remove its highlight and advance. */
+  private async resolveCollaborationNote(threadId: string): Promise<void> {
+    if (!this.collaborationResolver) return;
+    const before = this.collabThreads();
+    const resolvedIndex = before.findIndex((thread) => thread.id === threadId);
+    try {
+      await this.collaborationResolver(threadId);
+      await this.overlayRefresher?.();
+    } catch (error: any) {
+      this.addLog('warn', `Could not resolve collaboration note: ${error?.message || error}`);
+      return;
+    }
+    const remaining = this.collabThreads();
+    this.collabFocusIndex = Math.min(resolvedIndex - 1, remaining.length - 1);
+    if (this.collabMode && remaining.length) this.collabNavigate(1);
+    else if (!remaining.length) this.collabFocusIndex = -1;
   }
 
   /** Called by index.ts once the collaboration service exists. */
@@ -755,6 +799,10 @@ export class BrowserChassis {
   /** Ensure the page overlay (and its focus helper) is injected before navigating. */
   public setCollaborationOverlayRefresher(refresh: () => Promise<void> | void): void {
     this.overlayRefresher = refresh;
+  }
+
+  public setCollaborationResolver(resolve: (id: string) => Promise<unknown> | unknown): void {
+    this.collaborationResolver = resolve;
   }
 
   private collaborationClassListener?: (target: CollaborationTarget, added: string[], removed: string[]) => void;
@@ -1313,29 +1361,18 @@ export class BrowserChassis {
     };
   }
 
-  public setOnCollaborationTarget(callback: (target: CollaborationTarget) => void): void {
-    this.onCollaborationTarget = callback;
-  }
-
   public setOnCollaborationNote(
     callback: (input: { target: CollaborationTarget; text: string; tags: string[] }) => void,
   ): void {
     this.onCollaborationNote = callback;
   }
 
-  /** Start the human element picker. The selected target arrives through onCollaborationTarget. */
+  /** Start the human element picker and resolve with its selected target. */
   public async pickCollaborationTarget(): Promise<CollaborationTarget | null> {
     const wc = this.getActiveWebContents();
     return await wc
       .executeJavaScript(collaborationPickerScript({ rightInset: this.getSidebarPageInset() }))
       .catch(() => null);
-  }
-
-  public async startCollaborationSelection(): Promise<string> {
-    void this.pickCollaborationTarget().then((target) => {
-      if (target) this.onCollaborationTarget?.(target);
-    });
-    return 'Collaboration picker active. Click an element, or press Escape to cancel.';
   }
 
   public async stopCollaborationSelection(): Promise<void> {

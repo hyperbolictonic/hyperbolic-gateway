@@ -14,7 +14,6 @@ import { WrapAuditLog } from './wrap/audit.js';
 import { ResearchSettingsStore } from './research/settings.js';
 import { DEFAULT_SHADOW_WALK_SETTINGS, loadShadowWalkSettings, saveShadowWalkSettings } from './shadow-walk/settings.js';
 import { attachContextMenu } from './menu/context-menu.js';
-import { MenuPopup } from './ui/menu-popup.js';
 import type { WebPageState } from '../shared/web-state.js';
 import { initUpdater, checkForUpdates, installUpdate, updaterState } from './updates/updater.js';
 import { RemoteService } from './remote/service.js';
@@ -323,39 +322,6 @@ ipcMain.handle('collaboration:list', (_event, filter?: any) => {
   }
 });
 
-ipcMain.handle('collaboration:create', (_event, input: any) => {
-  if (!activeCollaborationService) return { ok: false, error: 'Collaboration is not ready yet.' };
-  try {
-    return { ok: true, thread: activeCollaborationService.create({ ...input, author: 'human' }) };
-  } catch (error: any) {
-    return { ok: false, error: error?.message || String(error) };
-  }
-});
-
-ipcMain.handle('collaboration:reply', (_event, input: any) => {
-  if (!activeCollaborationService) return { ok: false, error: 'Collaboration is not ready yet.' };
-  try {
-    const thread = activeCollaborationService.reply(String(input?.id || ''), {
-      author: 'human',
-      kind: input?.kind === 'answer' ? 'answer' : 'comment',
-      text: String(input?.text || ''),
-      answer: input?.answer,
-    });
-    return { ok: true, thread };
-  } catch (error: any) {
-    return { ok: false, error: error?.message || String(error) };
-  }
-});
-
-ipcMain.handle('collaboration:resolve', (_event, input: any) => {
-  if (!activeCollaborationService) return { ok: false, error: 'Collaboration is not ready yet.' };
-  try {
-    return { ok: true, thread: activeCollaborationService.resolve(String(input?.id || ''), input?.notes) };
-  } catch (error: any) {
-    return { ok: false, error: error?.message || String(error) };
-  }
-});
-
 ipcMain.handle('collaboration:start-picker', async () => {
   try {
     const target = await chassis.pickCollaborationTarget();
@@ -363,31 +329,6 @@ ipcMain.handle('collaboration:start-picker', async () => {
   } catch (error: any) {
     return { ok: false, error: error?.message || String(error) };
   }
-});
-
-ipcMain.handle('collaboration:show-menu', async (_event, anchor?: { x: number; y: number; width: number; height: number }) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, error: 'Window is not ready.' };
-  const items = [
-    { id: 'select-element', label: 'Add note', hint: 'pick an element on the page' },
-    { id: 'open-threads', label: 'Open threads', hint: 'read and reply' },
-  ];
-  const chosen = await MenuPopup.shared(path.join(__dirname, '../preload/index.js')).open(
-    mainWindow,
-    anchor ?? { x: 0, y: 64, width: 232, height: 0 },
-    items,
-  );
-  if (chosen === 'select-element') {
-    const target = await chassis.pickCollaborationTarget();
-    if (target) mainWindow?.webContents.send('collaboration:target', target);
-  } else if (chosen === 'open-threads') {
-    chassis.collabToggleList();
-  }
-  return { ok: true };
-});
-
-ipcMain.handle('collaboration:stop-picker', async () => {
-  await chassis.stopCollaborationSelection();
-  return { ok: true };
 });
 
 /** Page signals for the Command Deck WEB STATE tab (breadcrumb, cookies, storage). */
@@ -405,7 +346,7 @@ ipcMain.handle('chassis:web-state', async () => {
       ).then((raw: string) => JSON.parse(raw));
     let cookies: WebPageState['cookies'] = [];
     try {
-      cookies = (await wc.session.cookies.get({}))
+      cookies = (await wc.session.cookies.get({ url: String(page?.url ?? '') }))
         .slice(0, 40)
         .map((cookie) => ({ name: cookie.name, domain: cookie.domain || '', httpOnly: Boolean(cookie.httpOnly) }));
     } catch {
@@ -620,21 +561,19 @@ async function createWindow() {
     const collaboration = new CollaborationService(
       new CollaborationStore(path.join(app.getPath('userData'), 'collaboration.json')),
       chassis,
-      () => mainWindow?.webContents.send('collaboration:updated'),
+      () => chassis.broadcast('collaboration:updated'),
     );
     activeCollaborationService = collaboration;
     // The deck toolbar's list + note cycling read exactly what the page overlay shows.
     chassis.setCollaborationThreadsProvider((filter) => collaboration.list(filter));
     chassis.setCollaborationOverlayRefresher(() => collaboration.refreshOverlay());
+    chassis.setCollaborationResolver((id) => collaboration.resolve(id, 'Resolved from the collab note list.'));
     chassis.setCollaborationClassListener((target, added, removed) => {
       try {
         activeCollaborationService?.recordClassEdit(target, added, removed);
       } catch {
         // Class-edit bookkeeping is best-effort; the page already applied it.
       }
-    });
-    chassis.setOnCollaborationTarget((target) => {
-      mainWindow?.webContents.send('collaboration:target', target);
     });
     chassis.setOnCollaborationNote((note) => {
       try {

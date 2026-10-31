@@ -103,19 +103,12 @@ export interface ElectronAPI {
   saveToolManager: (settings: Pick<ToolSettings, 'order' | 'disabled' | 'instructions' | 'actionInstructions'>) => Promise<ToolManagerResult>;
   resetToolManager: () => Promise<ToolManagerResult>;
   listCollaborationThreads: (filter?: any) => Promise<{ ok: boolean; threads?: CollaborationThread[]; error?: string }>;
-  createCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
-  replyCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
-  resolveCollaborationThread: (input: any) => Promise<{ ok: boolean; thread?: CollaborationThread; error?: string }>;
   startCollaborationPicker: () => Promise<{ ok: boolean; target?: CollaborationTarget | null; message?: string; error?: string }>;
-  stopCollaborationPicker: () => Promise<{ ok: boolean }>;
-  showCollaborationMenu: (anchor?: PopupAnchor) => Promise<{ ok: boolean; error?: string }>;
   // Popup-menu surface (the small themed dropdown window only).
   getMenuPopupItems: () => Promise<PopupMenuItem[]>;
   onMenuPopupShow: (callback: (items: PopupMenuItem[]) => void) => () => void;
-  menuPopupSelect: (id: string) => void;
+  menuPopupSelect: (id: string, action?: string) => void;
   menuPopupClose: () => void;
-  onCollaborationOpen: (callback: () => void) => () => void;
-  onCollaborationTarget: (callback: (target: CollaborationTarget) => void) => () => void;
   onCollaborationUpdated: (callback: () => void) => () => void;
   getRemoteInfo: () => Promise<{
     ok: boolean;
@@ -363,30 +356,15 @@ const api: ElectronAPI = {
   saveToolManager: (settings) => ipcRenderer.invoke('tools:save', settings),
   resetToolManager: () => ipcRenderer.invoke('tools:reset'),
   listCollaborationThreads: (filter?: any) => ipcRenderer.invoke('collaboration:list', filter),
-  createCollaborationThread: (input: any) => ipcRenderer.invoke('collaboration:create', input),
-  replyCollaborationThread: (input: any) => ipcRenderer.invoke('collaboration:reply', input),
-  resolveCollaborationThread: (input: any) => ipcRenderer.invoke('collaboration:resolve', input),
   startCollaborationPicker: () => ipcRenderer.invoke('collaboration:start-picker'),
-  stopCollaborationPicker: () => ipcRenderer.invoke('collaboration:stop-picker'),
-  showCollaborationMenu: (anchor?: PopupAnchor) => ipcRenderer.invoke('collaboration:show-menu', anchor),
   getMenuPopupItems: () => ipcRenderer.invoke('menu-popup:items'),
   onMenuPopupShow: (callback) => {
     const handler = (_: any, items: PopupMenuItem[]) => callback(Array.isArray(items) ? items : []);
     ipcRenderer.on('menu-popup:show', handler);
     return () => ipcRenderer.removeListener('menu-popup:show', handler);
   },
-  menuPopupSelect: (id: string) => ipcRenderer.send('menu-popup:select', id),
+  menuPopupSelect: (id: string, action?: string) => ipcRenderer.send('menu-popup:select', id, action),
   menuPopupClose: () => ipcRenderer.send('menu-popup:close'),
-  onCollaborationOpen: (callback) => {
-    const handler = () => callback();
-    ipcRenderer.on('collaboration:open', handler);
-    return () => ipcRenderer.removeListener('collaboration:open', handler);
-  },
-  onCollaborationTarget: (callback) => {
-    const handler = (_: any, target: CollaborationTarget) => callback(target);
-    ipcRenderer.on('collaboration:target', handler);
-    return () => ipcRenderer.removeListener('collaboration:target', handler);
-  },
   onCollaborationUpdated: (callback) => {
     const handler = () => callback();
     ipcRenderer.on('collaboration:updated', handler);

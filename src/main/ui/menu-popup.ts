@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { BrowserWindow, ipcMain, screen, type IpcMainInvokeEvent } from 'electron';
-import type { PopupAnchor, PopupMenuItem } from '../../shared/menu.js';
+import type { PopupAnchor, PopupMenuItem, PopupMenuSelection } from '../../shared/menu.js';
 
-const POPUP_WIDTH = 232;
+const POPUP_WIDTH = 320;
 const POPUP_ITEM_HEIGHT = 34;
 const POPUP_PADDING = 14;
 
@@ -13,7 +13,7 @@ const POPUP_PADDING = 14;
  * header menu used a native `Menu.popup`), so in-product menus get their own
  * surface instead. One shared instance renders every menu: `open()` anchors it
  * below a trigger rect, pushes the items to the popup surface
- * (src/renderer/menu-popup.ts) and resolves with the chosen item id — or null
+ * (src/renderer/menu-popup.ts) and resolves with `{ id, action? }` — or null
  * when dismissed via Escape, blur or an outside click. New menus are just more
  * `PopupMenuItem` arrays, so every themed menu in the app shares this host.
  */
@@ -21,7 +21,7 @@ export class MenuPopup {
   private static instance: MenuPopup | null = null;
   private win: BrowserWindow | null = null;
   private items: PopupMenuItem[] = [];
-  private resolver: ((id: string | null) => void) | null = null;
+  private resolver: ((selection: PopupMenuSelection | null) => void) | null = null;
   private readonly preloadPath: string;
 
   private constructor(preloadPath: string) {
@@ -31,9 +31,13 @@ export class MenuPopup {
       if (!this.win || this.win.isDestroyed() || event.sender.id !== this.win.webContents.id) return [];
       return this.items;
     });
-    ipcMain.on('menu-popup:select', (event, id: unknown) => {
+    ipcMain.on('menu-popup:select', (event, id: unknown, action: unknown) => {
       if (this.win && !this.win.isDestroyed() && event.sender.id === this.win.webContents.id) {
-        this.finish(typeof id === 'string' ? id : null);
+        this.finish(
+          typeof id === 'string'
+            ? { id, action: typeof action === 'string' ? action : undefined }
+            : null,
+        );
       }
     });
     ipcMain.on('menu-popup:close', (event) => {
@@ -62,15 +66,15 @@ export class MenuPopup {
    * Show `items` anchored to `anchor` (coordinates in the parent window's
    * content area). `align` picks where the popup lands relative to the anchor:
    * snapped below the trigger and right-aligned (default), or placed to the
-   * left of the trigger with tops aligned. Resolves with the clicked item id,
-   * or null if dismissed.
+   * left of the trigger with tops aligned. Resolves with the clicked item id
+   * and optional secondary action, or null if dismissed.
    */
   open(
     parent: BrowserWindow,
     anchor: PopupAnchor,
     items: PopupMenuItem[],
     opts: { align?: 'below-right' | 'left-of'; itemHeight?: number; width?: number } = {},
-  ): Promise<string | null> {
+  ): Promise<PopupMenuSelection | null> {
     this.finish(null);
     if (parent.isDestroyed() || !items.length) return Promise.resolve(null);
     this.items = items;
@@ -94,19 +98,20 @@ export class MenuPopup {
 
     const win = this.ensureWindow();
     win.setBounds({ x, y, width, height });
-    const deliver = (): void => {
-      if (!this.resolver || !this.win || this.win.isDestroyed()) return;
-      this.win.webContents.send('menu-popup:show', this.items);
-      this.win.show();
-      this.win.focus();
-    };
-    if (win.webContents.isLoading()) {
-      win.webContents.once('did-finish-load', deliver);
-    } else {
-      deliver();
-    }
     return new Promise((resolve) => {
       this.resolver = resolve;
+      const deliver = (): void => {
+        if (!this.resolver || !this.win || this.win.isDestroyed()) return;
+        this.win.webContents.send('menu-popup:show', this.items);
+        this.win.show();
+        this.win.focus();
+      };
+      if (win.webContents.isLoading()) {
+        win.webContents.once('did-finish-load', deliver);
+      } else {
+        // Defer to the next turn so the resolver is installed before `show`.
+        setImmediate(deliver);
+      }
     });
   }
 
@@ -156,11 +161,11 @@ export class MenuPopup {
     return win;
   }
 
-  private finish(id: string | null): void {
+  private finish(selection: PopupMenuSelection | null): void {
     if (this.win && !this.win.isDestroyed()) this.win.hide();
     const resolve = this.resolver;
     this.resolver = null;
     this.items = [];
-    resolve?.(id);
+    resolve?.(selection);
   }
 }

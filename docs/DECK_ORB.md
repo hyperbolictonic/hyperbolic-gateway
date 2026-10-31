@@ -54,13 +54,13 @@ bottom of views clipped (or the chip pushed almost fully offscreen).
   transparent child window that renders **any** themed dropdown: it is
   anchored below a trigger rect, pushes `PopupMenuItem[]` to the popup surface
   (`src/renderer/menu-popup.ts`, `#menu-popup-host`) and resolves with the
-  chosen id (null on Escape/blur/outside click). The header COLLAB menu and
-  future menus all reuse it — a ripped native `Menu.popup` looked off-theme.
+  chosen `{ id, action? }` (null on Escape/blur/outside click). The concise
+  collab note list uses it for note navigation.
 - The radial petal menu is data-driven markup (`#deck-menu`); petals reuse
   the same handlers as the toolbar via trusted event dispatch.
-- Escape is the intuitive exit everywhere: radial menu (host), popup menu
-  (dismiss), note picker (cancel), note drawer (discard),collab panel (close,
-  also stops the picker).
+- Escape dismisses the radial or popup menu, cancels the picker/drawer, or
+  leaves collab mode. Leaving collab mode hides thread highlights and removes
+  the pinned element controls so the page visibly returns to ordinary browsing.
 
 ## Status
 
@@ -89,14 +89,14 @@ bottom of views clipped (or the chip pushed almost fully offscreen).
 
 ## Collab mode
 
-Pressing the **COLLAB** petal does not open a panel — the orb itself turns
-into the collaborations toolbar (the panel component is retired; the only
-UIs left are this pill and themed popovers):
+Pressing the **COLLAB** petal or the header collaboration icon does not open a
+panel — the orb itself turns into the collaborations toolbar (the old panel
+component is retired; the only UIs left are this pill and themed popovers):
 
 | Control | Action |
 | --- | --- |
 | ‹ / › | Cycle notes on the page (the focused thread keeps a persistent amber ring and flash, and stays on until you switch threads or leave collab mode). |
-| List | Concise note list — a themed MenuPopup row per thread; clicking a row cycles to it. |
+| List | Concise list of unresolved notes — click a row to cycle to it. |
 | Pen | Arm the element picker: click an element → the element toolbar (below) attaches. |
 | ESC | Leave collab mode. |
 
@@ -116,6 +116,10 @@ the thread store as a `class-edit` tagged thread — the same way the agent
 consumes every other human signal, so "human meaning" is machine-visible
 without clunky panel forms.
 
+Each annotation card also has its own **✓ Resolve** control, visible only in
+collab mode. Resolving removes the note from the active list and its page
+highlight; Resolve is not a separate floating-menu action.
+
 ## WEB STATE tab
 
 The deck's fourth tab (was MATRIX LOGS) became **WEB STATE**: current URL,
@@ -123,4 +127,3 @@ title, URL breadcrumbs, visible cookies (name@domain + httpOnly flag) and
 localStorage / sessionStorage keys — refreshed on demand. This answers
 "what does the page look like to the session" for humans and mirrors the
 bridge's `get_page_info` surface.
-

@@ -68,7 +68,9 @@ export class CollaborationService {
   async refreshOverlay(): Promise<void> {
     try {
       const url = this.chassis.getPageInfo().url;
-      const threads = this.store.list({ url });
+      // Resolved threads are history, not active page highlights. Keeping them
+      // painted after Resolve makes the user think collab mode is still active.
+      const threads = this.store.list({ url }).filter((thread) => thread.status !== 'resolved');
       const wc = this.chassis.getActiveWebContents();
       if (!wc || wc.isDestroyed()) return;
       const rightInset = this.chassis.getSidebarPageInset();

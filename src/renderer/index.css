@@ -313,6 +313,9 @@ html.sidebar-mode #deck-menu.open .deck-petal:hover {
 /* ── Themed popup menu (MenuPopup window surface, ?menupopup=1) ─────────── */
 html.menu-popup-mode,
 html.menu-popup-mode body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
   background: transparent !important;
   overflow: hidden;
 }
@@ -323,6 +326,7 @@ html.menu-popup-mode > body > *:not(#menu-popup-host) {
   display: none;
 }
 html.menu-popup-mode #menu-popup-host {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -334,7 +338,34 @@ html.menu-popup-mode #menu-popup-host {
   border-radius: 12px;
   box-shadow: 0 14px 36px rgb(0 0 0 / 0.5);
 }
+.menu-popup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  background: transparent;
+}
+.menu-popup-row {
+  width: 100%;
+  min-width: 0;
+}
+.menu-popup-row-content {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 .menu-popup-item {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -345,6 +376,7 @@ html.menu-popup-mode #menu-popup-host {
   background: transparent;
   color: var(--color-base-content);
   text-align: left;
+  overflow: hidden;
   cursor: pointer;
   transition: background 120ms ease;
 }
@@ -353,9 +385,22 @@ html.menu-popup-mode #menu-popup-host {
   background: color-mix(in oklab, var(--color-accent) 13%, transparent);
   outline: none;
 }
+.menu-popup-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.menu-popup-action {
+  align-self: center;
+  flex: none;
+  white-space: nowrap;
+}
 .menu-popup-label {
   font-size: 12px;
   font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .menu-popup-hint {
   font-size: 10px;

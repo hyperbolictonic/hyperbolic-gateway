@@ -14,7 +14,7 @@ export function bootMenuPopup(): void {
     electronAPI?: {
       getMenuPopupItems?: () => Promise<PopupMenuItem[]>;
       onMenuPopupShow?: (cb: (items: PopupMenuItem[]) => void) => () => void;
-      menuPopupSelect?: (id: string) => void;
+      menuPopupSelect?: (id: string, action?: string) => void;
       menuPopupClose?: () => void;
     };
   }).electronAPI;
@@ -22,10 +22,18 @@ export function bootMenuPopup(): void {
 
   const render = (items: PopupMenuItem[]): void => {
     host.replaceChildren();
+    const list = document.createElement('ul');
+    list.className = 'menu menu-sm menu-popup-list';
+    host.append(list);
     for (const item of items) {
+      const row = document.createElement('li');
+      row.className = 'menu-popup-row';
+      const content = document.createElement('div');
+      content.className = 'menu-popup-row-content';
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'menu-popup-item';
+      button.disabled = Boolean(item.disabled);
       const label = document.createElement('span');
       label.className = 'menu-popup-label';
       label.textContent = item.label;
@@ -37,9 +45,24 @@ export function bootMenuPopup(): void {
         button.append(hint);
       }
       button.addEventListener('click', () => api.menuPopupSelect?.(item.id));
-      host.append(button);
+      content.append(button);
+      if (item.secondaryAction) {
+        const action = document.createElement('button');
+        action.type = 'button';
+        action.className = 'btn btn-xs btn-soft btn-success menu-popup-action';
+        action.textContent = item.secondaryAction.label;
+        action.title = item.secondaryAction.title || item.secondaryAction.label;
+        action.setAttribute('aria-label', item.secondaryAction.title || item.secondaryAction.label);
+        action.addEventListener('click', (event) => {
+          event.stopPropagation();
+          api.menuPopupSelect?.(item.id, item.secondaryAction?.id);
+        });
+        content.append(action);
+      }
+      row.append(content);
+      list.append(row);
     }
-    (host.querySelector('.menu-popup-item') as HTMLElement | null)?.focus();
+    (host.querySelector('.menu-popup-item:not(:disabled)') as HTMLElement | null)?.focus();
   };
 
   api.onMenuPopupShow?.(render);
@@ -55,7 +78,7 @@ export function bootMenuPopup(): void {
     }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
-    const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>('.menu-popup-item'));
+    const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>('.menu-popup-item:not(:disabled)'));
     if (!buttons.length) return;
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const next =

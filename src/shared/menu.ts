@@ -5,6 +5,17 @@ export interface PopupMenuItem {
   id: string;
   label: string;
   hint?: string;
+  disabled?: boolean;
+  secondaryAction?: {
+    id: string;
+    label: string;
+    title?: string;
+  };
+}
+
+export interface PopupMenuSelection {
+  id: string;
+  action?: string;
 }
 
 /** Where a popup should anchor, in shell content-area coordinates. */

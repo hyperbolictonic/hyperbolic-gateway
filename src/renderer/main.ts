@@ -2,7 +2,6 @@ import type { ElectronAPI } from '../preload/index.js';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent } from '../shared/types.js';
 import { beginRecording, finishRecording } from './recording';
 import { refreshToolsPanel } from './tools-panel';
-import { initCollaborationPanel } from './collaboration-panel';
 import { bootMenuPopup } from './menu-popup';
 
 declare global {
@@ -191,6 +190,11 @@ function applySidebarState(state: {
   setDeckMenuOpenVisuals(state.menuOpen && collapsed);
   document.documentElement.classList.toggle('collab-mode', state.collabMode && collapsed);
   collabModeOn = state.collabMode && collapsed;
+  const collabButton = document.getElementById('collab-btn');
+  collabButton?.classList.toggle('btn-warning', collabModeOn);
+  collabButton?.classList.toggle('btn-ghost', !collabModeOn);
+  collabButton?.classList.toggle('text-accent', !collabModeOn);
+  collabButton?.setAttribute('aria-pressed', String(collabModeOn));
   sidebarRailToggle?.classList.toggle('orb-left', state.orbEdge === 'left');
   try {
     localStorage.setItem('deck.orb-edge', state.orbEdge);
@@ -300,6 +304,7 @@ deckMenuRoot?.querySelectorAll<HTMLButtonElement>('.deck-petal').forEach((petal)
 });
 
 // ---- Collab-mode toolbar: [(‹) prev] [(›) next] [list] [pen] [ESC] ------------
+document.getElementById('collab-btn')?.addEventListener('click', () => window.electronAPI?.setCollabMode(true));
 document.getElementById('collab-prev-btn')?.addEventListener('click', () => window.electronAPI?.collabNavigate(-1));
 document.getElementById('collab-next-btn')?.addEventListener('click', () => window.electronAPI?.collabNavigate(1));
 document.getElementById('collab-list-btn')?.addEventListener('click', () => window.electronAPI?.collabToggleList());
@@ -322,6 +327,21 @@ window.addEventListener('keydown', (event) => {
 window.electronAPI?.onRecordingStatus((state: unknown) => {
   sidebarRailToggle?.classList.toggle('is-recording', Boolean((state as { recording?: boolean })?.recording));
 });
+
+async function refreshCollaborationCount(): Promise<void> {
+  const result = await window.electronAPI?.listCollaborationThreads({});
+  if (!result?.ok) return;
+  const openCount = (result.threads || []).filter((thread) => thread.status !== 'resolved').length;
+  for (const id of ['collab-count', 'deck-orb-count']) {
+    const badge = document.getElementById(id);
+    if (!badge) continue;
+    badge.textContent = String(openCount);
+    badge.classList.toggle('hidden', openCount === 0);
+  }
+}
+window.electronAPI?.onCollaborationUpdated(() => void refreshCollaborationCount());
+void refreshCollaborationCount();
+
 window.electronAPI?.onHilRequested(() => sidebarRailToggle?.classList.add('is-hil'));
 window.electronAPI?.onHilCleared(() => sidebarRailToggle?.classList.remove('is-hil'));
 try {
@@ -485,6 +505,13 @@ async function refreshWebState(): Promise<void> {
 }
 
 document.getElementById('webstate-refresh-btn')?.addEventListener('click', () => void refreshWebState());
+document.getElementById('webstate-events-toggle')?.addEventListener('click', (event) => {
+  const button = event.currentTarget as HTMLButtonElement;
+  const events = document.getElementById('webstate-events');
+  const open = Boolean(events?.classList.contains('hidden'));
+  events?.classList.toggle('hidden', !open);
+  button.setAttribute('aria-expanded', String(open));
+});
 tabBtnDecisions.addEventListener('click', () => switchTab('decisions'));
 
 // ---- Decision model mirror (tab appears only when a backend is configured) -------------------
@@ -3613,5 +3640,3 @@ if (bkmkSaveBtn) {
     checkCurrentBookmarkState(activeUrl);
   });
 }
-
-initCollaborationPanel();

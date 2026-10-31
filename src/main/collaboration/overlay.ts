@@ -1,9 +1,12 @@
 import type { CollaborationThread } from '../../shared/collaboration.js';
 
-export const COLLABORATION_SELECT_PREFIX = '__KUANG_COLLAB_SELECT__:';
 export const COLLABORATION_NOTE_PREFIX = '__KUANG_COLLAB_NOTE__:';
 /** Human class-list edits on a selected element (the LLM reads these). */
 export const COLLABORATION_CLASS_PREFIX = '__KUANG_COLLAB_CLASS__:';
+/** Resolve a thread from its in-page annotation card while in collab mode. */
+export const COLLABORATION_RESOLVE_PREFIX = '__KUANG_COLLAB_RESOLVE__:';
+/** Escape from collab mode while the page itself owns keyboard focus. */
+export const COLLABORATION_EXIT_PREFIX = '__KUANG_COLLAB_EXIT__';
 
 /**
  * Shared styling for both collaboration surfaces. Everything is namespaced under
@@ -273,6 +276,24 @@ const COLLAB_CSS = `
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-weight: 500;
 }
+#__kuang_collaboration_layer .hb-resolve {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  border-radius: 6px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+  font: 700 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+  pointer-events: auto;
+}
+#__kuang_collaboration_layer.is-collab-active .hb-resolve { display: inline-flex; }
+#__kuang_collaboration_layer .hb-resolve:hover { background: rgba(34, 197, 94, 0.24); }
+#__kuang_collaboration_layer .hb-resolve:disabled { opacity: 0.6; cursor: wait; }
 #__kuang_collaboration_layer .hb-agent-body {
   margin-top: 6px;
   color: #cbd5e1;
@@ -466,6 +487,7 @@ export function collaborationNoteDrawerScript(): string {
   const CSS_TEXT = ${JSON.stringify(COLLAB_CSS)};
   const NOTE_PREFIX = ${JSON.stringify(COLLABORATION_NOTE_PREFIX)};
   const CLASS_PREFIX = ${JSON.stringify(COLLABORATION_CLASS_PREFIX)};
+  const RESOLVE_PREFIX = ${JSON.stringify(COLLABORATION_RESOLVE_PREFIX)};
   const ICON = {
     minus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>',
     plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
@@ -859,7 +881,9 @@ export function collaborationNoteDrawerScript(): string {
         return;
       }
       const left = Math.max(6, Math.min(rect.left + rect.width - 6, window.innerWidth - 200));
-      const top = rect.top > 48 ? Math.max(6, rect.top - 44) : Math.max(6, rect.bottom + 8);
+      const top = rect.top > 48
+        ? Math.max(6, rect.top - 44)
+        : Math.max(6, Math.min(rect.bottom + 8, window.innerHeight - 42));
       bar.style.left = left + 'px';
       bar.style.top = top + 'px';
     };
@@ -903,7 +927,10 @@ export function collaborationNoteDrawerScript(): string {
     title.textContent = 'CLASSES — click one to remove';
     const chips = document.createElement('div');
     chips.className = 'hb-css-chips';
-    let current = (el.className || '').split(/\\s+/).filter(Boolean);
+    const classNameValue = typeof el.className === 'string'
+      ? el.className
+      : (el.className && typeof el.className.baseVal === 'string' ? el.className.baseVal : '');
+    let current = classNameValue.split(/\\s+/).filter(Boolean);
     const original = current.slice();
     const renderChips = function () {
       chips.replaceChildren();
@@ -976,6 +1003,16 @@ export function collaborationNoteDrawerScript(): string {
     });
     pop.append(title, chips, addRow, send);
     document.body.appendChild(pop);
+    const barRect = bar.getBoundingClientRect();
+    const popWidth = 248;
+    const popHeight = Math.min(300, pop.offsetHeight || 220);
+    const left = Math.max(6, Math.min(barRect.left, innerWidth - popWidth - 6));
+    const below = barRect.bottom + 8;
+    const top = below + popHeight <= innerHeight - 6
+      ? below
+      : Math.max(6, barRect.top - popHeight - 8);
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.round(top) + 'px';
   };
 })();`;
 }
@@ -993,6 +1030,7 @@ export function collaborationPickerScript(options: CollaborationPickerOptions = 
   return `new Promise((resolve) => {
     ${collaborationNoteDrawerScript()}
     const RIGHT_INSET = ${JSON.stringify(rightInset)};
+    if (window.__hbCollabClearElementBar) window.__hbCollabClearElementBar();
     // Visible status chip so "the picker is armed" is never a mystery.
     const chip = document.createElement('div');
     chip.textContent = 'ADD NOTE — click an element to pin the note · Esc to cancel';
@@ -1145,13 +1183,65 @@ export function collaborationOverlayScript(
     // Focus navigation (orb toolbar back/forward + note list): always present,
     // even with zero threads, so collab mode stays responsive.
     window.__hbCollabFocusId = window.__hbCollabFocusId || null;
+    window.__hbCollabMode = Boolean(window.__hbCollabMode);
+    const clearFocus = function () {
+      layer.querySelectorAll('.hb-focus-ring, .hb-flash').forEach(function (node) {
+        node.classList.remove('hb-focus-ring', 'hb-flash');
+      });
+      window.__hbCollabFocusId = null;
+    };
+    window.__hbCollabEnterMode = function () {
+      window.__hbCollabMode = true;
+      layer.style.display = '';
+      layer.classList.add('is-collab-active');
+      if (window.__hbCollabModeKeyHandler) {
+        document.removeEventListener('keydown', window.__hbCollabModeKeyHandler, true);
+      }
+      window.__hbCollabModeKeyHandler = function (event) {
+        if (event.key !== 'Escape' || !window.__hbCollabMode) return;
+        // Let the more local tools close first. A second Escape leaves collab mode.
+        if (window.__kuangCollabPicking || document.getElementById('__kuang_collab_drawer')) return;
+        const cssEditor = document.getElementById('__kuang_collab_csspop');
+        if (cssEditor) {
+          cssEditor.remove();
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        console.log(${JSON.stringify(COLLABORATION_EXIT_PREFIX)});
+      };
+      document.addEventListener('keydown', window.__hbCollabModeKeyHandler, true);
+      if (window.__hbCollabFocusId) window.__hbCollabShowThread(window.__hbCollabFocusId);
+    };
+    window.__hbCollabExitMode = function () {
+      window.__hbCollabMode = false;
+      if (window.__hbCollabModeKeyHandler) {
+        document.removeEventListener('keydown', window.__hbCollabModeKeyHandler, true);
+        delete window.__hbCollabModeKeyHandler;
+      }
+      layer.style.display = 'none';
+      layer.classList.remove('is-collab-active');
+      clearFocus();
+      document.getElementById('__kuang_collab_csspop')?.remove();
+      document.getElementById('__kuang_collab_elementbar')?.remove();
+      document.querySelectorAll('.hb-el-selected').forEach(function (node) {
+        node.classList.remove('hb-el-selected');
+      });
+      delete window.__hbCollabSelection;
+    };
+    if (!window.__hbCollabMode) layer.style.display = 'none';
     window.__hbCollabShowThread = function (id) {
-      window.__hbCollabFocusId = id;
       const thread = threads.find(function (t) { return t.id === id; });
       layer.querySelectorAll('.hb-focus-ring').forEach(function (node) {
         node.classList.remove('hb-focus-ring');
       });
-      if (!thread) return;
+      if (!thread) {
+        window.__hbCollabFocusId = null;
+        return;
+      }
+      window.__hbCollabFocusId = id;
       const box = layer.querySelector('[data-thread-id="' + id + '"]');
       if (box) {
         box.classList.add('hb-focus-ring');
@@ -1165,6 +1255,9 @@ export function collaborationOverlayScript(
       }
       if (box) box.classList.add('hb-flash');
     };
+    if (window.__hbCollabFocusId && !threads.some(function (t) { return t.id === window.__hbCollabFocusId; })) {
+      window.__hbCollabFocusId = null;
+    }
     const rectFor = (target) => {
       try {
         if (target.markId !== undefined) {
@@ -1203,10 +1296,23 @@ export function collaborationOverlayScript(
       dot.className = 'hb-agent-dot';
       const label = document.createElement('span');
       label.textContent = 'Collab';
-      const id = document.createElement('span');
-      id.className = 'hb-agent-id';
-      id.textContent = thread.id.slice(-6);
-      head.append(dot, label, id);
+    const id = document.createElement('span');
+    id.className = 'hb-agent-id';
+    id.textContent = thread.id.slice(-6);
+    const resolve = document.createElement('button');
+    resolve.type = 'button';
+    resolve.className = 'hb-resolve';
+    resolve.textContent = '✓';
+    resolve.title = 'Resolve this note';
+    resolve.setAttribute('aria-label', 'Resolve this collaboration note');
+    resolve.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      resolve.disabled = true;
+      resolve.textContent = '…';
+      console.log(RESOLVE_PREFIX + JSON.stringify({ id: thread.id }));
+    });
+    head.append(dot, label, id, resolve);
       const text = document.createElement('div');
       text.className = 'hb-agent-body is-clamped';
       text.textContent = thread.text || 'No message yet.';
@@ -1258,7 +1364,7 @@ export function collaborationOverlayScript(
       card.append(arrow);
     }
     document.documentElement.appendChild(layer);
-    if (window.__hbCollabFocusId && threads.some(function (t) { return t.id === window.__hbCollabFocusId; })) {
+    if (window.__hbCollabMode && window.__hbCollabFocusId && threads.some(function (t) { return t.id === window.__hbCollabFocusId; })) {
       window.__hbCollabShowThread(window.__hbCollabFocusId);
     }
   })()`;
