@@ -175,7 +175,12 @@ export function startHttpBridge(
         const settings = toolSettings?.load() ?? DEFAULT_TOOL_SETTINGS;
         // JEV availability is live bridge state, not a saved preference: the MCP server reads it
         // to lead tools/list with the index/read path and to mark the full-page dump as a fallback.
-        sendJson({ success: true, ...settings, jev: { available: chassis.isJevEnabled() } });
+        const policy = chassis.getJevPolicy();
+        sendJson({
+          success: true,
+          ...settings,
+          jev: { available: policy.available, mode: policy.enforce ? 'enforce' : 'prefer' },
+        });
         return;
       }
 
@@ -348,9 +353,11 @@ export function startHttpBridge(
         const autoDismiss = body.autoDismissConsent !== undefined ? Boolean(body.autoDismissConsent) : true;
         let targetUrl = body.url || body.destination || body.target || body.link || ''; if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^about:/i.test(targetUrl) && !/^mark-eleven:/i.test(targetUrl)) { targetUrl = 'https://' + targetUrl; } const result = await chassis.navigateTo(targetUrl, autoDismiss);
         // Live nudge at the moment reading starts: the index is cheap, the dump is not.
-        const guided = chassis.isJevEnabled()
-          ? `${result} | JEV ACTIVE: call jev_index before reading this page, then read_section for only what you need.`
-          : result;
+        const guided = chassis.isJevEnforced()
+          ? `${result} | JEV ENFORCED: unscoped page reads are refused. Call jev_index, then read_section for only what you need.`
+          : chassis.isJevEnabled()
+            ? `${result} | JEV ACTIVE: call jev_index before reading this page, then read_section for only what you need.`
+            : result;
         sendJson({ success: true, result: guided });
         return;
       }
@@ -413,8 +420,32 @@ export function startHttpBridge(
       if (req.method === 'GET' && pathname === '/markdown') {
         const includeMarks = url.searchParams.get('include_marks') !== 'false' && url.searchParams.get('marks') !== 'false';
         const includeOffscreen = ['1', 'true'].includes((url.searchParams.get('include_offscreen') || '').toLowerCase());
+        const full = ['1', 'true'].includes((url.searchParams.get('full') || '').toLowerCase());
         const construct = await chassis.harvestMarkdown({ includeMarks, includeOffscreen });
+        // The hidden alias dumps the whole construct, so it passes through the same
+        // hard funnel as observe(as:"markdown") with no budget or region.
+        const guard = chassis.guardJevPageRead({
+          as: 'markdown',
+          full,
+          pageTokens: construct.estimatedTokens || Math.ceil(String(construct.content || '').length / 4),
+          url: construct.url,
+          title: construct.title,
+          content: construct.content,
+        });
+        if (!guard.allowed) {
+          sendJson({ success: false, error: 'Unscoped page reads are disabled while JEV enforce is on. Call jev_index, then read_section.', code: 'JEV_REQUIRED', ...(guard.refusal || {}) }, 409);
+          return;
+        }
+        if (guard.note) {
+          sendJson({ success: true, construct: { ...construct, content: `${construct.content}\n\n[JEV] ${guard.note}` }, jevNote: guard.note });
+          return;
+        }
         sendJson({ success: true, construct });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/jev/stats') {
+        sendJson({ success: true, ...chassis.getJevStats(), status: chassis.getJevStatus() });
         return;
       }
 
@@ -1316,6 +1347,7 @@ export function startHttpBridge(
           includeOffscreen: body?.include_offscreen === true || body?.includeOffscreen === true,
           includeFrames: body?.include_frames === true || body?.includeFrames === true,
           limit: body?.limit !== undefined ? Number(body.limit) : undefined,
+          full: body?.full === true,
         });
         sendJson({ success: true, ...obs });
         return;
@@ -1727,6 +1759,11 @@ export function startHttpBridge(
       sendJson({ error: 'Endpoint not found' }, 404);
     } catch (err: any) {
       const code = err?.code || 'INTERNAL';
+      if (code === 'JEV_REQUIRED') {
+        const detail = err?.detail && typeof err.detail === 'object' ? err.detail : {};
+        sendJson({ success: false, error: err?.message || 'Unscoped page reads are disabled while JEV enforce is on.', code, ...detail }, 409);
+        return;
+      }
       if (code === 'SEALED_RATE_LIMITED') {
         sendJson(
           {

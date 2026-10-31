@@ -1267,6 +1267,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       include_offscreen: z.coerce.boolean().optional().default(false).describe('Include below/above-the-fold elements (markdown marks, som, list)'),
       include_frames: z.coerce.boolean().optional().default(false).describe('Merge child-frame controls into som/components (100+ mark ids)'),
       limit: z.coerce.number().optional().describe('Max rows for list/table projections'),
+      full: z.coerce.boolean().optional().default(false).describe('JEV bypass: force a full unscoped read even when JEV enforce is on (logged). Prefer jev_index/read_section.'),
     },
     endpoint: '/observe',
     payload: (args) => ({
@@ -1277,6 +1278,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
       include_offscreen: args?.include_offscreen === true,
       include_frames: args?.include_frames === true,
       limit: args?.limit,
+      full: args?.full === true,
     }),
     format: (data) => {
       const chars = data.text ? data.text.length : 0;

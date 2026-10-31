@@ -325,12 +325,29 @@ function experimentalSettings(): ExperimentalSettingsStore {
 
 /** Optional JEV page compaction (requires a configured decision model). Default off. */
 let jevStore: JevSettingsStore | null = null;
+/** Settings are written only over IPC; the MCP server reads /tools/config at startup. */
 function jevSettings(): JevSettingsStore {
   jevStore ??= new JevSettingsStore(path.join(app.getPath('userData'), 'jev.json'));
   return jevStore;
 }
 function jevAvailable(): boolean {
-  return jevSettings().get().enabled && decisionStatus().configured;
+  return jevSettings().get().power && decisionStatus().configured;
+}
+
+function jevPolicy(): { available: boolean; enforce: boolean } {
+  const settings = jevSettings().get();
+  const available = settings.power && decisionStatus().configured;
+  return { available, enforce: available && settings.mode === 'enforce' };
+}
+
+function jevPayload(): { settings: ReturnType<JevSettingsStore['get']>; available: boolean; decisionConfigured: boolean; mode: 'prefer' | 'enforce' } {
+  const settings = jevSettings().get();
+  return {
+    settings,
+    available: jevAvailable(),
+    decisionConfigured: decisionStatus().configured,
+    mode: settings.mode,
+  };
 }
 
 ipcMain.handle('settings:get-experimental', () => ({ ok: true, settings: experimentalSettings().get() }));
@@ -345,11 +362,11 @@ ipcMain.handle('settings:save-experimental', (_event, patch: unknown) => {
   return { ok: true, settings };
 });
 
-ipcMain.handle('settings:get-jev', () => ({ ok: true, settings: jevSettings().get(), available: jevAvailable(), decisionConfigured: decisionStatus().configured }));
+ipcMain.handle('settings:get-jev', () => ({ ok: true, ...jevPayload() }));
 ipcMain.handle('settings:save-jev', (_event, patch: unknown) => {
-  const settings = jevSettings().savePatch(patch);
-  chassis.broadcast('jev:settings', settings);
-  return { ok: true, settings, available: jevAvailable(), decisionConfigured: decisionStatus().configured };
+  jevSettings().savePatch(patch);
+  chassis.broadcast('jev:settings', jevSettings().get());
+  return { ok: true, ...jevPayload() };
 });
 
 ipcMain.handle('collaboration:list', (_event, filter?: any) => {
@@ -605,7 +622,7 @@ async function createWindow() {
     );
     activeCollaborationService = collaboration;
     chassis.setCollabEnabledProvider(() => experimentalSettings().get().collab);
-    chassis.setJevEnabledProvider(() => jevAvailable());
+    chassis.setJevPolicyProvider(() => jevPolicy());
     // The deck toolbar's list + note cycling read exactly what the page overlay shows.
     chassis.setCollaborationThreadsProvider((filter) => collaboration.list(filter));
     chassis.setCollaborationOverlayRefresher(() => collaboration.refreshOverlay());

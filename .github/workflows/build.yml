@@ -83,6 +83,12 @@ jobs:
       - name: Collaboration store tests
         run: npm run test:collaboration
 
+      - name: JEV engine tests
+        run: npm run test:jev
+
+      - name: JEV funnel policy tests
+        run: npm run test:jev:funnel
+
       - name: MCP HTTP transport tests
         run: npm run test:mcp-http
 

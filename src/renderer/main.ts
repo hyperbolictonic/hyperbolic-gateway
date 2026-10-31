@@ -2480,21 +2480,41 @@ if (settingsBtn && settingsModal) {
 
   const jevToggle = document.getElementById('settings-jev-enabled') as HTMLInputElement | null;
   const jevStatusEl = document.getElementById('settings-jev-status');
+  const jevModePrefer = document.getElementById('settings-jev-mode-prefer') as HTMLButtonElement | null;
+  const jevModeEnforce = document.getElementById('settings-jev-mode-enforce') as HTMLButtonElement | null;
+
+  const paintJevMode = (mode: 'prefer' | 'enforce', locked: boolean) => {
+    const pairs: Array<[HTMLButtonElement | null, boolean]> = [
+      [jevModePrefer, mode === 'prefer'],
+      [jevModeEnforce, mode === 'enforce'],
+    ];
+    for (const [button, active] of pairs) {
+      if (!button) continue;
+      button.classList.toggle('btn-active', active);
+      button.classList.toggle('btn-primary', active);
+      button.setAttribute('aria-pressed', String(active));
+      button.disabled = locked;
+    }
+  };
 
   /** JEV is optional: only offerable once a decision model is configured. */
   const applyJevSettings = (result: any) => {
-    const enabled = result?.settings?.enabled === true;
+    const power = result?.settings?.power === true;
+    const mode: 'prefer' | 'enforce' = result?.settings?.mode === 'enforce' ? 'enforce' : 'prefer';
     const decisionConfigured = result?.decisionConfigured === true;
     if (jevToggle) {
-      jevToggle.checked = enabled;
+      jevToggle.checked = power;
       jevToggle.disabled = !decisionConfigured;
     }
+    paintJevMode(mode, !decisionConfigured || !power);
     if (jevStatusEl) {
       jevStatusEl.textContent = !decisionConfigured
         ? 'Requires a configured decision model.'
-        : enabled
-          ? 'ON — agents receive a section index; sections are fetched on demand.'
-          : 'OFF — agents receive full page markdown.';
+        : !power
+          ? 'OFF — agents receive full page markdown.'
+          : mode === 'enforce'
+            ? 'ENFORCE — unscoped page reads are refused; the agent must use jev_index + read_section.'
+            : 'PREFER — tools lead with the index; full-page reads are still allowed.';
     }
   };
   const loadJevSettings = async (): Promise<void> => {
@@ -2506,10 +2526,16 @@ if (settingsBtn && settingsModal) {
   };
   jevToggle?.addEventListener('change', async () => {
     if (!jevToggle) return;
-    const result = await window.electronAPI?.saveJevSettings({ enabled: jevToggle.checked });
+    const result = await window.electronAPI?.saveJevSettings({ power: jevToggle.checked });
     if (result?.ok) applyJevSettings(result);
     else jevToggle.checked = !jevToggle.checked;
   });
+  const saveJevMode = async (mode: 'prefer' | 'enforce') => {
+    const result = await window.electronAPI?.saveJevSettings({ mode });
+    if (result?.ok) applyJevSettings(result);
+  };
+  jevModePrefer?.addEventListener('click', () => void saveJevMode('prefer'));
+  jevModeEnforce?.addEventListener('click', () => void saveJevMode('enforce'));
   window.electronAPI?.onJevSettings(() => void loadJevSettings());
 
   const showStatus = (status: any, stored: any) => {

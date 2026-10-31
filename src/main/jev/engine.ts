@@ -37,6 +37,9 @@ export interface JevStatus {
   totalTokens?: number;
   indexTokens?: number;
   expandedTokens?: number;
+  /** 'prefer' steers reads; 'enforce' refuses unscoped page dumps. */
+  mode?: 'prefer' | 'enforce';
+  enforced?: boolean;
 }
 
 export interface JevSearchHit {

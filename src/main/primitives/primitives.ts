@@ -43,6 +43,26 @@ export interface PrimitivesHost {
   log(level: 'info' | 'warn' | 'action', message: string): void;
   evaluate(script: string): Promise<any>;
   harvest(opts: { includeMarks?: boolean; includeOffscreen?: boolean }): Promise<HarvestedConstruct>;
+  /**
+   * Optional JEV hard-funnel guard. When enforce is on, unscoped markdown/text
+   * reads are refused here so the agent is steered to jev_index/read_section.
+   */
+  guardPageRead?(input: {
+    as: string;
+    region?: unknown;
+    budget?: number;
+    cursor?: unknown;
+    full?: boolean;
+    pageTokens: number;
+    url?: string;
+    title?: string;
+    content?: string;
+  }): {
+    allowed: boolean;
+    reason: string;
+    note?: string;
+    refusal?: Record<string, any>;
+  };
   injectMarks(opts?: { includeOffscreen?: boolean }): Promise<MarkItem[]>;
   removeMarks(): Promise<void>;
   getMarks(): MarkItem[];
@@ -88,7 +108,7 @@ export interface PrimitivesHost {
   recordTransition?(record: TransitionRecord): void;
 }
 
-export type PrimitiveErrorCode = 'STALE_REF' | 'TIMEOUT' | 'NO_TARGET' | 'BAD_REQUEST' | 'NOT_SUPPORTED' | 'AMBIGUOUS';
+export type PrimitiveErrorCode = 'STALE_REF' | 'TIMEOUT' | 'NO_TARGET' | 'BAD_REQUEST' | 'NOT_SUPPORTED' | 'AMBIGUOUS' | 'JEV_REQUIRED';
 
 /**
  * Default view size for `observe(as:"markdown")` when the caller gives no budget.
@@ -177,6 +197,8 @@ export interface ObserveOptions {
   /** Merge child-frame controls (100+ ids) into som/components projections. */
   includeFrames?: boolean;
   limit?: number;
+  /** Explicit JEV bypass: serve the full read even while enforce is on (logged). */
+  full?: boolean;
 }
 
 export interface ExtractOptions {
@@ -860,12 +882,21 @@ export class Primitives {
         (await this.host
           .evaluate(`(() => { const r = ${rootExpr}; if (!r) return ''; return (r.innerText || r.textContent || ''); })()`)
           .catch(() => '')) || '';
-      return this.pageText(as, revision, info, text, opts);
+      const guard = this.checkPageReadFunnel(as, info, text, opts);
+      const result = this.pageText(as, revision, info, text, opts);
+      return guard ? { ...result, text: `${result.text}\n\n[JEV] ${guard}` } : result;
     }
 
     // markdown (default)
     const construct = await this.host.harvest({ includeMarks: true, includeOffscreen: opts.includeOffscreen === true });
-    return this.pageText(
+    const funnel = this.checkPageReadFunnel(
+      'markdown',
+      { url: construct.url || info.url, title: construct.title || info.title },
+      construct.content || '',
+      opts,
+      construct.content || '',
+    );
+    const result = this.pageText(
       'markdown',
       this.host.revision(),
       { url: construct.url, title: construct.title },
@@ -880,6 +911,40 @@ export class Primitives {
       },
       DEFAULT_MARKDOWN_BUDGET
     );
+    return funnel ? { ...result, text: `${result.text}\n\n[JEV] ${funnel}` } : result;
+  }
+
+  /**
+   * JEV hard funnel: refuse unscoped page reads while enforce is on. Returns a
+   * note when the loop breaker released the read, so the caller can surface it.
+   */
+  private checkPageReadFunnel(
+    as: string,
+    info: { url: string; title: string },
+    text: string,
+    opts: ObserveOptions,
+    content?: string,
+  ): string | undefined {
+    if (!this.host.guardPageRead) return undefined;
+    const guard = this.host.guardPageRead({
+      as,
+      region: opts.region,
+      budget: opts.budget,
+      cursor: opts.cursor,
+      full: opts.full,
+      pageTokens: Math.ceil((text || '').length / 4),
+      url: info.url,
+      title: info.title,
+      content: content ?? text,
+    });
+    if (!guard.allowed) {
+      throw new PrimitiveError(
+        'JEV_REQUIRED',
+        'Unscoped page reads are disabled while JEV enforce is on. Call jev_index, then read_section for the sections you need.',
+        guard.refusal,
+      );
+    }
+    return guard.note;
   }
 
   /** Child-frame controls as mark-like rows for observe(som/components). */

@@ -20,6 +20,7 @@ import { bump } from './metrics.js';
 import { ActionLedger } from './telemetry/action-ledger.js';
 import { ConstructHarvester } from './harvester/markdown.js';
 import { JevEngine, type JevStatus } from './jev/engine.js';
+import { decideFunnel, FunnelBreaker } from './jev/policy.js';
 import { captureComposedDom } from './harvester/dom-serializer.js';
 import { readStoredDecisionConfig, saveDecisionConfig, decisionStatus, runDecision, onDecision, type DecisionEvent } from './decide/decision-client.js';
 import { targetBoxScript, focusControlScript, DEEP_DOM_HELPERS, type TargetBox } from './primitives/dom-targeting.js';
@@ -116,7 +117,9 @@ export class BrowserChassis {
   private harvester: ConstructHarvester;
   /** JEV page compaction: surface index + in-memory depth store. */
   private jev = new JevEngine();
-  private jevEnabledGate: () => boolean = () => false;
+  private jevPolicyGate: () => { available: boolean; enforce: boolean } = () => ({ available: false, enforce: false });
+  private jevBreaker = new FunnelBreaker();
+  private jevStats = { blocked: 0, bypassed: 0, loopBreaker: 0, blockedTokens: 0 };
   private shieldBreaker: ShieldBreaker;
   private downloadManager: DownloadManager;
   private sessionVault: SessionVault;
@@ -310,6 +313,7 @@ export class BrowserChassis {
       log: (level, msg) => this.addLog(level, msg),
       evaluate: (script) => this.evaluateQuiet(script),
       harvest: (opts) => this.harvestMarkdown(opts),
+    guardPageRead: (input) => this.guardJevPageRead(input),
       injectMarks: (opts) => this.scanMarks(this.getActiveWebContents(), opts || {}),
       removeMarks: () => this.marksOverlay.removeMarks(this.getActiveWebContents()),
       getMarks: () => this.getActiveMarks(),
@@ -549,21 +553,121 @@ export class BrowserChassis {
     return this.sidebarMode;
   }
 
-  /** Experimental/optional gate for JEV; wired by index.ts to settings + decision status. */
-  public setJevEnabledProvider(enabled: () => boolean): void {
-    this.jevEnabledGate = enabled;
+  /** Optional JEV gate; wired by index.ts to the settings store + decision status. */
+  public setJevPolicyProvider(policy: () => { available: boolean; enforce: boolean }): void {
+    this.jevPolicyGate = policy;
   }
 
-  public isJevEnabled(): boolean {
+  public getJevPolicy(): { available: boolean; enforce: boolean } {
     try {
-      return this.jevEnabledGate();
+      const policy = this.jevPolicyGate();
+      const available = policy?.available === true;
+      return { available, enforce: available && policy?.enforce === true };
     } catch {
-      return false;
+      return { available: false, enforce: false };
     }
   }
 
+  public isJevEnabled(): boolean {
+    return this.getJevPolicy().available;
+  }
+
+  public isJevEnforced(): boolean {
+    return this.getJevPolicy().enforce;
+  }
+
+  public getJevStats(): { blocked: number; bypassed: number; loopBreaker: number; blockedTokens: number; breaker: Array<{ url: string; refusals: number; firstAt: number }> } {
+    return { ...this.jevStats, breaker: this.jevBreaker.snapshot() };
+  }
+
   public getJevStatus(): JevStatus {
-    return this.jev.status(this.isJevEnabled());
+    const policy = this.getJevPolicy();
+    return {
+      ...this.jev.status(policy.available),
+      mode: policy.enforce ? 'enforce' : 'prefer',
+      enforced: policy.enforce,
+    };
+  }
+
+  /**
+   * Hard-funnel guard for unscoped page reads. Called by the primitives before a
+   * markdown/text projection leaves the process. Returns a refusal payload that
+   * names the next call, or a `note` when the loop breaker released the read.
+   */
+  public guardJevPageRead(input: {
+    as: string;
+    region?: unknown;
+    budget?: number;
+    cursor?: unknown;
+    full?: boolean;
+    pageTokens: number;
+    url?: string;
+    title?: string;
+    content?: string;
+  }): {
+    allowed: boolean;
+    reason: string;
+    note?: string;
+    refusal?: {
+      page: { url: string; tokens: number; sections: number };
+      next: Array<Record<string, any>>;
+      override: Record<string, any>;
+    };
+  } {
+    const policy = this.getJevPolicy();
+    const url = input.url || this.getPageInfo().url || '';
+    const decision = decideFunnel({
+      enforce: policy.enforce,
+      as: input.as,
+      region: input.region,
+      budget: input.budget,
+      cursor: input.cursor,
+      full: input.full,
+      pageTokens: input.pageTokens,
+    });
+    if (decision.allowed) {
+      if (decision.reason === 'override') this.jevStats.bypassed += 1;
+      return { allowed: true, reason: decision.reason };
+    }
+    if (this.jevBreaker.shouldRelease(url)) {
+      this.jevBreaker.reset(url);
+      this.jevStats.bypassed += 1;
+      this.jevStats.loopBreaker += 1;
+      return {
+        allowed: true,
+        reason: 'loop-breaker',
+        note: 'JEV funnel bypassed: this page was refused twice in 60s, so the read was served. Prefer jev_index next time.',
+      };
+    }
+    this.jevBreaker.recordRefusal(url);
+    this.jevStats.blocked += 1;
+    this.jevStats.blockedTokens += Math.max(0, Number(input.pageTokens) || 0);
+
+    let sections = 0;
+    try {
+      if (input.content) {
+        if (this.jev.current?.url !== url) {
+          const session = this.jev.build(input.content, url, input.title || '');
+          sections = session.order.length;
+        } else {
+          sections = this.jev.current.order.length;
+        }
+      }
+    } catch {
+      // The refusal still stands; jev_index will report the build error.
+    }
+    return {
+      allowed: false,
+      reason: 'unscoped',
+      refusal: {
+        page: { url, tokens: input.pageTokens, sections },
+        next: [
+          { tool: 'jev_index' },
+          { tool: 'read_section', arguments: { section_id: 'sec_1' } },
+        ],
+        override: { parameter: 'full', value: true, note: 'bypasses the funnel and is logged' },
+      },
+    };
   }
 
   /** Build (or refresh) the JEV surface index for the active page. */

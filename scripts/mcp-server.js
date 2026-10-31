@@ -37843,7 +37843,8 @@ ${lines.join("\n")}`;
       cursor: external_exports.union([external_exports.string(), external_exports.coerce.number()]).optional().describe("next_cursor from a previous observe call"),
       include_offscreen: external_exports.coerce.boolean().optional().default(false).describe("Include below/above-the-fold elements (markdown marks, som, list)"),
       include_frames: external_exports.coerce.boolean().optional().default(false).describe("Merge child-frame controls into som/components (100+ mark ids)"),
-      limit: external_exports.coerce.number().optional().describe("Max rows for list/table projections")
+      limit: external_exports.coerce.number().optional().describe("Max rows for list/table projections"),
+      full: external_exports.coerce.boolean().optional().default(false).describe("JEV bypass: force a full unscoped read even when JEV enforce is on (logged). Prefer jev_index/read_section.")
     },
     endpoint: "/observe",
     payload: (args) => ({
@@ -37853,7 +37854,8 @@ ${lines.join("\n")}`;
       cursor: args?.cursor,
       include_offscreen: args?.include_offscreen === true,
       include_frames: args?.include_frames === true,
-      limit: args?.limit
+      limit: args?.limit,
+      full: args?.full === true
     }),
     format: (data) => {
       const chars = data.text ? data.text.length : 0;
@@ -38952,11 +38954,18 @@ async function loadToolPreferences() {
         if (Object.keys(actions).length) actionInstructions[toolName] = actions;
       }
     }
-    const value = { order, disabled, instructions, actionInstructions, jevAvailable: data?.jev?.available === true };
+    const value = {
+      order,
+      disabled,
+      instructions,
+      actionInstructions,
+      jevAvailable: data?.jev?.available === true,
+      jevMode: data?.jev?.mode === "enforce" ? "enforce" : "prefer"
+    };
     cachedToolPreferences = { value, at: Date.now() };
     return value;
   } catch {
-    return { order: [], disabled: [], instructions: {}, actionInstructions: {}, jevAvailable: false };
+    return { order: [], disabled: [], instructions: {}, actionInstructions: {}, jevAvailable: false, jevMode: "prefer" };
   }
 }
 async function callBridge(endpoint, method = "GET", body = null) {
@@ -39175,6 +39184,7 @@ async function createBridgeMcpServer() {
   const disabledTools = new Set(toolPreferences.disabled);
   const JEV_TOOL_NAMES = ["jev_index", "read_section", "search_page"];
   const jevActive = decisionConfigured && toolPreferences.jevAvailable;
+  const jevEnforced = jevActive && toolPreferences.jevMode === "enforce";
   const lead = [...decisionConfigured ? ["drive", "decide"] : [], ...jevActive ? JEV_TOOL_NAMES : []];
   const surfaceOrder = [...lead, ...DEFAULT_TOOL_ORDER.filter((name) => !lead.includes(name))];
   const baseTools = lead.length ? [
@@ -39201,11 +39211,11 @@ async function createBridgeMcpServer() {
     let details = toolPreferences.instructions[tool.name] || tool.description;
     if (jevActive) {
       if (tool.name === "jev_index") {
-        details = `PREFERRED READING PATH \u2014 call this first for the active page. ${details}`;
+        details = `${jevEnforced ? "MANDATORY READING PATH (JEV ENFORCED)" : "PREFERRED READING PATH"} \u2014 call this first for the active page. ${details}`;
       } else if (tool.name === "observe") {
-        details += ' JEV ACTIVE: for page CONTENT prefer jev_index then read_section (a small index plus one section replaces a 10k+ token dump). Use as:"markdown" when you must act on [#ID] marks, or when the page is small.';
+        details += jevEnforced ? ' JEV ENFORCED: unscoped markdown/text reads are REFUSED with code JEV_REQUIRED. Read with jev_index then read_section. as:"markdown" still works when scoped (region) or bounded (budget > 0, cursor), and full:true is the logged bypass.' : ' JEV ACTIVE: for page CONTENT prefer jev_index then read_section (a small index plus one section replaces a 10k+ token dump). Use as:"markdown" when you must act on [#ID] marks, or when the page is small.';
       } else if (tool.name === "decide") {
-        details += " JEV ACTIVE: read page content via jev_index then read_section before deciding.";
+        details += jevEnforced ? " JEV ENFORCED: unscoped page dumps are refused; read content via jev_index then read_section." : " JEV ACTIVE: read page content via jev_index then read_section before deciding.";
       }
     }
     const prefix = tool.hidden ? `[DEPRECATED \u2192 use "${tool.deprecatedInFavorOf || "the canonical tool"}"] ` : tier ? `[${TIER_LABELS[tier]}] ` : "";
@@ -39231,7 +39241,7 @@ async function createBridgeMcpServer() {
     * TIER 3 (Use deliberately): evaluate_javascript() -> arbitrary page JS that can read AND mutate. A powerful tool for what the primitives cannot express \u2014 prefer observe/extract for reads and act for clicks/typing, since heavy injected JS is a bot-detection signal (untrusted events).
   - Start non-trivial sessions with bridge_health() to read capabilities[], revision and input.transport.
   - QUICK DECISION ORDER (5 common jobs): read a page -> ${jevActive ? "jev_index -> read_section(section_id)" : 'observe(as:"markdown")'}; find an element -> find(); act -> act(mark_id | selector | x,y, action); wait -> wait_for(conditions[]); harvest a lazy list -> collect_all(). Full detail: mark-eleven://tools/recommended.
-  - JEV-FIRST READING${jevActive ? " (ACTIVE)" : " (inactive)"}: ${jevActive ? 'the active page is read as an index first (jev_index), then per section (read_section). Whole-page observe(as:"markdown") is the exception for acting on marks or short pages; do not use it as the default read. The depth store is per-page and in-memory, so re-run jev_index after navigation.' : "not available. It appears (and becomes the preferred read path) once Settings \u2192 Decision Model has a configured model AND the JEV toggle is on."}
+  - JEV-FIRST READING${jevActive ? jevEnforced ? " (ENFORCED)" : " (ACTIVE)" : " (inactive)"}: ${jevActive ? jevEnforced ? 'unscoped observe(as:"markdown"|"text") is REFUSED with code JEV_REQUIRED \u2014 call jev_index, then read_section(section_id). Scoped reads (region) and bounded reads (budget > 0, cursor) still work; full:true is the logged bypass. The depth store is per-page and in-memory, so re-run jev_index after navigation.' : 'the active page is read as an index first (jev_index), then per section (read_section). Whole-page observe(as:"markdown") is the exception for acting on marks or short pages; do not use it as the default read. The depth store is per-page and in-memory, so re-run jev_index after navigation.' : "not available. It appears (and becomes the preferred read path) once Settings \u2192 Decision Model has a configured model AND the JEV toggle is on. ENFORCE additionally refuses unscoped page dumps."}
   - DECISION-FIRST NAVIGATION (when a decision model is configured \u2014 see tools/list for decide/drive):
     * USE IT WHEN THE CHOICE IS GENUINELY AMBIGUOUS: two or more visible controls could plausibly be the right one (sort tabs, filter chips, date cells, result rows), the page is unfamiliar, or you need a judgement ("is this goal already met?"). Then: observe(as:"components") -> decide(...) -> act(mark_id) -> verify.
     * DO NOT USE IT WHEN THE ANSWER IS DETERMINISTIC: a known URL, a known form field, a stable selector, a control find(role,name) already identifies, or a step you are about to repeat mechanically. decide costs ~0.5s and a paid model call and is not reproducible; find/act/navigate are faster and exact. Rule of thumb: if exactly one control matches, do not ask.
