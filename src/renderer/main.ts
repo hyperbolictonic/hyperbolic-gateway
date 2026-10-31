@@ -312,9 +312,12 @@ document.getElementById('collab-pick-btn')?.addEventListener('click', () => void
 document.getElementById('collab-exit-btn')?.addEventListener('click', () => window.electronAPI?.setCollabMode(false));
 let collabModeOn = false;
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && collabModeOn) {
-    window.electronAPI?.setCollabMode(false);
-  }
+  if (event.key !== 'Escape') return;
+  if (document.activeElement instanceof HTMLInputElement) return;
+  if (document.activeElement instanceof HTMLTextAreaElement) return;
+  // Deck focus owns Escape while the note picker/toolbar is in play.
+  if (collabModeOn) window.electronAPI?.setCollabMode(false);
+  else window.electronAPI?.escapeCollabUi();
 });
 
 window.addEventListener('keydown', (event) => {

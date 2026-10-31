@@ -40,6 +40,7 @@ export interface ElectronAPI {
   setCollabMode: (open: boolean) => void;
   collabNavigate: (delta: number) => void;
   collabToggleList: (anchor?: PopupAnchor) => void;
+  escapeCollabUi: () => void;
   setSidebarOrbEdge: (edge: 'left' | 'right') => void;
   orbitDragMove: (dx: number, dy: number) => void;
   orbitDragEnd: () => void;
@@ -254,6 +255,7 @@ const api: ElectronAPI = {
   setCollabMode: (open: boolean) => ipcRenderer.send('chassis:set-collab-mode', Boolean(open)),
   collabNavigate: (delta: number) => ipcRenderer.send('chassis:collab-navigate', delta),
   collabToggleList: (anchor?: PopupAnchor) => ipcRenderer.send('chassis:collab-toggle-list', anchor),
+  escapeCollabUi: () => ipcRenderer.send('chassis:collab-escape'),
   getSidebarState: () => ipcRenderer.invoke('chassis:get-sidebar-state'),
   getSidebarBounds: () => ipcRenderer.invoke('chassis:get-sidebar-bounds'),
   onSidebarState: (callback) => {

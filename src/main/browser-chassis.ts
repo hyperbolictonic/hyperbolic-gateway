@@ -671,6 +671,29 @@ export class BrowserChassis {
     this.broadcastSidebarSurfaceState();
   }
 
+  /**
+   * Escape from the deck surface: cancels an armed picker, closes the element
+   * toolbar and leaves collab mode. The deck owns keyboard focus right after a
+   * radial-menu click, so page-level Escape handlers alone cannot see the key.
+   */
+  public exitCollabUi(): void {
+    void this.stopCollaborationSelection();
+    if (this.collabMode) {
+      this.setCollabMode(false);
+      return;
+    }
+    try {
+      const wc = this.getActiveWebContents();
+      void wc
+        .executeJavaScript(
+          '(() => { window.__kuangCollabSelectionCancel && window.__kuangCollabSelectionCancel(); window.__hbCollabClearElementBar && window.__hbCollabClearElementBar(); })()',
+        )
+        .catch(() => undefined);
+    } catch {
+      // The active tab may be mid-navigation; nothing is left to clean up.
+    }
+  }
+
   private async enterCollabModeOnPage(): Promise<void> {
     try {
       await this.overlayRefresher?.();
@@ -1229,6 +1252,7 @@ export class BrowserChassis {
 
     // Collab mode: toolbar pill, note cycling, concise list.
     ipcMain.on('chassis:set-collab-mode', (_: any, open: boolean) => this.setCollabMode(Boolean(open)));
+    ipcMain.on('chassis:collab-escape', () => this.exitCollabUi());
     ipcMain.on('chassis:collab-navigate', (_: any, delta: number) => this.collabNavigate(delta));
     ipcMain.on('chassis:collab-toggle-list', (_: any, anchor?: { x: number; y: number; width: number; height: number }) =>
       this.collabToggleList(anchor));

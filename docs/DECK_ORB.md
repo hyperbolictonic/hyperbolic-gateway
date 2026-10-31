@@ -59,8 +59,11 @@ bottom of views clipped (or the chip pushed almost fully offscreen).
 - The radial petal menu is data-driven markup (`#deck-menu`); petals reuse
   the same handlers as the toolbar via trusted event dispatch.
 - Escape dismisses the radial or popup menu, cancels the picker/drawer, or
-  leaves collab mode. Leaving collab mode hides thread highlights and removes
-  the pinned element controls so the page visibly returns to ordinary browsing.
+  leaves collab mode. The deck surface itself handles Escape too, because it
+  owns keyboard focus right after a radial-menu click — otherwise "note" mode
+  (started without entering collab mode) could not be escaped from there.
+  Leaving collab mode hides thread highlights and removes the pinned element
+  controls so the page visibly returns to ordinary browsing.
 
 ## Status
 
