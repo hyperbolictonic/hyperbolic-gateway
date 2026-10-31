@@ -33,5 +33,7 @@ export interface SidebarSurfaceState {
   menuOpen: boolean;
   /** Collab mode: the orb is replaced by the collaborations toolbar (collapsed only). */
   collabMode: boolean;
+  /** Experimental flag: when false, collab entry points are hidden and inert. */
+  collabEnabled: boolean;
   orbEdge: 'left' | 'right';
 }
