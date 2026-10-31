@@ -1199,6 +1199,7 @@ export function collaborationOverlayScript(
     }
     const threads = ${JSON.stringify(payload)};
     const RIGHT_INSET = ${JSON.stringify(rightInset)};
+    const RESOLVE_PREFIX = ${JSON.stringify(COLLABORATION_RESOLVE_PREFIX)};
     const layer = document.createElement('div');
     layer.id = layerId;
     layer.setAttribute('style', 'position:absolute;inset:0;z-index:2147483646;pointer-events:none;');
@@ -1212,6 +1213,26 @@ export function collaborationOverlayScript(
         node.classList.remove('hb-focus-ring', 'hb-flash');
       });
       window.__hbCollabFocusId = null;
+    };
+    window.__hbCollabToast = function (text) {
+      const prior = document.getElementById('__kuang_collab_toast');
+      if (prior) prior.remove();
+      const toast = document.createElement('div');
+      toast.id = '__kuang_collab_toast';
+      toast.textContent = text;
+      Object.assign(toast.style, {
+        position: 'fixed', left: '50%', bottom: '88px', transform: 'translateX(-50%)',
+        zIndex: '2147483647', padding: '7px 14px', borderRadius: '999px',
+        border: '1px solid rgba(34,197,94,0.55)', background: 'rgba(22,101,52,0.92)',
+        color: '#bbf7d0', font: '600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        letterSpacing: '0.05em', boxShadow: '0 10px 26px rgba(0,0,0,0.45)',
+        pointerEvents: 'none',
+      });
+      document.body.appendChild(toast);
+      setTimeout(function () {
+        toast.style.opacity = '0';
+        setTimeout(function () { toast.remove(); }, 220);
+      }, 1600);
     };
     window.__hbCollabEnterMode = function () {
       window.__hbCollabMode = true;

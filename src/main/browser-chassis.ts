@@ -798,7 +798,10 @@ export class BrowserChassis {
 
   /** Resolve from the in-page annotation card, then remove its highlight and advance. */
   private async resolveCollaborationNote(threadId: string): Promise<void> {
-    if (!this.collaborationResolver) return;
+    if (!this.collaborationResolver) {
+      this.addLog('warn', 'Collaboration resolve action is unavailable.');
+      return;
+    }
     const before = this.collabThreads();
     const resolvedIndex = before.findIndex((thread) => thread.id === threadId);
     try {
@@ -806,12 +809,25 @@ export class BrowserChassis {
       await this.overlayRefresher?.();
     } catch (error: any) {
       this.addLog('warn', `Could not resolve collaboration note: ${error?.message || error}`);
+      this.collabToast('Resolve failed — check the gateway.');
       return;
     }
     const remaining = this.collabThreads();
     this.collabFocusIndex = Math.min(resolvedIndex - 1, remaining.length - 1);
     if (this.collabMode && remaining.length) this.collabNavigate(1);
     else if (!remaining.length) this.collabFocusIndex = -1;
+    this.collabToast('Note resolved');
+  }
+
+  private collabToast(message: string): void {
+    try {
+      const wc = this.getActiveWebContents();
+      void wc
+        .executeJavaScript(`window.__hbCollabToast && window.__hbCollabToast(${JSON.stringify(message)})`)
+        .catch(() => undefined);
+    } catch {
+      // The page may be mid-navigation; the resolve itself already persisted.
+    }
   }
 
   /** Called by index.ts once the collaboration service exists. */

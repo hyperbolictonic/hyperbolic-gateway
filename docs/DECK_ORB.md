@@ -123,8 +123,10 @@ consumes every other human signal, so "human meaning" is machine-visible
 without clunky panel forms.
 
 Each annotation card also has its own **✓ Resolve** control, visible only in
-collab mode. Resolving removes the note from the active list and its page
-highlight; Resolve is not a separate floating-menu action.
+collab mode. Resolving marks the thread resolved in the shared store (the agent
+sees the status the next time it reads threads) and immediately removes the
+note from the page overlay and active list, with a short "Note resolved" toast.
+No agent round-trip is required.
 
 ## WEB STATE tab
 
