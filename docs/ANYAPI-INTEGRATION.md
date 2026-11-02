@@ -1,8 +1,10 @@
 # anyapi-to-mcp integration
 
-Status: **dependency only.** `anyapi-to-mcp` is installed and pinned; no runtime
-path uses it yet, and `npx tsc --noEmit` plus `npm run test:mcp:contract` are
-green with it present.
+Status: **stage 1, read-only adapters.** `anyapi-to-mcp` is installed from the
+registry. Wrapper projection (`src/main/wrap/anyapi/maps.ts`) and the secret
+adapter (`src/main/wrap/anyapi/secrets.ts`) exist behind unit tests; no runtime
+path uses them yet, and `npx tsc --noEmit`, `npm run test:anyapi` and
+`npm run test:mcp:contract` are green.
 
 ## Goal
 
@@ -38,10 +40,13 @@ UI and JEV are out of scope.
 
 - **Maps**: point `loadLocation` at `<userData>/wrap/wrappers`. Legacy wrappers
   project through the package; an invalid file is skipped, as today.
+  Implemented in `src/main/wrap/anyapi/maps.ts` (read-only, adds no side effects).
 - **Secrets**: implement `get(name, host)` over `SecretStore.resolve(name, host)`
   and build the package's binding table from each record's metadata. Only an
-  exact single host is representable today; wildcard `allowedHosts` entries must
-  be refused (clear error) until bindings support them, never widened silently.
+  exact single host is representable today; wildcard `allowedHosts` entries are
+  refused with a reason, never widened silently. Implemented in
+  `src/main/wrap/anyapi/secrets.ts`; the provider repeats the binding's host
+  check before asking the store to decrypt.
 - **Result mapping**: the package returns its own envelope and handles. The
   wrapper surface needs `WrapRunResult`, so the adapter renders the recipe as it
   does today and translates status/error codes. Redaction, cross-origin secret
@@ -49,6 +54,7 @@ UI and JEV are out of scope.
 - **Stays on the old core** until the package covers it: `bodyFormat: form|text`,
   wrappers that accept several methods, OAuth2 token minting, and the Cortex
   index hook. Falling back per wrapper is safer than a silent behaviour change.
+  The secret adapter refuses OAuth2 records for the same reason.
 
 ## Rollback
 
@@ -66,7 +72,10 @@ npm run test:wrap:live
 
 ## Open decisions
 
-- Wildcard hosts in secret bindings (core currently allows one exact host).
+- Wildcard hosts in secret bindings: **refused for now** (exact single host
+  only). Revisit only if a real wrapper needs one, adding dot-boundary wildcard
+  bindings as a recorded decision.
 - Whether the adapter or the core owns the `WrapRunResult` rendering.
-- When the package is published to npm, replace the pinned git dependency with a
-  version range.
+- ~~When the package is published to npm, replace the pinned git dependency with
+  a version range.~~ Done: `anyapi-to-mcp` comes from the registry at an exact
+  version (no caret while alpha).
