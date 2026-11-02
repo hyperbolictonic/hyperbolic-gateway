@@ -95,7 +95,7 @@
     "@lancedb/lancedb": "^0.40.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@mozilla/readability": "^0.6.0",
-    "anyapi-to-mcp": "github:hyperbolictonic/anyapi-to-mcp#b4472c73748e46cbf015c9ec60498a66fb249589",
+    "anyapi-to-mcp": "github:hyperbolictonic/anyapi-to-mcp#287ccad943d183d2bb8eddc1d47ea2dff6e7fd7e",
     "apache-arrow": "^18.1.0",
     "electron-updater": "^6.8.9",
     "jsdom": "^30.1.2",
