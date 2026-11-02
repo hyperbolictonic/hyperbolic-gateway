@@ -1,9 +1,10 @@
 # anyapi-to-mcp integration
 
 Status: **stage 1, read-only adapters.** `anyapi-to-mcp` is installed from the
-registry. Wrapper projection (`src/main/wrap/anyapi/maps.ts`) and the secret
-adapter (`src/main/wrap/anyapi/secrets.ts`) exist behind unit tests; no runtime
-path uses them yet, and `npx tsc --noEmit`, `npm run test:anyapi` and
+registry. Wrapper projection (`src/main/wrap/anyapi/maps.ts`), the secret
+adapter (`src/main/wrap/anyapi/secrets.ts`) and result mapping
+(`src/main/wrap/anyapi/result.ts`) exist behind unit tests; no runtime path
+uses them yet, and `npx tsc --noEmit`, `npm run test:anyapi` and
 `npm run test:mcp:contract` are green.
 
 ## Goal
@@ -50,7 +51,15 @@ UI and JEV are out of scope.
 - **Result mapping**: the package returns its own envelope and handles. The
   wrapper surface needs `WrapRunResult`, so the adapter renders the recipe as it
   does today and translates status/error codes. Redaction, cross-origin secret
-  drop, paging and audit must keep their current guarantees.
+  drop, paging and audit must keep their current guarantees. Implemented in
+  `src/main/wrap/anyapi/result.ts`: rendering stays with the gateway recipe
+  renderer (so the markdown and records are unchanged), the core supplies
+  status/bytes, and core error codes map onto the published wrapper codes.
+  Codes the old executor could not produce are explicit and new:
+  `RESPONSE_TOO_LARGE`, `INVALID_RESPONSE`, `WRITE_DENIED`,
+  `WRITE_NOT_CONFIRMED`, `OUTCOME_UNKNOWN`, `INVALID_CURSOR`. A core dry run
+  exposes header names only, so a preview built from it shows every value as
+  `<redacted>` (stricter than today).
 - **Stays on the old core** until the package covers it: `bodyFormat: form|text`,
   wrappers that accept several methods, OAuth2 token minting, and the Cortex
   index hook. Falling back per wrapper is safer than a silent behaviour change.
