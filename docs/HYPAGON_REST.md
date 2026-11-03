@@ -1,4 +1,4 @@
-# Hyperbolic Rest — design notes
+# Hypagon REST — design notes
 
 **Status:** active development, branch `feat/hb-rest`. Slices 0–5 are
 implemented: the pure recipe library, wrapper store/executor, the `hb-rest`
@@ -13,7 +13,7 @@ approval for mutating calls.
 **Compatibility:** the legacy `kuang-wrap` MCP label and `KUANG_WRAP_*` environment variables
 continue to work. New configurations should use `hb-rest` and `HB_WRAP_*`.
 
-Hyperbolic Rest is a second MCP server that lets an agent turn a REST endpoint into
+Hypagon REST is a second MCP server that lets an agent turn a REST endpoint into
 a saved, typed tool: a wrapper for the request, a recipe for the response, and
 a secret reference for the credential. It is the other half of the browser:
 HTML for humans, JSON for agents.
@@ -46,7 +46,7 @@ API gateway; read it before pointing it at anything that matters.
 
 ### What it does and what it is for
 
-Hyperbolic Rest turns a REST endpoint into a **saved, typed tool**. A wrapper is a deterministic
+Hypagon REST turns a REST endpoint into a **saved, typed tool**. A wrapper is a deterministic
 request template plus a response recipe; a credential is a host-bound secret that main
 attaches at request time. An agent gets flat, validated arguments instead of assembling
 URLs, headers, and JSON bodies, and it never sees a credential value. It is for **agent
@@ -154,7 +154,7 @@ general web scraping (that is the browser) and not for streaming or binary workl
 
 - OAuth2 grants beyond client credentials (authorization-code, device flow, PKCE,
   refresh tokens, per-user tokens, discovery).
-- A standalone daemon that runs without the Hyperbolic Gateway app.
+- A standalone daemon that runs without the Hypagon Gateway app.
 - GraphQL, gRPC, WebSocket subscriptions.
 - Binary downloads (the existing download manager owns that).
 - Arbitrary JavaScript in recipes or request templates.
@@ -731,7 +731,7 @@ separate reusable recipe store is planned.
 
 - **2026-10-23** — Recipe engine is a pure package; monorepo first, standalone
   later. No Electron or MCP imports.
-- **2026-10-23** — Hyperbolic Rest is a second **stdio MCP server**, not a second
+- **2026-10-23** — Hypagon REST is a second **stdio MCP server**, not a second
   HTTP service. It shares the app's bridge and lifecycle.
 - **2026-10-23** — No separate port in v1. Isolation comes from a route
   namespace and an auth token, not a second daemon.

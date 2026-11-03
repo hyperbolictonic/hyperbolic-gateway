@@ -39,7 +39,7 @@ async function waitForMetadata(url, timeoutMs = 8000) {
   throw new Error(`remote OAuth server did not start at ${url}`);
 }
 
-const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperbolic-remote-oauth-'));
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypagon-remote-oauth-'));
 const tokenFile = path.join(tempDir, 'token');
 const clientFile = path.join(tempDir, 'oauth-client.json');
 createRemoteToken(tempDir);

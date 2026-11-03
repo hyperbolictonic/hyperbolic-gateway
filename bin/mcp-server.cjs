@@ -36602,6 +36602,24 @@ function formatMark(m) {
   return `[#${m.id}] <${m.tag}${attrs}> "${m.text || ""}"${extras.length ? ` {${extras.join(", ")}}` : ""}`;
 }
 
+// src/shared/brand.ts
+var BRAND = {
+  /** The desktop product. */
+  product: "Hypagon Gateway",
+  /** Window caption and installer shortcut. `// Cyberdeck` is the in-app harness name. */
+  windowTitle: "Hypagon Gateway // Cyberdeck",
+  /** The browser MCP server and the thing that actually drives Chromium. */
+  browser: "Hypagon Browser",
+  /** The REST wrapper MCP server. */
+  rest: "Hypagon REST",
+  /** Harness name used inside the desktop app (HUD, tray, HAR creator). */
+  deck: "Hypagon Gateway Cyberdeck",
+  /** Stable machine key for `/health` and package metadata. */
+  appKey: "hypagon-gateway",
+  repoOwner: "hyperbolictonic",
+  repoName: "hyperbolic-gateway"
+};
+
 // src/mcp/tools-catalog.ts
 var TOOLS_CATALOG = [
   // 1. Navigation
@@ -37645,17 +37663,17 @@ ${lines.join("\n")}`;
     description: "Dispatches an OS native desktop notification to alert the user without blocking agent execution.",
     parameters: {
       message: external_exports.string().describe("Notification body message"),
-      title: external_exports.string().optional().default("Hyperbolic Gateway").describe("Notification title"),
+      title: external_exports.string().optional().default(BRAND.product).describe("Notification title"),
       urgency: external_exports.enum(["normal", "critical", "low"]).optional().default("normal").describe("Urgency level (default: normal)"),
       sound: external_exports.boolean().optional().default(true).describe("Whether to play notification alert sound (default: true)")
     },
     endpoint: "/notify",
     payload: (args) => {
-      const title = args?.title || "Hyperbolic Gateway";
+      const title = args?.title || BRAND.product;
       const message = args?.message || args?.text || args?.body || "Agent notification";
       return { title, message, urgency: args?.urgency, sound: args?.sound };
     },
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Hyperbolic Gateway", message: args?.message || "Notification sent" })
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || BRAND.product, message: args?.message || "Notification sent" })
   },
   {
     name: "send_desktop_notification",
@@ -37664,17 +37682,17 @@ ${lines.join("\n")}`;
     description: "Deprecated alias for send_notification (same /notify endpoint; defaults urgency=critical). Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).",
     parameters: {
       message: external_exports.string().describe("Specific reason why the user is needed and instructions for what to do in the browser."),
-      title: external_exports.string().optional().default("Hyperbolic Browser: Human Intervention Required").describe("Notification title"),
+      title: external_exports.string().optional().default(`${BRAND.browser}: Human Intervention Required`).describe("Notification title"),
       urgency: external_exports.enum(["low", "normal", "critical"]).optional().default("critical").describe("Urgency level of the notification."),
       sound: external_exports.boolean().optional().default(true).describe("Whether to play notification alert sound (default: true)")
     },
     endpoint: "/notify",
     payload: (args) => {
-      const title = args?.title || "Hyperbolic Browser: Human Intervention Required";
-      const message = args?.message || args?.text || args?.body || "Human intervention required in Hyperbolic Browser";
+      const title = args?.title || `${BRAND.browser}: Human Intervention Required`;
+      const message = args?.message || args?.text || args?.body || `Human intervention required in ${BRAND.browser}`;
       return { title, message, urgency: args?.urgency || "critical", sound: args?.sound ?? true };
     },
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || "Hyperbolic Browser: Human Intervention Required", message: args?.message || "Notification sent" })
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || `${BRAND.browser}: Human Intervention Required`, message: args?.message || "Notification sent" })
   },
   // ---------------------------------------------------------------------------
   // 14. Primitives Layer — one observe / act / wait / extract model.
@@ -38724,7 +38742,7 @@ var CONSOLIDATED_HIDDEN_TOOLS = /* @__PURE__ */ new Set([
 ]);
 
 // src/shared/version.ts
-var APP_VERSION = "1.7.1";
+var APP_VERSION = "2.0.0";
 
 // src/main/decide/decision-client.ts
 var import_node_fs2 = __toESM(require("node:fs"), 1);
@@ -38914,7 +38932,7 @@ function logMcp(message, level = "call") {
     flushLogQueue();
   }
   if (STDERR_MODE === "verbose" || STDERR_MODE === "boot" && level !== "call") {
-    writeStderr(`[Hyperbolic Browser MCP ${timestamp}] ${message}`);
+    writeStderr(`[${BRAND.browser} MCP ${timestamp}] ${message}`);
   }
 }
 var MAX_TEXT_CHARS = 6e4;
@@ -38922,7 +38940,7 @@ function clampText(text) {
   if (typeof text !== "string" || text.length <= MAX_TEXT_CHARS) return text;
   return `${text.slice(0, MAX_TEXT_CHARS)}
 
-... [Hyperbolic Browser MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
+... [Hypagon Browser MCP: response truncated at ${MAX_TEXT_CHARS} chars to protect the agent context. Narrow the query (e.g. query_json_data path/projection) for a smaller result.]`;
 }
 var BRIDGE_TIMEOUT_MS = (() => {
   const raw = Number(process.env.HB_BRIDGE_TIMEOUT_MS ?? process.env.KUANG_BRIDGE_TIMEOUT_MS);
@@ -39124,7 +39142,7 @@ ${text}`;
       content: [
         {
           type: "text",
-          text: `[Hyperbolic Browser MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`
+          text: `[Hypagon Browser MCP Error] ${err?.message || err}. (Ensure Cyberdeck is running at ${BRIDGE_URL})`
         }
       ]
     };
@@ -39158,7 +39176,7 @@ function registerToolGroup(server, group, preferences) {
         } catch (error62) {
           return {
             isError: true,
-            content: [{ type: "text", text: `[Hyperbolic Browser MCP Error] ${error62?.message || error62}` }]
+            content: [{ type: "text", text: `[Hypagon Browser MCP Error] ${error62?.message || error62}` }]
           };
         }
       }
@@ -39350,7 +39368,7 @@ async function createBridgeMcpServer() {
     "okf-manifest",
     "mark-eleven://okf/manifest",
     {
-      description: "Open Knowledge Format (OKF) manifest for the Hyperbolic Browser docs bundle and its available partitions.",
+      description: "Open Knowledge Format (OKF) manifest for the Hypagon Browser docs bundle and its available partitions.",
       mimeType: "application/json"
     },
     async () => {
@@ -39465,7 +39483,7 @@ Rules of thumb:
   );
   server.tool(
     "help",
-    "Returns a categorized guide, cheatsheet, and workflow tips for all available Hyperbolic Browser MCP tools (served directly in OKF).",
+    "Returns a categorized guide, cheatsheet, and workflow tips for all available Hypagon Browser MCP tools (served directly in OKF).",
     {
       category: external_exports.enum([
         "all",
@@ -39761,7 +39779,7 @@ process.on("uncaughtException", (err) => {
   logMcp(`Uncaught exception (server kept alive): ${err?.stack || err}`, "error");
 });
 async function start() {
-  logMcp("Initializing Hyperbolic Browser MCP Server over stdio...", "boot");
+  logMcp("Initializing Hypagon Browser MCP Server over stdio...", "boot");
   const server = await createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -39806,7 +39824,7 @@ async function start() {
   }
 }
 start().catch((err) => {
-  logMcp(`Fatal Hyperbolic Browser MCP Server Error: ${err?.stack || err}`, "error");
+  logMcp(`Fatal Hypagon Browser MCP Server Error: ${err?.stack || err}`, "error");
   flushLogSync();
   process.exit(1);
 });

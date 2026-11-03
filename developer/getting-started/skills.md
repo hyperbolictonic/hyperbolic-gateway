@@ -1,7 +1,7 @@
 ---
 type: Getting Started
 title: Agent skills
-description: Install the Hyperbolic Browser and Hyperbolic Rest skills from GitHub.
+description: Install the Hypagon Browser and Hypagon REST skills from GitHub.
 tags: [skills, hermes, mcp, install]
 status: stable
 ---

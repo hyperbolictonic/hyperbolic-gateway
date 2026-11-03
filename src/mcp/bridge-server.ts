@@ -43,7 +43,7 @@ process.on('uncaughtException', (err: any) => {
 });
 
 async function start() {
-  logMcp('Initializing Hyperbolic Browser MCP Server over stdio...', 'boot');
+  logMcp('Initializing Hypagon Browser MCP Server over stdio...', 'boot');
   const server = await createBridgeMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -90,7 +90,7 @@ async function start() {
 }
 
 start().catch((err) => {
-  logMcp(`Fatal Hyperbolic Browser MCP Server Error: ${err?.stack || err}`, 'error');
+  logMcp(`Fatal Hypagon Browser MCP Server Error: ${err?.stack || err}`, 'error');
   flushLogSync();
   process.exit(1);
 });

@@ -1,9 +1,9 @@
 ---
 name: hb-browser
-description: Operate the Hyperbolic Gateway browser MCP with a small set of grouped tools and proven navigation, inspection, interaction and debugging recipes.
+description: Operate the Hypagon Gateway browser MCP with a small set of grouped tools and proven navigation, inspection, interaction and debugging recipes.
 ---
 
-# Hyperbolic Browser
+# Hypagon Browser
 
 Use this skill when an MCP client has the `hb-browser` server available.
 

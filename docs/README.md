@@ -1,13 +1,13 @@
-# 📚 Hyperbolic Gateway — Documentation
+# 📚 Hypagon Gateway — Documentation
 
-**Hyperbolic Browser + Hyperbolic Rest for your local AI agents.**
+**Hypagon Browser + Hypagon REST for your local AI agents.**
 
 This is the curated documentation set published on GitHub Pages. Internal field notes, plans and
 handoffs are intentionally not published here; links to them go back to the repository.
 
 ## Start
 
-- [Overview](../README.html) — what Hyperbolic Gateway is and how the pieces fit together.
+- [Overview](../README.html) — what Hypagon Gateway is and how the pieces fit together.
 - [Building & packaging](./BUILDING.html) — installers, CI, signing, auto-update and release policy.
 - [Packaging notes](./PACKAGING.html) — distribution-specific notes.
 - [Changelog](../CHANGELOG.html) — every shipped release.
@@ -23,7 +23,7 @@ handoffs are intentionally not published here; links to them go back to the repo
 - [Development logs MCP](../developer/api/devlogs.html) — local-only log access for development.
 - [Wrapper format](../developer/formats/wrapper-format.html) and [recipe format](../developer/formats/recipe-format.html).
 
-## Hyperbolic Browser
+## Hypagon Browser
 
 - [Architecture](./CODEBASE.html) — system maps, call paths and subsystem findings.
 - [Control layer](./CONTROL_LAYER.html) — targeting, consent, human takeover and input pacing.
@@ -35,9 +35,9 @@ handoffs are intentionally not published here; links to them go back to the repo
 - [JEV page compaction](./JEV.html) — the optional surface index that keeps large pages out of context.
 - [Settings layout](./SETTINGS_LAYOUT.html) — the shared panes, field grids and cards used by every settings tab.
 
-## Hyperbolic Rest
+## Hypagon REST
 
-- [Hyperbolic Rest man page](./HYPERBOLIC_REST.html) — wrappers, recipes, credentials, pagination and the MCP surface.
+- [Hypagon REST man page](./HYPAGON_REST.html) — wrappers, recipes, credentials, pagination and the MCP surface.
 - [Legacy Kuang Wrap link](./KUANG_WRAP.html) — compatibility stub for existing links.
 
 ## Reference

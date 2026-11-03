@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.hyperbolictonic.kuang-grade-mark-eleven",
-  "productName": "Hyperbolic Gateway",
+  "productName": "Hypagon Gateway",
   "copyright": "Copyright © 2026 HyperbolicTonic",
   "publish": [
     {
@@ -52,14 +52,14 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/assets/brand/hyperbolic-gateway-primary.png"
+    "icon": "public/assets/brand/hypagon-gateway-primary.png"
   },
   "nsis": {
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Hyperbolic Gateway // Cyberdeck",
+    "shortcutName": "Hypagon Gateway // Cyberdeck",
     "include": "scripts/nsis-rebrand.nsh"
   },
   "portable": {
@@ -76,7 +76,7 @@
         "arch": ["arm64"]
       }
     ],
-    "icon": "public/assets/brand/hyperbolic-gateway-primary.png",
+    "icon": "public/assets/brand/hypagon-gateway-primary.png",
     "category": "public.app-category.developer-tools"
   },
   "linux": {
@@ -94,7 +94,7 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/assets/brand/hyperbolic-gateway-primary.png",
+    "icon": "public/assets/brand/hypagon-gateway-primary.png",
     "category": "Development"
   }
 }

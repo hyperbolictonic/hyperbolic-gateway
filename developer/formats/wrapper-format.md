@@ -1,7 +1,7 @@
 ---
 type: Schema Reference
 title: Wrapper format
-description: The saved request, typed input schema, credential reference, and validation rules used by Hyperbolic Rest.
+description: The saved request, typed input schema, credential reference, and validation rules used by Hypagon REST.
 tags: [format, wrapper, rest, schema]
 status: stable
 ---
@@ -151,4 +151,4 @@ capped by `HB_WRAP_MAX_TOOLS` (default 40); the rest remain callable through
   not enforcement.
 
 See [Recipe format](recipe-format.md) and
-[Hyperbolic Rest man page](../../docs/HYPERBOLIC_REST.md).
+[Hypagon REST man page](../../docs/HYPAGON_REST.md).

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { BrowserChassis } from './browser-chassis.js';
 import { APP_VERSION } from '../shared/version.js';
+import { BRAND } from '../shared/brand.js';
 import { shadowWalkStatus } from './shadow-walk/settings.js';
 import { dataPath } from './data-paths.js';
 import { runDecision, decisionStatus } from './decide/decision-client.js';
@@ -155,7 +156,7 @@ export function startHttpBridge(
         const info = chassis.getPageInfo();
         sendJson({
           status: 'ok',
-          app: 'hyperbolic-gateway',
+          app: BRAND.appKey,
           version: APP_VERSION,
           revision: chassis.getRevision(),
           capabilities: chassis.getCapabilities(),
@@ -1576,10 +1577,10 @@ export function startHttpBridge(
         return;
       }
 
-      // ---- Hyperbolic Rest ------------------------------------------------------------------
+      // ---- Hypagon REST ------------------------------------------------------------------
       if (pathname.startsWith('/wrap/')) {
         if (!wrap) {
-          sendJson({ success: false, error: 'Hyperbolic Rest is not initialised.', code: 'WRAP_UNAVAILABLE' }, 503);
+          sendJson({ success: false, error: 'Hypagon REST is not initialised.', code: 'WRAP_UNAVAILABLE' }, 503);
           return;
         }
 
@@ -1802,7 +1803,7 @@ export function startHttpBridge(
   });
 
   server.listen(port, '127.0.0.1', () => {
-    logBridge(`\n======================================================\n 🚀 HYPERBOLIC GATEWAY // CYBERDECK HTTP BRIDGE\n Active at: http://127.0.0.1:${port}\n Live directive logging enabled.\n======================================================\n`);
+    logBridge(`\n======================================================\n 🚀 HYPAGON GATEWAY // CYBERDECK HTTP BRIDGE\n Active at: http://127.0.0.1:${port}\n Live directive logging enabled.\n======================================================\n`);
     chassis.addLog('info', `Autonomous Bridge active at http://127.0.0.1:${port}`);
   });
 

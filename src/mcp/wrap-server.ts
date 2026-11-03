@@ -1,5 +1,5 @@
 /**
- * Hyperbolic Rest — a second stdio MCP server for saved REST wrappers.
+ * Hypagon REST — a second stdio MCP server for saved REST wrappers.
  *
  * It is deliberately stateless: every tool call becomes one HTTP request to the
  * Cyberdeck bridge, which owns the wrapper store and the outbound policy. That
@@ -114,7 +114,7 @@ function logWrap(message: string, level: 'boot' | 'call' | 'error' = 'call'): vo
     });
   }
   if (STDERR_MODE === 'boot' && level !== 'call') {
-    writeStderr(`[Hyperbolic Rest ${timestamp}] ${message}`);
+    writeStderr(`[Hypagon REST ${timestamp}] ${message}`);
   }
 }
 
@@ -153,7 +153,7 @@ process.on('uncaughtException', (err: any) => {
 const MAX_TEXT_CHARS = 60_000;
 function clampText(text: string): string {
   if (typeof text !== 'string' || text.length <= MAX_TEXT_CHARS) return text;
-  return `${text.slice(0, MAX_TEXT_CHARS)}\n\n... [Hyperbolic Rest: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
+  return `${text.slice(0, MAX_TEXT_CHARS)}\n\n... [Hypagon REST: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
 }
 
 interface BridgeResponse {
@@ -197,8 +197,8 @@ async function callBridge(endpoint: string, method: 'GET' | 'POST' = 'GET', body
   if (response.status === 401) {
     throw new Error(
       token
-        ? 'The Cyberdeck rejected the Hyperbolic Rest bridge token. An app restart rotates it; restart the MCP client or update HB_WRAP_TOKEN_FILE.'
-        : 'Hyperbolic Rest needs a bridge token. Add HB_WRAP_TOKEN_FILE to this server’s config (Settings → MCP Clients → REST wrappers).',
+        ? 'The Cyberdeck rejected the Hypagon REST bridge token. An app restart rotates it; restart the MCP client or update HB_WRAP_TOKEN_FILE.'
+        : 'Hypagon REST needs a bridge token. Add HB_WRAP_TOKEN_FILE to this server’s config (Settings → MCP Clients → REST wrappers).',
     );
   }
 
@@ -378,7 +378,7 @@ function toolError(text: string) {
 
 function bridgeFailure(err: any) {
   logWrap(`Bridge error: ${err?.message || err}`, 'error');
-  return toolError(`[Hyperbolic Rest] ${err?.message || err}`);
+  return toolError(`[Hypagon REST] ${err?.message || err}`);
 }
 
 export async function createWrapMcpServer() {
@@ -708,7 +708,7 @@ export async function createWrapMcpServer() {
 }
 
 async function start() {
-  logWrap('Initializing Hyperbolic Rest MCP Server over stdio...', 'boot');
+  logWrap('Initializing Hypagon REST MCP Server over stdio...', 'boot');
   const server = await createWrapMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -716,6 +716,6 @@ async function start() {
 }
 
 start().catch((err) => {
-  logWrap(`Fatal Hyperbolic Rest MCP Server Error: ${err?.stack || err}`, 'error');
+  logWrap(`Fatal Hypagon REST MCP Server Error: ${err?.stack || err}`, 'error');
   process.exit(1);
 });

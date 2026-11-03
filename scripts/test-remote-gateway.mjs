@@ -39,7 +39,7 @@ async function waitForUnauthorized(url, timeoutMs = 8000) {
   throw new Error(`remote gateway did not become ready at ${url}`);
 }
 
-const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperbolic-remote-'));
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypagon-remote-'));
 const tokenFile = path.join(tempDir, 'token');
 const logFile = path.join(tempDir, 'remote.log');
 const token = createRemoteToken(tempDir);

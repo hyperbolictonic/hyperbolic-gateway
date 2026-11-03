@@ -1,6 +1,6 @@
 # Codebase Lowdown
 
-**Hyperbolic Gateway — architecture, structure and findings**
+**Hypagon Gateway — architecture, structure and findings**
 Version 1.4.5 · 22 October 2026
 
 This document explains what the code does, how the parts connect, and what to fix next. It uses short
@@ -11,7 +11,7 @@ sentences and simple terms. It is a map, not a tutorial. For install and build s
 
 ## 1. What this program does
 
-Hyperbolic Gateway is a desktop application. It runs a real Chromium browser on the local machine.
+Hypagon Gateway is a desktop application. It runs a real Chromium browser on the local machine.
 An AI agent controls that browser through the Model Context Protocol (MCP).
 
 The agent does not use a remote browser. It does not use a headless browser. The browser is visible, and
@@ -317,7 +317,7 @@ Rules for this workflow:
   next action depends on new content.
 - `act` returns evidence. Read `ok`, `delta` and `target` before you continue.
 - Use `find` or a mark ID when the DOM is complex. Do not guess generated class names.
-- If the site shows a CAPTCHA or an age gate, stop. Call `request_human_intervention`, or let Hyperbolic Gateway raise
+- If the site shows a CAPTCHA or an age gate, stop. Call `request_human_intervention`, or let Hypagon Gateway raise
   the hand-off. Do not retry the form.
 - Use `evaluate_javascript` only when the primitives cannot express the read or the action.
 

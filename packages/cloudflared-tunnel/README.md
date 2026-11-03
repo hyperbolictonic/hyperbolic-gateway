@@ -9,4 +9,4 @@ Reusable Cloudflare **named tunnel** process manager.
 - never logs or returns the token
 
 The public hostname and ingress mapping are configured in Cloudflare. This
-package has no Electron, MCP, or Hyperbolic Gateway imports.
+package has no Electron, MCP, or Hypagon Gateway imports.

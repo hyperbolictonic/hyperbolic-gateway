@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { formatMark } from './format-mark.js';
+import { BRAND } from '../shared/brand.js';
 
 export interface ToolCatalogItem {
   name: string;
@@ -1054,17 +1055,17 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     description: 'Dispatches an OS native desktop notification to alert the user without blocking agent execution.',
     parameters: {
       message: z.string().describe('Notification body message'),
-      title: z.string().optional().default('Hyperbolic Gateway').describe('Notification title'),
+      title: z.string().optional().default(BRAND.product).describe('Notification title'),
       urgency: z.enum(['normal', 'critical', 'low']).optional().default('normal').describe('Urgency level (default: normal)'),
       sound: z.boolean().optional().default(true).describe('Whether to play notification alert sound (default: true)'),
     },
     endpoint: '/notify',
     payload: (args) => {
-      const title = args?.title || 'Hyperbolic Gateway';
+      const title = args?.title || BRAND.product;
       const message = args?.message || args?.text || args?.body || 'Agent notification';
       return { title, message, urgency: args?.urgency, sound: args?.sound };
     },
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Hyperbolic Gateway', message: args?.message || 'Notification sent' }),
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || BRAND.product, message: args?.message || 'Notification sent' }),
   },
   {
     name: 'send_desktop_notification',
@@ -1073,17 +1074,17 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     description: 'Deprecated alias for send_notification (same /notify endpoint; defaults urgency=critical). Triggers a native desktop notification to summon the human operator for Human-in-the-Loop (HIL) assistance (e.g. 2FA code, SMS prompt, CAPTCHA override, or manual login).',
     parameters: {
       message: z.string().describe('Specific reason why the user is needed and instructions for what to do in the browser.'),
-      title: z.string().optional().default('Hyperbolic Browser: Human Intervention Required').describe('Notification title'),
+      title: z.string().optional().default(`${BRAND.browser}: Human Intervention Required`).describe('Notification title'),
       urgency: z.enum(['low', 'normal', 'critical']).optional().default('critical').describe('Urgency level of the notification.'),
       sound: z.boolean().optional().default(true).describe('Whether to play notification alert sound (default: true)'),
     },
     endpoint: '/notify',
     payload: (args) => {
-      const title = args?.title || 'Hyperbolic Browser: Human Intervention Required';
-      const message = args?.message || args?.text || args?.body || 'Human intervention required in Hyperbolic Browser';
+      const title = args?.title || `${BRAND.browser}: Human Intervention Required`;
+      const message = args?.message || args?.text || args?.body || `Human intervention required in ${BRAND.browser}`;
       return { title, message, urgency: args?.urgency || 'critical', sound: args?.sound ?? true };
     },
-    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || 'Hyperbolic Browser: Human Intervention Required', message: args?.message || 'Notification sent' }),
+    format: (data, args) => JSON.stringify({ success: data.sent, title: args?.title || `${BRAND.browser}: Human Intervention Required`, message: args?.message || 'Notification sent' }),
   },
 
   // ---------------------------------------------------------------------------

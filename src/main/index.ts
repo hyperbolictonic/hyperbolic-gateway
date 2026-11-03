@@ -25,6 +25,8 @@ import { ExperimentalSettingsStore } from './settings/experimental.js';
 import { JevSettingsStore } from './settings/jev.js';
 import { decisionStatus } from './decide/decision-client.js';
 import { dataPath } from './data-paths.js';
+import { migrateLegacyUserData } from './migrate-user-data.js';
+import { BRAND } from '../shared/brand.js';
 import { APP_VERSION } from '../shared/version.js';
 import {
   failRecording,
@@ -55,6 +57,17 @@ for (const stream of [process.stdout, process.stderr]) {
     if (err?.code === 'EPIPE' || err?.code === 'ERR_STREAM_DESTROYED' || err?.code === 'ECONNRESET') return;
     // Anything else is unusual but still must not take the browser process down.
   });
+}
+
+// Import a pre-rebrand profile before anything creates an empty userData directory: Electron
+// derives that path from `productName`, so the rename would otherwise start every existing user
+// with no settings, no Cortex database and no stored tokens.
+if (app.isPackaged) {
+  try {
+    migrateLegacyUserData(app.getPath('appData'), app.getName());
+  } catch {
+    // A failed migration must never block startup; a fresh profile is still usable.
+  }
 }
 
 // Ensure single instance lock
@@ -202,11 +215,11 @@ ipcMain.handle('recording:save', (_event, buffer: ArrayBuffer, frames: number) =
 ipcMain.on('recording:ready', () => readyRecording());
 ipcMain.on('recording:failed', (_event, message: string) => failRecording(String(message || 'Recording failed.')));
 
-// Hyperbolic Rest secrets are written only here, from the Settings renderer. No
+// Hypagon REST secrets are written only here, from the Settings renderer. No
 // bridge route or MCP tool can create, read, or bind a credential value.
 ipcMain.handle('wrap:secrets:list', () => {
   if (!activeWrapSecrets) {
-    return { available: false, warning: 'Hyperbolic Rest is not ready yet.', secrets: [] };
+    return { available: false, warning: 'Hypagon REST is not ready yet.', secrets: [] };
   }
   return {
     available: activeWrapSecrets.available(),
@@ -216,12 +229,12 @@ ipcMain.handle('wrap:secrets:list', () => {
 });
 
 ipcMain.handle('wrap:secrets:set', (_event, input: any) => {
-  if (!activeWrapSecrets) return { ok: false, errors: ['Hyperbolic Rest is not ready yet.'] };
+  if (!activeWrapSecrets) return { ok: false, errors: ['Hypagon REST is not ready yet.'] };
   return activeWrapSecrets.set(input || {});
 });
 
 ipcMain.handle('wrap:secrets:delete', (_event, name: string) => {
-  if (!activeWrapSecrets) return { ok: false, errors: ['Hyperbolic Rest is not ready yet.'] };
+  if (!activeWrapSecrets) return { ok: false, errors: ['Hypagon REST is not ready yet.'] };
   const deleted = activeWrapSecrets.delete(String(name || ''));
   return deleted ? { ok: true, errors: [] } : { ok: false, errors: [`No secret named "${name || ''}".`] };
 });
@@ -275,14 +288,14 @@ ipcMain.handle('wrap:wrappers:list', () => {
 });
 
 ipcMain.handle('wrap:wrappers:save', (_event, wrapper: any) => {
-  if (!activeWrapStore) return { ok: false, errors: ['Hyperbolic Rest is not ready yet.'] };
+  if (!activeWrapStore) return { ok: false, errors: ['Hypagon REST is not ready yet.'] };
   const id = typeof wrapper?.id === 'string' ? wrapper.id : '';
   const exists = Boolean(id && activeWrapStore.get(id));
   return exists ? activeWrapStore.update(wrapper) : activeWrapStore.create(wrapper);
 });
 
 ipcMain.handle('wrap:wrappers:delete', (_event, id: string) => {
-  if (!activeWrapStore) return { ok: false, errors: ['Hyperbolic Rest is not ready yet.'] };
+  if (!activeWrapStore) return { ok: false, errors: ['Hypagon REST is not ready yet.'] };
   const wrapperId = String(id || '');
   const deleted = activeWrapStore.delete(wrapperId);
   return deleted ? { ok: true, errors: [] } : { ok: false, errors: [`No wrapper named "${wrapperId}".`] };
@@ -528,7 +541,7 @@ onRecordingStatus((state) => {
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
-    title: 'Hyperbolic Gateway // Cyberdeck',
+    title: BRAND.windowTitle,
     width: 1440,
     height: 900,
     minWidth: 1024,

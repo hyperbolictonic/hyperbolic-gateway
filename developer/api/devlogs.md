@@ -1,14 +1,14 @@
 ---
 type: API Reference
 title: Development logs MCP
-description: Local-only MCP access to allowlisted Hyperbolic Gateway development logs.
+description: Local-only MCP access to allowlisted Hypagon Gateway development logs.
 tags: [api, mcp, devlogs, development, logs]
 status: stable
 ---
 
 # Development logs MCP
 
-`hb-devlogs` is a local stdio MCP server for reading Hyperbolic Gateway log
+`hb-devlogs` is a local stdio MCP server for reading Hypagon Gateway log
 files while developing. It is not part of the remote gateway and must not be
 exposed through a tunnel.
 

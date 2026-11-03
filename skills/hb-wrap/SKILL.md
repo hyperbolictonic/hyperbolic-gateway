@@ -1,9 +1,9 @@
 ---
 name: hb-wrap
-description: Use Hyperbolic Rest wrappers as deterministic, authenticated REST tools without rebuilding URLs or handling credentials.
+description: Use Hypagon REST wrappers as deterministic, authenticated REST tools without rebuilding URLs or handling credentials.
 ---
 
-# Hyperbolic Rest
+# Hypagon REST
 
 Use this skill when an MCP client has the `hb-wrap` server available.
 

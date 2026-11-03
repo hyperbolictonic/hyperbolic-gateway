@@ -179,7 +179,7 @@ export class BrowserChassis {
 
   private state: ChassisState = {
     currentUrl: 'about:blank',
-    pageTitle: 'Hyperbolic Browser Offline',
+    pageTitle: 'Hypagon Browser Offline',
     isLoading: false,
     agentStatus: 'IDLE',
     activeAction: 'Standby - Awaiting MCP Uplink',
@@ -1828,7 +1828,7 @@ export class BrowserChassis {
       if (manualPath) {
         this.addLog('action', 'MCP Directive: navigate_to(mark-eleven://manual)');
         await wc.loadFile(manualPath);
-        return 'Loaded Hyperbolic Browser Manual';
+        return 'Loaded Hypagon Browser Manual';
       }
     }
 

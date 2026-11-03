@@ -36600,7 +36600,7 @@ var StdioServerTransport = class {
 };
 
 // src/shared/version.ts
-var APP_VERSION = "1.7.1";
+var APP_VERSION = "2.0.0";
 
 // src/mcp/wrap-tool-schema.ts
 function wrapInputToZodShape(schema) {
@@ -36768,7 +36768,7 @@ function logWrap(message, level = "call") {
     });
   }
   if (STDERR_MODE === "boot" && level !== "call") {
-    writeStderr(`[Hyperbolic Rest ${timestamp}] ${message}`);
+    writeStderr(`[Hypagon REST ${timestamp}] ${message}`);
   }
 }
 var stdoutClosed = false;
@@ -36804,7 +36804,7 @@ function clampText(text) {
   if (typeof text !== "string" || text.length <= MAX_TEXT_CHARS) return text;
   return `${text.slice(0, MAX_TEXT_CHARS)}
 
-... [Hyperbolic Rest: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
+... [Hypagon REST: response truncated at ${MAX_TEXT_CHARS} chars. Use format "json" with a narrower path or a recipe cap.]`;
 }
 async function callBridge(endpoint, method = "GET", body) {
   const token = currentWrapToken();
@@ -36836,7 +36836,7 @@ async function callBridge(endpoint, method = "GET", body) {
   }
   if (response.status === 401) {
     throw new Error(
-      token ? "The Cyberdeck rejected the Hyperbolic Rest bridge token. An app restart rotates it; restart the MCP client or update HB_WRAP_TOKEN_FILE." : "Hyperbolic Rest needs a bridge token. Add HB_WRAP_TOKEN_FILE to this server\u2019s config (Settings \u2192 MCP Clients \u2192 REST wrappers)."
+      token ? "The Cyberdeck rejected the Hypagon REST bridge token. An app restart rotates it; restart the MCP client or update HB_WRAP_TOKEN_FILE." : "Hypagon REST needs a bridge token. Add HB_WRAP_TOKEN_FILE to this server\u2019s config (Settings \u2192 MCP Clients \u2192 REST wrappers)."
     );
   }
   return { ok: response.ok, status: response.status, data };
@@ -36984,7 +36984,7 @@ function toolError(text) {
 }
 function bridgeFailure(err) {
   logWrap(`Bridge error: ${err?.message || err}`, "error");
-  return toolError(`[Hyperbolic Rest] ${err?.message || err}`);
+  return toolError(`[Hypagon REST] ${err?.message || err}`);
 }
 async function createWrapMcpServer() {
   const server = new McpServer({
@@ -37270,14 +37270,14 @@ Pass this as \`response\` to wrap_create (or wrap_update), then wrap_test it aga
   return server;
 }
 async function start() {
-  logWrap("Initializing Hyperbolic Rest MCP Server over stdio...", "boot");
+  logWrap("Initializing Hypagon REST MCP Server over stdio...", "boot");
   const server = await createWrapMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logWrap("Connected to stdio transport. Listening for JSON-RPC messages.", "boot");
 }
 start().catch((err) => {
-  logWrap(`Fatal Hyperbolic Rest MCP Server Error: ${err?.stack || err}`, "error");
+  logWrap(`Fatal Hypagon REST MCP Server Error: ${err?.stack || err}`, "error");
   process.exit(1);
 });
 // Annotate the CommonJS export names for ESM import in node:

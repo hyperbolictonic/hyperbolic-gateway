@@ -150,7 +150,7 @@ process lifecycle lives in
 [`packages/cloudflared-tunnel`](../../../packages/cloudflared-tunnel/README.md),
 and the managed `cloudflared` downloader lives in
 [`packages/cloudflared`](../../../packages/cloudflared/README.md). The
-Hyperbolic Gateway-specific entry points live in `src/mcp/remote-server.ts`
+Hypagon Gateway-specific entry points live in `src/mcp/remote-server.ts`
 and `src/main/remote/service.ts`.
 
 ## Environment
@@ -182,7 +182,7 @@ restarting the gateway. A missing or malformed token produces `401`.
 ```json
 {
   "mcpServers": {
-    "hyperbolic-browser": {
+    "hypagon-browser": {
       "httpUrl": "https://<public-hostname>/mcp/browser",
       "headers": {
         "Authorization": "Bearer <remote-token>"
@@ -222,7 +222,7 @@ the gateway process, so restarting the gateway requires re-authorization.
 
 - Bind is loopback-only.
 - Bearer/OAuth auth runs before session creation or body parsing.
-- The remote bearer token is separate from the Hyperbolic Rest bridge token.
+- The remote bearer token is separate from the Hypagon REST bridge token.
 - The raw bridge and `/wrap/*` are not routed through the gateway.
 - Sessions are capped, idle-expire, and close on shutdown.
 - No SSE GET stream is exposed in this phase.

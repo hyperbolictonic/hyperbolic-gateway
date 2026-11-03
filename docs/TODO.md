@@ -1,4 +1,4 @@
-# 📋 Hyperbolic Gateway — Agent Roadmap & TODO
+# 📋 Hypagon Gateway — Agent Roadmap & TODO
 
 This roadmap outlines upcoming agentic capabilities, prioritized from **least exciting / foundational functional utilities** (cookie negotiation, form batching) to **high-bandwidth cognitive features** (network stream interception, Set-of-Marks visual grounding).
 

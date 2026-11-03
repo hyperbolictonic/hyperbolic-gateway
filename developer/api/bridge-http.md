@@ -75,7 +75,7 @@ Returns the last decision events. `GET /decide` returns the decision backend
 status; `POST /decide` is the direct decision call. It returns `NOT_CONFIGURED`
 when no decision model is set.
 
-## Hyperbolic Rest routes
+## Hypagon REST routes
 
 All wrapper routes require the token. A missing or stale token returns:
 

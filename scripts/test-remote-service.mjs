@@ -19,7 +19,7 @@ function freePort() {
   });
 }
 
-const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperbolic-remote-service-'));
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypagon-remote-service-'));
 const port = await freePort();
 const service = new RemoteService({
   serverPath: path.join(process.cwd(), 'bin', 'remote-server.cjs'),

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **Hyperbolic Gateway** are documented here.
+All notable changes to **Hypagon Gateway** are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -15,6 +15,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > stay **three-part**, because npm and electron-builder require valid semver; a release tagged `v1.4.2.1`
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
+
+## [2.0.0] - 2026-11-03
+
+The **rebrand** release. The project is now **Hypagon Gateway**, with **Hypagon Browser**
+(`hb-browser`) and **Hypagon REST** (`hb-rest`) as its two MCP surfaces. The name no longer
+collides with Hyperbolic.Ai.
+
+### Changed
+
+- Product, UI, notification, installer and documentation branding now use **Hypagon Gateway**,
+  **Hypagon Browser**, and **Hypagon REST**.
+- Brand strings live in one module (`src/shared/brand.ts`), so the next rename is a single-file
+  change instead of a repository sweep.
+- `package.json#name` is `hypagon-gateway`; `APP_VERSION` and the package version are `2.0.0`.
+
+### Compatibility
+
+- **Your data moves with you.** Electron derives `userData` from the product name, so
+  `src/main/migrate-user-data.ts` imports `Hyperbolic Gateway` (and older `Kuang Grade Mark
+  Eleven`) profiles on first launch. The copy is additive and never overwrites an existing
+  install.
+- **Environment variables are unchanged.** `HB_*` remains the canonical prefix, with the
+  `KUANG_*` fallbacks still honoured. Nothing to update in MCP client configs.
+- **Server labels and skill IDs are unchanged** — `hb-browser` / `hb-rest` remain the MCP server
+  names, and `hb-browser` / `hb-wrap` keep their skill directories.
+- **`appId` is unchanged** (`com.hyperbolictonic.kuang-grade-mark-eleven`) so an in-place
+  upgrade still replaces the previous install instead of installing alongside it.
+- **Repository coordinates are unchanged** for now: the updater feed, skill install URLs and
+  changelog links still point at the current GitHub repository.
+- The installer removes the pre-rename `Hyperbolic Gateway` shortcuts.
 
 ## [1.7.1] - 2026-10-31
 

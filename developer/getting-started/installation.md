@@ -1,6 +1,6 @@
 ---
 type: Guide
-title: Install and run Hyperbolic Gateway
+title: Install and run Hypagon Gateway
 description: Launch the desktop app, build from source, and verify the local bridge before connecting an MCP client.
 tags: [getting-started, install, bridge]
 status: stable
@@ -8,7 +8,7 @@ status: stable
 
 # Install and run
 
-Hyperbolic Gateway is a desktop Electron app. The app owns the visible
+Hypagon Gateway is a desktop Electron app. The app owns the visible
 Chromium browser and the local HTTP bridge. MCP servers are started by your
 agent client, not by the app, and they forward tool calls to that bridge.
 
@@ -76,7 +76,7 @@ Installed builds copy the MCP binaries into `<userData>/bin/` and refresh them
 on update. Portable and AppImage builds must not be pointed at a temporary
 `resources/` path, so use the copied binaries in `userData`.
 
-Hyperbolic Rest stores its state under `<userData>/wrap/`:
+Hypagon REST stores its state under `<userData>/wrap/`:
 
 ```text
 <userData>/wrap/wrappers/<id>.json

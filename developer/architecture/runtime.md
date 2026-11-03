@@ -8,7 +8,7 @@ status: stable
 
 # Runtime architecture
 
-Hyperbolic Gateway has one desktop process that owns the browser and two
+Hypagon Gateway has one desktop process that owns the browser and two
 optional stdio server processes that expose it to agent clients.
 
 ```text

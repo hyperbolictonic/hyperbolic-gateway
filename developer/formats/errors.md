@@ -71,7 +71,7 @@ implementation. Always show the message and the failing tool name.
 | Code | Meaning | Recovery |
 | --- | --- | --- |
 | `UNAUTHORIZED` | The `/wrap/*` token is missing or stale. | Check `HB_WRAP_TOKEN_FILE`; restart the app/client if the token rotated. |
-| `WRAP_UNAVAILABLE` | Hyperbolic Rest is not initialised. | Start the app build that includes wrappers. |
+| `WRAP_UNAVAILABLE` | Hypagon REST is not initialised. | Start the app build that includes wrappers. |
 | `BAD_REQUEST` | A bridge route received invalid input. | Fix the JSON body or query. |
 | `NOT_FOUND` | Unknown route or wrapper endpoint. | Check the path and HTTP method. |
 | `RECORDING_TOOLS_DISABLED` | Recording is disabled by the human switch. | Enable recording in Settings or stop calling the tools. |

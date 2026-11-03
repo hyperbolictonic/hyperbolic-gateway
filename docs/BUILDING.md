@@ -201,7 +201,7 @@ The borrowed Developer ID is not available yet, so macOS starts unsigned (`mac.i
 `CSC_IDENTITY_AUTO_DISCOVERY: false`). Consequences, which must be stated wherever the DMG is offered:
 
 - **Gatekeeper blocks the first launch.** The user has to right-click → **Open**, or run
-  `xattr -dr com.apple.quarantine "/Applications/Hyperbolic Gateway.app"`. Ship that line in the release
+  `xattr -dr com.apple.quarantine "/Applications/Hypagon Gateway.app"`. Ship that line in the release
   notes next to the DMG; it is not optional polish, it is the difference between "works" and "is malware".
 - **No notarisation**, so no hardened-runtime/entitlements work yet — it can wait for the cert.
 - **macOS auto-update stays off** until the app is signed, because Squirrel.Mac will not install an update onto

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hyperbolic Gateway</title>
+    <title>Hypagon Gateway</title>
     <link rel="stylesheet" href="./src/renderer/index.css" />
     <script>
       if (new URLSearchParams(location.search).has('sidebar')) {
@@ -21,8 +21,8 @@
       <!-- Deck Branding & Status -->
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 font-mono font-bold tracking-wider text-base-content">
-          <img src="/assets/brand/hyperbolic-gateway-primary.png" class="w-6 h-6 object-contain drop-shadow" alt="Hyperbolic Gateway Logo" />
-          <span class="text-sm tracking-widest uppercase">HYPERBOLIC GATEWAY</span>
+          <img src="/assets/brand/hypagon-gateway-primary.png" class="w-6 h-6 object-contain drop-shadow" alt="Hypagon Gateway Logo" />
+          <span class="text-sm tracking-widest uppercase">HYPAGON GATEWAY</span>
         </div>
         <div id="chassis-version" class="badge badge-neutral text-xs font-mono">CHASSIS</div>
         <button id="update-badge" type="button" class="badge badge-info badge-sm font-mono hidden" aria-live="polite"></button>
@@ -419,7 +419,7 @@
         <div>
           <h3 class="font-mono text-sm font-bold text-primary">DECISION MODEL</h3>
           <p class="text-xs text-base-content/60 mt-1">
-            Optional. Hyperbolic Gateway works without it - the <code class="font-mono">decide</code> tool only appears
+            Optional. Hypagon Gateway works without it - the <code class="font-mono">decide</code> tool only appears
             when a backend is configured. Saved to <code class="font-mono">data/decision.json</code>.
           </p>
         </div>
@@ -854,9 +854,9 @@
         </form>
       </section>
 
-      <!-- Hyperbolic Rest: wrappers + credentials -->
+      <!-- Hypagon REST: wrappers + credentials -->
       <section data-settings-panel="wrappers" class="hidden settings-pane-wide">
-        <h3 class="font-mono text-sm font-bold text-primary">HYPERBOLIC REST</h3>
+        <h3 class="font-mono text-sm font-bold text-primary">HYPAGON REST</h3>
         <p class="text-xs text-base-content/60 mt-1">
           Browse and edit saved REST wrappers, and manage the host-bound credentials they reference. Wrapper
           files never contain credential values. Values are encrypted by the OS keychain, stay in the main
@@ -997,8 +997,8 @@
           <fieldset class="fieldset">
             <legend class="fieldset-legend font-mono text-xs">Server</legend>
             <select id="connect-server" class="select select-sm font-mono text-xs">
-              <option value="browser">Hyperbolic Browser (hb-browser)</option>
-              <option value="wrap">Hyperbolic Rest (hb-rest)</option>
+              <option value="browser">Hypagon Browser (hb-browser)</option>
+              <option value="wrap">Hypagon REST (hb-rest)</option>
               <option value="devlogs">Dev Logs (hb-devlogs)</option>
               <option value="legacy-browser">Legacy Browser (kuang)</option>
               <option value="legacy-wrap">Legacy Rest (kuang-wrap)</option>
@@ -1470,7 +1470,7 @@
             <div class="flex items-center gap-2">
               <span class="text-accent text-xl">⚡</span>
               <h3 class="font-mono font-bold text-base tracking-wider uppercase text-base-content">
-                HYPERBOLIC GATEWAY // ARCHIVE
+                HYPAGON GATEWAY // ARCHIVE
               </h3>
             </div>
             <p class="text-xs font-mono text-base-content/60 mt-1">
@@ -1507,12 +1507,12 @@
             </div>
           </div>
 
-          <!-- Card 2: Hyperbolic Browser -->
+          <!-- Card 2: Hypagon Browser -->
           <div class="card bg-base-100 border border-base-200 shadow-sm overflow-hidden flex flex-col hover:border-secondary/40 transition-colors">
             <figure class="p-6 bg-gradient-to-b from-base-200/60 to-base-100 flex items-center justify-center border-b border-base-200">
               <img
                 src="/assets/kuang-grade.png"
-                alt="Hyperbolic Browser Logo"
+                alt="Hypagon Browser Logo"
                 class="w-32 h-32 object-contain drop-shadow-[0_0_16px_rgba(192,132,252,0.45)]"
               />
             </figure>
@@ -1522,7 +1522,7 @@
                   <span class="badge badge-secondary badge-xs font-mono">BROWSER</span>
                   <span class="badge badge-neutral badge-xs font-mono">HUMANLIKE</span>
                 </div>
-                <h4 class="font-mono font-bold text-xs text-base-content">HYPERBOLIC BROWSER</h4>
+                <h4 class="font-mono font-bold text-xs text-base-content">HYPAGON BROWSER</h4>
                 <p class="text-[11px] font-mono text-base-content/70 mt-1 leading-relaxed">
                   Stateful Chromium browser with humanized input, page telemetry, Shadow Walk and agent-facing browser control.
                 </p>
@@ -1530,12 +1530,12 @@
             </div>
           </div>
 
-          <!-- Card 3: Hyperbolic Rest -->
+          <!-- Card 3: Hypagon REST -->
           <div class="card bg-base-100 border border-base-200 shadow-sm overflow-hidden flex flex-col hover:border-accent/40 transition-colors">
             <figure class="p-6 bg-gradient-to-b from-base-200/60 to-base-100 flex items-center justify-center border-b border-base-200">
               <img
-                src="/assets/brand/hyperbolic-gateway-primary.png"
-                alt="Hyperbolic Rest Logo"
+                src="/assets/brand/hypagon-gateway-primary.png"
+                alt="Hypagon REST Logo"
                 class="w-32 h-32 object-contain drop-shadow-[0_0_16px_rgba(45,212,191,0.45)]"
               />
             </figure>
@@ -1545,7 +1545,7 @@
                   <span class="badge badge-accent badge-xs font-mono">REST</span>
                   <span class="badge badge-neutral badge-xs font-mono">TYPED TOOLS</span>
                 </div>
-                <h4 class="font-mono font-bold text-xs text-base-content">HYPERBOLIC REST</h4>
+                <h4 class="font-mono font-bold text-xs text-base-content">HYPAGON REST</h4>
                 <p class="text-[11px] font-mono text-base-content/70 mt-1 leading-relaxed">
                   Saved REST wrappers, typed arguments, response recipes and host-bound credentials for agents.
                 </p>

@@ -8,7 +8,7 @@ status: stable
 
 # Security model
 
-Hyperbolic Gateway is local-first, but local does not mean trusted. This page
+Hypagon Gateway is local-first, but local does not mean trusted. This page
 states what is protected, what is not, and which limits are deliberate.
 
 ## Trust boundaries
@@ -30,7 +30,7 @@ The bridge advertises permissive CORS (`Access-Control-Allow-Origin: *`) for
 local clients. That does not make it safe to expose to a network. Bind and
 firewall it as a loopback-only service.
 
-## Hyperbolic Rest token
+## Hypagon REST token
 
 - A 32-byte random token is generated on each app start.
 - It is written to `<userData>/wrap/token` with owner-only permissions.

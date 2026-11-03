@@ -1,4 +1,4 @@
-# Hyperbolic Gateway skills
+# Hypagon Gateway skills
 
 Installable agent skills for the MCP servers in this repository.
 

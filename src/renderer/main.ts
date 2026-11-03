@@ -1,5 +1,6 @@
 import type { ElectronAPI } from '../preload/index.js';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent } from '../shared/types.js';
+import { BRAND } from '../shared/brand.js';
 import { beginRecording, finishRecording } from './recording';
 import { refreshToolsPanel } from './tools-panel';
 import { bootMenuPopup } from './menu-popup';
@@ -48,7 +49,7 @@ function renderAppVersion(version: string | undefined) {
   if (!version) return;
   if (chassisVersionBadge) chassisVersionBadge.textContent = `v${version}`;
   if (aboutVersion) aboutVersion.textContent = `v${version}`;
-  document.title = `Hyperbolic Gateway v${version}`;
+  document.title = `${BRAND.product} v${version}`;
 }
 
 void window.electronAPI
@@ -1649,7 +1650,7 @@ if (settingsBtn && settingsModal) {
     }
   });
 
-  // Hyperbolic Rest secrets: write-only from this panel.
+  // Hypagon REST secrets: write-only from this panel.
   const wrapWarningEl = document.getElementById('settings-wrap-warning') as HTMLElement;
   const wrapFormEl = document.getElementById('settings-wrap-secret-form') as HTMLFormElement;
   const wrapNameEl = document.getElementById('settings-wrap-name') as HTMLInputElement;
@@ -2872,7 +2873,7 @@ function renderConnect() {
   const notes: string[] = [];
   if (client.note) notes.push(client.note);
   if (isWrapServer(server)) {
-    notes.push('Hyperbolic Rest exposes only `wrap_*` tools; the Cyberdeck must be running so the bridge can reach the wrapper store.');
+    notes.push('Hypagon REST exposes only `wrap_*` tools; the Cyberdeck must be running so the bridge can reach the wrapper store.');
   }
   if (isLegacyServer(server)) {
     notes.push('Legacy alias: existing configs keep working, but new configs should use hb-browser or hb-rest.');

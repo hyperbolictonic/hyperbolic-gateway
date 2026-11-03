@@ -115,7 +115,7 @@ export class RemoteService {
     return JSON.stringify(
       {
         mcpServers: {
-          'hyperbolic-browser': {
+          'hypagon-browser': {
             httpUrl: this.publicUrl(),
             headers: { Authorization: `Bearer ${this.getToken()}` },
           },

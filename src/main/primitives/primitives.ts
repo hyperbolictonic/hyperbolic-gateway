@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron';
 import type { HarvestedConstruct } from '../../shared/types.js';
 import { APP_VERSION } from '../../shared/version.js';
+import { BRAND } from '../../shared/brand.js';
 import type { MarkItem } from '../marks/marks-overlay.js';
 import type { TransitionRecord, FieldFacts, TypingOutcome, TypingChannel } from '../telemetry/action-ledger.js';
 import {
@@ -1814,7 +1815,7 @@ export class Primitives {
     return {
       log: {
         version: '1.2',
-        creator: { name: 'Hyperbolic Gateway Cyberdeck', version: APP_VERSION },
+        creator: { name: BRAND.deck, version: APP_VERSION },
         pages: [{ startedDateTime: new Date().toISOString(), id: 'page_1', title: info.title || '', pageTimings: {} }],
         entries,
       },

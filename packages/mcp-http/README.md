@@ -29,4 +29,4 @@ await host.start();
 ```
 
 This package intentionally has no Electron, Cloudflare, filesystem-token, or
-Hyperbolic Gateway imports. Those belong in the application layer.
+Hypagon Gateway imports. Those belong in the application layer.

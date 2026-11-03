@@ -8,7 +8,7 @@ status: stable
 
 # Connect an MCP client
 
-Hyperbolic Gateway exposes two independent MCP servers:
+Hypagon Gateway exposes two independent MCP servers:
 
 | Server | Binary | Purpose |
 | --- | --- | --- |
@@ -52,7 +52,7 @@ runtime instead, point `command` at the installed application and set
 {
   "mcpServers": {
     "hb-browser": {
-      "command": "<path-to-app>/Hyperbolic Gateway",
+      "command": "<path-to-app>/Hypagon Gateway",
       "args": ["<userData>/bin/mcp-server.cjs"],
       "env": { "ELECTRON_RUN_AS_NODE": "1" }
     }

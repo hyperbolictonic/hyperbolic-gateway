@@ -1,7 +1,7 @@
 ---
 type: Schema Reference
 title: Recipe format
-description: The data-only JSON-to-Markdown projection used by Hyperbolic Rest, including paths, templates, limits, pagination, and indexing.
+description: The data-only JSON-to-Markdown projection used by Hypagon REST, including paths, templates, limits, pagination, and indexing.
 tags: [format, recipe, json, markdown, pagination]
 status: stable
 ---

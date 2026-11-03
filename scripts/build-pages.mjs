@@ -16,7 +16,7 @@ const pageDocs = [
   'docs/CONTROL_LAYER.md',
   'docs/DECISION_MODELS.md',
   'docs/EMBEDDING_PROVIDERS.md',
-  'docs/HYPERBOLIC_REST.md',
+  'docs/HYPAGON_REST.md',
   'docs/JEV.md',
   'docs/KUANG_WRAP.md',
   'docs/PACKAGING.md',
@@ -165,15 +165,15 @@ function layout(page, body) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
-  <title>${page.title.includes('Hyperbolic Gateway') ? page.title : `${page.title} — Hyperbolic Gateway`}</title>
+  <title>${page.title.includes('Hypagon Gateway') ? page.title : `${page.title} — Hypagon Gateway`}</title>
   <link rel="alternate" type="text/markdown" href="${rawHref}" />
   <link rel="stylesheet" href="${prefix}assets/docs.css" />
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="${prefix}index.html">
-      <img src="${prefix}assets/brand/hyperbolic-gateway-primary.png" alt="" />
-      <span>Hyperbolic Gateway</span>
+      <img src="${prefix}assets/brand/hypagon-gateway-primary.png" alt="" />
+      <span>Hypagon Gateway</span>
     </a>
     <nav class="topnav">${nav.map(([label, href]) => `<a href="${href}">${label}</a>`).join('')}</nav>
   </header>

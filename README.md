@@ -1,4 +1,4 @@
-# ⚡ Hyperbolic Gateway
+# ⚡ Hypagon Gateway
 
 ## The Local Web Browser for Your AI Agents
 
@@ -6,7 +6,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.7.1-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-2.0.0-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-16%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -23,7 +23,7 @@
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
 - **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (16 advertised · +2 decision · +3 JEV)](#sec-standardized-semantic-mcp-tools-63-advertised) · [Agent skills](#sec-agent-skills) · [REST wrappers](#sec-rest-wrappers-hb-rest)
 - **Building on it** — [Architecture lowdown](./docs/CODEBASE.md) · [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
-- **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Control layer: targeting, consent, human takeover](./docs/CONTROL_LAYER.md) · [Shadow DOM & iframes: what Hyperbolic Gateway can see and click](./docs/SHADOW_DOM_AND_FRAMES.md) · [Shadow Walk: sealed-content plan](./docs/SHADOW_WALK.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
+- **Optional decision layer** — [`decide` / `drive` design notes](./docs/DECISION_MODELS.md) · [Control layer: targeting, consent, human takeover](./docs/CONTROL_LAYER.md) · [Shadow DOM & iframes: what Hypagon Gateway can see and click](./docs/SHADOW_DOM_AND_FRAMES.md) · [Shadow Walk: sealed-content plan](./docs/SHADOW_WALK.md) · [Field notes from dogfooding](./docs/FIELD_NOTES_2026-10-20_SIGNUP.md) · [Changelog](./CHANGELOG.md)
 - **Release notes** — [What shipped](#sec-release-notes) · [All releases](./CHANGELOG.md)
 - **Lore** — [Neuromancer inspiration](#sec-neuromancer-inspiration-cyberpunk-canon)
 
@@ -33,11 +33,11 @@
 
 ## 🕶️ What it is
 
-**Hyperbolic Gateway is a visible, stateful web browser that any MCP agent can drive.**
+**Hypagon Gateway is a visible, stateful web browser that any MCP agent can drive.**
 
-Most agent browsers are a library you integrate, or a cloud you rent. **Hyperbolic Gateway** is a desktop application you
+Most agent browsers are a library you integrate, or a cloud you rent. **Hypagon Gateway** is a desktop application you
 own: a real Chromium window on your machine, controlled over the Model Context Protocol. Your agent runs
-where you already run it — local or remote — and Hyperbolic Gateway supplies the browser, the input, and the memory.
+where you already run it — local or remote — and Hypagon Gateway supplies the browser, the input, and the memory.
 
 - **A real browser, not a simulation.** Visible Chromium with hardware acceleration, persistent cookies,
   real tabs, downloads, and a human-sized viewport. No headless fingerprint.
@@ -50,17 +50,17 @@ where you already run it — local or remote — and Hyperbolic Gateway supplies
 - **Self-hosted by construction.** `stdio` MCP plus a localhost bridge. No account, no dashboard, and no
   telemetry leaving the machine.
 
-![Hyperbolic Gateway driving a real Chromium window](docs/assets/demo.webp)
+![Hypagon Gateway driving a real Chromium window](docs/assets/demo.webp)
 
 <sub>[Open the MP4](docs/assets/demo.mp4) if your browser does not animate WebP.</sub>
 
 > [!WARNING]
-> **EXPERIMENTAL PROTOTYPE**: Hyperbolic Gateway is currently under active, experimental development. Tool contracts, telemetry tuning, and database schemas may evolve rapidly. Built for developers experimenting with multimodal local AI agents.
+> **EXPERIMENTAL PROTOTYPE**: Hypagon Gateway is currently under active, experimental development. Tool contracts, telemetry tuning, and database schemas may evolve rapidly. Built for developers experimenting with multimodal local AI agents.
 
 > [!IMPORTANT]
 > **RESEARCH PURPOSES ONLY**: This software is provided strictly for educational, testing, and local AI agent research purposes. It is **not intended for malicious use**, automated credential stuffing, unauthorized exploitation, or violating third-party websites' Terms of Service. Users are responsible for complying with all applicable laws and terms.
 
-**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/hyperbolic-gateway/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Hyperbolic Gateway.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
+**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/hyperbolic-gateway/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Hypagon Gateway.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
 
 <a id="sec-a-punk-ethos-diy-alternative-to-browser-use-play" name="sec-a-punk-ethos-diy-alternative-to-browser-use-play"></a>
 
@@ -68,13 +68,13 @@ where you already run it — local or remote — and Hyperbolic Gateway supplies
 
 Most "AI browser" tooling today is a **library you integrate, or a cloud you rent**. [`browser-use`](https://github.com/browser-use/browser-use) is a popular MIT-licensed Python framework that drives Playwright _with its own agent loop_ (plus an optional hosted cloud); Playwright / Puppeteer / Selenium are general-purpose drivers where **you** write the loop; and managed browser clouds run a remote Chromium and bill per session. They're good tools — this isn't a rivalry, it's a different **shape**.
 
-**Hyperbolic Gateway is the other road:** a single, self-hosted **desktop app you own** (Electron, no account, no dashboard). It runs a **real, visible Chromium** on your own machine and speaks **MCP** over `stdio` (+ a localhost bridge), so it drops into whatever agent runner and whichever model you already use — **local or remote, with no cloud account, no API key, no seat pricing, and no telemetry leaving your box.**
+**Hypagon Gateway is the other road:** a single, self-hosted **desktop app you own** (Electron, no account, no dashboard). It runs a **real, visible Chromium** on your own machine and speaks **MCP** over `stdio` (+ a localhost bridge), so it drops into whatever agent runner and whichever model you already use — **local or remote, with no cloud account, no API key, no seat pricing, and no telemetry leaving your box.**
 
 That's the punk ethos: **one operator, one machine, a tool you can read, fork and keep.** Built by one person, not a company. No VC, no roadmap-by-committee, no dashboard.
 
 ### How it differs, honestly
 
-|                   | `browser-use` (Python / Playwright)  | Playwright · Puppeteer agents | Hosted browser clouds   | **Hyperbolic Gateway**                                                                      |
+|                   | `browser-use` (Python / Playwright)  | Playwright · Puppeteer agents | Hosted browser clouds   | **Hypagon Gateway**                                                                      |
 | :---------------- | :----------------------------------- | :---------------------------- | :---------------------- | :------------------------------------------------------------------------------------------ |
 | **Shape**         | Library **with its own agent loop**  | Driver — you write the loop   | Managed remote browser  | **MCP server** any MCP client can call                                                      |
 | **Browser**       | Playwright Chromium (often headless) | Playwright / Puppeteer        | Remote Chromium         | **Visible Chromium** (`headless: false`) in an Electron chassis                             |
@@ -178,7 +178,7 @@ No — it's an experimental prototype for local AI research. That's rather the p
 
 ### 🎯 Core Architecture Principles
 
-1. **100% Real Browser Chassis:** No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Hyperbolic Browser runs a full-fledged, visible Chromium instance (`headless: false`) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
+1. **100% Real Browser Chassis:** No headless emulation, synthetic user-agent spoofing, or sandboxed scraping. Hypagon Browser runs a full-fledged, visible Chromium instance (`headless: false`) with hardware acceleration, audio/video capabilities, and authentic cookie/session persistence.
 2. **Multimodal Vision Integration:** Specifically tailored for multimodal models (e.g. Bonsai 2 27B). The agent takes high-res viewport screenshots (`take_screenshot`) to visually understand layouts, buttons, and dynamic canvas states, and can act directly by coordinate, selector, or mark badge (`act`).
 3. **Full Developer Console & Script Execution:** Gives the agent full console access (`get_console_logs`) to inspect runtime errors and API output, plus arbitrary JavaScript evaluation (`evaluate_javascript`) to interact with complex SPAs.
 4. **Behavioral Bot Detection Bypass:** Bypasses Cloudflare, Akamai, Datadome, and behavioral bot sensors by avoiding synthetic `element.click()` events (`isTrusted: false`). Instead, it dispatches **real input events over the Chrome DevTools Protocol** (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` / `mouseWheel`) accompanied by organic cubic Bézier pointer movement and human Gaussian typing cadence. CDP delivery is **focus-independent** — it lands even when another application owns the OS foreground — with `webContents.sendInputEvent` kept only as a fallback.
@@ -228,7 +228,7 @@ Two real-desktop failure modes are handled explicitly so long harvests and HIL f
 
 ## 🧩 Orthogonal Primitive Layer
 
-The older tool list is being consolidated onto **a few orthogonal verbs** - one observation model, one action model, one wait model - with the flat tools becoming projections. All primitives run on the TIER-1 humanlike path (real input events; no page DOM mutation beyond Hyperbolic Browser's own `data-mark-id` stamp).
+The older tool list is being consolidated onto **a few orthogonal verbs** - one observation model, one action model, one wait model - with the flat tools becoming projections. All primitives run on the TIER-1 humanlike path (real input events; no page DOM mutation beyond Hypagon Browser's own `data-mark-id` stamp).
 
 | Primitive                                                                          | Job                                                                                                                                         | Replaces                                                                   |
 | :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------- |
@@ -313,7 +313,7 @@ Tools: `jev_index`, `read_section`, `search_page`. Full contract and limits:
 
 ## 🧠 LanceDB Persistent Cortex & Semantic Recall
 
-Hyperbolic Gateway features an embedded, serverless vector database (**LanceDB**) combined with Tantivy-powered Full-Text Search (BM25) stored locally under `./data/cortex/`.
+Hypagon Gateway features an embedded, serverless vector database (**LanceDB**) combined with Tantivy-powered Full-Text Search (BM25) stored locally under `./data/cortex/`.
 
 - **Auto-Harvest on Navigation:** Every web page visited is automatically chunked, embedded, and indexed into the `page_history` table in the background.
 - **Hybrid Semantic Recall:** Models can invoke `recall_memory` to execute hybrid vector + BM25 search across past research sessions, retrieving verbatim snippets, page titles, and relevance match scores.
@@ -396,7 +396,7 @@ Hyperbolic Gateway features an embedded, serverless vector database (**LanceDB**
 - **Settings → Recording:** enable/disable, output directory with **BROWSE…**, capture interval, playback fps, max width and bitrate; finished files are listed with **COPY PATH**.
 - **Agent access is a separate, human-only switch:** _"Let agents use the recording tools"_ removes `record_start`, `record_stop` and `list_recordings` from `tools/list` and makes the bridge refuse them with `RECORDING_TOOLS_DISABLED`. Only the Settings panel can flip it — no tool or HTTP route writes that flag.
 - **Programmatic hand-off:** `record_start` → `record_stop` returns the absolute `.webm` path (plus size, frames and speed-up), and `list_recordings` lists recent files newest-first. That path is a plain string you can type into a file-upload field; if the field only opens a native picker, hand it to a human.
-- **Why a path matters:** upload forms usually cannot be driven by setting a value - the browser requires a real file selection. Hyperbolic Gateway gives the agent (or the human) the exact file to choose instead of guessing.
+- **Why a path matters:** upload forms usually cannot be driven by setting a value - the browser requires a real file selection. Hypagon Gateway gives the agent (or the human) the exact file to choose instead of guessing.
 
 ---
 
@@ -651,7 +651,7 @@ Meta-tools: `wrap_list`, `wrap_get`, `wrap_secret_list`, `wrap_derive`, `wrap_cr
 > returns `AUTH_REQUIRED`) · `exposeAsTool` has no Settings control · 40-tool cap · DNS-rebinding
 > residual risk · the token URL is outside `allowedHosts`. The full, blunt breakdown — what works,
 > what doesn't, what is untested, what is risky — is
-> [docs/HYPERBOLIC_REST.md](./docs/HYPERBOLIC_REST.md#honest-status-what-works-what-doesnt-what-is-untested-what-is-risky).
+> [docs/HYPAGON_REST.md](./docs/HYPAGON_REST.md#honest-status-what-works-what-doesnt-what-is-untested-what-is-risky).
 
 Tests: `npm run test:wrap` (50 offline) · `npm run test:wrap:mcp` (11 lifecycle) ·
 `npm run test:wrap:live` (46 against DummyJSON).
@@ -727,7 +727,7 @@ OpenCode, Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Google Antigra
 Zed, and the generic `mcpServers` shape. It fills in the absolute server path and bridge port, and offers two
 runtimes:
 
-- **Bundled** (default) - runs the server on Hyperbolic Gateway's own Electron runtime with `ELECTRON_RUN_AS_NODE=1`, so
+- **Bundled** (default) - runs the server on Hypagon Gateway's own Electron runtime with `ELECTRON_RUN_AS_NODE=1`, so
   **Node does not need to be installed**. Installed builds unpack `bin/` out of the asar precisely so this works.
 - **System Node** — `node bin/mcp-server.cjs`, requiring Node 20+ on `PATH`.
 
@@ -737,7 +737,7 @@ A minimal Claude-style entry looks like this (the tab generates the real paths):
 {
   "mcpServers": {
     "hb-browser": {
-      "command": "<path-to-app>/Hyperbolic Gateway.exe",
+      "command": "<path-to-app>/Hypagon Gateway.exe",
       "args": ["<userData>\\bin\\mcp-server.cjs"],
       "env": { "ELECTRON_RUN_AS_NODE": "1" }
     }
@@ -858,9 +858,9 @@ This project is licensed under the [MIT License](LICENSE) © 2026 hyperbolictoni
 <p align="center">
   <img src="public/assets/ono-sendai.png" width="30%" alt="Ono-Sendai Cyberspace 7" />
   &nbsp;&nbsp;
-  <img src="public/assets/kuang-grade.png" width="30%" alt="Hyperbolic Browser" />
+  <img src="public/assets/kuang-grade.png" width="30%" alt="Hypagon Browser" />
   &nbsp;&nbsp;
-  <img src="public/assets/mark-eleven.png" width="30%" alt="Hyperbolic Rest" />
+  <img src="public/assets/mark-eleven.png" width="30%" alt="Hypagon REST" />
 </p>
 
 <a id="sec-neuromancer-inspiration-cyberpunk-canon" name="sec-neuromancer-inspiration-cyberpunk-canon"></a>
@@ -872,11 +872,11 @@ This project is licensed under the [MIT License](LICENSE) © 2026 hyperbolictoni
 
 In William Gibson's genre-defining cyberpunk masterpiece _Neuromancer_, console cowboys Case and the ROM personality construct of the Dixie Flatline jack into the Matrix using an **Ono-Sendai Cyberspace 7** deck. Their ultimate weapon: the **Kuang Grade Mark Eleven**—a mythical military-grade icebreaker designed to slice through the impenetrable corporate ICE surrounding the Tessier-Ashpool mainframe.
 
-**Hyperbolic Gateway** began as a project inspired by that fictional lineage, then was rebranded to its current name. The quote and the original Kuang Grade Mark Eleven reference are preserved here as inspiration; Hyperbolic Gateway is an independent project and is not affiliated with William Gibson, _Neuromancer_, or the fictional device.
+**Hypagon Gateway** began as a project inspired by that fictional lineage and has been renamed since; the current name is its own. The quote and the original Kuang Grade Mark Eleven reference are preserved here as inspiration; Hypagon Gateway is an independent project and is not affiliated with William Gibson, _Neuromancer_, or the fictional device.
 
 It carries that inspiration into the modern web:
 
-- **Piercing the Modern Web's "ICE":** Headless automation (Puppeteer, Playwright) is routinely flagged and blocked by Cloudflare, Datadome, and behavioral bot sensors. Hyperbolic Browser provides a tactile, visible Chromium cyberdeck that operates with authentic human telemetry.
+- **Piercing the Modern Web's "ICE":** Headless automation (Puppeteer, Playwright) is routinely flagged and blocked by Cloudflare, Datadome, and behavioral bot sensors. Hypagon Browser provides a tactile, visible Chromium cyberdeck that operates with authentic human telemetry.
 - **The Ghost Cursor as Neural Trodes:** Dispatches organic cubic Bézier pointer movement and Gaussian typing cadences, behaving like an authentic human operator seated at the console.
 - **The LanceDB Cortex as ROM Personality Construct:** Provides persistent semantic recall and memory traces so your local AI agent retains research context and bookmarks across browsing sessions.
 

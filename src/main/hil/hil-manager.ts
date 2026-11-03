@@ -1,6 +1,7 @@
 import { BrowserWindow, Notification, nativeImage, app, ipcMain } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import { BRAND } from '../../shared/brand.js';
 
 export interface HilRequest {
   id: string;
@@ -101,7 +102,7 @@ export class HilManager {
     try {
       if (Notification.isSupported()) {
         const notif = new Notification({
-          title: options.title || 'Hyperbolic Gateway',
+          title: options.title || BRAND.product,
           body: options.message,
           icon: this.resolveIcon(),
           urgency: options.urgency || 'normal',
@@ -167,7 +168,7 @@ export class HilManager {
 
     // 1. Desktop Notification
     this.sendNotification({
-      title: '⚠️ Action Required: Hyperbolic Gateway Cyberdeck',
+      title: `⚠️ Action Required: ${BRAND.deck}`,
       message: `${options.reason} (Window brought to front for input)`,
       urgency: 'critical',
       sound: true,

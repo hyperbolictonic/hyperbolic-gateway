@@ -5,7 +5,7 @@ import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperbolic-devlogs-'));
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypagon-devlogs-'));
 const logDir = path.join(tempDir, 'logs');
 fs.mkdirSync(logDir, { recursive: true });
 fs.writeFileSync(

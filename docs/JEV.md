@@ -124,6 +124,6 @@ This is token discipline, not a security boundary. `read_url`,
 `capture(rendered)`, screenshots and `evaluate_javascript` can still pull bytes
 without going through the funnel.
 
-JEV covers page reads only. Hyperbolic Rest (`wrap_run`) is outside it: a
+JEV covers page reads only. Hypagon REST (`wrap_run`) is outside it: a
 wrapper response is already projected by the response recipe, with `maxItems`,
 `maxChars` and `maxFieldChars`, plus the pagination cap.

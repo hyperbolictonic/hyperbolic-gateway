@@ -2,9 +2,9 @@
 okf_version: "0.2"
 ---
 
-# Hyperbolic Gateway Developer Knowledge
+# Hypagon Gateway Developer Knowledge
 
-This is the developer-facing OKF bundle for **Hyperbolic Gateway**: the
+This is the developer-facing OKF bundle for **Hypagon Gateway**: the
 Electron app, the local HTTP bridge, the `hb-browser` MCP server, the
 `hb-rest` MCP server, and the wrapper/recipe formats.
 
@@ -38,7 +38,7 @@ saved REST tools on top of the app. It is not the end-user manual.
 ## Related documentation
 
 * [Documentation hub](../docs/README.md) - user-facing documentation, architecture notes, and operations guides.
-* [Hyperbolic Rest man page](../docs/HYPERBOLIC_REST.md) - the full operational guide for wrappers and credentials.
+* [Hypagon REST man page](../docs/HYPAGON_REST.md) - the full operational guide for wrappers and credentials.
 * [Build and packaging](../docs/BUILDING.md) - installers, CI, signing, and release policy.
 * [Codebase map](../docs/CODEBASE.md) - subsystem map and implementation findings.
 

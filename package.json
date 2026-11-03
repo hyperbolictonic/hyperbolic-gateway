@@ -1,8 +1,8 @@
 {
-  "name": "kuang-grade-mark-eleven",
-  "version": "1.7.1",
+  "name": "hypagon-gateway",
+  "version": "2.0.0",
   "license": "MIT",
-  "description": "Hyperbolic Gateway — stateful browser and REST gateway for agents (Hyperbolic Browser + Hyperbolic Rest).",
+  "description": "Hypagon Gateway — stateful browser and REST gateway for agents (Hypagon Browser + Hypagon REST).",
   "main": "dist-electron/main/index.js",
   "type": "module",
   "scripts": {
@@ -75,6 +75,7 @@
     "test:settings:dom": "node scripts/test-settings-dom.mjs",
     "prune:pack": "node scripts/prune-pack.cjs",
     "test:data-paths": "node --test scripts/test-data-paths.mjs",
+    "test:user-data-migration": "node --test scripts/test-user-data-migration.mjs",
     "test:forceopen": "node scripts/test-force-open.mjs",
     "test:framemarks": "node scripts/test-frame-marks.mjs",
     "test:human": "node scripts/test-human-activity.mjs",

@@ -254,7 +254,7 @@ export class McpOAuthServer {
       authorization_servers: [origin],
       scopes_supported: this.scopes,
       bearer_methods_supported: ['header'],
-      resource_name: 'Hyperbolic Gateway Remote Browser',
+      resource_name: 'Hypagon Gateway Remote Browser',
     });
   }
 
@@ -534,10 +534,10 @@ export class McpOAuthServer {
     })();
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Authorize Hyperbolic Gateway</title>
+<title>Authorize Hypagon Gateway</title>
 <style>body{font:15px system-ui,sans-serif;background:#0b1220;color:#e6edf7;max-width:640px;margin:8vh auto;padding:0 20px}h1{font-size:1.5rem;margin-bottom:.4rem}.card{border:1px solid #243653;border-radius:14px;padding:22px;background:#111a2b}.warn{border-left:3px solid #f59e0b;background:#1f1a12;padding:10px 14px;border-radius:6px;margin:18px 0}.actions{display:flex;gap:10px;margin-top:20px}button{padding:10px 16px;border-radius:8px;border:1px solid #243653;background:#16233a;color:#e6edf7;font-weight:600;cursor:pointer}button.primary{background:#22d3ee;color:#07111d;border-color:transparent}code{color:#a3e635}</style>
 </head><body><div class="card">
-<h1>Authorize Hyperbolic Gateway</h1>
+<h1>Authorize Hypagon Gateway</h1>
 <p>A remote OAuth client wants to control this Chromium browser and its logged-in sessions.</p>
 <div class="warn">Only approve if you started this connection yourself. Client: <code>${escapeHtml(pending.clientId)}</code><br>Redirect host: <code>${escapeHtml(redirectHost)}</code></div>
 <form method="post" action="/oauth/authorize">

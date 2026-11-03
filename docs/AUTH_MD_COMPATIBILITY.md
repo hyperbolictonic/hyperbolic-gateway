@@ -1,7 +1,7 @@
 # AUTH.md compatibility (agent side)
 
 **Status:** research / not implemented
-**Scope:** Hyperbolic Browser and Research; agent-side only
+**Scope:** Hypagon Browser and Research; agent-side only
 
 ## What this is
 
@@ -9,7 +9,7 @@
 register and authenticate on behalf of a user. It is not MCP transport auth and it is not
 a replacement for the local bridge token.
 
-Hyperbolic Gateway acts as the **agent**, not as the service or the agent-provider IdP.
+Hypagon Gateway acts as the **agent**, not as the service or the agent-provider IdP.
 
 ## Discovery
 
@@ -42,7 +42,7 @@ respect `Retry-After`/`429`.
 
 ## ID-JAG
 
-ID-JAG requires an **agent provider** that mints audience-bound assertions. Hyperbolic
+ID-JAG requires an **agent provider** that mints audience-bound assertions. Hypagon
 Gateway is not currently an IdP. Compatibility therefore has two modes:
 
 - **With a configured provider:** request an ID-JAG after consent and use it at
@@ -74,5 +74,5 @@ Research may enumerate support without authenticating:
 1. Discovery/cache service and a read-only "agent auth available" browser indicator.
 2. Research annotations (availability only).
 3. Consent UI + claim ceremony in the browser.
-4. Encrypted credential storage and Hyperbolic Rest binding.
+4. Encrypted credential storage and Hypagon REST binding.
 5. ID-JAG provider integration and revocation handling.

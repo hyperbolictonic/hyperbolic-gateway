@@ -1,6 +1,6 @@
 # 📦 Packaging & Multi-Target Installer Guide
 
-Hyperbolic Gateway uses `electron-builder` to produce production-grade desktop distributions, single-file portable binaries, and native installers across Windows, Linux, and macOS.
+Hypagon Gateway uses `electron-builder` to produce production-grade desktop distributions, single-file portable binaries, and native installers across Windows, Linux, and macOS.
 
 ---
 
