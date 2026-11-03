@@ -1,6 +1,6 @@
 # 📚 Hypagon Gateway — Documentation
 
-**Hypagon Browser + Hypagon REST for your local AI agents.**
+**The local browser for AI agents.**
 
 This is the curated documentation set published on GitHub Pages. Internal field notes, plans and
 handoffs are intentionally not published here; links to them go back to the repository.

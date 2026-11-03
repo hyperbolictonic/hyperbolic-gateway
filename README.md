@@ -1,6 +1,6 @@
 # ⚡ Hypagon Gateway
 
-## The Local Web Browser for Your AI Agents
+## The local browser for AI agents.
 
 > _"I'll hack the Gibson"_  
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995

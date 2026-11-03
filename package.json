@@ -2,7 +2,7 @@
   "name": "hypagon-gateway",
   "version": "2.0.0",
   "license": "MIT",
-  "description": "Hypagon Gateway — stateful browser and REST gateway for agents (Hypagon Browser + Hypagon REST).",
+  "description": "Hypagon Gateway — the local browser for AI agents (Hypagon Browser + Hypagon REST).",
   "main": "dist-electron/main/index.js",
   "type": "module",
   "scripts": {
