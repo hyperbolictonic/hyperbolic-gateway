@@ -244,3 +244,130 @@ Things that are unit-tested or bridge-tested but **not yet verified end-to-end a
 
 Plan and lever design: [`docs/SHADOW_WALK.md`](./SHADOW_WALK.md).
 
+---
+
+## 📎 Phase 6: Host Browser Connector (proposal)
+
+### [ ] 19. Native Browser Connector MCP — attach to the dev's *real* Chrome + Console
+
+- **Priority:** P8 (Scope Expansion) — unstarted, design not reviewed.
+- **Why:** Everything above drives **our** Chrome/Electron chassis: a fresh profile, our flags, our
+  partitions. That is the wrong tool when a developer wants an agent to look at what *they* are
+  looking at — the tab they are already logged into, the extensions they have installed, the SPA
+  served from `localhost:3000` behind their own auth cookies, and the DevTools console errors they
+  are trying to debug. Today the agent can only reach those pages by re-navigating the chassis
+  browser, which loses the session and the extension state.
+- **Shape:** a second, separate MCP surface in **Hypagon Gateway** (its own tool namespace, its
+  own consent story) that attaches to a browser the user already runs, instead of launching one.
+  - **Attach paths** — pick per platform, cheapest first:
+    1. `--remote-debugging-port` on a *dedicated* Chrome profile launched by the user (clean CDP,
+       needs a relaunch, doesn't touch their daily profile).
+    2. A small unpacked extension that speaks Chrome `debugger` API to a loopback WebSocket
+       (no relaunch, works on the daily profile, but needs per-tab user opt-in).
+  - **Tool ideas:** `list_host_tabs`, `attach_host_tab(tab_id)`, `get_console({ level })`,
+    `get_network_for_tab()`, `evaluate_in_page(expr)` (read-only by default), `screenshot_host_tab`,
+    plus the existing primitives (`observe`/`act`/`wait_for`) rebound onto the host tab.
+  - **Capture console properly:** `Runtime.enable` + `Log.entryAdded` + `Runtime.exceptionThrown`, with
+    the existing ring-buffer pattern so `get_console` is cheap and can be filtered by level/url.
+- **Non-negotiables:**
+  - **Explicit consent per tab.** Nothing attaches until the user names the tab. Show a visible badge
+    in the attached tab; detach on window close, tab navigation to a new origin, or a timeout.
+  - **No silent writes.** Default tier is read-only; page mutation (`act`, `evaluate` that assigns)
+    is an opt-in escalation per session, mirroring the permission-tier item in #16.
+  - **Never point the connector at a browser profile we didn't ask for**, and never reuse host
+    cookies for chassis navigations or `save_session`.
+  - **Do not expose the host bridge over the remote tunnel** unless the auth story is solved to the
+    same standard as the existing remote gateway (see the NASA/JPL review rules in `AGENTS.md`).
+- **Open questions:** extension vs relaunch-with-port as the primary path; how much of the existing
+  `BrowserChassis` can be reused behind a transport-neutral `TabHost` interface vs a fork; whether
+  the console stream belongs in Cortex for later recall; what happens when the user closes the tab
+  mid-action.
+- **Decision test:** build it only if re-navigating the chassis browser is a real blocker for
+  localhost dev pages and for reading console errors — otherwise the existing chassis + primitives
+  already cover it.
+
+---
+
+## 🧠 Phase 7: Learned Skills (proposal)
+
+### [ ] 20. Agent-Authored Skills — let the controlling LLM absorb what worked
+
+- **Priority:** P9 (Token Economy & Compounding) — proposal, not scheduled.
+- **Why:** The skill corpus is currently **hand-written and frozen**: the `mark-eleven://skills/guide`
+  manual, `mark-eleven://tools/recommended`, the OKF manifest and its four partition playbooks are
+  string literals in `src/mcp/browser-mcp.ts`, and `.agents/plugins/mark-eleven/skills/mark-eleven/SKILL.md`
+  is edited by a human. Meanwhile the server *already generates* the raw material for skills —
+  verified `drive` steps compiled into recipes (`compile.ts`), replay retirement after three
+  consecutive failures, the script vault (`save_script`/`recall_script`), browsing history and
+  Cortex. Every one of those is a solved problem on one origin that is thrown away instead of
+  becoming transferable guidance. A controlling LLM that starts each session with only the generic
+  manual re-derives the same site-specific moves every time.
+- **Shape:** a **promotion pipeline**, not a free-text memory dump. Verified runs are distilled into
+  named, scoped, reviewable skill entries that are served through MCP resources and surfaced by
+  recall — so the model "absorbs" them by reading a resource, not by carrying context.
+  - **Sources of truth:** a recipe or script that succeeded N times (N ≥ 2) on distinct sessions;
+    a field-notes doc; an explicit `save_skill` call from the agent or the user.
+  - **Tools:** `list_skills({ domain?, scope?, tag? })`, `read_skill(name)`,
+    `save_skill({ name, domain, body, source })`, `retire_skill(name, reason)`. Reads return compact
+    markdown, not raw JSON, matching the rest of the surface.
+  - **Resource surface:** mirror the existing convention —
+    `mark-eleven://skills/<domain>/<name>` plus an index at `mark-eleven://skills/index`, so any agent
+    in any directory can read them via `list_resources`/`read_resource` without a tool call.
+  - **Recall path:** embed each skill into a Cortex table (`skills`, alongside the existing `scripts`
+    table) so `recall_memory`/`recall_script` can surface the relevant one for an unfamiliar origin.
+    Prefer *suggesting* a skill over injecting it: the agent still decides.
+- **Guardrails (these are the actual design work):**
+  - **Skills are data, never policy.** A learned skill cannot change TIER ordering, the pin, the
+    guard threshold, permission tiers, or any safety rule. It is advice about selectors and
+    sequences only.
+  - **Untrusted provenance is marked.** Anything distilled from page content is page-controlled text
+    and therefore a prompt-injection channel. Keep a `source` field (`recipe|script|human|page`),
+    render page-derived skills in a clearly delimited block labelled untrusted, and never let a skill
+    authorize a TIER-3 action by itself.
+  - **Provenance and confidence are visible** on read: origin scope, the run ids that produced it,
+    success/failure counts, last verified date. No anonymous skills.
+  - **Scope by origin, not by vibe.** A skill learned on `example.com` applies to that origin (or an
+    explicit wildcard the user chose); never silently global.
+  - **Retirement mirrors recipes:** three consecutive replay failures retires a skill automatically
+    and records why. Stale skills are worse than none.
+  - **Human-reviewable corpus.** Entries persist as files under a `data/skills/`-style directory so
+    they are diffable and can be promoted into the hand-written manual by a person, not by the
+    model rewriting its own instructions.
+  - **Bounded growth.** Cap per-origin entries and total size, dedupe near-identical bodies, and keep
+    each entry short enough that reading it is cheaper than re-deriving the flow.
+- **Open questions:** whether promotion runs at session end, on explicit request, or on the N-th
+  successful replay; whether the periodic offline distiller is a second model call and who pays for
+  it; how the `skills` table interacts with the existing `scripts` embedder/table; whether a skill
+  may be *edited* by the agent at all or only created/retired; how learned skills are synchronized
+  between the local app and the remote gateway (or explicitly kept local-only like the wrap server).
+- **Decision test:** build it once the same origin is driven more than once in practice and the
+  per-session re-derivation shows up as measurable token/latency cost — otherwise recipes + scripts
+  already capture the win and a skill layer is just a second cache.
+
+---
+
+## 🧱 Phase 8: Platform Decisions (answered, parked)
+
+### [ ] 21. Tauri port — assessed 2026-10-30, parked
+
+- **Priority:** parked. Do not re-litigate without a new trigger.
+- **Question:** port the desktop shell from Electron to Tauri (size, RAM, no bundled Chromium,
+  Rust safety, mobile path)?
+- **Answer:** Windows-only technically possible, but **not a like-for-like port**. The product is a
+  CDP client with a window attached: `webContents.debugger`, focus-independent `Input.dispatch*`,
+  `capturePage`, partitions/cookies, `will-download` and per-request header rewriting have no Tauri
+  equivalent, and WKWebView (macOS) / WebKitGTK (Linux) have **no CDP at all** — a Tauri build means
+  three engines and three behaviour profiles, while behavioural consistency *is* the differentiator.
+  The bundled Node MCP servers add a Node sidecar (~50–100 MB) or a Rust rewrite of LanceDB, ONNX
+  embeddings, Arrow and `jsdom`. Rough Windows-only MVP: **30–50 person-weeks** before macOS/Linux.
+- **Cheap alternatives that keep the benefit:** prune the existing package
+  (`npm run prune:pack`), review asar contents, lazy/remote embeddings. The only structural win is a
+  **browser-less shell driving an externally launched Chromium over CDP** — the same CDP code as #19,
+  and only worth a spike after #19 exists.
+- **Revisit triggers:** Windows-only product; Chromium size becomes a hard distribution blocker;
+  mobile becomes a requirement; WebView2 ships a *supported, stable* CDP surface; Tauri ships a
+  first-class embeddable Chromium.
+- **Evidence and estimates:** [`docs/TAURI_PORT_ASSESSMENT.md`](./TAURI_PORT_ASSESSMENT.md) —
+  measured surface, per-capability table, effort breakdown, and the 2-week spike recipe if the
+  question ever reopens.
+
