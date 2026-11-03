@@ -17,6 +17,7 @@ const pageDocs = [
   'docs/DECISION_MODELS.md',
   'docs/EMBEDDING_PROVIDERS.md',
   'docs/HYPAGON_REST.md',
+  'docs/HYPERBOLIC_REST.md',
   'docs/JEV.md',
   'docs/KUANG_WRAP.md',
   'docs/PACKAGING.md',
