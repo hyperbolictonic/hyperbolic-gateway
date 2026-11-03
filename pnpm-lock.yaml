@@ -20,6 +20,9 @@ importers:
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
+      anyapi-to-mcp:
+        specifier: 0.1.2
+        version: 0.1.2
       apache-arrow:
         specifier: ^18.1.0
         version: 18.1.0
@@ -1094,6 +1097,11 @@ packages:
   ansi-styles@4.3.0:
     resolution: {integrity: sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg==}
     engines: {node: '>=8'}
+
+  anyapi-to-mcp@0.1.2:
+    resolution: {integrity: sha512-MpIe+YUWZL8SrWTdQa4dEpKTOMZtqiExngqFaMyLBG7u8GTisUfSTvkvRGN/Vz7WjGlBmLFqkqSTKSjosajCsQ==}
+    engines: {node: '>=22'}
+    hasBin: true
 
   apache-arrow@18.1.0:
     resolution: {integrity: sha512-v/ShMp57iBnBp4lDgV8Jx3d3Q5/Hac25FWmQ98eMahUiHPXcvwIMKJD0hBIgclm/FCG+LwPkAKtkRO1O/W0YGg==}
@@ -3661,6 +3669,8 @@ snapshots:
   ansi-styles@4.3.0:
     dependencies:
       color-convert: 2.0.1
+
+  anyapi-to-mcp@0.1.2: {}
 
   apache-arrow@18.1.0:
     dependencies:
