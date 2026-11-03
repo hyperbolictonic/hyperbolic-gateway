@@ -16,15 +16,15 @@ to use and give short, exact recipes.
 Install from the raw GitHub URLs:
 
 ```bash
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-browser/SKILL.md
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-wrap/SKILL.md
 ```
 
 With the Skills CLI:
 
 ```bash
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+npx skills add hyperbolictonic/hypagon --skill hb-browser
+npx skills add hyperbolictonic/hypagon --skill hb-wrap
 ```
 
 For a non-interactive global install, add `-g -y`.

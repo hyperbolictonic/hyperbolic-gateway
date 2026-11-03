@@ -10,8 +10,8 @@ Use this skill when an MCP client has the `hb-wrap` server available.
 Install:
 
 ```bash
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-wrap/SKILL.md
+npx skills add hyperbolictonic/hypagon --skill hb-wrap
 ```
 
 The app must be running. The wrapper service talks to the local bridge at

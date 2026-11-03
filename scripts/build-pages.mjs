@@ -4,8 +4,8 @@ import { marked } from 'marked';
 
 const root = process.cwd();
 const out = path.join(root, '_site');
-const repoUrl = 'https://github.com/hyperbolictonic/hyperbolic-gateway';
-const pagesRoot = 'https://hyperbolictonic.github.io/hyperbolic-gateway';
+const repoUrl = 'https://github.com/hyperbolictonic/hypagon';
+const pagesRoot = 'https://hyperbolictonic.github.io/hypagon';
 
 const pageDocs = [
   'README.md',

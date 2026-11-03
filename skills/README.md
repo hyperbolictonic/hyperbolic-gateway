@@ -5,22 +5,22 @@ Installable agent skills for the MCP servers in this repository.
 ## hb-browser
 
 ```bash
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-browser/SKILL.md
+npx skills add hyperbolictonic/hypagon --skill hb-browser
 ```
 
 ## hb-wrap
 
 ```bash
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-wrap/SKILL.md
+npx skills add hyperbolictonic/hypagon --skill hb-wrap
 ```
 
 Add `-g -y` for a non-interactive global install:
 
 ```bash
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser -g -y
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap -g -y
+npx skills add hyperbolictonic/hypagon --skill hb-browser -g -y
+npx skills add hyperbolictonic/hypagon --skill hb-wrap -g -y
 ```
 
 The MCP server supplies the tools; the skill teaches the client which grouped

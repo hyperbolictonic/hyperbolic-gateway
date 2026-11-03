@@ -36617,7 +36617,7 @@ var BRAND = {
   /** Stable machine key for `/health` and package metadata. */
   appKey: "hypagon-gateway",
   repoOwner: "hyperbolictonic",
-  repoName: "hyperbolic-gateway"
+  repoName: "hypagon"
 };
 
 // src/mcp/tools-catalog.ts
@@ -39572,11 +39572,11 @@ Rules of thumb:
 - resume_agent(): Clears that passive takeover window after the human confirms they are done. It does not resolve a pending HIL request.
 - send_notification(title, message, urgency?, sound?): Sends native OS notification.`,
           skills: `### Installable Skills
-- hb-browser: https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
-- hb-wrap: https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
+- hb-browser: https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-browser/SKILL.md
+- hb-wrap: https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-wrap/SKILL.md
 - Hermes: hermes skills install <raw-url>
-- Skills CLI: npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
-- Skills CLI: npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+- Skills CLI: npx skills add hyperbolictonic/hypagon --skill hb-browser
+- Skills CLI: npx skills add hyperbolictonic/hypagon --skill hb-wrap
 - MCP resources are not auto-installed as Hermes skills; use the raw GitHub URL.`
         };
         return { content: [{ type: "text", text: docs[category] || "Category not found." }] };

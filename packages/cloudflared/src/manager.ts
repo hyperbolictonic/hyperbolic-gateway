@@ -126,7 +126,7 @@ export class CloudflaredManager {
     const response = await (this.options.fetchImpl || fetch)(this.options.releaseApiUrl || RELEASE_API, {
       headers: {
         Accept: 'application/vnd.github+json',
-        'User-Agent': 'hyperbolic-gateway-cloudflared-manager',
+        'User-Agent': 'hypagon-cloudflared-manager',
       },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });

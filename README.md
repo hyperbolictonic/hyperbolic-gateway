@@ -64,7 +64,7 @@ where you already run it — local or remote — and Hypagon Gateway supplies th
 > [!IMPORTANT]
 > **RESEARCH PURPOSES ONLY**: This software is provided strictly for educational, testing, and local AI agent research purposes. It is **not intended for malicious use**, automated credential stuffing, unauthorized exploitation, or violating third-party websites' Terms of Service. Users are responsible for complying with all applicable laws and terms.
 
-**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/hyperbolic-gateway/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Hypagon Gateway.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
+**Installers:** grab them from [Releases](https://github.com/hyperbolictonic/hypagon/releases) — Windows `Setup`/`Portable`/`zip`, macOS `dmg`/`zip` (x64 + arm64), Linux `AppImage`/`deb`/`tar.gz`. macOS is **unsigned** for now: right-click → **Open** (or `xattr -dr com.apple.quarantine "/Applications/Hypagon Gateway.app"`). Built by GitHub Actions; see [`docs/BUILDING.md`](./docs/BUILDING.md).
 
 <a id="sec-a-punk-ethos-diy-alternative-to-browser-use-play" name="sec-a-punk-ethos-diy-alternative-to-browser-use-play"></a>
 
@@ -114,11 +114,11 @@ MCP is a standard plug shape for AI tools. If your AI app accepts MCP plugins, i
 Yes. The `hb-browser` and `hb-wrap` skills are at [`skills/`](./skills/README.md).
 
 ```bash
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-browser/SKILL.md
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-wrap/SKILL.md
 
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+npx skills add hyperbolictonic/hypagon --skill hb-browser
+npx skills add hyperbolictonic/hypagon --skill hb-wrap
 ```
 
 Add `-g -y` to the `npx` commands for a non-interactive global install.
@@ -763,15 +763,15 @@ The MCP servers provide the tools; the skills teach the agent which grouped tool
 Install either skill directly from GitHub:
 
 ```bash
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-wrap/SKILL.md
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-browser/SKILL.md
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-wrap/SKILL.md
 ```
 
 Or with the Skills CLI:
 
 ```bash
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-wrap
+npx skills add hyperbolictonic/hypagon --skill hb-browser
+npx skills add hyperbolictonic/hypagon --skill hb-wrap
 ```
 
 For a non-interactive global install, add `-g -y`. The source files are

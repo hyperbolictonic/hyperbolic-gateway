@@ -10,8 +10,8 @@ Use this skill when an MCP client has the `hb-browser` server available.
 Install:
 
 ```bash
-hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hyperbolic-gateway/main/skills/hb-browser/SKILL.md
-npx skills add hyperbolictonic/hyperbolic-gateway --skill hb-browser
+hermes skills install https://raw.githubusercontent.com/hyperbolictonic/hypagon/main/skills/hb-browser/SKILL.md
+npx skills add hyperbolictonic/hypagon --skill hb-browser
 ```
 
 The app must be running. The MCP server talks to the local bridge at

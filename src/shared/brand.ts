@@ -23,7 +23,7 @@ export const BRAND = {
   /** Stable machine key for `/health` and package metadata. */
   appKey: 'hypagon-gateway',
   repoOwner: 'hyperbolictonic',
-  repoName: 'hyperbolic-gateway',
+  repoName: 'hypagon',
 } as const;
 
 /**
