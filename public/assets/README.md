@@ -4,10 +4,15 @@ This directory stores the official graphical emblems and icons for **Hypagon Gat
 
 ## Current brand
 
-1. **`brand/hypagon-gateway-primary.png`** — primary 1024×1024 transparent app/installer icon (generated from `HyperGateway3.jpg`).
-2. **`brand/HyperGateway3.jpg`** — source artwork for the primary H-mark (2048×2048; checkerboard is a preview background, removed in the PNG).
-3. **`brand/HyperGateway2.jpg`** — alternate dark-square H-mark source (2048×2048).
-4. **`brand/Hypergateway1.jpg`** — alternate wide H-mark artwork (2400×1792; checkerboard background baked into the JPG).
+1. **`brand/hypagon-lockup.png`** — the canonical lockup: emblem, HYPAGON wordmark and
+   `Browser automation. Local intelligence.` on the dark plate (1254×1254). The mark, icon and
+   favicon are all cropped from this file.
+2. **`brand/hypagon-gateway-primary.png`** — 1024×1024 app/installer/window/tray icon, cropped
+   from the emblem region of the lockup.
+3. **`brand/hypagon-favicon.png`** — 256×256 browser favicon, same crop.
+4. **`brand/HyperGateway3.jpg`** — earlier source artwork for the previous H-mark (2048×2048).
+5. **`brand/HyperGateway2.jpg`** — alternate dark-square H-mark source (2048×2048).
+6. **`brand/Hypergateway1.jpg`** — alternate wide H-mark artwork (2400×1792; checkerboard background baked into the JPG).
 
 ## Legacy assets
 

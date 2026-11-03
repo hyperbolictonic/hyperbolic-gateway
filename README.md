@@ -2,6 +2,10 @@
 
 ## The local browser for AI agents.
 
+<p align="center">
+  <img src="public/assets/brand/hypagon-lockup.png" width="520" alt="Hypagon — browser automation, local intelligence" />
+</p>
+
 > _"I'll hack the Gibson"_  
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
@@ -858,9 +862,9 @@ This project is licensed under the [MIT License](LICENSE) © 2026 hyperbolictoni
 <p align="center">
   <img src="public/assets/ono-sendai.png" width="30%" alt="Ono-Sendai Cyberspace 7" />
   &nbsp;&nbsp;
-  <img src="public/assets/kuang-grade.png" width="30%" alt="Hypagon Browser" />
+  <img src="public/assets/kuang-grade.png" width="30%" alt="Kuang Grade Mark Eleven crest" />
   &nbsp;&nbsp;
-  <img src="public/assets/mark-eleven.png" width="30%" alt="Hypagon REST" />
+  <img src="public/assets/mark-eleven.png" width="30%" alt="Mark Eleven tactical emblem" />
 </p>
 
 <a id="sec-neuromancer-inspiration-cyberpunk-canon" name="sec-neuromancer-inspiration-cyberpunk-canon"></a>

@@ -539,9 +539,25 @@ onRecordingStatus((state) => {
   chassis.broadcast('recording:status', state);
 });
 
+/**
+ * Window / taskbar icon — the same mark the installer, tray and notifications use.
+ *
+ * The packaged app reads it from inside the asar; development reads the repo copy.
+ */
+function resolveBrandIcon(): string | undefined {
+  const candidates = [
+    path.join(app.getAppPath(), 'public/assets/brand/hypagon-gateway-primary.png'),
+    path.join(app.getAppPath(), 'dist/assets/brand/hypagon-gateway-primary.png'),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+const brandIcon = resolveBrandIcon();
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     title: BRAND.windowTitle,
+    ...(brandIcon ? { icon: brandIcon } : {}),
     width: 1440,
     height: 900,
     minWidth: 1024,

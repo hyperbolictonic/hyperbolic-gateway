@@ -79,9 +79,8 @@ export class HilManager {
 
   private resolveIcon(): Electron.NativeImage {
     const candidates = [
-      path.join(app.getAppPath(), 'public/assets/mark-eleven.png'),
-      path.join(app.getAppPath(), 'dist/assets/mark-eleven.png'),
-      path.join(app.getAppPath(), 'public/assets/kuang-grade.png'),
+      path.join(app.getAppPath(), 'public/assets/brand/hypagon-gateway-primary.png'),
+      path.join(app.getAppPath(), 'dist/assets/brand/hypagon-gateway-primary.png'),
     ];
 
     for (const p of candidates) {

@@ -40,6 +40,6 @@ The packaging configuration is stored in [electron-builder.json](../electron-bui
 1. **ASAR & Native Addon Unpacking:**
    Native vector database binaries (`@lancedb` and `.node` addons) are automatically extracted to `app.asar.unpacked/` so they link cleanly without runtime crashes.
 2. **Branding & Visuals:**
-   Icon points to `public/assets/mark-eleven.png` for unified cyberdeck branding across desktop, taskbar, and installer dialogues.
+   Icon points to `public/assets/brand/hypagon-gateway-primary.png` for unified cyberdeck branding across desktop, taskbar, and installer dialogues.
 3. **Output Destination:**
    All compiled installers and archives are placed in the `release/` directory.

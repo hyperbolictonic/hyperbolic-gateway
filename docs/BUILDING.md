@@ -15,7 +15,7 @@ Windows (x64), Linux (x64) and macOS (Apple Silicon) artefacts; publishing is au
 | `win` targets (nsis, portable, zip, x64) | configured, **built and used** |
 | `mac` targets (dmg, zip, arm64) | configured, **built in CI**; Intel Macs unsupported (see §1 blockers) |
 | `linux` targets (AppImage, deb, tar.gz, x64) | configured, **built in CI** |
-| icon | `public/assets/mark-eleven.png`, 1024×1024 — usable for `.icns`/`.ico` conversion |
+| icon | `public/assets/brand/hypagon-gateway-primary.png`, 1024×1024 — usable for `.icns`/`.ico` conversion |
 | runtime platform branches | `host-fingerprint.ts` handles `darwin`/`linux`; `index.ts` has macOS window-all-closed |
 | CI | `.github/workflows/build.yml` (guard → platform matrix → publish) |
 | signing | none |

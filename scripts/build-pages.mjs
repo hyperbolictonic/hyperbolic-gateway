@@ -166,6 +166,7 @@ function layout(page, body) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
   <title>${page.title.includes('Hypagon Gateway') ? page.title : `${page.title} — Hypagon Gateway`}</title>
+  <link rel="icon" type="image/png" href="${prefix}assets/brand/hypagon-favicon.png" />
   <link rel="alternate" type="text/markdown" href="${rawHref}" />
   <link rel="stylesheet" href="${prefix}assets/docs.css" />
 </head>

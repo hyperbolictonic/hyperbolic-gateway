@@ -240,7 +240,7 @@ that does not exist. Keep this test green.
 | R3 | CI builds but does not run the offline test suites. | `build.yml` runs `pnpm build` only. The contract test is cheap and needs no app. | Add `npm run test:mcp:contract` to the workflow. |
 | R4 | Most tests need a running app. | The primitives, decide and surface suites drive the live Cyberdeck. They cannot run on a clean runner. | Add a small unit layer for pure functions (tags, config, formatting) and keep live suites for release checks. |
 | R5 | `webm-muxer` is deprecated upstream. | It still works and is small, but it will not receive fixes. | Swap to Mediabunny in one release. The dependency is isolated to `src/renderer/recording.ts`. |
-| R6 | The window and taskbar icon are not set. | The app shows the default Electron icon in the taskbar and window switcher. | Set `icon` on `BrowserWindow` and the tray to `public/assets/mark-eleven.png` (next release). |
+| R6 | **Resolved in 2.0.0.** The window icon was not set, so the taskbar showed the default Electron icon and the tray/notifications used the legacy Kuang/Mark Eleven emblems. | `BrowserWindow#icon`, the tray and the HIL notifications now use `public/assets/brand/hypagon-gateway-primary.png`. | Keep the mark 1024×1024 and regenerate it from `brand/hypagon-lockup.png` when the art changes. |
 | R7 | Logo assets are heavy and duplicated. | `public/assets` holds ~5.8 MB of PNG + JPG + SVG copies of the same three marks. The README loads all three PNGs at 30% width. | Use one optimized format per use. Keep PNG only for installer icons. |
 
 ### Optimisations, in order of value
