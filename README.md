@@ -54,9 +54,9 @@ where you already run it — local or remote — and Hypagon Gateway supplies th
 - **Self-hosted by construction.** `stdio` MCP plus a localhost bridge. No account, no dashboard, and no
   telemetry leaving the machine.
 
-![Hypagon Gateway driving a real Chromium window](docs/assets/demo.webp)
+![Hypagon Gateway searches Google, opens AI Mode and answers its question](docs/assets/demo.webp)
 
-<sub>[Open the MP4](docs/assets/demo.mp4) if your browser does not animate WebP.</sub>
+<sub>Recorded from the running app: Google → “hypagon definition” → AI Mode. [Open the MP4](docs/assets/demo.mp4) if your browser does not animate WebP.</sub>
 
 > [!WARNING]
 > **EXPERIMENTAL PROTOTYPE**: Hypagon Gateway is currently under active, experimental development. Tool contracts, telemetry tuning, and database schemas may evolve rapidly. Built for developers experimenting with multimodal local AI agents.
