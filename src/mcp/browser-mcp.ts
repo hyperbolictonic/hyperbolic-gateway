@@ -675,7 +675,7 @@ export async function createBridgeMcpServer() {
       mimeType: 'application/json',
     },
     async () => {
-      const manifestPath = path.resolve(process.cwd(), 'kuang_docs', 'okf.json');
+      const manifestPath = path.resolve(process.cwd(), 'hypagon_docs', 'okf.json');
       let text = '{}';
       try { text = fs.readFileSync(manifestPath, 'utf8'); } catch {}
       return { contents: [{ uri: 'mark-eleven://okf/manifest', mimeType: 'application/json', text }] };
@@ -691,7 +691,7 @@ export async function createBridgeMcpServer() {
       mimeType: 'text/markdown',
     },
     async () => {
-      const docPath = path.resolve(process.cwd(), 'kuang_docs', 'partitions', 'selector_and_som_recipes.md');
+      const docPath = path.resolve(process.cwd(), 'hypagon_docs', 'partitions', 'selector_and_som_recipes.md');
       let text = '';
       try { text = fs.readFileSync(docPath, 'utf8'); } catch {}
       return { contents: [{ uri: 'mark-eleven://okf/partitions/selector-and-som', mimeType: 'text/markdown', text }] };
@@ -707,7 +707,7 @@ export async function createBridgeMcpServer() {
       mimeType: 'text/markdown',
     },
     async () => {
-      const docPath = path.resolve(process.cwd(), 'kuang_docs', 'partitions', 'captcha_and_anti_bot_strategies.md');
+      const docPath = path.resolve(process.cwd(), 'hypagon_docs', 'partitions', 'captcha_and_anti_bot_strategies.md');
       let text = '';
       try { text = fs.readFileSync(docPath, 'utf8'); } catch {}
       return { contents: [{ uri: 'mark-eleven://okf/partitions/captcha-and-anti-bot', mimeType: 'text/markdown', text }] };
@@ -723,7 +723,7 @@ export async function createBridgeMcpServer() {
       mimeType: 'text/markdown',
     },
     async () => {
-      const docPath = path.resolve(process.cwd(), 'kuang_docs', 'partitions', 'browser_navigation_playbook.md');
+      const docPath = path.resolve(process.cwd(), 'hypagon_docs', 'partitions', 'browser_navigation_playbook.md');
       let text = '';
       try { text = fs.readFileSync(docPath, 'utf8'); } catch {}
       return { contents: [{ uri: 'mark-eleven://okf/partitions/browser-navigation', mimeType: 'text/markdown', text }] };
@@ -739,7 +739,7 @@ export async function createBridgeMcpServer() {
       mimeType: 'text/markdown',
     },
     async () => {
-      const docPath = path.resolve(process.cwd(), 'kuang_docs', 'partitions', 'primitives_and_workflows.md');
+      const docPath = path.resolve(process.cwd(), 'hypagon_docs', 'partitions', 'primitives_and_workflows.md');
       let text = '';
       try { text = fs.readFileSync(docPath, 'utf8'); } catch {}
       return { contents: [{ uri: 'mark-eleven://okf/partitions/primitives-and-workflows', mimeType: 'text/markdown', text }] };

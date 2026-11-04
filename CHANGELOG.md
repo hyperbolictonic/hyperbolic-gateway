@@ -1431,7 +1431,7 @@ First release with **downloadable installers**, built by CI on GitHub runners.
 
 ### Fixed
 
-- **UTF-8 BOMs removed** from `package.json`, `kuang_docs/okf.json` and three TypeScript files (left by earlier
+- **UTF-8 BOMs removed** from `package.json`, `hypagon_docs/okf.json` and three TypeScript files (left by earlier
   PowerShell writes). Strict JSON parsers — including the new release-tag check — rejected `package.json` until
   this was fixed.
 
@@ -1796,7 +1796,7 @@ Documentation-only increment: the README navigation index, and the versioning ru
   types through a mark into a shadow input, `observe(as:"markdown")` carries the `[#id]` badge, and an
   unresolvable selector fails loudly.
 - **OKF recipes R7 (web components: the host is not the control) and R8 (read it back)** in
-  [`kuang_docs/partitions/primitives_and_workflows.md`](./kuang_docs/partitions/primitives_and_workflows.md).
+  [`hypagon_docs/partitions/primitives_and_workflows.md`](./hypagon_docs/partitions/primitives_and_workflows.md).
 - **`npm run test:markdown`** — live fixture covering the composed-DOM harvest (shadow text, shadow controls,
   value baking, password redaction, select state, absolute links), envelope minimalism, harvest stability
   across two calls, paging to the end of a 167 KB construct, and the text-free-page message (20 checks).

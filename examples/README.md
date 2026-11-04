@@ -20,7 +20,7 @@ node examples/bridge-await-results.mjs "https://example.com" --click "Show more"
 
 > For real work prefer the **orthogonal primitives** (`wait_for`, `observe`, `act`,
 > `collect_all`, …) over hand-rolled polling — see
-> [`kuang_docs/partitions/primitives_and_workflows.md`](../kuang_docs/partitions/primitives_and_workflows.md).
+> [`hypagon_docs/partitions/primitives_and_workflows.md`](../hypagon_docs/partitions/primitives_and_workflows.md).
 
 ## Bridge endpoint → MCP tool
 

@@ -49,6 +49,6 @@ directly from the repository, served as static files, or crawled by an
 agent. The Pages build publishes both the readable HTML pages and the raw
 OKF Markdown at `/developer/`.
 
-The older `kuang_docs/okf.json` bundle is a custom agent-orcha manifest used
+The older `hypagon_docs/okf.json` bundle is a custom agent-orcha manifest used
 for the browser playbooks and MCP resources. It is not part of this standard
 OKF v0.2 bundle.

@@ -8,7 +8,7 @@ on:
       - 'public/welcome.html'
       - 'public/assets/**'
       - 'docs/**'
-      - 'kuang_docs/**'
+      - 'hypagon_docs/**'
       - 'packages/**'
       - 'src/**/README.md'
       - 'scripts/**'

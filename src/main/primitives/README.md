@@ -86,5 +86,5 @@ The action path prefers **CDP** (`Input.dispatchMouseEvent` / `dispatchKeyEvent`
 ## See Also
 
 - [`docs/PROPOSED_ABSTRACTIONS.md`](../../../docs/PROPOSED_ABSTRACTIONS.md) — design + status.
-- [`kuang_docs/partitions/primitives_and_workflows.md`](../../../kuang_docs/partitions/primitives_and_workflows.md) — recipes R1–R5.
+- [`hypagon_docs/partitions/primitives_and_workflows.md`](../../../hypagon_docs/partitions/primitives_and_workflows.md) — recipes R1–R5.
 - `npm run test:primitives` / `npm run test:mcp:primitives` / `npm run test:focus`.

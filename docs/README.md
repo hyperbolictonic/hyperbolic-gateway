@@ -43,10 +43,10 @@ handoffs are intentionally not published here; links to them go back to the repo
 ## Reference
 
 - [Concept and lore](./concept.html) — design philosophy and the original inspiration.
-- [Browser navigation playbook](../kuang_docs/partitions/browser_navigation_playbook.html)
-- [CAPTCHA and anti-bot strategies](../kuang_docs/partitions/captcha_and_anti_bot_strategies.html)
-- [Primitives and workflows](../kuang_docs/partitions/primitives_and_workflows.html)
-- [Selector and set-of-marks recipes](../kuang_docs/partitions/selector_and_som_recipes.html)
+- [Browser navigation playbook](../hypagon_docs/partitions/browser_navigation_playbook.html)
+- [CAPTCHA and anti-bot strategies](../hypagon_docs/partitions/captcha_and_anti_bot_strategies.html)
+- [Primitives and workflows](../hypagon_docs/partitions/primitives_and_workflows.html)
+- [Selector and set-of-marks recipes](../hypagon_docs/partitions/selector_and_som_recipes.html)
 
 ## Compatibility
 

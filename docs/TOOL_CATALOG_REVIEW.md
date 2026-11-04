@@ -235,7 +235,7 @@ Either way the capability set is unchanged; only the front door shrinks.
 | **8. Dead-code removal** | Delete orphaned `scripts/mcp-server.cjs` and the dead `src/mcp/server.ts` (+ its unused import in `src/main/index.ts`); drop its README entry | low | ✅ **done 2026-10-19** |
 
 Docs to update if 2–4 run: `src/mcp/bridge-server.ts` (the `OKF_SKILL_GUIDE` + `help`
-categories), `src/mcp/README.md` (tool count), `README.md` badges/tables, `kuang_docs/` OKF
+categories), `src/mcp/README.md` (tool count), `README.md` badges/tables, `hypagon_docs/` OKF
 partitions, `docs/TODO.md`, and `CHANGELOG.md`.
 
 > **Post-sweep additions:** Feature 6 (LLM-friendly discovery) added `llm_surface` + `llm_fetch`,

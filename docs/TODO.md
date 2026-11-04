@@ -191,7 +191,7 @@ This roadmap outlines upcoming agentic capabilities, prioritized from **least ex
 - **Priority:** P7 (Reliability & Token Economy)
 - **Why:** The flat verb list forced agents into blind sleeps, guessy selectors, and repeated full-page reads. A few orthogonal primitives (one observe model, one action model, one wait model) collapse those into deterministic, context-light calls.
 - **Implementation:** `src/main/primitives/primitives.ts` behind a narrow `PrimitivesHost` (implemented by `BrowserChassis`), exposed via `chassis.getPrimitives()` and the `/page-state`, `/wait-for`, `/expect`, `/observe`, `/extract`, `/collect`, `/find`, `/act`, `/diff`, `/network/har`, `/context/*` endpoints. Refs are the existing `data-mark-id` marks. Structured error codes (`STALE_REF`/`TIMEOUT`/`NO_TARGET`/`BAD_REQUEST`/`NOT_SUPPORTED`) map to HTTP 400.
-- **Details & recipes:** [`docs/PROPOSED_ABSTRACTIONS.md`](./PROPOSED_ABSTRACTIONS.md), [`kuang_docs/partitions/primitives_and_workflows.md`](../kuang_docs/partitions/primitives_and_workflows.md).
+- **Details & recipes:** [`docs/PROPOSED_ABSTRACTIONS.md`](./PROPOSED_ABSTRACTIONS.md), [`hypagon_docs/partitions/primitives_and_workflows.md`](../hypagon_docs/partitions/primitives_and_workflows.md).
 
 ### [x] 14. Focus-Independent CDP Input Delivery — ✅ *[COMPLETED]*
 - **Why:** `webContents.sendInputEvent` is dropped by the OS while another window is foreground (silent ~50% flake). Input is now dispatched over the tab's attached CDP debugger (`Input.dispatchMouseEvent`/`dispatchKeyEvent`/`mouseWheel`) with focus emulation enabled; `sendInputEvent` is a fallback only. `bridge_health` reports `input.transport`.

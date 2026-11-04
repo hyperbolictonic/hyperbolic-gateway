@@ -26,10 +26,10 @@ const pageDocs = [
   'docs/SHADOW_DOM_AND_FRAMES.md',
   'docs/SHADOW_WALK.md',
   'docs/concept.md',
-  'kuang_docs/partitions/browser_navigation_playbook.md',
-  'kuang_docs/partitions/captcha_and_anti_bot_strategies.md',
-  'kuang_docs/partitions/primitives_and_workflows.md',
-  'kuang_docs/partitions/selector_and_som_recipes.md',
+  'hypagon_docs/partitions/browser_navigation_playbook.md',
+  'hypagon_docs/partitions/captcha_and_anti_bot_strategies.md',
+  'hypagon_docs/partitions/primitives_and_workflows.md',
+  'hypagon_docs/partitions/selector_and_som_recipes.md',
 ];
 
 function walkMarkdown(dir) {
@@ -213,8 +213,8 @@ fs.cpSync(path.join(root, 'public', 'assets'), path.join(out, 'public', 'assets'
 fs.mkdirSync(path.join(out, 'docs', 'assets'), { recursive: true });
 fs.cpSync(path.join(root, 'docs', 'assets'), path.join(out, 'docs', 'assets'), { recursive: true });
 fs.cpSync(path.join(root, 'developer'), path.join(out, 'developer'), { recursive: true });
-fs.mkdirSync(path.join(out, 'kuang_docs'), { recursive: true });
-fs.copyFileSync(path.join(root, 'kuang_docs', 'okf.json'), path.join(out, 'kuang_docs', 'okf.json'));
+fs.mkdirSync(path.join(out, 'hypagon_docs'), { recursive: true });
+fs.copyFileSync(path.join(root, 'hypagon_docs', 'okf.json'), path.join(out, 'hypagon_docs', 'okf.json'));
 if (fs.existsSync(path.join(root, 'LICENSE'))) fs.copyFileSync(path.join(root, 'LICENSE'), path.join(out, 'LICENSE'));
 fs.copyFileSync(path.join(root, 'public', 'welcome.html'), path.join(out, 'manual.html'));
 fs.writeFileSync(path.join(out, 'assets', 'docs.css'), docsCss);

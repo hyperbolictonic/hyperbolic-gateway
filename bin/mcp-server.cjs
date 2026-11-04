@@ -39372,7 +39372,7 @@ async function createBridgeMcpServer() {
       mimeType: "application/json"
     },
     async () => {
-      const manifestPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "okf.json");
+      const manifestPath = import_node_path2.default.resolve(process.cwd(), "hypagon_docs", "okf.json");
       let text = "{}";
       try {
         text = import_node_fs3.default.readFileSync(manifestPath, "utf8");
@@ -39389,7 +39389,7 @@ async function createBridgeMcpServer() {
       mimeType: "text/markdown"
     },
     async () => {
-      const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "selector_and_som_recipes.md");
+      const docPath = import_node_path2.default.resolve(process.cwd(), "hypagon_docs", "partitions", "selector_and_som_recipes.md");
       let text = "";
       try {
         text = import_node_fs3.default.readFileSync(docPath, "utf8");
@@ -39406,7 +39406,7 @@ async function createBridgeMcpServer() {
       mimeType: "text/markdown"
     },
     async () => {
-      const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "captcha_and_anti_bot_strategies.md");
+      const docPath = import_node_path2.default.resolve(process.cwd(), "hypagon_docs", "partitions", "captcha_and_anti_bot_strategies.md");
       let text = "";
       try {
         text = import_node_fs3.default.readFileSync(docPath, "utf8");
@@ -39423,7 +39423,7 @@ async function createBridgeMcpServer() {
       mimeType: "text/markdown"
     },
     async () => {
-      const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "browser_navigation_playbook.md");
+      const docPath = import_node_path2.default.resolve(process.cwd(), "hypagon_docs", "partitions", "browser_navigation_playbook.md");
       let text = "";
       try {
         text = import_node_fs3.default.readFileSync(docPath, "utf8");
@@ -39440,7 +39440,7 @@ async function createBridgeMcpServer() {
       mimeType: "text/markdown"
     },
     async () => {
-      const docPath = import_node_path2.default.resolve(process.cwd(), "kuang_docs", "partitions", "primitives_and_workflows.md");
+      const docPath = import_node_path2.default.resolve(process.cwd(), "hypagon_docs", "partitions", "primitives_and_workflows.md");
       let text = "";
       try {
         text = import_node_fs3.default.readFileSync(docPath, "utf8");

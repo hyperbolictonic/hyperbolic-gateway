@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-orcha.dev/schemas/okf-v1.json",
   "okfVersion": "1.0.0",
-  "bundleId": "kuang_browser_docs",
+  "bundleId": "hypagon_browser_docs",
   "name": "Kuang Grade Mark Eleven Playbooks & Knowledge",
   "version": "1.4.4",
   "description": "Standard operating procedures, orthogonal primitive workflows, Set-of-Marks strategies, HIL protocols, LLM-friendly discovery (llms.txt / Markdown negotiation), web search, deep crawl, and anti-bot handling for Kuang browser automation.",
