@@ -38,6 +38,7 @@ handoffs are intentionally not published here; links to them go back to the repo
 ## Hypagon REST
 
 - [Hypagon REST man page](./HYPAGON_REST.html) — wrappers, recipes, credentials, pagination and the MCP surface.
+- [anyapi-to-mcp integration](./ANYAPI-INTEGRATION.html) — which core runs a wrapper, the per-wrapper gate, and how to roll back.
 - [Legacy Kuang Wrap link](./KUANG_WRAP.html) — compatibility stub for existing links.
 
 ## Reference

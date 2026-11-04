@@ -11,6 +11,7 @@ const pageDocs = [
   'README.md',
   'CHANGELOG.md',
   'docs/README.md',
+  'docs/ANYAPI-INTEGRATION.md',
   'docs/BUILDING.md',
   'docs/CODEBASE.md',
   'docs/CONTROL_LAYER.md',

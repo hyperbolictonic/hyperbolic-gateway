@@ -39,6 +39,7 @@ saved REST tools on top of the app. It is not the end-user manual.
 
 * [Documentation hub](../docs/README.md) - user-facing documentation, architecture notes, and operations guides.
 * [Hypagon REST man page](../docs/HYPAGON_REST.md) - the full operational guide for wrappers and credentials.
+* [anyapi-to-mcp integration](../docs/ANYAPI-INTEGRATION.md) - the two cores, the per-wrapper gate, and rollback.
 * [Build and packaging](../docs/BUILDING.md) - installers, CI, signing, and release policy.
 * [Codebase map](../docs/CODEBASE.md) - subsystem map and implementation findings.
 

@@ -5,8 +5,11 @@ implemented: the pure recipe library, wrapper store/executor, the `hb-rest`
 MCP server, the rotating bridge-token gate, encrypted host-bound credentials with
 a human-only Settings → Wrappers editor, recipe pagination, documents mode,
 `wrap_derive`, opt-in Cortex indexing, generated `wrap_<id>` tools, and OAuth2
-client-credentials with `AUTH_REQUIRED` handling and `lastVerified`. Read
-[Honest status](#honest-status-what-works-what-doesnt-what-is-untested-what-is-risky)
+client-credentials with `AUTH_REQUIRED` handling and `lastVerified`.
+
+Transport now runs on [`anyapi-to-mcp`](./ANYAPI-INTEGRATION.md) by default; wrappers that use a feature it
+cannot reproduce exactly stay on the original executor, and `HB_WRAP_CORE=legacy` runs everything on it.
+Read [Honest status](#honest-status)
 for what is partial, untested, and risky; the main open product decision is human
 approval for mutating calls.
 
@@ -39,6 +42,8 @@ The MCP process is stateless. It asks the app for the manifest and forwards
 calls. **Secrets never enter the MCP process.** That is the whole security
 model in one sentence.
 
+<a id="honest-status"></a>
+
 ## Honest status: what works, what doesn't, what is untested, what is risky
 
 This section is deliberately blunt. The wrapper system is a developer tool, not a hardened
@@ -68,7 +73,7 @@ general web scraping (that is the browser) and not for streaming or binary workl
 | Generated tools | Opt-in per wrapper (`exposeAsTool`), typed args, capped by `HB_WRAP_MAX_TOOLS` (default 40; `0` disables), `tools/list_changed` on change |
 | Verification metadata | `lastVerified` written after a successful live run and shown in `wrap_list` |
 | Audit | `audit.jsonl`: method, host, status, bytes, duration, error code — no headers, bodies, or query strings |
-| Tests | 50 offline, 11 generated-tool lifecycle (real MCP client), 46 live against DummyJSON |
+| Tests | 55 offline (store, executor, secrets, pagination, indexing, schema, OAuth2), 16 core/adapters, 15 generated-tool lifecycle (real MCP client), 46 live against DummyJSON |
 
 ### What does not work (or is partial)
 
@@ -301,11 +306,16 @@ result.records                # what to filter, store, or return as JSON
 required argument names. `wrap_get` returns the full schema when the agent
 needs it. That keeps discovery cheap.
 
+A dry run shows the exact method and URL. On the default core the header values are
+`<redacted>` — the core never returns a credential or any other header value — while the
+legacy core shows the literal non-secret values. See [Two cores](#two-cores).
+
 ## Trying it
 
 ```bash
 npm run build:mcp        # writes bin/mcp-server.cjs and bin/wrap-server.cjs
-npm run test:wrap        # 50 offline store/executor/secret/pagination/indexing/schema/oauth2 tests
+npm run test:wrap        # 55 offline store/executor/secret/pagination/indexing/schema/oauth2 tests
+npm run test:anyapi      # 16 adapter + core tests (projection, secrets, error mapping, gate, fallback)
 npm run test:wrap:mcp    # 15 generated-tool lifecycle + cap checks over a real MCP client
 npm run test:wrap:live   # 46 live checks against DummyJSON (needs the app; inline wrappers, nothing saved)
 ```
@@ -587,6 +597,42 @@ correct.
   DNS server could rebind between the two. Pinning the checked address in the
   socket is the next hardening step; it is not yet implemented.
 
+<a id="two-cores"></a>
+
+## Two cores
+
+Transport is swappable per process. By default a wrapper runs through
+[`anyapi-to-mcp`](./ANYAPI-INTEGRATION.md), which owns the outbound policy, DNS checks,
+redirects, byte caps, credential binding and audit rows. `HB_WRAP_CORE=legacy` puts every
+wrapper back on the original executor; it is the rollback and the way to compare behaviour.
+
+`AnyApiWrapExecutor` hands a wrapper to the legacy executor when the core cannot reproduce it
+exactly. The gate is deliberately conservative — a silent behaviour change is worse than a
+fallback:
+
+| Stays on the legacy executor | Why |
+| --- | --- |
+| More than one accepted method | One method per core operation. |
+| `bodyFormat: "form"` or `"text"` | The core builds JSON bodies only. |
+| Recipe pagination | The legacy loop merges pages; core cursors have a different shape. |
+| `response.index: "cortex"` | The index hook is host-side. |
+| `{{name\|raw}}` in a URL | Projection loses the raw flag. |
+| An optional path placeholder | The core refuses an unfilled path; the legacy executor substitutes an empty segment. |
+| An optional templated header | The core would send the placeholder literally; the legacy executor drops it. |
+| A body on a `GET` or `HEAD` request | The core rejects it. |
+| Array or object arguments | The core input contract is scalar. |
+| Array or object query values | Projection would drop them. |
+| OAuth2, wildcard or multi-host secrets | No exact-host binding can express them. |
+
+Two differences are visible while the wrappers are split:
+
+- **Preview headers are fully redacted** on the core, as described above.
+- **An oversized response is `RESPONSE_TOO_LARGE`**, not a truncated body. The core refuses
+  rather than truncates.
+
+The contract itself does not move: IPC channels, bridge routes, `WrapRunResult`, error codes for
+situations that already had one, and the `<userData>/wrap` layout are unchanged.
+
 ## MCP surface
 
 Meta-tools (always present):
@@ -729,6 +775,11 @@ separate reusable recipe store is planned.
 
 ## Decision log
 
+- **2026-11-04** — Wrapper transport moved to `anyapi-to-mcp` by default. The package
+  owns the outbound policy and execution; the wrapper surface (IPC, bridge routes,
+  `WrapRunResult`, rendering, file layout) is unchanged. Wrappers outside the core's
+  expressible set fall back per call, and `HB_WRAP_CORE=legacy` reverts the process. Rendering
+  and credential redaction moved to one shared module so both cores cannot diverge.
 - **2026-10-23** — Recipe engine is a pure package; monorepo first, standalone
   later. No Electron or MCP imports.
 - **2026-10-23** — Hypagon REST is a second **stdio MCP server**, not a second

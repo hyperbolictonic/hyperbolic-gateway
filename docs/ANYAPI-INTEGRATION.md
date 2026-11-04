@@ -60,7 +60,10 @@ cannot promise the same behaviour. The gate is deliberately conservative:
 | `response.index: "cortex"` | The index hook is host-side, not part of the core. |
 | `{{name|raw}}` in a URL | Projection loses the raw flag. |
 | Array or object input properties | The core input contract is scalar; arrays would be coerced to a string. |
+| Array or object query values | Projection would drop them. |
 | An optional path placeholder | The core refuses an unfilled path; the legacy executor substitutes an empty segment. |
+| An optional templated header | The core would send the placeholder literally; the legacy executor drops it. |
+| A body on a `GET`/`HEAD` request | The core rejects it. |
 | OAuth2, wildcard or multi-host secrets | No exact-host binding can express them. |
 
 Everything else runs on the core. When it does, the published surface is
