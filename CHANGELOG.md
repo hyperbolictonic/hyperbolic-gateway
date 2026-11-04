@@ -42,8 +42,11 @@ collides with Hyperbolic.Ai.
   names, and `hb-browser` / `hb-wrap` keep their skill directories.
 - **`appId` is unchanged** (`com.hyperbolictonic.kuang-grade-mark-eleven`) so an in-place
   upgrade still replaces the previous install instead of installing alongside it.
-- **Repository coordinates are unchanged** for now: the updater feed, skill install URLs and
-  changelog links still point at the current GitHub repository.
+- **The repository moved to [`hyperbolictonic/hypagon`](https://github.com/hyperbolictonic/hypagon).**
+  GitHub redirects the old URLs, and the documentation now lives at
+  [hyperbolictonic.github.io/hypagon](https://hyperbolictonic.github.io/hypagon/); the previous
+  Pages address forwards there. The updater feed, skill install URLs and changelog links all point
+  at the new name.
 - The installer removes the pre-rename `Hyperbolic Gateway` shortcuts.
 
 ## [1.7.1] - 2026-10-31
