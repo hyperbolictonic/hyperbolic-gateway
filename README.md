@@ -10,7 +10,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-2.0.0-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-2.0.1-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-16%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -844,7 +844,7 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
 ## 📦 Release notes
 
 > [!NOTE]
-> **What's new in 2.0.0** — **the rebrand.** The project is now **Hypagon Gateway**, with **Hypagon Browser** (`hb-browser`) and **Hypagon REST** (`hb-rest`) as its two MCP surfaces, so the name no longer collides with Hyperbolic.Ai. Brand strings live in one module (`src/shared/brand.ts`), so the next rename is a single-file change. **Nothing to migrate by hand:** the `Hyperbolic Gateway` profile (and older ones) is imported on first launch, `HB_*` stays the canonical env prefix with `KUANG_*` fallbacks, `hb-browser` / `hb-rest` keep their names, and `appId` is unchanged so an update replaces the old install in place. The repository moved to [`hyperbolictonic/hypagon`](https://github.com/hyperbolictonic/hypagon) — the docs now live at [hyperbolictonic.github.io/hypagon](https://hyperbolictonic.github.io/hypagon/), and the old Pages address forwards there. Earlier releases are in [CHANGELOG.md](./CHANGELOG.md).
+> **What's new in 2.0.1** — **the wrapper core moved to [`anyapi-to-mcp`](docs/ANYAPI-INTEGRATION.md), and nothing on the surface moved with it.** `hb-rest` wrappers now run through the package by default: it owns the outbound policy and the request, while IPC channels, bridge routes, MCP tool names, the `WrapRunResult` shape and the `<userData>/wrap` layout stay exactly as they were. A wrapper that uses a feature the core cannot reproduce exactly stays on the original executor for that call, so there is no file migration, and `HB_WRAP_CORE=legacy` puts the whole process back. Two deliberate differences: an oversized response is `RESPONSE_TOO_LARGE` instead of a truncated body, and a dry run reports header names with every value `<redacted>`. The same release adds `HB_USER_DATA_DIR` and `npm run dev:isolated` for a second profile, and fixes dry-run previews dropping the query string plus `BLOCKED_ADDRESS` / `DNS_LOOKUP_FAILED` collapsing into `BLOCKED_HOST`. Earlier releases are in [CHANGELOG.md](./CHANGELOG.md).
 
 ---
 

@@ -170,6 +170,30 @@ test('a dry run sends nothing and shows no header value', async () => {
   assert.equal(called, false);
   assert.equal(plan.request.method, 'GET');
   assert.equal(plan.request.headers.accept, '<redacted>');
+  // A plan keeps the query out of its URL; the preview must put it back.
+  assert.equal(plan.request.url, 'https://api.example.com/v1/items?q=Paris');
+});
+
+test('a policy refusal keeps the code the wrapper surface publishes', async () => {
+  const { wrapErrorCode } = await import('../src/main/wrap/anyapi/result.ts');
+
+  assert.equal(
+    wrapErrorCode({ code: 'blocked_host', message: '127.0.0.1 is a private or loopback address' }, '127.0.0.1'),
+    'BLOCKED_ADDRESS',
+  );
+  assert.equal(
+    wrapErrorCode({ code: 'blocked_host', message: 'localhost is a private or loopback address' }, 'localhost'),
+    'BLOCKED_HOST',
+  );
+  assert.equal(
+    wrapErrorCode({ code: 'blocked_host', message: 'api.internal is a private or loopback address' }, 'api.internal'),
+    'BLOCKED_HOST',
+  );
+  assert.equal(
+    wrapErrorCode({ code: 'blocked_host', message: 'cannot resolve nope.invalid' }, 'nope.invalid'),
+    'DNS_LOOKUP_FAILED',
+  );
+  assert.equal(wrapErrorCode({ code: 'blocked_host', message: 'no host given' }), 'BLOCKED_HOST');
 });
 
 test('a secret is bound to its host and echoed values are redacted', async () => {

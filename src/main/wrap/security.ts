@@ -57,13 +57,7 @@ export async function assertSafeUrl(rawUrl: string, policy: UrlPolicy = {}): Pro
 
   if (policy.allowPrivateHosts) return url;
 
-  if (
-    hostname === 'localhost' ||
-    hostname.endsWith('.localhost') ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal') ||
-    hostname.endsWith('.home.arpa')
-  ) {
+  if (isPrivateHostname(hostname)) {
     throw new WrapSecurityError(
       'BLOCKED_HOST',
       `"${hostname}" is a private host. Set KUANG_WRAP_ALLOW_PRIVATE=1 to allow local APIs.`,
@@ -101,6 +95,23 @@ export async function assertSafeUrl(rawUrl: string, policy: UrlPolicy = {}): Pro
 async function defaultResolveHost(hostname: string): Promise<string[]> {
   const records = await dns.lookup(hostname, { all: true, verbatim: true });
   return records.map((record) => record.address);
+}
+
+/**
+ * A hostname that is private by name alone, before any lookup.
+ *
+ * Exported so a second core reports `BLOCKED_HOST` for the same names the
+ * legacy executor does, instead of collapsing every refusal into one code.
+ */
+export function isPrivateHostname(hostname: string): boolean {
+  const value = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  return (
+    value === 'localhost' ||
+    value.endsWith('.localhost') ||
+    value.endsWith('.local') ||
+    value.endsWith('.internal') ||
+    value.endsWith('.home.arpa')
+  );
 }
 
 /**

@@ -16,6 +16,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [2.0.1] - 2026-11-04
+
+The **wrapper-core** release. `hb-rest` runs on [`anyapi-to-mcp`](docs/ANYAPI-INTEGRATION.md)
+by default: the package owns the outbound policy and the request, while the wrapper surface
+stays exactly where it was.
+
+### Changed
+
+- Wrapper transport is the `anyapi-to-mcp` core unless `HB_WRAP_CORE=legacy` (or
+  `KUANG_WRAP_CORE`) is set. IPC channels, bridge routes, MCP tool names, the
+  `WrapRunResult` shape and the `<userData>/wrap` layout are unchanged.
+- A wrapper that uses a feature the core cannot reproduce exactly stays on the original
+  executor for that call, so one process serves old and new wrappers with no file migration.
+- Recipe rendering and credential redaction live in one shared module
+  (`src/main/wrap/render.ts`), so a fix cannot land in one core and miss the other.
+- An oversized response on the core is refused as `RESPONSE_TOO_LARGE` instead of being
+  truncated, and a core dry run reports header *names* only — every value is `<redacted>`.
+
+### Added
+
+- `HB_USER_DATA_DIR` (with the `KUANG_USER_DATA_DIR` fallback) points a build at a different
+  profile, so a dev run and an installed build no longer fight over the single-instance lock.
+- `npm run dev:isolated` starts a second instance with its own profile and bridge port and
+  prints the matching MCP client config.
+
+### Fixed
+
+- A dry-run preview now includes the query string. The core keeps the query out of the plan's
+  URL, so previews were showing a request without its parameters.
+- A policy refusal keeps the code the wrapper surface publishes: a private or literal address
+  is `BLOCKED_ADDRESS` and an unresolvable host is `DNS_LOOKUP_FAILED`, rather than every
+  case collapsing into `BLOCKED_HOST`.
+
 ## [2.0.0] - 2026-11-03
 
 The **rebrand** release. The project is now **Hypagon Gateway**, with **Hypagon Browser**

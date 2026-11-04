@@ -15,6 +15,8 @@
 import type { DryRunPlan, RuntimeError } from 'anyapi-to-mcp/runtime';
 
 import type { RenderedDocument, RenderMeta } from '../../../../packages/recipe/src/index.ts';
+import { isPrivateHostname } from '../security.ts';
+import { previewUrl } from '../render.ts';
 import type { WrapErrorInfo, WrapIndexed, WrapMethod, WrapPreview, WrapRunResult } from '../types.ts';
 
 export type WrapIdentity = { readonly id: string; readonly name: string };
@@ -49,6 +51,7 @@ const CORE_TO_WRAP = {
   unknown_cursor: 'INVALID_CURSOR',
   cursor_mismatch: 'INVALID_CURSOR',
   blocked_scheme: 'BLOCKED_PROTOCOL',
+  /** Split by the wrapper's own rule below; a bare default for safety. */
   blocked_host: 'BLOCKED_HOST',
   bad_url: 'INVALID_URL',
   url_has_credentials: 'BLOCKED_URL_CREDENTIALS',
@@ -57,8 +60,28 @@ const CORE_TO_WRAP = {
 /** A core code this build does not know is reported as a request failure. */
 const UNKNOWN_CODE = 'INVALID_REQUEST';
 
+/**
+ * The core has one refusal code for three situations the wrapper surface
+ * publishes separately. `host` is the name from the core's own plan, so the
+ * split is decided by the same data the policy used, not by parsing a message
+ * beyond the resolve-failure case.
+ */
+export function splitBlockedHost(
+  error: Pick<RuntimeError, 'code'> & { readonly message?: string },
+  host: string | undefined,
+): string | undefined {
+  if (error.code !== 'blocked_host' || host === undefined) return undefined;
+  if (error.message?.startsWith('cannot resolve') === true) return 'DNS_LOOKUP_FAILED';
+  return isPrivateHostname(host) ? 'BLOCKED_HOST' : 'BLOCKED_ADDRESS';
+}
+
 /** 401/403 means the credential is the actionable problem, not the transport. */
-export function wrapErrorCode(error: Pick<RuntimeError, 'code' | 'status'>): string {
+export function wrapErrorCode(
+  error: Pick<RuntimeError, 'code' | 'status'> & { readonly message?: string },
+  host?: string,
+): string {
+  const split = splitBlockedHost(error, host);
+  if (split !== undefined) return split;
   if (error.code === 'http_error' && (error.status === 401 || error.status === 403)) return 'AUTH_REQUIRED';
   return CORE_TO_WRAP[error.code as RuntimeError['code']] ?? UNKNOWN_CODE;
 }
@@ -68,6 +91,8 @@ export type WrapFailureOptions = {
   readonly field?: string;
   /** Overrides the default retryability (timeouts and network failures are). */
   readonly retryable?: boolean;
+  /** The request host, so a policy refusal keeps its published code. */
+  readonly host?: string;
 };
 
 export function wrapFailure(
@@ -75,7 +100,7 @@ export function wrapFailure(
   error: Pick<RuntimeError, 'code' | 'message' | 'hint' | 'status'>,
   options: WrapFailureOptions = {},
 ): WrapRunResult {
-  const code = wrapErrorCode(error);
+  const code = wrapErrorCode(error, options.host);
   const message = error.hint === undefined ? error.message : `${error.message} (${error.hint})`;
   const retryable = options.retryable ?? (code === 'TIMEOUT' || code === 'NETWORK_ERROR');
   const info: WrapErrorInfo = {
@@ -160,7 +185,8 @@ export function wrapDryRun(wrapper: WrapIdentity, plan: DryRunPlan): WrapRunResu
     request: {
       // The core's HttpMethod is the same closed set as WrapMethod.
       method: plan.method as WrapMethod,
-      url: plan.url,
+      // A plan keeps the query out of `url`; a preview must show it.
+      url: previewUrl(plan.url, plan.query),
       headers,
       ...(plan.body === undefined ? {} : { body: plan.body }),
     },

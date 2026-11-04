@@ -177,7 +177,8 @@ test('a dry run never shows a header value', () => {
   assert.equal(result.ok, true);
   assert.equal(result.dryRun, true);
   assert.equal(result.request.method, 'POST');
-  assert.equal(result.request.url, 'https://api.sample.test/things');
+  // The plan separates the query; the preview shows it, encoded.
+  assert.equal(result.request.url, 'https://api.sample.test/things?q=1');
   assert.deepEqual(result.request.headers, { accept: '<redacted>', authorization: '<redacted>' });
   assert.equal(result.request.body, '{"name":"x"}');
   assert.equal(JSON.stringify(result).includes('Bearer'), false);

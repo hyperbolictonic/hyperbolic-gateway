@@ -73,6 +73,20 @@ export function safeHost(url: string): string {
   }
 }
 
+/**
+ * The preview URL for a plan.
+ *
+ * A core plan keeps the query string out of `url` (it may hold a secret), so a
+ * preview has to put it back. Appending through `URLSearchParams` re-encodes it
+ * exactly as the request will.
+ */
+export function previewUrl(url: string, query: Readonly<Record<string, string>> | undefined): string {
+  if (query === undefined) return url;
+  const params = new URLSearchParams(query);
+  const search = params.toString();
+  return search === '' ? url : `${url}${url.includes('?') ? '&' : '?'}${search}`;
+}
+
 export function secretVariants(value: string): string[] {
   const variants = new Set<string>();
   if (value) variants.add(value);

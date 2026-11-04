@@ -18,13 +18,13 @@ import type { MapDocument, Operation } from 'anyapi-to-mcp/map';
 import { bytesOf, handleFor } from 'anyapi-to-mcp/store';
 import type { PayloadStore, PutOptions, StoredPayload, StoreError } from 'anyapi-to-mcp/store';
 import { executeStored, planOperation } from 'anyapi-to-mcp/runtime';
-import type { AuditEvent, BindingTable, RunOptions, SecretProvider } from 'anyapi-to-mcp/runtime';
+import type { AuditEvent, BindingTable, DryRunPlan, RunOptions, SecretProvider } from 'anyapi-to-mcp/runtime';
 import type { Result } from 'anyapi-to-mcp';
 
 import { validateArgs } from '../input-schema.ts';
 import { wrapDryRun, wrapFailure, wrapSuccess } from './result.ts';
 import { createSecretAdapter } from './secrets.ts';
-import { clampInt, failure, redactDeep, redactText, renderPayload, secretVariants } from '../render.ts';
+import { clampInt, failure, previewUrl, redactDeep, redactText, renderPayload, secretVariants } from '../render.ts';
 import { resolveHosts } from '../security.ts';
 import { validateWrapper } from '../validate-wrapper.ts';
 import type { WrapExecutor } from '../executor.ts';
@@ -294,7 +294,7 @@ export class AnyApiWrapExecutor {
     const durationMs = Date.now() - started;
 
     if (!executed.ok) {
-      return wrapFailure(identity, executed.error, { request });
+      return wrapFailure(identity, executed.error, { request, host });
     }
 
     const executedResult = executed.value;
@@ -420,12 +420,12 @@ function pickDeclared(value: Record<string, unknown>, operation: Operation): Rec
 }
 
 /** A preview from the core's plan: header names only, every value redacted. */
-function previewFromPlan(plan: { method: string; url: string; headers: readonly string[]; body?: string }): WrapPreview {
+function previewFromPlan(plan: DryRunPlan): WrapPreview {
   const headers: Record<string, string> = {};
   for (const name of plan.headers) headers[name] = '<redacted>';
   return {
     method: plan.method as WrapPreview['method'],
-    url: plan.url,
+    url: previewUrl(plan.url, plan.query),
     headers,
     ...(plan.body === undefined ? {} : { body: plan.body }),
   };
