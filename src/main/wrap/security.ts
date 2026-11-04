@@ -103,6 +103,12 @@ async function defaultResolveHost(hostname: string): Promise<string[]> {
   return records.map((record) => record.address);
 }
 
+/**
+ * The resolver the policy uses when the host injects none. Exported so a second
+ * core can apply the same DNS check instead of silently skipping it.
+ */
+export const resolveHosts = defaultResolveHost;
+
 export function isPrivateAddress(address: string): boolean {
   const value = address.toLowerCase().replace(/^\[|\]$/g, '');
 

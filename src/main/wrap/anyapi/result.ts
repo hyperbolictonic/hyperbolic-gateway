@@ -12,7 +12,7 @@
  * an error carries only a message and an optional hint.
  */
 
-import type { DryRunPlan, RunResult, RuntimeError } from 'anyapi-to-mcp/runtime';
+import type { DryRunPlan, RuntimeError } from 'anyapi-to-mcp/runtime';
 
 import type { RenderedDocument, RenderMeta } from '../../../../packages/recipe/src/index.ts';
 import type { WrapErrorInfo, WrapIndexed, WrapMethod, WrapPreview, WrapRunResult } from '../types.ts';
@@ -107,7 +107,8 @@ export type WrapRendered = {
 
 export type WrapSuccessInput = {
   readonly wrapper: WrapIdentity;
-  readonly result: Extract<RunResult, { dryRun: false }>;
+  /** The core's status is all this adapter needs from its result. */
+  readonly result: { readonly status: number };
   readonly request: WrapPreview;
   readonly rendered: WrapRendered;
   readonly durationMs: number;

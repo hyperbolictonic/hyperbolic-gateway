@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { BrowserChassis } from './browser-chassis.js';
 import { startHttpBridge } from './http-bridge.js';
-import { WrapExecutor } from './wrap/executor.js';
+import { createWrapExecutor } from './wrap/factory.js';
 import { WrapStore } from './wrap/store.js';
 import { createWrapToken, tokenFile } from './wrap/token.js';
 import { SecretStore } from './wrap/secrets.js';
@@ -626,20 +626,24 @@ async function createWindow() {
     const wrapAudit = new WrapAuditLog(path.join(wrapDir(), 'audit.jsonl'));
     activeWrapSecrets = wrapSecrets;
     activeWrapAudit = wrapAudit;
-    const wrapExecutor = new WrapExecutor(wrapStore, {
-      secrets: wrapSecrets,
-      audit: wrapAudit,
-      // Opt-in per recipe (`response.index: "cortex"`). Chunks land in the same
-      // page_history table as browsed pages, so `recall_memory` finds them.
-      indexDocuments: async (documents, context) => {
-        const cortex = chassis.getCortex();
-        let chunks = 0;
-        for (const document of documents) {
-          chunks += await cortex.indexPage(context.url, document.title, document.markdown);
-        }
-        return chunks;
+    const wrapExecutor = createWrapExecutor(
+      wrapStore,
+      {
+        secrets: wrapSecrets,
+        audit: wrapAudit,
+        // Opt-in per recipe (`response.index: "cortex"`). Chunks land in the same
+        // page_history table as browsed pages, so `recall_memory` finds them.
+        indexDocuments: async (documents, context) => {
+          const cortex = chassis.getCortex();
+          let chunks = 0;
+          for (const document of documents) {
+            chunks += await cortex.indexPage(context.url, document.title, document.markdown);
+          }
+          return chunks;
+        },
       },
-    });
+      wrapSecrets,
+    );
     const wrapToken = createWrapToken(wrapDir());
     const toolSettings = new ToolSettingsStore(path.join(app.getPath('userData'), 'tool-settings.json'));
     registerToolSettingsIpc(toolSettings);

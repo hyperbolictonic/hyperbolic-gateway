@@ -13,6 +13,17 @@ import { validateArgs } from './input-schema.ts';
 import { buildRequest, redactHeaders, BuildRequestError } from './interpolate.ts';
 import { assertSafeUrl, WrapSecurityError } from './security.ts';
 import { validateWrapper } from './validate-wrapper.ts';
+import {
+  clampInt,
+  clip,
+  failure,
+  parseJson,
+  redactDeep,
+  redactText,
+  renderPayload,
+  safeHost,
+  secretVariants,
+} from './render.ts';
 import type { WrapFormat, WrapPreview, WrapRunResult, WrapWrapper } from './types.ts';
 import type { WrapStore } from './store.ts';
 import type { SecretStore } from './secrets.ts';
@@ -617,38 +628,7 @@ export class WrapExecutor {
     contentType: string,
     maxItems?: number,
   ): Rendered {
-    if (json !== undefined && wrapper.response) {
-      try {
-        const rendered = renderRecipe(json, wrapper.response, { maxChars: this.maxResultChars, maxItems });
-        return {
-          markdown: rendered.markdown,
-          records: rendered.records,
-          documents: rendered.documents,
-          meta: rendered.meta,
-        };
-      } catch (err: any) {
-        return {
-          markdown: `_Recipe failed: ${err?.message || err}_\n\n${fence(text, 'text', this.maxResultChars)}`,
-          records: [],
-        };
-      }
-    }
-
-    if (json !== undefined) {
-      const pretty = JSON.stringify(json, null, 2);
-      return {
-        markdown: fence(pretty, 'json', this.maxResultChars),
-        records: toRecords(json),
-      };
-    }
-
-    if (!text) return { markdown: '_Empty response._', records: [] };
-
-    const label = contentType.includes('html') ? 'html' : 'text';
-    return {
-      markdown: fence(text, label, this.maxResultChars),
-      records: [],
-    };
+    return renderPayload(wrapper, json, text, contentType, { maxChars: this.maxResultChars, maxItems });
   }
 
   private async fetchWithPolicy(
@@ -804,101 +784,4 @@ function sameOrigin(a: string, b: string): boolean {
   } catch {
     return false;
   }
-}
-
-function safeHost(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return '';
-  }
-}
-
-function secretVariants(value: string): string[] {
-  const variants = new Set<string>();
-  if (value) variants.add(value);
-  const withoutScheme = value.replace(/^[A-Za-z]+\s+/, '');
-  if (withoutScheme && withoutScheme !== value) variants.add(withoutScheme);
-  return [...variants];
-}
-
-function redactText(text: string, values: string[]): string {
-  if (!text || values.length === 0) return text;
-  let out = text;
-  for (const value of values) {
-    if (value) out = out.split(value).join('<redacted>');
-  }
-  return out;
-}
-
-function redactDeep(value: unknown, values: string[], depth = 0): unknown {
-  if (values.length === 0) return value;
-  if (depth > 100) return '<redacted-deep>';
-  if (typeof value === 'string') return redactText(value, values);
-  if (Array.isArray(value)) return value.map((item) => redactDeep(item, values, depth + 1));
-  if (isPlainObject(value)) {
-    const out: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value)) {
-      out[redactText(key, values)] = redactDeep(entry, values, depth + 1);
-    }
-    return out;
-  }
-  return value;
-}
-
-function parseJson(text: string, contentType: string): unknown {
-  if (!text) return undefined;
-  const looksJson = contentType.includes('json') || /^\s*[\[{]/.test(text);
-  if (!looksJson) return undefined;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined;
-  }
-}
-
-function toRecords(json: unknown): Record<string, unknown>[] {
-  if (Array.isArray(json)) {
-    return json.map((item) => (isPlainObject(item) ? item : { value: item }));
-  }
-  if (isPlainObject(json)) return [json];
-  return [];
-}
-
-function fence(text: string, language: string, maxChars: number): string {
-  const clipped = clip(text.trim(), maxChars);
-  return clipped ? `\`\`\`${language}\n${clipped}\n\`\`\`` : '_Empty response._';
-}
-
-function clip(text: string, maxChars: number): string {
-  if (!text) return '';
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, Math.max(0, maxChars - 1))}…`;
-}
-
-function failure(
-  wrapper: { id: string; name: string },
-  code: string,
-  message: string,
-  request?: WrapPreview,
-  field?: string,
-  retryable?: boolean,
-): WrapRunResult {
-  return {
-    ok: false,
-    wrapper,
-    request,
-    markdown: `**${code}:** ${message}`,
-    records: [],
-    error: { code, message, field, retryable },
-  };
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function clampInt(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, Math.floor(value)));
 }

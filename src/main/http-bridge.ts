@@ -20,7 +20,7 @@ import {
   startRecording,
   stopRecording,
 } from './recording/recording-service.js';
-import type { WrapExecutor } from './wrap/executor.js';
+import type { WrapCore } from './wrap/core.js';
 import type { WrapStore } from './wrap/store.js';
 import type { SecretStore } from './wrap/secrets.js';
 import type { WrapAuditLog } from './wrap/audit.js';
@@ -31,7 +31,7 @@ import { deriveRecipe } from '../../packages/recipe/src/index.ts';
 
 export interface WrapBridge {
   store: WrapStore;
-  executor: WrapExecutor;
+  executor: WrapCore;
   secrets: SecretStore;
   audit: WrapAuditLog;
   /** Rotated on each app start; the MCP side reads it from `HB_WRAP_TOKEN_FILE` (legacy `KUANG_WRAP_TOKEN_FILE`). */
