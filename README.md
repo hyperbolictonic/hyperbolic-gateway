@@ -711,11 +711,20 @@ Each folder contains a dedicated `README.md` detailing its responsibilities, dep
 pnpm dev
 ```
 
-> **One bridge per port.** Dev and installed builds share the default bridge port **4111**
-> (`HB_BRIDGE_PORT` overrides it). They also have separate single-instance locks, so both _can_ run at
-> once — and the second one's bridge fails with `EADDRINUSE`, leaving the MCP tools pointed at the other
-> window. Close one, or run the second with `HB_BRIDGE_PORT=4112` and set `HB_BRIDGE_URL` for its
-> MCP server to match.
+> **One bridge per port, one profile per process.** A dev run and an installed build derive the same
+> `userData` directory, so they share Electron's single-instance lock and the default bridge port **4111**.
+> To run both at once, give the dev run its own profile and port:
+>
+> ```bash
+> HB_USER_DATA_DIR="$APPDATA/hypagon-gateway-dev" HB_BRIDGE_PORT=4113 pnpm dev
+> ```
+>
+> Then point a second MCP client config at `HB_BRIDGE_URL=http://127.0.0.1:4113` and
+> `HB_WRAP_TOKEN_FILE=<that profile>/wrap/token`. The dev window's **Settings → MCP Clients** tab
+> generates the config for you, with the right port and profile paths.
+>
+> `pnpm dev:isolated` does all of that in one step: it starts the dev build on its own profile and
+> port 4113, and prints a ready-to-paste MCP config.
 
 ### Production Build & Launch
 

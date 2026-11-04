@@ -1,10 +1,11 @@
 # anyapi-to-mcp integration
 
-Status: **stage 2, opt-in switch.** `anyapi-to-mcp` is installed from the
-registry. Wrappers run through it when `HB_WRAP_CORE=anyapi`; the legacy executor
-is still the default and remains the fallback for every wrapper the package
-cannot reproduce exactly. `npx tsc --noEmit`, `npm run test:anyapi`,
-`npm run test:wrap` and `npm run test:mcp:contract` are green.
+Status: **stage 3, the core is the default.** Wrappers run through
+`anyapi-to-mcp`; `HB_WRAP_CORE=legacy` is the rollback. Any wrapper the package
+cannot reproduce exactly is still handed to the legacy executor, so the gate
+table below is the authoritative list of what runs where.
+`npx tsc --noEmit`, `npm run test:anyapi`, `npm run test:wrap` and
+`npm run test:mcp:contract` are green.
 
 ## Goal
 
@@ -34,15 +35,18 @@ UI and JEV are out of scope.
 2. **Opt-in switch.** `HB_WRAP_CORE=anyapi` selects the new path per process.
    Both cores remain present. **Done** — `src/main/wrap/factory.ts` chooses, and
    `src/main/wrap/anyapi/executor.ts` runs the wrappers the core can serve.
-3. **Parity.** Run the existing wrapper suites against both cores, plus a live
-   DummyJSON run, then make the new path the default.
-4. **Delete the old executor** after one release with no regressions.
+3. **Parity and default.** Run the wrapper suites against both cores, then make
+   the new path the default. **Done for the default:** the core runs unless
+   `HB_WRAP_CORE=legacy` is set. The gate below is the parity boundary; the
+   legacy suite (`npm run test:wrap`) still runs against its own executor.
+4. **Delete the old executor** after one release with no regressions. It stays
+   as the fallback until the gate is empty.
 
 ## The switch
 
 `createWrapExecutor()` in `src/main/wrap/factory.ts` reads
-`HB_WRAP_CORE` (falling back to `KUANG_WRAP_CORE`). Anything other than
-`anyapi` — including unset — keeps the legacy executor. The choice is per
+`HB_WRAP_CORE` (falling back to `KUANG_WRAP_CORE`). Only `legacy` selects the
+old executor; anything else, including unset, uses the core. The choice is per
 process, never per wrapper file, so a wrapper cannot change cores between calls.
 
 `AnyApiWrapExecutor` hands a wrapper to the legacy executor when `coreGate()`

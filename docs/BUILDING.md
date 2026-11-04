@@ -45,6 +45,8 @@ Windows (x64), Linux (x64) and macOS (Apple Silicon) artefacts; publishing is au
    in packaged builds (repo `data/` in development). This matters because Windows may start the
    installed executable with a read-only working directory; writing relative to `process.cwd()`
    crashes the main process before the window exists. `HB_DATA_DIR` (legacy `KUANG_DATA_DIR`) overrides the root for tests.
+   `HB_USER_DATA_DIR` (legacy `KUANG_USER_DATA_DIR`) moves the whole Electron profile; use it to run a
+   dev build beside an installed one — `npm run dev:isolated` does that and picks a free bridge port.
 7. **No signing.** Unsigned macOS builds are refused by Gatekeeper; Windows shows a SmartScreen warning.
 
 ---

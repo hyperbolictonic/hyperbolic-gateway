@@ -234,20 +234,21 @@ test('a wrapper outside the gate is handed to the legacy executor', async () => 
   assert.match(contentType, /x-www-form-urlencoded/);
 });
 
-test('the switch is per process and defaults to the legacy core', () => {
+test('the core defaults on and legacy is the opt-out', () => {
   const { store } = tempStore();
   const previous = process.env.HB_WRAP_CORE;
   try {
     delete process.env.HB_WRAP_CORE;
+    assert.equal(wrapCoreMode(), 'anyapi');
+    assert.ok(createWrapExecutor(store, {}) instanceof AnyApiWrapExecutor);
+
+    process.env.HB_WRAP_CORE = 'legacy';
     assert.equal(wrapCoreMode(), 'legacy');
     assert.ok(createWrapExecutor(store, {}) instanceof WrapExecutor);
 
     process.env.HB_WRAP_CORE = 'anyapi';
     assert.equal(wrapCoreMode(), 'anyapi');
     assert.ok(createWrapExecutor(store, {}) instanceof AnyApiWrapExecutor);
-
-    process.env.HB_WRAP_CORE = 'something-else';
-    assert.equal(wrapCoreMode(), 'legacy');
   } finally {
     if (previous === undefined) delete process.env.HB_WRAP_CORE;
     else process.env.HB_WRAP_CORE = previous;

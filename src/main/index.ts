@@ -47,6 +47,23 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
+ * Opt-in profile directory, so a dev run can coexist with an installed one.
+ *
+ * Electron scopes the single-instance lock to `userData`, and both builds derive
+ * that path from the same package name. Without an override, starting `npm run
+ * dev` while the installed app runs just focuses the installed window (or exits
+ * on the lock), and both would race for the bridge port. This must run before
+ * the lock request and before anything reads `getPath('userData')`.
+ */
+const userDataOverride = (process.env.HB_USER_DATA_DIR ?? process.env.KUANG_USER_DATA_DIR)?.trim();
+if (userDataOverride) {
+  const resolved = path.resolve(userDataOverride);
+  app.setPath('userData', resolved);
+  // `sessionData` normally follows `userData`; name it so Chromium's caches move too.
+  app.setPath('sessionData', resolved);
+}
+
+/**
  * A dev run is usually launched from a terminal that can close (or be killed) underneath it.
  * When that pipe breaks, every later console.log throws EPIPE and the app dies with a stack trace
  * that has nothing to do with the page it was driving. A broken console is not an application

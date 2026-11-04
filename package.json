@@ -81,7 +81,8 @@
     "test:human": "node scripts/test-human-activity.mjs",
     "test:recipes": "node scripts/test-recipes.mjs",
     "test:recipe:compile": "node scripts/test-recipe-compile.mjs",
-    "test:anyapi": "node --test scripts/test-anyapi-adapters.mjs scripts/test-anyapi-core.mjs"
+    "test:anyapi": "node --test scripts/test-anyapi-adapters.mjs scripts/test-anyapi-core.mjs",
+    "dev:isolated": "node scripts/dev-isolated.mjs"
   },
   "keywords": [
     "mcp",
