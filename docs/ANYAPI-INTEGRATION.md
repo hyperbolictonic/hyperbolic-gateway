@@ -76,7 +76,8 @@ Two deliberate differences remain while both cores exist:
 - A live run's `request.headers` shows `<redacted>` for every value. The core
   never returns a header value, so the preview is stricter than before.
 - A response over the byte cap is `RESPONSE_TOO_LARGE` instead of a truncated
-  body. The core refuses rather than truncates.
+  body. The core refuses rather than truncates; a truncation option is requested in
+  [anyapi-to-mcp#1](https://github.com/hyperbolictonic/anyapi-to-mcp/issues/1).
 
 
 ## Adapter notes
