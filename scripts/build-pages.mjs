@@ -21,6 +21,7 @@ const pageDocs = [
   'docs/HYPERBOLIC_REST.md',
   'docs/JEV.md',
   'docs/KUANG_WRAP.md',
+  'docs/MEDIA.md',
   'docs/PACKAGING.md',
   'docs/RESEARCH_STEALTH.md',
   'docs/SETTINGS_LAYOUT.md',

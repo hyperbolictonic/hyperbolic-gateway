@@ -21,6 +21,7 @@ import { ToolSettingsStore } from './tools/settings.js';
 import { registerToolSettingsIpc } from './tools/ipc.js';
 import { CollaborationStore } from './collaboration/store.js';
 import { CollaborationService } from './collaboration/service.js';
+import { MediaService } from './media/service.js';
 import { ExperimentalSettingsStore } from './settings/experimental.js';
 import { JevSettingsStore } from './settings/jev.js';
 import { decisionStatus } from './decide/decision-client.js';
@@ -671,6 +672,7 @@ async function createWindow() {
       () => experimentalSettings().get().collab,
     );
     activeCollaborationService = collaboration;
+    const media = new MediaService();
     chassis.setCollabEnabledProvider(() => experimentalSettings().get().collab);
     chassis.setJevPolicyProvider(() => jevPolicy());
     // The deck toolbar's list + note cycling read exactly what the page overlay shows.
@@ -708,7 +710,8 @@ async function createWindow() {
         token: wrapToken,
       },
       toolSettings,
-      collaboration
+      collaboration,
+      media
     );
 
     if (!activeRemoteService) {

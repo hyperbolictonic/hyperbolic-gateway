@@ -30,6 +30,7 @@ The advertised surface is grouped; old flat names remain callable by name but ar
 | `human_in_loop` | HIL, activity/resume, notify, window and tray |
 | `collaborate` | highlight, ask, read, reply, resolve |
 | `browser_workspace` | tabs, downloads, contexts, recordings, scripts |
+| `media` | `status`, `info` (downloads later) |
 | `shadow_iframes` | `frames`, `focus_walk` |
 | `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |
 | `memory` | recall, history, bookmarks |

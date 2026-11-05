@@ -116,6 +116,25 @@ export const TOOL_GROUPS: ToolGroupDefinition[] = [
     ],
   },
   {
+    name: 'media',
+    description: 'Media capture through yt-dlp: inspect a page for downloadable media and its formats. Downloads arrive in a later release.',
+    tier: null,
+    actions: [
+      {
+        action: 'status',
+        endpoint: '/media/status',
+        method: 'GET',
+        description: 'yt-dlp binary and runtime status, and which media capabilities are available.',
+        map: () => ({}),
+      },
+      {
+        action: 'info',
+        endpoint: '/media/info',
+        description: 'Metadata for a video or audio URL: title, duration, formats, subtitle languages. Does not download.',
+      },
+    ],
+  },
+  {
     name: 'browser_workspace',
     description: 'Stateful browser workspace: tabs, downloads, context profiles, recordings and the script vault.',
     tier: null,

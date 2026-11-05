@@ -39,6 +39,9 @@ build/
 *.tar.gz
 *.tmp
 
+# Downloaded media tooling (scripts/fetch-media.mjs writes here)
+bin/media/
+
 # Local Environment Variables
 .env
 .env.production

@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "start": "electron .",
-    "build": "tsc && vite build && npm run build:mcp",
+    "build": "tsc && vite build && npm run build:mcp && npm run fetch:media",
     "build:mcp": "npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=bin/mcp-server.cjs && npx esbuild src/mcp/bridge-server.ts --bundle --platform=node --format=cjs --outfile=scripts/mcp-server.js && npx esbuild src/mcp/wrap-server.ts --bundle --platform=node --format=cjs --outfile=bin/wrap-server.cjs && npx esbuild src/mcp/remote-server.ts --bundle --platform=node --format=cjs --outfile=bin/remote-server.cjs && npx esbuild src/mcp/devlogs-server.ts --bundle --platform=node --format=cjs --outfile=bin/devlogs-server.cjs",
     "build:pages": "node scripts/build-pages.mjs",
     "build:pack": "npm run build && npm run prune:pack && electron-builder --dir",
@@ -19,7 +19,7 @@
     "build:linux:appimage": "npm run build && npm run prune:pack && electron-builder --linux AppImage --x64",
     "build:linux:deb": "npm run build && npm run prune:pack && electron-builder --linux deb --x64",
     "build:mac": "npm run build && npm run prune:pack && electron-builder --mac",
-    "build:dist:all": "npm run build && electron-builder -mwl",
+    "build:dist:all": "npm run build && npm run fetch:media -- --all && electron-builder -mwl",
     "check:no-local-paths": "node scripts/check-no-local-paths.mjs",
     "test:recipe": "node --test packages/recipe/test/render.test.ts packages/recipe/test/derive.test.ts packages/recipe/test/validate.test.ts",
     "test:wrap": "node --test scripts/test-wrap-core.mjs",
@@ -82,7 +82,10 @@
     "test:recipes": "node scripts/test-recipes.mjs",
     "test:recipe:compile": "node scripts/test-recipe-compile.mjs",
     "test:anyapi": "node --test scripts/test-anyapi-adapters.mjs scripts/test-anyapi-core.mjs",
-    "dev:isolated": "node scripts/dev-isolated.mjs"
+    "dev:isolated": "node scripts/dev-isolated.mjs",
+    "fetch:media": "node scripts/fetch-media.mjs",
+    "test:media": "node --test scripts/test-media-unit.mjs",
+    "test:media:mcp": "node scripts/test-media-mcp.mjs"
   },
   "keywords": [
     "mcp",

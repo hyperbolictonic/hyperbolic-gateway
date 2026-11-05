@@ -27,6 +27,7 @@ import type { WrapAuditLog } from './wrap/audit.js';
 import { isWrapAuthorized, tokenFromHeaders } from './wrap/auth.js';
 import { DEFAULT_TOOL_SETTINGS, type ToolSettingsStore } from './tools/settings.js';
 import type { CollaborationService } from './collaboration/service.js';
+import type { MediaService } from './media/service.js';
 import { deriveRecipe } from '../../packages/recipe/src/index.ts';
 
 export interface WrapBridge {
@@ -87,7 +88,8 @@ export function startHttpBridge(
   port: number = 4111,
   wrap?: WrapBridge,
   toolSettings?: ToolSettingsStore,
-  collaboration?: CollaborationService
+  collaboration?: CollaborationService,
+  media?: MediaService
 ) {
   /** Timestamp of the last mutating action, for `since: "last_action"` network correlation. */
   let lastActionAt = Date.now();
@@ -182,6 +184,37 @@ export function startHttpBridge(
           ...settings,
           jev: { available: policy.available, mode: policy.enforce ? 'enforce' : 'prefer' },
         });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/media/status') {
+        if (!media) {
+          sendJson({ success: false, error: 'Media is not initialised.', code: 'MEDIA_UNAVAILABLE' }, 503);
+          return;
+        }
+        try {
+          sendJson({ success: true, ...(await media.status()) });
+        } catch (error) {
+          sendJson(
+            {
+              success: false,
+              code: 'MEDIA_UNAVAILABLE',
+              error: error instanceof Error ? error.message : String(error),
+            },
+            500,
+          );
+        }
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/media/info') {
+        if (!media) {
+          sendJson({ success: false, error: 'Media is not initialised.', code: 'MEDIA_UNAVAILABLE' }, 503);
+          return;
+        }
+        const body = await readBody();
+        const result = await media.info(typeof body?.url === 'string' ? body.url : '');
+        sendJson(result.ok ? { success: true, ...result } : { success: false, ...result }, result.ok ? 200 : 400);
         return;
       }
 
