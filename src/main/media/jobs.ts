@@ -16,6 +16,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 
 import { ytdlpRuntimeOptions } from './platform.ts';
+import { needsLogin } from './auth.ts';
 import type { MediaBinary, MediaBinaryError } from './binaries.ts';
 
 export type MediaKind = 'video' | 'audio';
@@ -101,6 +102,7 @@ export function buildDownloadArgs(input: {
   home: string;
   temp: string;
   ffmpeg: boolean;
+  cookies?: string;
 }): string[] {
   const runtime = ytdlpRuntimeOptions();
   return [
@@ -124,6 +126,7 @@ export function buildDownloadArgs(input: {
     '%(title).140B [%(id)s].%(ext)s',
     '--format',
     buildFormatSelector(input.kind, input.quality, input.ffmpeg),
+    ...(input.cookies === undefined ? [] : ['--cookies', input.cookies]),
     '--',
     input.url,
   ];
@@ -225,6 +228,10 @@ export interface MediaJobsOptions {
   readonly rootDir: string;
   readonly resolveBinary: () => Promise<MediaBinary | MediaBinaryError>;
   readonly maxConcurrent?: number;
+  /** One-run cookie file for a URL, when the session setting is on. */
+  readonly cookieFileFor?: (url: string) => Promise<{ path: string; cleanup(): Promise<void> } | null>;
+  /** Called once when a job fails because the site wants a signed-in session. */
+  readonly onLoginRequired?: (job: MediaJob) => void;
 }
 
 export class MediaJobs {
@@ -234,6 +241,9 @@ export class MediaJobs {
   private readonly rootDir: string;
   private readonly maxConcurrent: number;
   private readonly resolveBinary: () => Promise<MediaBinary | MediaBinaryError>;
+  private readonly cookieFileFor?: MediaJobsOptions['cookieFileFor'];
+  private readonly onLoginRequired?: MediaJobsOptions['onLoginRequired'];
+  private readonly cookieCleanups = new Map<string, () => Promise<void>>();
   private persistTimer: NodeJS.Timeout | null = null;
   private closed = false;
 
@@ -241,6 +251,8 @@ export class MediaJobs {
     this.rootDir = options.rootDir;
     this.maxConcurrent = Math.max(1, options.maxConcurrent ?? MAX_CONCURRENT);
     this.resolveBinary = options.resolveBinary;
+    this.cookieFileFor = options.cookieFileFor;
+    this.onLoginRequired = options.onLoginRequired;
     this.load();
   }
 
@@ -317,6 +329,7 @@ export class MediaJobs {
         job.error = { code: 'APP_QUIT', message: 'The app exited while this job was running.' };
       }
       terminate(child);
+      void this.cleanupCookies(id);
     }
     this.running.clear();
     if (this.persistTimer) {
@@ -349,6 +362,9 @@ export class MediaJobs {
     await fsp.mkdir(home, { recursive: true });
     await fsp.mkdir(temp, { recursive: true });
 
+    const cookies = await this.cookieFileFor?.(job.url).catch(() => null);
+    if (cookies) this.cookieCleanups.set(job.id, cookies.cleanup);
+
     const args = buildDownloadArgs({
       url: job.url,
       kind: job.kind,
@@ -356,6 +372,7 @@ export class MediaJobs {
       home,
       temp,
       ffmpeg: false,
+      cookies: cookies?.path,
     });
     const runtime = ytdlpRuntimeOptions();
 
@@ -414,6 +431,7 @@ export class MediaJobs {
       clearTimeout(idleTimer);
       clearTimeout(totalTimer);
       this.running.delete(job.id);
+      void this.cleanupCookies(job.id);
       this.finish(job, 'failed', { code: 'SPAWN_FAILED', message: error.message });
     });
 
@@ -433,6 +451,8 @@ export class MediaJobs {
     stderr: string,
     next: () => void,
   ): Promise<void> {
+    await this.cleanupCookies(job.id);
+
     if (job.state === 'cancelled') {
       await fsp.rm(home, { recursive: true, force: true });
       await fsp.rm(temp, { recursive: true, force: true });
@@ -460,7 +480,24 @@ export class MediaJobs {
     }
 
     const detail = stderr.trim().split(/\r?\n/u).filter(Boolean).slice(-3).join(' ').slice(0, 500);
-    this.finish(job, 'failed', { code: 'DOWNLOAD_FAILED', message: detail || `yt-dlp exited with code ${code ?? 'unknown'}` }, next);
+    const loginRequired = needsLogin(stderr);
+    this.finish(
+      job,
+      'failed',
+      {
+        code: loginRequired ? 'LOGIN_REQUIRED' : 'DOWNLOAD_FAILED',
+        message: detail || `yt-dlp exited with code ${code ?? 'unknown'}`,
+      },
+      next,
+    );
+    if (loginRequired) this.onLoginRequired?.(job);
+  }
+
+  private async cleanupCookies(id: string): Promise<void> {
+    const cleanup = this.cookieCleanups.get(id);
+    if (!cleanup) return;
+    this.cookieCleanups.delete(id);
+    await cleanup();
   }
 
   private finish(job: MediaJob, state: 'completed' | 'failed' | 'cancelled', error: { code: string; message: string } | null, next?: () => void): void {

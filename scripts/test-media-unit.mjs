@@ -13,6 +13,9 @@ import {
 } from '../src/main/media/platform.ts';
 import { buildDownloadArgs, buildFormatSelector, parseProgressLine } from '../src/main/media/jobs.ts';
 import { MediaUpdater, jitter } from '../src/main/media/updater.ts';
+import { toNetscape } from '../src/main/media/cookie-format.ts';
+import { needsLogin } from '../src/main/media/auth.ts';
+import { normalizeMediaSettings } from '../src/main/media/settings.ts';
 
 test('platform keys and file names match the build layout', () => {
   assert.equal(mediaPlatformKey('win32', 'x64'), 'win32-x64');
@@ -212,8 +215,73 @@ test('the updater refuses a bad checksum and leaves the current binary', async (
   assert.equal(state.installedVersion, '2026.10.26');
 });
 
-test('the pinned manifest covers every supported target with a SHA-256', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts', 'media-binaries.json'), 'utf8'));
+test('cookies are written in the Netscape format yt-dlp reads', () => {
+  const text = toNetscape([
+    {
+      domain: '.youtube.com',
+      hostOnly: false,
+      path: '/',
+      secure: true,
+      expirationDate: 1893456000.9,
+      name: 'SID',
+      value: 'abc',
+    },
+    { domain: 'www.youtube.com', hostOnly: true, path: '/', secure: true, name: 'PREF', value: 'x' },
+    { domain: '.example.com', hostOnly: false, path: '/', secure: false, name: 'bad\tname', value: 'v\nw' },
+  ]);
+
+  assert.match(text, /^# Netscape HTTP Cookie File/u);
+  assert.match(text, /\.youtube\.com\tTRUE\t\/\tTRUE\t1893456000\tSID\tabc/u);
+  assert.match(text, /www\.youtube\.com\tFALSE\t\/\tTRUE\t0\tPREF\tx/u);
+  assert.ok(!text.includes('bad\tname'), 'tabs are stripped from fields');
+  assert.ok(!text.includes('v\nw'), 'newlines are stripped from values');
+});
+
+test('auth failures are recognised without treating every 403 as a login', () => {
+  assert.equal(needsLogin('[youtube] x: Sign in to confirm you\u2019re not a bot'), true);
+  assert.equal(needsLogin('ERROR: This video is private'), true);
+  assert.equal(needsLogin('ERROR: HTTP Error 401: Unauthorized'), true);
+  assert.equal(needsLogin('ERROR: This content requires authentication'), true);
+  assert.equal(needsLogin('ERROR: This video is age-restricted'), true);
+
+  assert.equal(needsLogin('ERROR: HTTP Error 404: Not Found'), false);
+  assert.equal(needsLogin('WARNING: ffmpeg not found'), false);
+  assert.equal(needsLogin('Unable to download webpage: HTTP Error 403: Forbidden'), false);
+  assert.equal(needsLogin(''), false);
+});
+
+test('media settings default to no session cookies', () => {
+  const defaults = normalizeMediaSettings({});
+  assert.equal(defaults.useSessionCookies, false);
+  assert.equal(defaults.autoUpdate, true);
+  assert.equal(defaults.updateIntervalMinutes, 60);
+
+  assert.equal(normalizeMediaSettings({ useSessionCookies: true }).useSessionCookies, true);
+  assert.equal(normalizeMediaSettings({ updateIntervalMinutes: 1 }).updateIntervalMinutes, 15);
+  assert.equal(normalizeMediaSettings({ updateIntervalMinutes: 99999 }).updateIntervalMinutes, 1440);
+});
+
+test('a cookie file is passed to yt-dlp only when one was written', () => {
+  const base = {
+    url: 'https://example.com/watch?v=abc',
+    kind: 'video',
+    quality: 'best',
+    home: '/tmp/home',
+    temp: '/tmp/temp',
+    ffmpeg: false,
+  };
+  const without = buildDownloadArgs(base);
+  assert.ok(!without.includes('--cookies'));
+
+  const withCookies = buildDownloadArgs({ ...base, cookies: '/tmp/cookies.txt' });
+  assert.deepEqual(
+    withCookies.slice(withCookies.indexOf('--cookies'), withCookies.indexOf('--cookies') + 2),
+    ['--cookies', '/tmp/cookies.txt'],
+  );
+  assert.equal(withCookies.at(-1), base.url);
+});
+
+test('the pinned manifest covers every supported target with a SHA-256', () => {  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts', 'media-binaries.json'), 'utf8'));
 
   assert.match(manifest.version, /^\d{4}\.\d{2}\.\d{2}$/u);
   for (const key of ['win32-x64', 'darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64']) {

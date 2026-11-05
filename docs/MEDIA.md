@@ -1,8 +1,9 @@
 # Media capture (yt-dlp)
 
-**Status:** slice 3. `media status`, `info`, `download`, `jobs`, `cancel` and `list` work end to end
-through the bridge and the `hb-browser` MCP server, and yt-dlp updates itself on launch and on an
-interval. Cookies and ffmpeg handling are planned but not shipped.
+**Status:** slice 4. `media status`, `info`, `download`, `jobs`, `cancel` and `list` work end to end
+through the bridge and the `hb-browser` MCP server; yt-dlp updates itself on launch and on an
+interval; and downloads can use the browser session when a human enables it. ffmpeg handling is
+planned but not shipped.
 
 Read this before changing anything under `src/main/media/`.
 
@@ -84,6 +85,20 @@ polled, the same way `record_start` returns when capture is live.
 - Format selection: without ffmpeg, a single-file MP4 or M4A; with it, merged `bestvideo+bestaudio`.
   `buildFormatSelector()` is the only place that decides, and a unit test pins it.
 
+## Session cookies
+
+Off by default. A site that needs a signed-in session returns `LOGIN_REQUIRED`, and the app shows a
+desktop notification; a human then enables **Settings → Media → "Always use the browser session"**
+and retries. Nothing an agent calls can turn it on.
+
+- Scope: `session.cookies.get({ url })` for the requested URL, so yt-dlp receives what the browser
+  would send to that host — not the whole jar.
+- Lifecycle: written to `<userData>/media/.cookies/cookies-*.txt` with mode 0600, passed as
+  `--cookies`, and deleted in a `finally` after the call or at job close/cancel.
+- Never logged, never stored in job history, never returned by a tool.
+- A cookie-store failure does not fail the request; it proceeds anonymously.
+- Notifications are deduplicated to one per minute so a failing loop cannot spam the desktop.
+
 ## Security
 
 - **No flag passthrough.** Every argument is built in `service.ts`. A generic `flags` parameter
@@ -135,4 +150,7 @@ directory → `PATH`), `path`, and `managed` (checksum-verified download). Capab
 - **2026-11-05** — Updater: launch + hourly by default, jittered, idle-only, checksum-verified,
   tagged asset URL, exponential backoff, rollback on a failed `--version`. Interval is an IPC-only
   setting.
+- **2026-11-05** — Cookies: off by default with a `LOGIN_REQUIRED` result and a desktop notification;
+  an always-on switch in Settings hands the browser session to every media request. Scoped to the
+  requested host, one-run 0600 file, deleted after the call.
 - **Planned** — Hourly updater with jitter, idle gate and rollback; cookies opt-in; ffmpeg modes.

@@ -13,6 +13,7 @@ import type { MediaSettings } from '../../shared/media.ts';
 export const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   autoUpdate: true,
   updateIntervalMinutes: 60,
+  useSessionCookies: false,
 };
 
 const MIN_INTERVAL_MINUTES = 15;
@@ -25,15 +26,23 @@ export function normalizeMediaSettings(input: unknown): MediaSettings {
   const interval = Number.isFinite(requested)
     ? Math.min(MAX_INTERVAL_MINUTES, Math.max(MIN_INTERVAL_MINUTES, Math.round(requested)))
     : DEFAULT_MEDIA_SETTINGS.updateIntervalMinutes;
-  return { autoUpdate, updateIntervalMinutes: interval };
+  const useSessionCookies =
+    typeof raw.useSessionCookies === 'boolean' ? raw.useSessionCookies : DEFAULT_MEDIA_SETTINGS.useSessionCookies;
+  return { autoUpdate, updateIntervalMinutes: interval, useSessionCookies };
 }
 
 export class MediaSettingsStore {
-  constructor(private readonly file: string) {}
+  private readonly file: string;
+
+  constructor(file: string) {
+    this.file = file;
+  }
 
   load(): MediaSettings {
     try {
-      return normalizeMediaSettings(JSON.parse(fs.readFileSync(this.file, 'utf8')));
+      // Windows editors like to prefix JSON with a UTF-8 BOM; JSON.parse rejects it.
+      const text = fs.readFileSync(this.file, 'utf8').replace(/^\uFEFF/u, '');
+      return normalizeMediaSettings(JSON.parse(text));
     } catch {
       return { ...DEFAULT_MEDIA_SETTINGS };
     }

@@ -5,6 +5,12 @@ export interface MediaSettings {
   autoUpdate: boolean;
   /** Minutes between automatic checks. Clamped to 15–1440. */
   updateIntervalMinutes: number;
+  /**
+   * Send the browser's cookies for the requested host to yt-dlp on every request.
+   * Off by default: a signed-in download is a human decision, prompted by a
+   * LOGIN_REQUIRED result and a desktop notification.
+   */
+  useSessionCookies: boolean;
 }
 
 export interface MediaUpdaterState {

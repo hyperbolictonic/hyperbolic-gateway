@@ -15,6 +15,8 @@ import path from 'node:path';
 import { app } from 'electron';
 
 import { isMediaBinary, ensureYtDlp, readYtDlpVersion, writableYtDlpPath, type MediaBinary, type MediaBinaryError } from './binaries.ts';
+import { needsLogin } from './auth.ts';
+import { writeCookieFile } from './cookies.ts';
 import { MediaJobs, type MediaJob, type MediaJobInput, type MediaKind, type MediaQuality } from './jobs.ts';
 import { ytdlpRuntimeOptions } from './platform.ts';
 import { MediaSettingsStore } from './settings.ts';
@@ -50,6 +52,9 @@ export interface MediaStatus {
     readonly completed: number;
     readonly failed: number;
     readonly cancelled: number;
+  };
+  readonly cookies: {
+    readonly useSession: boolean;
   };
   readonly updater: MediaUpdaterState;
 }
@@ -224,15 +229,20 @@ export class MediaService {
   private binaryPromise: Promise<MediaBinary | MediaBinaryError> | null = null;
   private readonly rootDir: string;
   private readonly settingsStore: MediaSettingsStore;
+  private readonly notify?: (notice: { title: string; message: string }) => void;
+  private lastLoginNoticeAt = 0;
   readonly jobs: MediaJobs;
   readonly updater: MediaUpdater;
 
-  constructor(options: { rootDir?: string } = {}) {
+  constructor(options: { rootDir?: string; notify?: (notice: { title: string; message: string }) => void } = {}) {
     this.rootDir = options.rootDir ?? path.join(app.getPath('userData'), 'media');
+    this.notify = options.notify;
     this.settingsStore = new MediaSettingsStore(path.join(this.rootDir, 'settings.json'));
     this.jobs = new MediaJobs({
       rootDir: this.rootDir,
       resolveBinary: () => this.resolveBinary(),
+      cookieFileFor: (url) => this.cookieFileFor(url),
+      onLoginRequired: () => this.notifyLoginRequired(),
     });
     this.updater = new MediaUpdater({
       binaryPath: writableYtDlpPath,
@@ -241,6 +251,28 @@ export class MediaService {
       hasRunningJobs: () => this.jobs.counts().running > 0,
       onUpdated: () => this.invalidateBinary(),
     });
+  }
+
+  /** A one-run cookie file, only when the human enabled the browser session. */
+  private async cookieFileFor(url: string): Promise<{ path: string; cleanup(): Promise<void> } | null> {
+    if (!this.settingsStore.load().useSessionCookies) return null;
+    try {
+      return await writeCookieFile(url, path.join(this.rootDir, '.cookies'));
+    } catch {
+      // A cookie-store failure must not fail the request; it may still work anonymously.
+      return null;
+    }
+  }
+
+  private notifyLoginRequired(): void {
+    const now = Date.now();
+    if (now - this.lastLoginNoticeAt < 60_000) return;
+    this.lastLoginNoticeAt = now;
+    const enabled = this.settingsStore.load().useSessionCookies;
+    const message = enabled
+      ? 'A media request was refused for authentication even with the browser session. Sign in again in the browser, then retry.'
+      : 'A media request needs a signed-in session. Enable Settings → Media → "Use browser session", then retry.';
+    this.notify?.({ title: 'Media needs your browser session', message });
   }
 
   /** Resolve once per process; the updater will invalidate this when it installs. */
@@ -297,6 +329,7 @@ export class MediaService {
         transcode: false,
       },
       jobs: this.jobs.counts(),
+      cookies: { useSession: this.settingsStore.load().useSessionCookies },
       updater: this.updater.state(),
     };
   }
@@ -351,6 +384,7 @@ export class MediaService {
     if (!isMediaBinary(binary)) return { ok: false, code: binary.code, error: binary.error };
 
     const runtime = ytdlpRuntimeOptions();
+    const cookies = await this.cookieFileFor(url);
     const args = [
       ...runtime.args,
       '--ignore-config',
@@ -360,44 +394,51 @@ export class MediaService {
       '--no-color',
       '--socket-timeout',
       '20',
+      ...(cookies === null ? [] : ['--cookies', cookies.path]),
       '--',
       url,
     ];
 
-    const result = await runYtDlp(binary.path, args, {
-      timeoutMs: INFO_TIMEOUT_MS,
-      maxStdoutBytes: INFO_MAX_STDOUT_BYTES,
-      env: runtime.env,
-    });
-
-    if (result.timedOut) {
-      return { ok: false, code: 'TIMEOUT', error: `yt-dlp did not answer within ${INFO_TIMEOUT_MS / 1000}s` };
-    }
-    if (result.overflowed) {
-      return { ok: false, code: 'RESPONSE_TOO_LARGE', error: 'yt-dlp metadata exceeded the 16 MB limit' };
-    }
-
-    if (result.code !== 0) {
-      const detail = result.stderr.trim().split(/\r?\n/u).slice(-4).join(' ').slice(0, 500);
-      return {
-        ok: false,
-        code: 'EXTRACT_FAILED',
-        error: detail === '' ? `yt-dlp exited with code ${result.code ?? 'unknown'}` : detail,
-      };
-    }
-
-    let payload: Record<string, any>;
     try {
-      payload = JSON.parse(result.stdout) as Record<string, any>;
-    } catch {
-      return { ok: false, code: 'INVALID_RESPONSE', error: 'yt-dlp returned metadata that is not JSON' };
-    }
+      const result = await runYtDlp(binary.path, args, {
+        timeoutMs: INFO_TIMEOUT_MS,
+        maxStdoutBytes: INFO_MAX_STDOUT_BYTES,
+        env: runtime.env,
+      });
 
-    return {
-      ok: true,
-      media: buildInfo(payload),
-      runtime: { kind: runtime.kind, node: runtime.node },
-      warnings: warningCodes(result.stderr),
-    };
+      if (result.timedOut) {
+        return { ok: false, code: 'TIMEOUT', error: `yt-dlp did not answer within ${INFO_TIMEOUT_MS / 1000}s` };
+      }
+      if (result.overflowed) {
+        return { ok: false, code: 'RESPONSE_TOO_LARGE', error: 'yt-dlp metadata exceeded the 16 MB limit' };
+      }
+
+      if (result.code !== 0) {
+        const detail = result.stderr.trim().split(/\r?\n/u).slice(-4).join(' ').slice(0, 500);
+        const loginRequired = needsLogin(result.stderr);
+        if (loginRequired) this.notifyLoginRequired();
+        return {
+          ok: false,
+          code: loginRequired ? 'LOGIN_REQUIRED' : 'EXTRACT_FAILED',
+          error: detail === '' ? `yt-dlp exited with code ${result.code ?? 'unknown'}` : detail,
+        };
+      }
+
+      let payload: Record<string, any>;
+      try {
+        payload = JSON.parse(result.stdout) as Record<string, any>;
+      } catch {
+        return { ok: false, code: 'INVALID_RESPONSE', error: 'yt-dlp returned metadata that is not JSON' };
+      }
+
+      return {
+        ok: true,
+        media: buildInfo(payload),
+        runtime: { kind: runtime.kind, node: runtime.node },
+        warnings: warningCodes(result.stderr),
+      };
+    } finally {
+      await cookies?.cleanup();
+    }
   }
 }

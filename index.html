@@ -806,6 +806,20 @@
             <span id="settings-media-result" class="font-mono text-[11px] text-base-content/60"></span>
           </div>
 
+          <label class="label cursor-pointer justify-start gap-3 py-0">
+            <input id="settings-media-cookies" type="checkbox" class="toggle toggle-sm toggle-warning" />
+            <span class="label-text font-mono text-xs">
+              Always use the browser session (cookies) for media requests
+              <span class="badge badge-warning badge-xs font-mono ml-1 align-middle">CREDENTIALS</span>
+            </span>
+          </label>
+          <p class="label font-mono text-[10px] -mt-2">
+            Off by default. When a request needs a sign-in, the app shows a desktop notification and the
+            tool returns <code class="font-mono">LOGIN_REQUIRED</code>; a human enables this, then retries.
+            Cookies are scoped to the requested host, written to a 0600 temporary file, passed with
+            <code class="font-mono">--cookies</code>, and deleted after the run.
+          </p>
+
           <p class="label font-mono text-[10px]">
             <code class="font-mono">HB_MEDIA_AUTOUPDATE=0</code> disables the automatic check for this run.
             Settings are saved over IPC only; an agent cannot change them.

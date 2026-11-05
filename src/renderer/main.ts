@@ -1315,6 +1315,7 @@ const settingsMediaStatus = document.getElementById('settings-media-status') as 
 const settingsMediaAuto = document.getElementById('settings-media-auto') as HTMLInputElement | null;
 const settingsMediaInterval = document.getElementById('settings-media-interval') as HTMLInputElement | null;
 const settingsMediaCheck = document.getElementById('settings-media-check') as HTMLButtonElement | null;
+const settingsMediaCookies = document.getElementById('settings-media-cookies') as HTMLInputElement | null;
 const settingsMediaResult = document.getElementById('settings-media-result') as HTMLElement | null;
 
 function renderMediaUpdater(state: any) {
@@ -1349,13 +1350,14 @@ async function loadMediaSettings() {
     }
     if (settingsMediaAuto) settingsMediaAuto.checked = result.settings?.autoUpdate !== false;
     if (settingsMediaInterval) settingsMediaInterval.value = String(result.settings?.updateIntervalMinutes ?? 60);
+    if (settingsMediaCookies) settingsMediaCookies.checked = result.settings?.useSessionCookies === true;
     renderMediaUpdater(result.updater);
   } catch (err: any) {
     if (settingsMediaResult) settingsMediaResult.textContent = `Could not read media settings: ${err?.message || err}`;
   }
 }
 
-async function saveMediaSettings(patch: { autoUpdate?: boolean; updateIntervalMinutes?: number }) {
+async function saveMediaSettings(patch: { autoUpdate?: boolean; updateIntervalMinutes?: number; useSessionCookies?: boolean }) {
   try {
     const result = await window.electronAPI!.saveMediaSettings(patch);
     if (!result?.ok) {
@@ -1365,6 +1367,7 @@ async function saveMediaSettings(patch: { autoUpdate?: boolean; updateIntervalMi
     if (result.settings) {
       if (settingsMediaAuto) settingsMediaAuto.checked = result.settings.autoUpdate;
       if (settingsMediaInterval) settingsMediaInterval.value = String(result.settings.updateIntervalMinutes);
+      if (settingsMediaCookies) settingsMediaCookies.checked = result.settings.useSessionCookies;
     }
     renderMediaUpdater(result.updater);
   } catch (err: any) {
@@ -1375,6 +1378,9 @@ async function saveMediaSettings(patch: { autoUpdate?: boolean; updateIntervalMi
 settingsMediaForm?.addEventListener('submit', (event) => event.preventDefault());
 settingsMediaAuto?.addEventListener('change', () => {
   if (settingsMediaAuto) void saveMediaSettings({ autoUpdate: settingsMediaAuto.checked });
+});
+settingsMediaCookies?.addEventListener('change', () => {
+  if (settingsMediaCookies) void saveMediaSettings({ useSessionCookies: settingsMediaCookies.checked });
 });
 settingsMediaInterval?.addEventListener('change', () => {
   if (!settingsMediaInterval) return;

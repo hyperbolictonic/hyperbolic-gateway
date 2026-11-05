@@ -687,7 +687,9 @@ async function createWindow() {
       () => experimentalSettings().get().collab,
     );
     activeCollaborationService = collaboration;
-    const media = new MediaService();
+    const media = new MediaService({
+      notify: ({ title, message }) => chassis.sendNotification(title, message, 'normal', false),
+    });
     activeMediaService = media;
     media.startUpdater();
     chassis.setCollabEnabledProvider(() => experimentalSettings().get().collab);
