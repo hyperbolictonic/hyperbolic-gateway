@@ -395,7 +395,7 @@ Hypagon Gateway features an embedded, serverless vector database (**LanceDB**) c
 
 ## 📥 Media download integration
 
-- **Preview before committing:** `media preview` returns the title, duration, a transcript excerpt and the poster image without downloading the media. `media transcript` returns the full captions as text, paged with `max_chars`/`cursor`.
+- **Preview before committing:** `media preview` returns the title, duration, a transcript excerpt and the poster image without downloading the media. `media transcript` returns the full captions as text, paged with `max_chars`/`cursor`, and indexes them into Cortex so `memory recall` can answer from the video later.
 - **Queue, don't block:** `media download` starts a job and returns an id; `media jobs` reports percent, bytes, speed, ETA and output files; `media cancel` kills the process tree and removes the partial output.
 - **Managed binary:** the downloader is pinned in the build, verified with SHA-256, and updates itself on launch and on an interval (default 60 minutes, configurable). It runs on Electron's own Node runtime, so no extra runtime is installed.
 - **Signed-in downloads are opt-in:** off by default. A site that needs a session returns `LOGIN_REQUIRED` and raises a desktop notification; a human enables **Settings → Media → "Use browser session"** and retries. Cookies are scoped to the requested host and deleted after the run.

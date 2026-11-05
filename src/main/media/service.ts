@@ -18,7 +18,8 @@ import { isMediaBinary, ensureYtDlp, readYtDlpVersion, writableYtDlpPath, type M
 import { needsLogin } from './auth.ts';
 import { writeCookieFile } from './cookies.ts';
 import { detectFfmpeg, installManagedFfmpeg, type FfmpegInfo } from './ffmpeg.ts';
-import { fetchArtifacts, type SubtitleArtifacts } from './transcript.ts';
+import { fetchArtifacts, transcriptDocument, type SubtitleArtifacts } from './transcript.ts';
+import { cortex } from '../cortex/cortex-db.js';
 import { MediaJobs, type MediaJob, type MediaJobInput, type MediaKind, type MediaQuality } from './jobs.ts';
 import { runYtDlpProcess } from './exec.ts';
 import { ytdlpRuntimeOptions } from './platform.ts';
@@ -102,6 +103,7 @@ export type MediaTranscriptResult =
       readonly truncated: boolean;
       readonly nextCursor: number | null;
       readonly availableLanguages: readonly string[];
+      readonly indexed?: { readonly chunks: number; readonly error?: string };
     }
   | { readonly ok: false; readonly code: string; readonly error: string };
 
@@ -188,6 +190,7 @@ export class MediaService {
   private ffmpegCache: { at: number; info: FfmpegInfo } | null = null;
   private ffmpegInstalling = false;
   private readonly transcriptCache = new Map<string, { at: number; artifacts: SubtitleArtifacts }>();
+  private readonly indexedTranscripts = new Set<string>();
   readonly jobs: MediaJobs;
   readonly updater: MediaUpdater;
 
@@ -388,7 +391,7 @@ export class MediaService {
    */
   async transcript(
     rawUrl: string,
-    options: { lang?: string; maxChars?: number; cursor?: number } = {},
+    options: { lang?: string; maxChars?: number; cursor?: number; index?: boolean } = {},
   ): Promise<MediaTranscriptResult> {
     const info = await this.info(rawUrl);
     if (!info.ok) return { ok: false, code: info.code, error: info.error };
@@ -407,6 +410,25 @@ export class MediaService {
       this.cacheArtifacts(key, artifacts);
     }
 
+    // Index the full transcript once, not the page the caller asked for.
+    let indexed: { chunks: number; error?: string } | undefined;
+    if (options.index !== false && artifacts.text !== '' && !this.indexedTranscripts.has(key)) {
+      try {
+        const document = transcriptDocument({
+          title: info.media.title ?? url,
+          url,
+          language: artifacts.language,
+          automatic: artifacts.automatic,
+          text: artifacts.text,
+        });
+        const chunks = await cortex.indexPage(url, `${info.media.title ?? url} (transcript)`, document);
+        this.indexedTranscripts.add(key);
+        indexed = { chunks };
+      } catch (error) {
+        indexed = { chunks: 0, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+
     const total = artifacts.text.length;
     const max = Math.min(20_000, Math.max(500, Math.round(options.maxChars ?? 8_000)));
     const cursor = Math.min(total, Math.max(0, Math.round(options.cursor ?? 0)));
@@ -423,6 +445,7 @@ export class MediaService {
       truncated: nextCursor !== null,
       nextCursor,
       availableLanguages: artifacts.availableLanguages,
+      ...(indexed === undefined ? {} : { indexed }),
     };
   }
 

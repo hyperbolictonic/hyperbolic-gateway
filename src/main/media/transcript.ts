@@ -76,6 +76,29 @@ export interface SubtitleArtifacts {
   readonly images: { readonly name: string; readonly path: string; readonly mimeType: string }[];
 }
 
+/**
+ * The document stored in Cortex for one transcript.
+ *
+ * The title and source line give `recall_memory` context it can quote; the body
+ * stays plain text so a chunk is useful on its own.
+ */
+export function transcriptDocument(input: {
+  title: string;
+  url: string;
+  language: string;
+  automatic: boolean;
+  text: string;
+}): string {
+  return [
+    `# ${input.title}`,
+    '',
+    `Source: ${input.url}`,
+    `Captions: ${input.language}${input.automatic ? ' (automatic)' : ''}`,
+    '',
+    input.text,
+  ].join('\n');
+}
+
 export type ArtifactResult =
   | { readonly ok: true; readonly artifacts: SubtitleArtifacts }
   | { readonly ok: false; readonly code: string; readonly error: string };

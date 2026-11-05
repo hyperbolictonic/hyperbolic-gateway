@@ -186,7 +186,8 @@ poster image, so you can decide whether the video is worth downloading:
 {"name":"media","arguments":{"action":"preview","url":"https://www.youtube.com/watch?v=jNQXAC9IVRw"}}
 ```
 
-Read the full captions, paged:
+Read the full captions, paged. The transcript is indexed into Cortex, so `memory` → `recall` can
+answer from it later (pass `index:false` to skip indexing):
 
 ```json
 {"name":"media","arguments":{"action":"transcript","url":"https://www.youtube.com/watch?v=jNQXAC9IVRw","max_chars":8000}}

@@ -17,7 +17,7 @@ import { toNetscape } from '../src/main/media/cookie-format.ts';
 import { needsLogin } from '../src/main/media/auth.ts';
 import { normalizeMediaSettings } from '../src/main/media/settings.ts';
 import { detectFfmpeg, parseFfmpegVersion } from '../src/main/media/ffmpeg.ts';
-import { parseVtt } from '../src/main/media/transcript.ts';
+import { parseVtt, transcriptDocument } from '../src/main/media/transcript.ts';
 
 test('platform keys and file names match the build layout', () => {
   assert.equal(mediaPlatformKey('win32', 'x64'), 'win32-x64');
@@ -357,6 +357,30 @@ test('VTT is reduced to plain text without duplicate scrolling lines', () => {
 
   assert.equal(parseVtt(vtt), 'Hello world\nNext line & more\nThird <cue>');
   assert.equal(parseVtt('WEBVTT\n\n'), '');
+});
+
+test('the transcript document carries source and caption metadata', () => {
+  const document = transcriptDocument({
+    title: 'Me at the zoo',
+    url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+    language: 'en',
+    automatic: true,
+    text: 'The cool thing about these guys...',
+  });
+
+  assert.match(document, /^# Me at the zoo/u);
+  assert.match(document, /Source: https:\/\/www\.youtube\.com\/watch\?v=jNQXAC9IVRw/u);
+  assert.match(document, /Captions: en \(automatic\)/u);
+  assert.ok(document.endsWith('The cool thing about these guys...'));
+
+  const manual = transcriptDocument({
+    title: 'T',
+    url: 'https://example.com/v',
+    language: 'de',
+    automatic: false,
+    text: 'x',
+  });
+  assert.match(manual, /Captions: de$/mu);
 });
 
 test('the pinned manifest covers every supported target with a SHA-256', () => {  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts', 'media-binaries.json'), 'utf8'));

@@ -111,6 +111,8 @@ caption track and the poster image, never the media.
   layer returns the image as an `image` content block, so a vision model can look at it.
   It is the intended first call before `media download`.
 - `transcript` returns the whole caption text, paged with `max_chars`/`cursor`.
+- A transcript is indexed into Cortex under the video URL, so `memory` → `recall` can answer from it
+  later. Indexing runs once per URL + language per process; pass `index:false` to skip it.
 - Language selection: an explicit `lang` wins; otherwise English when available, then the first
   manual track, then the first auto track.
 - VTT is reduced to plain text (timings, cue settings, tags and NOTE blocks removed, consecutive

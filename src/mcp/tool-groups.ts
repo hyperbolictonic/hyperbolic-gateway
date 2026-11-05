@@ -140,7 +140,7 @@ export const TOOL_GROUPS: ToolGroupDefinition[] = [
       {
         action: 'transcript',
         endpoint: '/media/transcript',
-        description: 'Captions as plain text (lang, max_chars, cursor) without downloading the media.',
+        description: 'Captions as plain text (lang, max_chars, cursor) without downloading the media. Indexed into Cortex by default so memory recall can answer from it; pass index:false to skip.',
       },
       {
         action: 'download',

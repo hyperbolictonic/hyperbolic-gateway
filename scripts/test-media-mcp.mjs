@@ -83,6 +83,21 @@ try {
     transcriptPayload.success ? `${transcriptPayload.chars} chars` : transcriptPayload.error,
   );
 
+  if (process.env.HB_MEDIA_CORTEX_CHECK === '1') {
+    const recall = await client.callTool({
+      name: 'memory',
+      arguments: { action: 'recall', query: 'elephants at the zoo', limit: 10 },
+    });
+    const recalled = recall.content?.[0]?.text ?? '';
+    record(
+      'transcript is indexed into Cortex',
+      recalled.includes('jNQXAC9IVRw') || /elephant/i.test(recalled),
+      recalled.slice(0, 120).replace(/\s+/gu, ' '),
+    );
+  } else {
+    console.log('  SKIP  Cortex recall (set HB_MEDIA_CORTEX_CHECK=1 to include it)');
+  }
+
   if (process.env.HB_MEDIA_LIVE_DOWNLOAD === '1') {
     const start = await client.callTool({
       name: 'media',

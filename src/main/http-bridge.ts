@@ -279,6 +279,7 @@ export function startHttpBridge(
           lang: typeof body?.lang === 'string' ? body.lang : undefined,
           maxChars: typeof body?.maxChars === 'number' ? body.maxChars : undefined,
           cursor: typeof body?.cursor === 'number' ? body.cursor : undefined,
+          index: body?.index !== false,
         });
         sendJson(result.ok ? { success: true, ...result } : { success: false, ...result }, result.ok ? 200 : 400);
         return;
