@@ -11,8 +11,11 @@
  */
 
 import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { app } from 'electron';
 
 import { isMediaBinary, ensureYtDlp, type MediaBinary, type MediaBinaryError } from './binaries.ts';
+import { MediaJobs, type MediaJob, type MediaJobInput, type MediaKind, type MediaQuality } from './jobs.ts';
 import { ytdlpRuntimeOptions } from './platform.ts';
 import { assertSafeUrl, WrapSecurityError } from '../wrap/security.ts';
 
@@ -37,6 +40,13 @@ export interface MediaStatus {
     readonly download: boolean;
     readonly merge: boolean;
     readonly transcode: boolean;
+  };
+  readonly jobs: {
+    readonly queued: number;
+    readonly running: number;
+    readonly completed: number;
+    readonly failed: number;
+    readonly cancelled: number;
   };
 }
 
@@ -199,8 +209,25 @@ function buildInfo(payload: Record<string, any>): MediaInfo {
   };
 }
 
+export type MediaDownloadResult =
+  | { readonly ok: true; readonly job: MediaJob }
+  | { readonly ok: false; readonly code: string; readonly error: string };
+
+const MEDIA_KINDS: readonly MediaKind[] = ['video', 'audio'];
+const MEDIA_QUALITIES: readonly MediaQuality[] = ['best', '1080', '720', '480', 'worst'];
+
 export class MediaService {
   private binaryPromise: Promise<MediaBinary | MediaBinaryError> | null = null;
+  private readonly rootDir: string;
+  readonly jobs: MediaJobs;
+
+  constructor(options: { rootDir?: string } = {}) {
+    this.rootDir = options.rootDir ?? path.join(app.getPath('userData'), 'media');
+    this.jobs = new MediaJobs({
+      rootDir: this.rootDir,
+      resolveBinary: () => this.resolveBinary(),
+    });
+  }
 
   /** Resolve once per process; the updater will invalidate this when it installs. */
   resolveBinary(): Promise<MediaBinary | MediaBinaryError> {
@@ -210,6 +237,10 @@ export class MediaService {
 
   invalidateBinary(): void {
     this.binaryPromise = null;
+  }
+
+  shutdown(): void {
+    this.jobs.shutdown();
   }
 
   async status(): Promise<MediaStatus> {
@@ -225,11 +256,43 @@ export class MediaService {
       runtime: { kind: runtime.kind, node: runtime.node },
       capabilities: {
         info: available,
-        download: false,
+        download: available,
         merge: false,
         transcode: false,
       },
+      jobs: this.jobs.counts(),
     };
+  }
+
+  async download(input: MediaJobInput): Promise<MediaDownloadResult> {
+    const url = typeof input?.url === 'string' ? input.url.trim() : '';
+    if (url === '') return { ok: false, code: 'BAD_REQUEST', error: 'url is required' };
+
+    try {
+      await assertSafeUrl(url);
+    } catch (error) {
+      if (error instanceof WrapSecurityError) return { ok: false, code: error.code, error: error.message };
+      return { ok: false, code: 'INVALID_URL', error: error instanceof Error ? error.message : String(error) };
+    }
+
+    const binary = await this.resolveBinary();
+    if (!isMediaBinary(binary)) return { ok: false, code: binary.code, error: binary.error };
+
+    const kind = MEDIA_KINDS.includes(input.kind as MediaKind) ? (input.kind as MediaKind) : 'video';
+    const quality = MEDIA_QUALITIES.includes(input.quality as MediaQuality)
+      ? (input.quality as MediaQuality)
+      : 'best';
+
+    return { ok: true, job: this.jobs.enqueue({ url, kind, quality }) };
+  }
+
+  cancel(id: string): { ok: boolean; cancelled: boolean } {
+    return { ok: true, cancelled: this.jobs.cancel(id) };
+  }
+
+  /** Completed jobs with their files, newest first. */
+  library(): MediaJob[] {
+    return this.jobs.list().filter((job) => job.state === 'completed');
   }
 
   async info(rawUrl: string): Promise<MediaInfoResult> {

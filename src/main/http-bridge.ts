@@ -218,6 +218,57 @@ export function startHttpBridge(
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/media/download') {
+        if (!media) {
+          sendJson({ success: false, error: 'Media is not initialised.', code: 'MEDIA_UNAVAILABLE' }, 503);
+          return;
+        }
+        const body = await readBody();
+        const result = await media.download({
+          url: typeof body?.url === 'string' ? body.url : '',
+          kind: body?.kind === 'audio' ? 'audio' : body?.kind === 'video' ? 'video' : undefined,
+          quality: typeof body?.quality === 'string' ? body.quality : undefined,
+        });
+        sendJson(result.ok ? { success: true, ...result } : { success: false, ...result }, result.ok ? 200 : 400);
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/media/jobs') {
+        if (!media) {
+          sendJson({ success: false, error: 'Media is not initialised.', code: 'MEDIA_UNAVAILABLE' }, 503);
+          return;
+        }
+        sendJson({ success: true, jobs: media.jobs.list(), counts: media.jobs.counts() });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/media/cancel') {
+        if (!media) {
+          sendJson({ success: false, error: 'Media is not initialised.', code: 'MEDIA_UNAVAILABLE' }, 503);
+          return;
+        }
+        const body = await readBody();
+        const id = typeof body?.id === 'string' ? body.id : '';
+        const result = media.cancel(id);
+        sendJson({ success: result.ok, ...result });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/media/library') {
+        if (!media) {
+          sendJson({ success: false, error: 'Media is not initialised.', code: 'MEDIA_UNAVAILABLE' }, 503);
+          return;
+        }
+        const jobs = media.library();
+        sendJson({
+          success: true,
+          count: jobs.length,
+          bytes: jobs.reduce((total, job) => total + job.files.reduce((sum, file) => sum + file.bytes, 0), 0),
+          jobs,
+        });
+        return;
+      }
+
       if (pathname.startsWith('/collaboration')) {
         if (!collaboration) {
           sendJson({ success: false, error: 'Collaboration is not initialised.', code: 'COLLAB_UNAVAILABLE' }, 503);

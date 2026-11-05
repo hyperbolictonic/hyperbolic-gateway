@@ -172,6 +172,7 @@ let activeWrapSecrets: SecretStore | null = null;
 let activeWrapAudit: WrapAuditLog | null = null;
 let activeRemoteService: RemoteService | null = null;
 let activeCollaborationService: CollaborationService | null = null;
+let activeMediaService: MediaService | null = null;
 
 function createSecretCipher(): SecretCipher {
   let available = false;
@@ -673,6 +674,7 @@ async function createWindow() {
     );
     activeCollaborationService = collaboration;
     const media = new MediaService();
+    activeMediaService = media;
     chassis.setCollabEnabledProvider(() => experimentalSettings().get().collab);
     chassis.setJevPolicyProvider(() => jevPolicy());
     // The deck toolbar's list + note cycling read exactly what the page overlay shows.
@@ -734,6 +736,9 @@ async function createWindow() {
 app.whenReady().then(createWindow);
 
 let remoteShutdownStarted = false;
+app.on('before-quit', () => {
+  activeMediaService?.shutdown();
+});
 app.on('before-quit', (event) => {
   if (!activeRemoteService || !activeRemoteService.isRunning() || remoteShutdownStarted) return;
   event.preventDefault();

@@ -93,9 +93,16 @@ export async function ensureYtDlp(): Promise<MediaBinary | MediaBinaryError> {
     }
     await copySeed(seed, writable);
   } else if (seedExists) {
-    const [writableVersion, seedVersion] = await Promise.all([readYtDlpVersion(writable), readYtDlpVersion(seed)]);
-    if (compareYtDlpVersions(seedVersion, writableVersion) > 0) {
-      await copySeed(seed, writable);
+    // The seed is written at install time; the writable copy only needs a look
+    // when the seed is newer (an app update). Comparing versions costs two
+    // process launches, which is too much for every status poll.
+    const seedMtime = fs.statSync(seed).mtimeMs;
+    const writableMtime = fs.statSync(writable).mtimeMs;
+    if (seedMtime > writableMtime) {
+      const [writableVersion, seedVersion] = await Promise.all([readYtDlpVersion(writable), readYtDlpVersion(seed)]);
+      if (compareYtDlpVersions(seedVersion, writableVersion) > 0) {
+        await copySeed(seed, writable);
+      }
     }
   }
 

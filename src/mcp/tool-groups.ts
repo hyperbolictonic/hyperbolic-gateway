@@ -117,20 +117,44 @@ export const TOOL_GROUPS: ToolGroupDefinition[] = [
   },
   {
     name: 'media',
-    description: 'Media capture through yt-dlp: inspect a page for downloadable media and its formats. Downloads arrive in a later release.',
+    description: 'Media capture through yt-dlp: inspect a page, queue a download, poll its progress, cancel it, and list what has been saved. Downloads run in the app and are polled with the jobs action.',
     tier: null,
     actions: [
       {
         action: 'status',
         endpoint: '/media/status',
         method: 'GET',
-        description: 'yt-dlp binary and runtime status, and which media capabilities are available.',
+        description: 'yt-dlp binary and runtime status, capabilities, and how many jobs are queued or running.',
         map: () => ({}),
       },
       {
         action: 'info',
         endpoint: '/media/info',
         description: 'Metadata for a video or audio URL: title, duration, formats, subtitle languages. Does not download.',
+      },
+      {
+        action: 'download',
+        endpoint: '/media/download',
+        description: 'Queue a download (kind: video|audio, quality: best|1080|720|480|worst). Returns a job id immediately; poll it with jobs.',
+      },
+      {
+        action: 'jobs',
+        endpoint: '/media/jobs',
+        method: 'GET',
+        description: 'All download jobs with state, progress, bytes, speed, ETA and output files.',
+        map: () => ({}),
+      },
+      {
+        action: 'cancel',
+        endpoint: '/media/cancel',
+        description: 'Cancel a queued or running job by id. Removes its partial output.',
+      },
+      {
+        action: 'list',
+        endpoint: '/media/library',
+        method: 'GET',
+        description: 'Completed downloads with their files and sizes.',
+        map: () => ({}),
       },
     ],
   },

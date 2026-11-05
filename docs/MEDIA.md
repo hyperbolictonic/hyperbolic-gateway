@@ -1,8 +1,8 @@
 # Media capture (yt-dlp)
 
-**Status:** slice 1. `media status` and `media info` work end to end through the bridge and the
-`hb-browser` MCP server. Downloads, the job queue, the runtime updater and ffmpeg handling are
-planned but not shipped.
+**Status:** slice 2. `media status`, `info`, `download`, `jobs`, `cancel` and `list` work end to end
+through the bridge and the `hb-browser` MCP server. The runtime updater, cookies and ffmpeg handling
+are planned but not shipped.
 
 Read this before changing anything under `src/main/media/`.
 
@@ -58,16 +58,31 @@ cross-platform build.
 
 | Action | State | Behaviour |
 | --- | --- | --- |
-| `status` | shipped | Binary version/source, runtime kind, capability flags |
+| `status` | shipped | Binary version/source, runtime kind, capability flags, job counts |
 | `info` | shipped | Metadata without downloading: title, duration, formats, subtitle languages, warnings |
-| `download` | planned | Enqueue a job and return its id immediately |
-| `status` (job) | planned | Progress, bytes, speed, ETA, output files |
-| `cancel` | planned | Kill the process tree, remove the partial file |
-| `list` | planned | Completed media in `<userData>/media/` |
+| `download` | shipped | Enqueue a job and return its id immediately |
+| `jobs` | shipped | Progress, bytes, speed, ETA, stage and output files for every job |
+| `cancel` | shipped | Kill the process tree and remove the job directory |
+| `list` | shipped | Completed downloads with files and sizes |
 | `transcript` | planned | Subtitles, manual then automatic, as text |
 
 Downloads never block a tool call: the bridge timeout is 30 s, a download is minutes. Jobs are
 polled, the same way `record_start` returns when capture is live.
+
+## Jobs
+
+- One job at a time (`MAX_CONCURRENT` in `jobs.ts`); the queue is FIFO.
+- History is the last 50 jobs, persisted to `<userData>/media/jobs.json`. A job that was running
+  when the app exited is replayed as `failed/INTERRUPTED`, never silently resumed.
+- Files are written to `<userData>/media/<jobId>/`; partials go to `.tmp`, so cancel deletes the
+  whole job directory and leaves nothing in the library.
+- Limits: 2 GB per file, 20 s socket timeout, 2 min without progress, 45 min per job.
+- `cancel` terminates the process tree (`taskkill /T` on Windows, process group on POSIX), so a
+  postprocessor child cannot outlive the job.
+- Progress is parsed from `--newline` output: percent, total, speed, ETA. `downloadedBytes` is
+  derived from percent × total, because yt-dlp prints the percentage rather than a running count.
+- Format selection: without ffmpeg, a single-file MP4 or M4A; with it, merged `bestvideo+bestaudio`.
+  `buildFormatSelector()` is the only place that decides, and a unit test pins it.
 
 ## Security
 
@@ -96,4 +111,8 @@ directory → `PATH`), `path`, and `managed` (checksum-verified download). Capab
 - **2026-11-05** — Pinned build-time binary with checksums; the runtime copy in `userData` is the
   only writable one. Fetchers fail closed.
 - **2026-11-05** — `media info` only in the first slice: read-only and useful before downloads.
+- **2026-11-05** — Download jobs: one at a time, 50-job persisted history, temp directory per job,
+  cancel removes the directory, tree-kill so postprocessors cannot outlive a job.
+- **2026-11-05** — Job status is polled (`media jobs`), not streamed: the bridge is request/response
+  and a download outlives any single tool call.
 - **Planned** — Hourly updater with jitter, idle gate and rollback; cookies opt-in; ffmpeg modes.

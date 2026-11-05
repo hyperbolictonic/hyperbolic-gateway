@@ -59,6 +59,38 @@ try {
       ? `${infoPayload.media.title} · ${infoPayload.media.formatCount} formats`
       : infoPayload.error,
   );
+
+  if (process.env.HB_MEDIA_LIVE_DOWNLOAD === '1') {
+    const start = await client.callTool({
+      name: 'media',
+      arguments: { action: 'download', url: SAMPLE, kind: 'audio', quality: 'best' },
+    });
+    const started = JSON.parse(start.content?.[0]?.text ?? '{}');
+    record('download queues a job', started.success === true && typeof started.job?.id === 'string', started.job?.id);
+
+    const id = started.job?.id;
+    let job = null;
+    const deadline = Date.now() + 180_000;
+    while (id && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      const listing = await client.callTool({ name: 'media', arguments: { action: 'jobs' } });
+      const payload = JSON.parse(listing.content?.[0]?.text ?? '{}');
+      job = (payload.jobs ?? []).find((entry) => entry.id === id) ?? null;
+      if (job && ['completed', 'failed', 'cancelled'].includes(job.state)) break;
+    }
+
+    record(
+      'download completes with a file',
+      job?.state === 'completed' && job.files?.length > 0,
+      job ? `${job.state} · ${job.files?.[0]?.bytes ?? 0} bytes` : 'no job seen',
+    );
+
+    const library = await client.callTool({ name: 'media', arguments: { action: 'list' } });
+    const libraryPayload = JSON.parse(library.content?.[0]?.text ?? '{}');
+    record('list shows the completed download', libraryPayload.count > 0, `${libraryPayload.count} item(s)`);
+  } else {
+    console.log('  SKIP  live download (set HB_MEDIA_LIVE_DOWNLOAD=1 to include it)');
+  }
 } finally {
   await client.close();
 }
