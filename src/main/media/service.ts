@@ -17,6 +17,7 @@ import { app } from 'electron';
 import { isMediaBinary, ensureYtDlp, readYtDlpVersion, writableYtDlpPath, type MediaBinary, type MediaBinaryError } from './binaries.ts';
 import { needsLogin } from './auth.ts';
 import { writeCookieFile } from './cookies.ts';
+import { detectFfmpeg, installManagedFfmpeg, type FfmpegInfo } from './ffmpeg.ts';
 import { MediaJobs, type MediaJob, type MediaJobInput, type MediaKind, type MediaQuality } from './jobs.ts';
 import { ytdlpRuntimeOptions } from './platform.ts';
 import { MediaSettingsStore } from './settings.ts';
@@ -56,6 +57,7 @@ export interface MediaStatus {
   readonly cookies: {
     readonly useSession: boolean;
   };
+  readonly ffmpeg: FfmpegInfo;
   readonly updater: MediaUpdaterState;
 }
 
@@ -231,6 +233,8 @@ export class MediaService {
   private readonly settingsStore: MediaSettingsStore;
   private readonly notify?: (notice: { title: string; message: string }) => void;
   private lastLoginNoticeAt = 0;
+  private ffmpegCache: { at: number; info: FfmpegInfo } | null = null;
+  private ffmpegInstalling = false;
   readonly jobs: MediaJobs;
   readonly updater: MediaUpdater;
 
@@ -243,6 +247,8 @@ export class MediaService {
       resolveBinary: () => this.resolveBinary(),
       cookieFileFor: (url) => this.cookieFileFor(url),
       onLoginRequired: () => this.notifyLoginRequired(),
+      outputDir: () => this.settingsStore.load().outputDir || this.rootDir,
+      resolveFfmpeg: () => this.ffmpegInfo(),
     });
     this.updater = new MediaUpdater({
       binaryPath: writableYtDlpPath,
@@ -300,6 +306,7 @@ export class MediaService {
 
   saveMediaSettings(patch: unknown): MediaSettingsSnapshot {
     const settings = this.settingsStore.save(patch);
+    this.ffmpegCache = null;
     return { settings, updater: this.updater.state() };
   }
 
@@ -311,10 +318,33 @@ export class MediaService {
     return this.updater.check(force);
   }
 
+  /** ffmpeg for the current settings. Cached briefly so status polls stay cheap. */
+  async ffmpegInfo(force = false): Promise<FfmpegInfo> {
+    const now = Date.now();
+    if (!force && this.ffmpegCache !== null && now - this.ffmpegCache.at < 30_000) {
+      return { ...this.ffmpegCache.info, installing: this.ffmpegInstalling };
+    }
+    const info = await detectFfmpeg(this.settingsStore.load(), this.rootDir, this.ffmpegInstalling);
+    this.ffmpegCache = { at: now, info };
+    return info;
+  }
+
+  async installFfmpeg(): Promise<FfmpegInfo> {
+    this.ffmpegInstalling = true;
+    this.ffmpegCache = null;
+    try {
+      return await installManagedFfmpeg(this.settingsStore.load(), this.rootDir);
+    } finally {
+      this.ffmpegInstalling = false;
+      this.ffmpegCache = null;
+    }
+  }
+
   async status(): Promise<MediaStatus> {
     const binary = await this.resolveBinary();
     const runtime = ytdlpRuntimeOptions();
     const available = isMediaBinary(binary);
+    const ffmpeg = await this.ffmpegInfo();
     return {
       binary: {
         available,
@@ -325,11 +355,12 @@ export class MediaService {
       capabilities: {
         info: available,
         download: available,
-        merge: false,
-        transcode: false,
+        merge: ffmpeg.available,
+        transcode: ffmpeg.available,
       },
       jobs: this.jobs.counts(),
       cookies: { useSession: this.settingsStore.load().useSessionCookies },
+      ffmpeg,
       updater: this.updater.state(),
     };
   }

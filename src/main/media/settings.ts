@@ -14,6 +14,9 @@ export const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   autoUpdate: true,
   updateIntervalMinutes: 60,
   useSessionCookies: false,
+  outputDir: '',
+  ffmpegMode: 'auto',
+  ffmpegPath: '',
 };
 
 const MIN_INTERVAL_MINUTES = 15;
@@ -28,7 +31,14 @@ export function normalizeMediaSettings(input: unknown): MediaSettings {
     : DEFAULT_MEDIA_SETTINGS.updateIntervalMinutes;
   const useSessionCookies =
     typeof raw.useSessionCookies === 'boolean' ? raw.useSessionCookies : DEFAULT_MEDIA_SETTINGS.useSessionCookies;
-  return { autoUpdate, updateIntervalMinutes: interval, useSessionCookies };
+  const outputDir =
+    typeof raw.outputDir === 'string' && raw.outputDir.trim() !== '' && path.isAbsolute(raw.outputDir.trim())
+      ? raw.outputDir.trim()
+      : '';
+  const ffmpegMode: MediaSettings['ffmpegMode'] =
+    raw.ffmpegMode === 'path' || raw.ffmpegMode === 'managed' ? raw.ffmpegMode : 'auto';
+  const ffmpegPath = typeof raw.ffmpegPath === 'string' ? raw.ffmpegPath.trim() : '';
+  return { autoUpdate, updateIntervalMinutes: interval, useSessionCookies, outputDir, ffmpegMode, ffmpegPath };
 }
 
 export class MediaSettingsStore {

@@ -94,6 +94,10 @@ export interface ElectronAPI {
     error?: string;
   }>;
   checkMediaUpdate: () => Promise<{ ok: boolean; updater?: MediaUpdaterState; error?: string }>;
+  pickMediaDir: () => Promise<string | null>;
+  pickFfmpegPath: () => Promise<string | null>;
+  getFfmpegStatus: () => Promise<{ ok: boolean; ffmpeg?: unknown; error?: string }>;
+  installFfmpeg: () => Promise<{ ok: boolean; ffmpeg?: unknown; error?: string }>;
   getConnectInfo: () => Promise<{
     platform: string;
     version: string;
@@ -386,6 +390,10 @@ const api: ElectronAPI = {
   getMediaSettings: () => ipcRenderer.invoke('media:settings:get'),
   saveMediaSettings: (patch) => ipcRenderer.invoke('media:settings:save', patch),
   checkMediaUpdate: () => ipcRenderer.invoke('media:update:check'),
+  pickMediaDir: () => ipcRenderer.invoke('media:pick-dir'),
+  pickFfmpegPath: () => ipcRenderer.invoke('media:pick-ffmpeg'),
+  getFfmpegStatus: () => ipcRenderer.invoke('media:ffmpeg:status'),
+  installFfmpeg: () => ipcRenderer.invoke('media:ffmpeg:install'),
   getConnectInfo: () => ipcRenderer.invoke('app:connect-info'),
   getToolManager: () => ipcRenderer.invoke('tools:get'),
   saveToolManager: (settings) => ipcRenderer.invoke('tools:save', settings),

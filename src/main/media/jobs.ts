@@ -102,6 +102,7 @@ export function buildDownloadArgs(input: {
   home: string;
   temp: string;
   ffmpeg: boolean;
+  ffmpegDir?: string;
   cookies?: string;
 }): string[] {
   const runtime = ytdlpRuntimeOptions();
@@ -122,6 +123,7 @@ export function buildDownloadArgs(input: {
     `home:${input.home}`,
     '--paths',
     `temp:${input.temp}`,
+    ...(input.ffmpegDir === undefined ? [] : ['--ffmpeg-location', input.ffmpegDir]),
     '--output',
     '%(title).140B [%(id)s].%(ext)s',
     '--format',
@@ -232,6 +234,10 @@ export interface MediaJobsOptions {
   readonly cookieFileFor?: (url: string) => Promise<{ path: string; cleanup(): Promise<void> } | null>;
   /** Called once when a job fails because the site wants a signed-in session. */
   readonly onLoginRequired?: (job: MediaJob) => void;
+  /** Base folder for job output. Defaults to `rootDir`. */
+  readonly outputDir?: () => string;
+  /** Resolved ffmpeg, so the selector can merge and paths can be passed explicitly. */
+  readonly resolveFfmpeg?: () => Promise<{ available: boolean; path: string | null }>;
 }
 
 export class MediaJobs {
@@ -243,6 +249,8 @@ export class MediaJobs {
   private readonly resolveBinary: () => Promise<MediaBinary | MediaBinaryError>;
   private readonly cookieFileFor?: MediaJobsOptions['cookieFileFor'];
   private readonly onLoginRequired?: MediaJobsOptions['onLoginRequired'];
+  private readonly outputDir?: MediaJobsOptions['outputDir'];
+  private readonly resolveFfmpeg?: MediaJobsOptions['resolveFfmpeg'];
   private readonly cookieCleanups = new Map<string, () => Promise<void>>();
   private persistTimer: NodeJS.Timeout | null = null;
   private closed = false;
@@ -253,6 +261,8 @@ export class MediaJobs {
     this.resolveBinary = options.resolveBinary;
     this.cookieFileFor = options.cookieFileFor;
     this.onLoginRequired = options.onLoginRequired;
+    this.outputDir = options.outputDir;
+    this.resolveFfmpeg = options.resolveFfmpeg;
     this.load();
   }
 
@@ -357,10 +367,22 @@ export class MediaJobs {
       return;
     }
 
-    const home = path.join(this.rootDir, job.id);
+    const home = path.join(this.outputDir?.().trim() || this.rootDir, job.id);
     const temp = path.join(this.rootDir, '.tmp', job.id);
-    await fsp.mkdir(home, { recursive: true });
-    await fsp.mkdir(temp, { recursive: true });
+    try {
+      await fsp.mkdir(home, { recursive: true });
+      await fsp.mkdir(temp, { recursive: true });
+    } catch (error) {
+      this.finish(job, 'failed', {
+        code: 'OUTPUT_DIR',
+        message: `Could not create the output folder: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      return;
+    }
+
+    const ffmpeg = await this.resolveFfmpeg?.().catch(() => ({ available: false, path: null }));
+    const ffmpegDir =
+      ffmpeg?.available && ffmpeg.path !== null && path.isAbsolute(ffmpeg.path) ? path.dirname(ffmpeg.path) : undefined;
 
     const cookies = await this.cookieFileFor?.(job.url).catch(() => null);
     if (cookies) this.cookieCleanups.set(job.id, cookies.cleanup);
@@ -371,7 +393,8 @@ export class MediaJobs {
       quality: job.quality,
       home,
       temp,
-      ffmpeg: false,
+      ffmpeg: ffmpeg?.available === true,
+      ffmpegDir,
       cookies: cookies?.path,
     });
     const runtime = ytdlpRuntimeOptions();

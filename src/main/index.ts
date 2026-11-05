@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -246,6 +246,22 @@ ipcMain.handle('media:settings:save', (_event, patch: unknown) => {
 ipcMain.handle('media:update:check', async () => {
   if (!activeMediaService) return { ok: false, error: 'Media is not ready yet.' };
   return { ok: true, updater: await activeMediaService.checkForUpdate(true) };
+});
+ipcMain.handle('media:pick-dir', async () => {
+  const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+});
+ipcMain.handle('media:pick-ffmpeg', async () => {
+  const result = await dialog.showOpenDialog({ properties: ['openFile'] });
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+});
+ipcMain.handle('media:ffmpeg:status', async () => {
+  if (!activeMediaService) return { ok: false, error: 'Media is not ready yet.' };
+  return { ok: true, ffmpeg: await activeMediaService.ffmpegInfo(true) };
+});
+ipcMain.handle('media:ffmpeg:install', async () => {
+  if (!activeMediaService) return { ok: false, error: 'Media is not ready yet.' };
+  return { ok: true, ffmpeg: await activeMediaService.installFfmpeg() };
 });
 
 // Hypagon REST secrets are written only here, from the Settings renderer. No

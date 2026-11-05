@@ -801,6 +801,32 @@
             </fieldset>
           </div>
 
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">Default save folder</legend>
+            <div class="join w-full">
+              <input id="settings-media-dir" type="text" class="input input-sm join-item flex-1 font-mono text-xs" placeholder="empty = the app's media folder" />
+              <button type="button" id="settings-media-dir-browse" class="btn btn-sm btn-outline join-item font-mono text-xs">BROWSE…</button>
+            </div>
+            <p class="label font-mono text-[10px]">Each download gets its own subfolder, so cancelling one never touches another.</p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend font-mono text-xs">ffmpeg (merging and transcoding)</legend>
+            <div class="settings-grid settings-grid-3">
+              <select id="settings-media-ffmpeg-mode" class="select select-sm w-full font-mono text-xs">
+                <option value="auto">auto (path → managed → PATH)</option>
+                <option value="path">configured path only</option>
+                <option value="managed">managed download only</option>
+              </select>
+              <div class="join">
+                <input id="settings-media-ffmpeg-path" type="text" class="input input-sm join-item flex-1 font-mono text-xs" placeholder="path to an ffmpeg binary" />
+                <button type="button" id="settings-media-ffmpeg-browse" class="btn btn-sm btn-outline join-item font-mono text-xs">BROWSE…</button>
+              </div>
+              <button type="button" id="settings-media-ffmpeg-install" class="btn btn-sm btn-outline font-mono text-xs">INSTALL ffmpeg</button>
+            </div>
+            <p id="settings-media-ffmpeg-status" class="label font-mono text-[10px]">Checking…</p>
+          </fieldset>
+
           <div class="flex items-center gap-3">
             <button type="button" id="settings-media-check" class="btn btn-sm btn-outline font-mono text-xs">CHECK NOW</button>
             <span id="settings-media-result" class="font-mono text-[11px] text-base-content/60"></span>

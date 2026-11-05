@@ -16,6 +16,7 @@ import { MediaUpdater, jitter } from '../src/main/media/updater.ts';
 import { toNetscape } from '../src/main/media/cookie-format.ts';
 import { needsLogin } from '../src/main/media/auth.ts';
 import { normalizeMediaSettings } from '../src/main/media/settings.ts';
+import { detectFfmpeg, parseFfmpegVersion } from '../src/main/media/ffmpeg.ts';
 
 test('platform keys and file names match the build layout', () => {
   assert.equal(mediaPlatformKey('win32', 'x64'), 'win32-x64');
@@ -255,10 +256,22 @@ test('media settings default to no session cookies', () => {
   assert.equal(defaults.useSessionCookies, false);
   assert.equal(defaults.autoUpdate, true);
   assert.equal(defaults.updateIntervalMinutes, 60);
+  assert.equal(defaults.outputDir, '');
+  assert.equal(defaults.ffmpegMode, 'auto');
+  assert.equal(defaults.ffmpegPath, '');
 
   assert.equal(normalizeMediaSettings({ useSessionCookies: true }).useSessionCookies, true);
   assert.equal(normalizeMediaSettings({ updateIntervalMinutes: 1 }).updateIntervalMinutes, 15);
   assert.equal(normalizeMediaSettings({ updateIntervalMinutes: 99999 }).updateIntervalMinutes, 1440);
+});
+
+test('a save folder must be absolute to be kept', () => {
+  const absolute = path.resolve('media-test-output');
+  assert.equal(normalizeMediaSettings({ outputDir: absolute }).outputDir, absolute);
+  assert.equal(normalizeMediaSettings({ outputDir: 'relative/folder' }).outputDir, '');
+  assert.equal(normalizeMediaSettings({ outputDir: '   ' }).outputDir, '');
+  assert.equal(normalizeMediaSettings({ ffmpegMode: 'managed' }).ffmpegMode, 'managed');
+  assert.equal(normalizeMediaSettings({ ffmpegMode: 'nonsense' }).ffmpegMode, 'auto');
 });
 
 test('a cookie file is passed to yt-dlp only when one was written', () => {
@@ -272,6 +285,8 @@ test('a cookie file is passed to yt-dlp only when one was written', () => {
   };
   const without = buildDownloadArgs(base);
   assert.ok(!without.includes('--cookies'));
+  assert.ok(!without.includes('--ffmpeg-location'));
+  assert.ok(without.includes('best[ext=mp4]/best'), 'single-file selector without ffmpeg');
 
   const withCookies = buildDownloadArgs({ ...base, cookies: '/tmp/cookies.txt' });
   assert.deepEqual(
@@ -279,6 +294,42 @@ test('a cookie file is passed to yt-dlp only when one was written', () => {
     ['--cookies', '/tmp/cookies.txt'],
   );
   assert.equal(withCookies.at(-1), base.url);
+
+  const withFfmpeg = buildDownloadArgs({ ...base, ffmpeg: true, ffmpegDir: '/tmp/ffmpeg' });
+  assert.deepEqual(
+    withFfmpeg.slice(withFfmpeg.indexOf('--ffmpeg-location'), withFfmpeg.indexOf('--ffmpeg-location') + 2),
+    ['--ffmpeg-location', '/tmp/ffmpeg'],
+  );
+  assert.ok(withFfmpeg.includes('bestvideo+bestaudio/best'), 'merge selector with ffmpeg');
+});
+
+test('ffmpeg versions are parsed from -version output', () => {
+  assert.equal(parseFfmpegVersion('ffmpeg version 6.1.1-full_build-www.gyan.dev Copyright (c) 2000-2023'), '6.1.1-full_build-www.gyan.dev');
+  assert.equal(parseFfmpegVersion('ffmpeg version 7.0.2 Copyright (c) 2000-2024 the FFmpeg developers'), '7.0.2');
+  assert.equal(parseFfmpegVersion('not ffmpeg'), null);
+});
+
+test('managed ffmpeg mode reports a missing install instead of guessing', async () => {
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypagon-ffmpeg-managed-'));
+  const info = await detectFfmpeg(
+    { autoUpdate: true, updateIntervalMinutes: 60, useSessionCookies: false, outputDir: '', ffmpegMode: 'managed', ffmpegPath: '' },
+    dir,
+  );
+  assert.equal(info.available, false);
+  assert.equal(info.mode, 'managed');
+  assert.match(info.error ?? '', /Install ffmpeg/u);
+});
+
+test('path mode does not silently fall back to PATH', async () => {
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypagon-ffmpeg-path-'));
+  const info = await detectFfmpeg(
+    { autoUpdate: true, updateIntervalMinutes: 60, useSessionCookies: false, outputDir: '', ffmpegMode: 'path', ffmpegPath: '' },
+    dir,
+  );
+  assert.equal(info.available, false);
+  assert.match(info.error ?? '', /ffmpegPath/u);
 });
 
 test('the pinned manifest covers every supported target with a SHA-256', () => {  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts', 'media-binaries.json'), 'utf8'));

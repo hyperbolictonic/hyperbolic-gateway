@@ -1,9 +1,9 @@
 # Media capture (yt-dlp)
 
-**Status:** slice 4. `media status`, `info`, `download`, `jobs`, `cancel` and `list` work end to end
-through the bridge and the `hb-browser` MCP server; yt-dlp updates itself on launch and on an
-interval; and downloads can use the browser session when a human enables it. ffmpeg handling is
-planned but not shipped.
+**Status:** slice 5. `media status`, `info`, `download`, `jobs`, `cancel` and `list` work end to end;
+yt-dlp updates itself on launch and on an interval; downloads can use the browser session; and
+ffmpeg can be detected, configured or installed, with a configurable save folder. Transcription is
+the remaining slice.
 
 Read this before changing anything under `src/main/media/`.
 
@@ -129,12 +129,41 @@ yt-dlp is the one binary that must keep up with the sites it reads, so it update
   with a `.backup`, run with `--version`, and rolled back if it cannot execute.
 - Settings are written over IPC only, per the house rule; no bridge route changes them.
 
+## Output folder
+
+Settings → Media has a save-folder picker. Empty means `<userData>/media`; any absolute path is
+accepted. Every job still gets its own `<jobId>` subfolder under it, so cancelling a job removes
+only its own partial output, never another download. A folder that cannot be created fails the job
+with `OUTPUT_DIR` instead of leaving it queued.
+
 ## ffmpeg
 
-Not shipped. Without it yt-dlp still downloads single-file MP4 and audio-only M4A; merging
-`bestvideo+bestaudio` and mp3 conversion need it. Planned modes: `auto` (configured path → managed
-directory → `PATH`), `path`, and `managed` (checksum-verified download). Capability flags in
-`media status` report what works.
+Needed for merging separate video and audio streams, for transcoding, and for audio extraction to
+an arbitrary codec. Without it yt-dlp still downloads a single-file MP4 and an audio-only stream;
+`media status` reports `merge`/`transcode` accordingly.
+
+Three modes, saved in Settings → Media:
+
+| Mode | Resolution order |
+| --- | --- |
+| `auto` (default) | configured path → managed copy → `ffmpeg` on `PATH` |
+| `path` | the configured binary only; no silent fallback |
+| `managed` | the copy downloaded into `<userData>/media/bin/ffmpeg` only |
+
+- `path` mode is deliberate: if the path is wrong, downloads report no ffmpeg rather than quietly
+  using a different build.
+- **Managed install** downloads `ffmpeg` + `ffprobe` for the host platform from the pinned
+  `eugeneware/ffmpeg-static` release (`b6.1.1`), verifies a SHA-256 per asset, gunzips, chmods, and
+  saves the licence next to the binaries. About 60 MB of download; status shows `installing` while
+  it runs and the install is single-flight.
+- The managed release covers `win32-x64`, `linux-x64` and `darwin-arm64` (the platforms this app
+  builds for). Other targets fall back to `auto`/`path`.
+- `--ffmpeg-location` is passed only when the binary is an absolute path; a `PATH`-resolved ffmpeg
+  is found by yt-dlp itself.
+- Format selection is in `buildFormatSelector()`: with ffmpeg it asks for
+  `bestvideo+bestaudio/best`, without it for a single-file `best[ext=mp4]/best`.
+- Licensing: the managed build is a GPL ffmpeg build; the licence text is written beside it, and the
+  app does not ship ffmpeg in the installer.
 
 ## Decision log
 
@@ -153,4 +182,8 @@ directory → `PATH`), `path`, and `managed` (checksum-verified download). Capab
 - **2026-11-05** — Cookies: off by default with a `LOGIN_REQUIRED` result and a desktop notification;
   an always-on switch in Settings hands the browser session to every media request. Scoped to the
   requested host, one-run 0600 file, deleted after the call.
+- **2026-11-05** — Output folder is a Settings picker with a per-job subfolder, so cancel stays
+  local to one download.
+- **2026-11-05** — ffmpeg is detect-or-configure-or-managed; the managed build is pinned to
+  ffmpeg-static `b6.1.1` with per-asset SHA-256 and is not shipped in the installer.
 - **Planned** — Hourly updater with jitter, idle gate and rollback; cookies opt-in; ffmpeg modes.

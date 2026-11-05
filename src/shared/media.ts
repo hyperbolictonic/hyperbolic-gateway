@@ -1,5 +1,7 @@
 /** Shared media settings and updater state (main, preload, renderer). */
 
+export type FfmpegMode = 'auto' | 'path' | 'managed';
+
 export interface MediaSettings {
   /** Check for a newer yt-dlp on launch and on the interval below. */
   autoUpdate: boolean;
@@ -11,6 +13,12 @@ export interface MediaSettings {
    * LOGIN_REQUIRED result and a desktop notification.
    */
   useSessionCookies: boolean;
+  /** Base folder for downloads. Empty means `<userData>/media`. */
+  outputDir: string;
+  /** How ffmpeg is found: configured path → managed → PATH; path only; managed only. */
+  ffmpegMode: FfmpegMode;
+  /** Explicit ffmpeg binary, used by `path` and preferred by `auto`. */
+  ffmpegPath: string;
 }
 
 export interface MediaUpdaterState {
