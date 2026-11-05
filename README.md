@@ -10,7 +10,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-2.1.0-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-2.1.1-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-16%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -860,16 +860,12 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
 ## 📦 Release notes
 
 > [!NOTE]
-> **What's new in 2.1.0** — **media, from preview to download.** `media preview` returns a video's
-> title, duration, transcript excerpt and poster image without downloading the media, so an agent can
-> decide whether it is worth it; `media transcript` returns the full captions as text. `media download`
-> queues a job and returns immediately — progress, bytes, speed and files come from `media jobs`, and
-> `cancel` removes the partial output. The downloader is pinned and checksum-verified in the build and
-> updates itself on launch and hourly (configurable in Settings → Media), running on Electron’s own
-> Node runtime so nothing extra is installed. Signed-in downloads are opt-in: a `LOGIN_REQUIRED` result
-> plus a desktop notification, then a human enables the browser session. ffmpeg can be detected, pointed
-> at, or installed on demand, and the save folder is a picker. See [docs/MEDIA.md](./docs/MEDIA.md) and
-> [CHANGELOG.md](./CHANGELOG.md).
+> **What's new in 2.1.1** — **Cortex recall for video, and a VS Code-style Settings.**
+> `media transcript` now indexes the full transcript into Cortex under the video URL, so
+> `memory recall` can answer from a video later (pass `index:false` to skip). Settings navigation
+> moved from a wrapping top tab strip to a scrollable left rail: the nav scrolls on its own, the
+> active panel scrolls independently, and narrow windows collapse the rail into a horizontal strip.
+> Earlier releases are in [CHANGELOG.md](./CHANGELOG.md).
 
 ---
 

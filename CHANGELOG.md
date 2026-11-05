@@ -16,6 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [2.1.1] - 2026-11-05
+
+### Added
+
+- **Transcripts are indexed into Cortex.** `media transcript` stores the full text under the video
+  URL with its title, source and caption-language metadata, so `memory recall` can answer from a
+  video later. Indexing runs once per URL and language; `index:false` opts out, and an indexing
+  failure never fails the transcript.
+- A live check (`HB_MEDIA_CORTEX_CHECK=1`) recalls from an indexed transcript through the `memory`
+  tool.
+
+### Changed
+
+- **Settings navigation is a left rail.** The wrapping top tab strip is replaced by a fixed-width,
+  independently scrolling rail like VS Code's settings, with the active panel scrolling on the
+  right. Narrow windows collapse the rail into a compact horizontal strip. Every
+  `data-settings-tab` / `data-settings-panel` hook and the `tab-active` class are unchanged.
+
 ## [2.1.0] - 2026-11-05
 
 The **media download integration** release. Hypagon Gateway can inspect, transcribe and download
