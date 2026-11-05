@@ -14,9 +14,12 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { app } from 'electron';
 
-import { isMediaBinary, ensureYtDlp, type MediaBinary, type MediaBinaryError } from './binaries.ts';
+import { isMediaBinary, ensureYtDlp, readYtDlpVersion, writableYtDlpPath, type MediaBinary, type MediaBinaryError } from './binaries.ts';
 import { MediaJobs, type MediaJob, type MediaJobInput, type MediaKind, type MediaQuality } from './jobs.ts';
 import { ytdlpRuntimeOptions } from './platform.ts';
+import { MediaSettingsStore } from './settings.ts';
+import { MediaUpdater, type MediaUpdaterOptions } from './updater.ts';
+import type { MediaSettings, MediaSettingsSnapshot, MediaUpdaterState } from '../../shared/media.ts';
 import { assertSafeUrl, WrapSecurityError } from '../wrap/security.ts';
 
 const INFO_TIMEOUT_MS = 45_000;
@@ -48,6 +51,7 @@ export interface MediaStatus {
     readonly failed: number;
     readonly cancelled: number;
   };
+  readonly updater: MediaUpdaterState;
 }
 
 export interface MediaInfo {
@@ -219,13 +223,23 @@ const MEDIA_QUALITIES: readonly MediaQuality[] = ['best', '1080', '720', '480', 
 export class MediaService {
   private binaryPromise: Promise<MediaBinary | MediaBinaryError> | null = null;
   private readonly rootDir: string;
+  private readonly settingsStore: MediaSettingsStore;
   readonly jobs: MediaJobs;
+  readonly updater: MediaUpdater;
 
   constructor(options: { rootDir?: string } = {}) {
     this.rootDir = options.rootDir ?? path.join(app.getPath('userData'), 'media');
+    this.settingsStore = new MediaSettingsStore(path.join(this.rootDir, 'settings.json'));
     this.jobs = new MediaJobs({
       rootDir: this.rootDir,
       resolveBinary: () => this.resolveBinary(),
+    });
+    this.updater = new MediaUpdater({
+      binaryPath: writableYtDlpPath,
+      readVersion: readYtDlpVersion,
+      settings: () => this.settingsStore.load(),
+      hasRunningJobs: () => this.jobs.counts().running > 0,
+      onUpdated: () => this.invalidateBinary(),
     });
   }
 
@@ -240,7 +254,29 @@ export class MediaService {
   }
 
   shutdown(): void {
+    this.updater.stop();
     this.jobs.shutdown();
+  }
+
+  startUpdater(): void {
+    this.updater.start();
+  }
+
+  mediaSettings(): MediaSettings {
+    return this.settingsStore.load();
+  }
+
+  saveMediaSettings(patch: unknown): MediaSettingsSnapshot {
+    const settings = this.settingsStore.save(patch);
+    return { settings, updater: this.updater.state() };
+  }
+
+  settingsSnapshot(): MediaSettingsSnapshot {
+    return { settings: this.settingsStore.load(), updater: this.updater.state() };
+  }
+
+  checkForUpdate(force = true): Promise<MediaUpdaterState> {
+    return this.updater.check(force);
   }
 
   async status(): Promise<MediaStatus> {
@@ -261,6 +297,7 @@ export class MediaService {
         transcode: false,
       },
       jobs: this.jobs.counts(),
+      updater: this.updater.state(),
     };
   }
 

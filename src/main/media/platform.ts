@@ -55,8 +55,7 @@ export function ytdlpRuntimeOptions(
   };
 }
 
-/** Compare `2026.10.26`-style versions. Returns >0 when `a` is newer. */
-export function compareYtDlpVersions(a: string | null, b: string | null): number {
+/** Compare `2026.10.26`-style versions. Returns >0 when `a` is newer. */export function compareYtDlpVersions(a: string | null, b: string | null): number {
   const parts = (value: string | null): number[] =>
     (value ?? '')
       .replace(/^v/i, '')
@@ -77,4 +76,20 @@ export function compareYtDlpVersions(a: string | null, b: string | null): number
     if (l !== r) return l > r ? 1 : -1;
   }
   return 0;
+}
+
+/** The GitHub release asset name for a target platform. */
+export function ytDlpReleaseAsset(platform: string = process.platform, arch: string = process.arch): string {
+  if (platform === 'win32') return 'yt-dlp.exe';
+  if (platform === 'darwin') return 'yt-dlp_macos';
+  return arch === 'arm64' ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux';
+}
+
+/** Find one asset hash in a `SHA2-256SUMS` file. */
+export function parseChecksum(text: string, asset: string): string | null {
+  for (const line of text.split(/\r?\n/u)) {
+    const match = line.trim().match(/^([0-9a-fA-F]{64})\s+\*?(.+)$/u);
+    if (match && match[2] === asset) return match[1].toLowerCase();
+  }
+  return null;
 }

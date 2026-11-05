@@ -234,6 +234,20 @@ ipcMain.handle('recording:save', (_event, buffer: ArrayBuffer, frames: number) =
 ipcMain.on('recording:ready', () => readyRecording());
 ipcMain.on('recording:failed', (_event, message: string) => failRecording(String(message || 'Recording failed.')));
 
+// ---- media settings IPC (human-only; the bridge may read the result) ------------------------
+ipcMain.handle('media:settings:get', () => {
+  if (!activeMediaService) return { ok: false, error: 'Media is not ready yet.' };
+  return { ok: true, ...activeMediaService.settingsSnapshot() };
+});
+ipcMain.handle('media:settings:save', (_event, patch: unknown) => {
+  if (!activeMediaService) return { ok: false, error: 'Media is not ready yet.' };
+  return { ok: true, ...activeMediaService.saveMediaSettings(patch) };
+});
+ipcMain.handle('media:update:check', async () => {
+  if (!activeMediaService) return { ok: false, error: 'Media is not ready yet.' };
+  return { ok: true, updater: await activeMediaService.checkForUpdate(true) };
+});
+
 // Hypagon REST secrets are written only here, from the Settings renderer. No
 // bridge route or MCP tool can create, read, or bind a credential value.
 ipcMain.handle('wrap:secrets:list', () => {
@@ -675,6 +689,7 @@ async function createWindow() {
     activeCollaborationService = collaboration;
     const media = new MediaService();
     activeMediaService = media;
+    media.startUpdater();
     chassis.setCollabEnabledProvider(() => experimentalSettings().get().collab);
     chassis.setJevPolicyProvider(() => jevPolicy());
     // The deck toolbar's list + note cycling read exactly what the page overlay shows.

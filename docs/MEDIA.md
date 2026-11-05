@@ -1,8 +1,8 @@
 # Media capture (yt-dlp)
 
-**Status:** slice 2. `media status`, `info`, `download`, `jobs`, `cancel` and `list` work end to end
-through the bridge and the `hb-browser` MCP server. The runtime updater, cookies and ffmpeg handling
-are planned but not shipped.
+**Status:** slice 3. `media status`, `info`, `download`, `jobs`, `cancel` and `list` work end to end
+through the bridge and the `hb-browser` MCP server, and yt-dlp updates itself on launch and on an
+interval. Cookies and ffmpeg handling are planned but not shipped.
 
 Read this before changing anything under `src/main/media/`.
 
@@ -97,6 +97,23 @@ polled, the same way `record_start` returns when capture is live.
   stable channel only, checksum-verified, rollback on a failed `--version`, and a Settings switch
   plus `HB_MEDIA_AUTOUPDATE=0` to turn it off.
 
+## Updates
+
+yt-dlp is the one binary that must keep up with the sites it reads, so it updates at runtime:
+
+- A check runs shortly after launch (15 s + up to 2 min of jitter) and then every N minutes
+  (default **60**, clamped 15–1440, set in Settings → Media).
+- Each check is jittered ±10% so installs do not hit GitHub together, and it is skipped while a
+  download is running (retried in 2 minutes, not counted as a failure).
+- A failed check backs off exponentially (2× per failure, capped at 24 h) and surfaces the error in
+  Settings and `media status`.
+- `HB_MEDIA_AUTOUPDATE=0` disables automatic checks for a run; the Settings button still works.
+- The download URL comes from the release the API just returned, not from `latest/download`, so a
+  release published mid-check cannot install a different version than the one being reported.
+- The asset is checked against the release's `SHA2-256SUMS` before it is written, then swapped in
+  with a `.backup`, run with `--version`, and rolled back if it cannot execute.
+- Settings are written over IPC only, per the house rule; no bridge route changes them.
+
 ## ffmpeg
 
 Not shipped. Without it yt-dlp still downloads single-file MP4 and audio-only M4A; merging
@@ -115,4 +132,7 @@ directory → `PATH`), `path`, and `managed` (checksum-verified download). Capab
   cancel removes the directory, tree-kill so postprocessors cannot outlive a job.
 - **2026-11-05** — Job status is polled (`media jobs`), not streamed: the bridge is request/response
   and a download outlives any single tool call.
+- **2026-11-05** — Updater: launch + hourly by default, jittered, idle-only, checksum-verified,
+  tagged asset URL, exponential backoff, rollback on a failed `--version`. Interval is an IPC-only
+  setting.
 - **Planned** — Hourly updater with jitter, idle gate and rollback; cookies opt-in; ffmpeg modes.

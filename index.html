@@ -397,6 +397,7 @@
           <button type="button" id="settings-tab-input" class="tab" data-settings-tab="input">INPUT</button>
           <button type="button" id="settings-tab-shadow" class="tab" data-settings-tab="shadow">SHADOW WALK</button>
           <button type="button" id="settings-tab-recording" class="tab" data-settings-tab="recording">RECORDING</button>
+          <button type="button" id="settings-tab-media" class="tab" data-settings-tab="media">MEDIA</button>
           <button type="button" id="settings-tab-research" class="tab" data-settings-tab="research">RESEARCH</button>
           <button type="button" id="settings-tab-wrappers" class="tab" data-settings-tab="wrappers">WRAPPERS</button>
           <button type="button" id="settings-tab-clients" class="tab" data-settings-tab="clients">MCP CLIENTS</button>
@@ -765,6 +766,51 @@
           <h4 class="font-mono text-xs font-bold text-base-content/70">RECENT TIMELAPSES</h4>
           <ul id="settings-rec-list" class="mt-2 space-y-1"></ul>
         </div>
+      </section>
+
+      <!-- Media capture -->
+      <section data-settings-panel="media" class="hidden settings-pane">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="font-mono text-sm font-bold text-primary">MEDIA CAPTURE (yt-dlp)</h3>
+            <p class="text-xs text-base-content/60 mt-1">
+              The downloader binary is pinned in the build and updates itself from the yt-dlp stable release.
+              A check runs shortly after launch and then on the interval below, but only while no download is
+              running.
+            </p>
+          </div>
+          <span id="settings-media-status" class="badge badge-ghost font-mono text-xs whitespace-nowrap">—</span>
+        </div>
+
+        <form id="settings-media-form" class="mt-5 space-y-4">
+          <label class="label cursor-pointer justify-start gap-3 py-0">
+            <input id="settings-media-auto" type="checkbox" class="toggle toggle-sm toggle-primary" />
+            <span class="label-text font-mono text-xs">Update yt-dlp automatically on launch and on the interval</span>
+          </label>
+
+          <div class="settings-grid settings-grid-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Check every (minutes)</legend>
+              <input id="settings-media-interval" type="number" min="15" max="1440" step="15" class="input input-sm w-full font-mono text-xs" />
+              <p class="label font-mono text-[10px]">Default 60. Clamped to 15–1440. A failed check backs off (2× per failure, up to 24 h).</p>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-mono text-xs">Release channel</legend>
+              <input type="text" value="stable" class="input input-sm w-full font-mono text-xs" disabled />
+              <p class="label font-mono text-[10px]">Nightly builds are not offered; each download is checked against the release's SHA2-256SUMS.</p>
+            </fieldset>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button type="button" id="settings-media-check" class="btn btn-sm btn-outline font-mono text-xs">CHECK NOW</button>
+            <span id="settings-media-result" class="font-mono text-[11px] text-base-content/60"></span>
+          </div>
+
+          <p class="label font-mono text-[10px]">
+            <code class="font-mono">HB_MEDIA_AUTOUPDATE=0</code> disables the automatic check for this run.
+            Settings are saved over IPC only; an agent cannot change them.
+          </p>
+        </form>
       </section>
 
       <!-- Research / stealth -->

@@ -6,10 +6,13 @@ import path from 'node:path';
 import {
   compareYtDlpVersions,
   mediaPlatformKey,
+  parseChecksum,
   ytDlpFileName,
+  ytDlpReleaseAsset,
   ytdlpRuntimeOptions,
 } from '../src/main/media/platform.ts';
 import { buildDownloadArgs, buildFormatSelector, parseProgressLine } from '../src/main/media/jobs.ts';
+import { MediaUpdater, jitter } from '../src/main/media/updater.ts';
 
 test('platform keys and file names match the build layout', () => {
   assert.equal(mediaPlatformKey('win32', 'x64'), 'win32-x64');
@@ -104,6 +107,109 @@ test('progress lines are parsed without a terminal', () => {
   assert.equal(parseProgressLine(''), null);
 
   assert.equal(parseProgressLine('[download]   5.0% of ~ 1.0GiB at 900.0KiB/s ETA 01:02:03')?.etaSeconds, 3723);
+});
+
+test('release assets and checksums use the target platform', () => {
+  assert.equal(ytDlpReleaseAsset('win32', 'x64'), 'yt-dlp.exe');
+  assert.equal(ytDlpReleaseAsset('darwin', 'arm64'), 'yt-dlp_macos');
+  assert.equal(ytDlpReleaseAsset('linux', 'x64'), 'yt-dlp_linux');
+  assert.equal(ytDlpReleaseAsset('linux', 'arm64'), 'yt-dlp_linux_aarch64');
+
+  const sums = [
+    'a'.repeat(64) + '  yt-dlp.exe',
+    'b'.repeat(64) + ' *yt-dlp_linux',
+    'c'.repeat(64) + '  yt-dlp_macos',
+  ].join('\n');
+  assert.equal(parseChecksum(sums, 'yt-dlp.exe'), 'a'.repeat(64));
+  assert.equal(parseChecksum(sums, 'yt-dlp_linux'), 'b'.repeat(64), 'a binary-mode marker is allowed');
+  assert.equal(parseChecksum(sums, 'yt-dlp_macos'), 'c'.repeat(64));
+  assert.equal(parseChecksum(sums, 'yt-dlp_linux_aarch64'), null);
+});
+
+test('the check interval jitters inside a ten percent band', () => {
+  const hour = 60 * 60_000;
+  assert.equal(jitter(hour, () => 0), Math.round(hour * 0.9));
+  assert.equal(jitter(hour, () => 1), Math.round(hour * 1.1));
+  assert.ok(jitter(10_000, () => 0) >= 60_000, 'never schedules more often than once a minute');
+});
+
+test('the updater verifies the checksum and installs a good binary', async () => {
+  const { createHash } = await import('node:crypto');
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypagon-media-update-'));
+  const target = path.join(dir, 'yt-dlp.exe');
+  fs.writeFileSync(target, 'old-binary', 'utf8');
+
+  const assetName = ytDlpReleaseAsset();
+  const good = Buffer.from('new-binary');
+  const sums = `${createHash('sha256').update(good).digest('hex')}  ${assetName}\n`;
+
+  const updater = new MediaUpdater({
+    binaryPath: () => target,
+    readVersion: async (file) => (fs.readFileSync(file, 'utf8') === 'new-binary' ? '2026.10.27' : '2026.10.26'),
+    settings: () => ({ autoUpdate: true, updateIntervalMinutes: 60 }),
+    hasRunningJobs: () => false,
+    onUpdated: () => {},
+    fetchImpl: async (url) => {
+      if (String(url).includes('/releases/latest')) {
+        return new Response(
+          JSON.stringify({
+            tag_name: '2026.10.27',
+            assets: [
+              { name: assetName, browser_download_url: 'https://example.test/asset' },
+              { name: 'SHA2-256SUMS', browser_download_url: 'https://example.test/sums' },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (String(url).endsWith('/sums')) return new Response(sums, { status: 200 });
+      return new Response(good, { status: 200 });
+    },
+  });
+
+  const state = await updater.check(true);
+  assert.equal(state.lastError, null);
+  assert.equal(state.installedVersion, '2026.10.27');
+  assert.equal(fs.readFileSync(target, 'utf8'), 'new-binary');
+  assert.ok(state.lastUpdatedAt);
+});
+
+test('the updater refuses a bad checksum and leaves the current binary', async () => {
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hypagon-media-update-bad-'));
+  const target = path.join(dir, 'yt-dlp.exe');
+  fs.writeFileSync(target, 'old-binary', 'utf8');
+
+  const assetName = ytDlpReleaseAsset();
+  const updater = new MediaUpdater({
+    binaryPath: () => target,
+    readVersion: async (file) => (fs.readFileSync(file, 'utf8') === 'old-binary' ? '2026.10.26' : null),
+    settings: () => ({ autoUpdate: true, updateIntervalMinutes: 60 }),
+    hasRunningJobs: () => false,
+    onUpdated: () => {},
+    fetchImpl: async (url) => {
+      if (String(url).includes('/releases/latest')) {
+        return new Response(
+          JSON.stringify({
+            tag_name: '2026.10.27',
+            assets: [
+              { name: assetName, browser_download_url: 'https://example.test/asset' },
+              { name: 'SHA2-256SUMS', browser_download_url: 'https://example.test/sums' },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (String(url).endsWith('/sums')) return new Response(`${'d'.repeat(64)}  ${assetName}\n`, { status: 200 });
+      return new Response('tampered', { status: 200 });
+    },
+  });
+
+  const state = await updater.check(true);
+  assert.match(state.lastError ?? '', /checksum mismatch/u);
+  assert.equal(fs.readFileSync(target, 'utf8'), 'old-binary');
+  assert.equal(state.installedVersion, '2026.10.26');
 });
 
 test('the pinned manifest covers every supported target with a SHA-256', () => {

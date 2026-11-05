@@ -6,6 +6,7 @@ import type { CollaborationThread, CollaborationTarget } from '../shared/collabo
 import type { PopupAnchor, PopupMenuItem, SidebarSurfaceState } from '../shared/menu.js';
 import type { WebPageState } from '../shared/web-state.js';
 import type { ExperimentalSettings } from '../shared/experimental.js';
+import type { MediaSettings, MediaUpdaterState } from '../shared/media.js';
 
 export interface ElectronAPI {
   getState: () => Promise<ChassisState>;
@@ -85,6 +86,14 @@ export interface ElectronAPI {
   onHilRequested: (callback: (request: any) => void) => () => void;
   onHilCleared: (callback: () => void) => () => void;
   getRecordingConfig: () => Promise<any>;
+  getMediaSettings: () => Promise<{ ok: boolean; settings?: MediaSettings; updater?: MediaUpdaterState; error?: string }>;
+  saveMediaSettings: (patch: Partial<MediaSettings>) => Promise<{
+    ok: boolean;
+    settings?: MediaSettings;
+    updater?: MediaUpdaterState;
+    error?: string;
+  }>;
+  checkMediaUpdate: () => Promise<{ ok: boolean; updater?: MediaUpdaterState; error?: string }>;
   getConnectInfo: () => Promise<{
     platform: string;
     version: string;
@@ -374,6 +383,9 @@ const api: ElectronAPI = {
   },
 
   getRecordingConfig: () => ipcRenderer.invoke('recording:config:get'),
+  getMediaSettings: () => ipcRenderer.invoke('media:settings:get'),
+  saveMediaSettings: (patch) => ipcRenderer.invoke('media:settings:save', patch),
+  checkMediaUpdate: () => ipcRenderer.invoke('media:update:check'),
   getConnectInfo: () => ipcRenderer.invoke('app:connect-info'),
   getToolManager: () => ipcRenderer.invoke('tools:get'),
   saveToolManager: (settings) => ipcRenderer.invoke('tools:save', settings),

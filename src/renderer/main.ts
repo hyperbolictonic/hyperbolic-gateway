@@ -1309,6 +1309,96 @@ async function loadRecordingSettings() {
   }
 }
 
+// ---- Media capture (Settings → Media) -------------------------------------------------------
+const settingsMediaForm = document.getElementById('settings-media-form') as HTMLFormElement | null;
+const settingsMediaStatus = document.getElementById('settings-media-status') as HTMLElement | null;
+const settingsMediaAuto = document.getElementById('settings-media-auto') as HTMLInputElement | null;
+const settingsMediaInterval = document.getElementById('settings-media-interval') as HTMLInputElement | null;
+const settingsMediaCheck = document.getElementById('settings-media-check') as HTMLButtonElement | null;
+const settingsMediaResult = document.getElementById('settings-media-result') as HTMLElement | null;
+
+function renderMediaUpdater(state: any) {
+  if (!state) return;
+  if (settingsMediaStatus) {
+    const version = state.installedVersion ? `yt-dlp ${state.installedVersion}` : 'yt-dlp missing';
+    settingsMediaStatus.textContent = state.lastError ? 'update error' : version;
+    settingsMediaStatus.className = state.lastError
+      ? 'badge badge-error badge-sm font-mono text-xs whitespace-nowrap'
+      : 'badge badge-ghost font-mono text-xs whitespace-nowrap';
+  }
+  if (!settingsMediaResult) return;
+  if (state.lastError) {
+    settingsMediaResult.textContent = `Last check failed: ${state.lastError}`;
+  } else if (state.updateAvailable) {
+    settingsMediaResult.textContent = `yt-dlp ${state.latestVersion} is available; it installs on the next check.`;
+  } else if (state.lastUpdatedAt) {
+    settingsMediaResult.textContent = `Updated ${new Date(state.lastUpdatedAt).toLocaleString()}.`;
+  } else if (state.lastCheckedAt) {
+    settingsMediaResult.textContent = `Up to date (checked ${new Date(state.lastCheckedAt).toLocaleTimeString()}).`;
+  } else {
+    settingsMediaResult.textContent = 'No check yet.';
+  }
+}
+
+async function loadMediaSettings() {
+  try {
+    const result = await window.electronAPI!.getMediaSettings();
+    if (!result?.ok) {
+      if (settingsMediaResult) settingsMediaResult.textContent = result?.error || 'Media is not ready yet.';
+      return;
+    }
+    if (settingsMediaAuto) settingsMediaAuto.checked = result.settings?.autoUpdate !== false;
+    if (settingsMediaInterval) settingsMediaInterval.value = String(result.settings?.updateIntervalMinutes ?? 60);
+    renderMediaUpdater(result.updater);
+  } catch (err: any) {
+    if (settingsMediaResult) settingsMediaResult.textContent = `Could not read media settings: ${err?.message || err}`;
+  }
+}
+
+async function saveMediaSettings(patch: { autoUpdate?: boolean; updateIntervalMinutes?: number }) {
+  try {
+    const result = await window.electronAPI!.saveMediaSettings(patch);
+    if (!result?.ok) {
+      if (settingsMediaResult) settingsMediaResult.textContent = result?.error || 'Could not save media settings.';
+      return;
+    }
+    if (result.settings) {
+      if (settingsMediaAuto) settingsMediaAuto.checked = result.settings.autoUpdate;
+      if (settingsMediaInterval) settingsMediaInterval.value = String(result.settings.updateIntervalMinutes);
+    }
+    renderMediaUpdater(result.updater);
+  } catch (err: any) {
+    if (settingsMediaResult) settingsMediaResult.textContent = `Could not save media settings: ${err?.message || err}`;
+  }
+}
+
+settingsMediaForm?.addEventListener('submit', (event) => event.preventDefault());
+settingsMediaAuto?.addEventListener('change', () => {
+  if (settingsMediaAuto) void saveMediaSettings({ autoUpdate: settingsMediaAuto.checked });
+});
+settingsMediaInterval?.addEventListener('change', () => {
+  if (!settingsMediaInterval) return;
+  const value = Number(settingsMediaInterval.value);
+  if (Number.isFinite(value)) void saveMediaSettings({ updateIntervalMinutes: Math.round(value) });
+});
+settingsMediaCheck?.addEventListener('click', async () => {
+  if (!settingsMediaCheck) return;
+  settingsMediaCheck.disabled = true;
+  if (settingsMediaResult) settingsMediaResult.textContent = 'Checking…';
+  try {
+    const result = await window.electronAPI!.checkMediaUpdate();
+    if (!result?.ok) {
+      if (settingsMediaResult) settingsMediaResult.textContent = result?.error || 'Check failed.';
+      return;
+    }
+    renderMediaUpdater(result.updater);
+  } catch (err: any) {
+    if (settingsMediaResult) settingsMediaResult.textContent = `Check failed: ${err?.message || err}`;
+  } finally {
+    settingsMediaCheck.disabled = false;
+  }
+});
+
 recordBtn?.addEventListener('click', async () => {
   if (!recordBtn) return;
   recordBtn.disabled = true;
@@ -2371,6 +2461,9 @@ if (settingsBtn && settingsModal) {
     if (tab === 'recording') {
       void loadRecordingSettings();
     }
+    if (tab === 'media') {
+      void loadMediaSettings();
+    }
     if (tab === 'clients') {
       void loadConnectPanel();
     }
@@ -2569,6 +2662,7 @@ if (settingsBtn && settingsModal) {
     settingsModal.showModal();
     const activeTab = settingsTabs.find((button) => button.classList.contains('tab-active'))?.dataset.settingsTab;
     if (activeTab === 'recording') void loadRecordingSettings();
+    if (activeTab === 'media') void loadMediaSettings();
     if (activeTab === 'clients') void loadConnectPanel();
     if (activeTab === 'tools') refreshToolsPanel();
     if (activeTab === 'remote') void loadRemotePanel();
