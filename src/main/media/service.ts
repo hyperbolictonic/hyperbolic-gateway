@@ -544,10 +544,10 @@ export class MediaService {
       });
 
       if (result.timedOut) {
-        return { ok: false, code: 'TIMEOUT', error: `yt-dlp did not answer within ${INFO_TIMEOUT_MS / 1000}s` };
+        return { ok: false, code: 'TIMEOUT', error: `The downloader did not answer within ${INFO_TIMEOUT_MS / 1000}s` };
       }
       if (result.overflowed) {
-        return { ok: false, code: 'RESPONSE_TOO_LARGE', error: 'yt-dlp metadata exceeded the 16 MB limit' };
+        return { ok: false, code: 'RESPONSE_TOO_LARGE', error: 'Metadata exceeded the 16 MB limit' };
       }
 
       if (result.code !== 0) {
@@ -557,7 +557,7 @@ export class MediaService {
         return {
           ok: false,
           code: loginRequired ? 'LOGIN_REQUIRED' : 'EXTRACT_FAILED',
-          error: detail === '' ? `yt-dlp exited with code ${result.code ?? 'unknown'}` : detail,
+          error: detail === '' ? `The downloader exited with code ${result.code ?? 'unknown'}` : detail,
         };
       }
 
@@ -565,7 +565,7 @@ export class MediaService {
       try {
         payload = JSON.parse(result.stdout) as Record<string, any>;
       } catch {
-        return { ok: false, code: 'INVALID_RESPONSE', error: 'yt-dlp returned metadata that is not JSON' };
+        return { ok: false, code: 'INVALID_RESPONSE', error: 'The downloader returned metadata that is not JSON' };
       }
 
       return {

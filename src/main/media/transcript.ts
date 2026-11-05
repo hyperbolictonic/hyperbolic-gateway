@@ -163,7 +163,7 @@ export async function fetchArtifacts(
     if (needsLogin(result.stderr)) {
       return { ok: false, code: 'LOGIN_REQUIRED', error: detail || 'the site wants a signed-in session' };
     }
-    return { ok: false, code: 'EXTRACT_FAILED', error: detail || `yt-dlp exited with code ${result.code ?? 'unknown'}` };
+    return { ok: false, code: 'EXTRACT_FAILED', error: detail || `The downloader exited with code ${result.code ?? 'unknown'}` };
   }
 
   const info = readInfo(dir);

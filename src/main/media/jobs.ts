@@ -489,7 +489,7 @@ export class MediaJobs {
     if (code === 0) {
       const files = await listFiles(home);
       if (files.length === 0) {
-        this.finish(job, 'failed', { code: 'NO_OUTPUT', message: 'yt-dlp reported success but wrote no file.' }, next);
+        this.finish(job, 'failed', { code: 'NO_OUTPUT', message: 'The downloader reported success but wrote no file.' }, next);
         return;
       }
       job.files = files;
@@ -509,7 +509,7 @@ export class MediaJobs {
       'failed',
       {
         code: loginRequired ? 'LOGIN_REQUIRED' : 'DOWNLOAD_FAILED',
-        message: detail || `yt-dlp exited with code ${code ?? 'unknown'}`,
+        message: detail || `The downloader exited with code ${code ?? 'unknown'}`,
       },
       next,
     );

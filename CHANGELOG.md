@@ -16,6 +16,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [2.1.0] - 2026-11-05
+
+The **media download integration** release. Hypagon Gateway can inspect, transcribe and download
+media from pages the browser can already reach, without a second MCP server.
+
+### Added
+
+- A `media` tool group in `hb-browser`: `status`, `info`, `preview`, `transcript`, `download`,
+  `jobs`, `cancel` and `list`.
+- **`media preview`** returns title, duration, uploader, a transcript excerpt and the poster image
+  without downloading the media. The MCP layer returns the image as image content, so a vision
+  model can look at it before committing to a download.
+- **`media transcript`** returns captions as plain text, paged with `max_chars`/`cursor`. Language
+  defaults to English, then the first manual track, then the first automatic track. Captions are
+  cached for ten minutes per URL and language.
+- **Download jobs**: one at a time, FIFO, with percent/bytes/speed/ETA, a 50-job persisted history,
+  per-job temp directories, tree-kill on cancel, and a 2 GB/file cap.
+- **Settings → Media**: save-folder picker, automatic downloader updates with an interval
+  (default 60 minutes, clamped 15–1440), optional browser-session cookies, and ffmpeg mode.
+- **ffmpeg** in three modes: `auto` (configured path → managed copy → `PATH`), `path`, and
+  `managed` (checksum-verified download, licence saved beside it, not shipped in the installer).
+- A self-updating downloader: pinned and SHA-256-verified in the build, hourly checks with jitter,
+  rollback on a failed `--version`, `HB_MEDIA_AUTOUPDATE=0` to disable.
+- `media status` reports capability flags, job counts, ffmpeg source/version and updater state.
+
+### Changed
+
+- The downloader runs on Electron's own Node runtime (`ELECTRON_RUN_AS_NODE`), so no Deno or system
+  Node is required for full YouTube support.
+- Downloads write to a per-job subfolder under the configured save folder, so cancelling one job
+  never touches another.
+
+### Compatibility
+
+- Signed-in downloads are **off by default**. A site that needs a session returns `LOGIN_REQUIRED`
+  and raises a desktop notification; a human enables the browser session in Settings, then retries.
+  Cookies are scoped to the requested host, written to a 0600 file, and deleted after the run.
+
 ## [2.0.1] - 2026-11-04
 
 The **wrapper-core** release. `hb-rest` runs on [`anyapi-to-mcp`](docs/ANYAPI-INTEGRATION.md)

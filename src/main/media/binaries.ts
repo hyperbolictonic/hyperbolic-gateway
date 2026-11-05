@@ -83,13 +83,13 @@ export async function ensureYtDlp(): Promise<MediaBinary | MediaBinaryError> {
     return {
       ok: false,
       code: 'BINARY_MISSING',
-      error: 'yt-dlp is not present in this build. Run "npm run fetch:media" before packaging.',
+      error: 'The media downloader is not present in this build. Run "npm run fetch:media" before packaging.',
     };
   }
 
   if (!writableExists) {
     if (!seedExists) {
-      return { ok: false, code: 'BINARY_MISSING', error: 'The yt-dlp seed binary is missing.' };
+      return { ok: false, code: 'BINARY_MISSING', error: 'The media downloader seed binary is missing.' };
     }
     await copySeed(seed, writable);
   } else if (seedExists) {
@@ -123,7 +123,7 @@ export async function ensureYtDlp(): Promise<MediaBinary | MediaBinaryError> {
   return {
     ok: false,
     code: 'BINARY_BROKEN',
-    error: 'The yt-dlp binary exists but cannot be executed.',
+    error: 'The media downloader binary exists but cannot be executed.',
   };
 }
 

@@ -33,6 +33,7 @@ Start with the grouped tools, not the old flat names:
 - `human_in_loop` — HIL, passive takeover, notifications, window and tray
 - `collaborate` — highlight/ask/read/reply/resolve human page threads
 - `browser_workspace` — tabs, downloads, contexts, recordings and scripts
+- `media` — preview, transcript, download, jobs, cancel, list
 - `shadow_iframes` — frames and closed-shadow focus
 - `research` — read, search, LLM surface/fetch, crawl, topic research, prerender
 - `memory` — recall, history and bookmarks
@@ -175,6 +176,39 @@ Read the reply:
 ```json
 {"name":"collaborate","arguments":{"action":"read","id":"collab_..."}}
 ```
+
+### Preview and download media
+
+Preview without downloading. This returns the title, duration, a transcript excerpt, and the
+poster image, so you can decide whether the video is worth downloading:
+
+```json
+{"name":"media","arguments":{"action":"preview","url":"https://www.youtube.com/watch?v=jNQXAC9IVRw"}}
+```
+
+Read the full captions, paged:
+
+```json
+{"name":"media","arguments":{"action":"transcript","url":"https://www.youtube.com/watch?v=jNQXAC9IVRw","max_chars":8000}}
+```
+
+Queue a download and poll it. `kind` is `video` or `audio`; `quality` is `best`, `1080`, `720`,
+`480` or `worst`:
+
+```json
+{"name":"media","arguments":{"action":"download","url":"https://www.youtube.com/watch?v=jNQXAC9IVRw","kind":"audio","quality":"best"}}
+{"name":"media","arguments":{"action":"jobs"}}
+```
+
+Cancel a job, or list finished files:
+
+```json
+{"name":"media","arguments":{"action":"cancel","id":"mj_..."}}
+{"name":"media","arguments":{"action":"list"}}
+```
+
+If a job or preview returns `LOGIN_REQUIRED`, stop and tell the human. They can enable
+**Settings → Media → "Use browser session"** and ask you to retry; you cannot enable it yourself.
 
 ### Recipes
 

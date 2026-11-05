@@ -255,7 +255,7 @@ export class MediaUpdater {
       await fsp.rename(temp, target);
       if (process.platform !== 'win32') await fsp.chmod(target, 0o755);
       const version = await this.options.readVersion(target);
-      if (!version) throw new Error('the updated yt-dlp did not report a version');
+      if (!version) throw new Error('the updated downloader did not report a version');
       await fsp.rm(backup, { force: true });
     } catch (error) {
       await fsp.rm(target, { force: true });

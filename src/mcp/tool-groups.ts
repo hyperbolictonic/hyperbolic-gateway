@@ -117,14 +117,14 @@ export const TOOL_GROUPS: ToolGroupDefinition[] = [
   },
   {
     name: 'media',
-    description: 'Media capture through yt-dlp: inspect a page, queue a download, poll its progress, cancel it, and list what has been saved. Downloads run in the app and are polled with the jobs action.',
+    description: 'Media download integration: preview a video, queue a download, poll its progress, cancel it, and list what has been saved. Downloads run in the app and are polled with the jobs action.',
     tier: null,
     actions: [
       {
         action: 'status',
         endpoint: '/media/status',
         method: 'GET',
-        description: 'yt-dlp binary and runtime status, capabilities, and how many jobs are queued or running.',
+        description: 'Downloader binary and runtime status, capabilities, and how many jobs are queued or running.',
         map: () => ({}),
       },
       {

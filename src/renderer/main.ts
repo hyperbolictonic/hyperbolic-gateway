@@ -1328,7 +1328,7 @@ const settingsMediaResult = document.getElementById('settings-media-result') as 
 function renderMediaUpdater(state: any) {
   if (!state) return;
   if (settingsMediaStatus) {
-    const version = state.installedVersion ? `yt-dlp ${state.installedVersion}` : 'yt-dlp missing';
+    const version = state.installedVersion ? `downloader ${state.installedVersion}` : 'downloader missing';
     settingsMediaStatus.textContent = state.lastError ? 'update error' : version;
     settingsMediaStatus.className = state.lastError
       ? 'badge badge-error badge-sm font-mono text-xs whitespace-nowrap'
@@ -1338,7 +1338,7 @@ function renderMediaUpdater(state: any) {
   if (state.lastError) {
     settingsMediaResult.textContent = `Last check failed: ${state.lastError}`;
   } else if (state.updateAvailable) {
-    settingsMediaResult.textContent = `yt-dlp ${state.latestVersion} is available; it installs on the next check.`;
+    settingsMediaResult.textContent = `Downloader ${state.latestVersion} is available; it installs on the next check.`;
   } else if (state.lastUpdatedAt) {
     settingsMediaResult.textContent = `Updated ${new Date(state.lastUpdatedAt).toLocaleString()}.`;
   } else if (state.lastCheckedAt) {

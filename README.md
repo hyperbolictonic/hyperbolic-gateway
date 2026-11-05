@@ -10,7 +10,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-2.0.1-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-2.1.0-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-16%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -23,7 +23,7 @@
 - **The deck** — [Theme & Cyberdeck UI](#sec-theme-cyberdeck-interface) · [Ghost cursor telemetry](#sec-ghost-cursor-telemetry-engine) · [Focus-independent input](#sec-focus-independent-input-background-rendering) · [Multi-tab browsing](#sec-hardware-accelerated-multi-tab-browsing)
 - **Reading the web** — [Orthogonal primitive layer](#sec-orthogonal-primitive-layer) · [Construct harvester](#sec-token-efficient-construct-harvester) · [JEV page compaction](#sec-jev-page-compaction) · [Set-of-Marks](#sec-set-of-marks-som-visual-grounding)
 - **Driving the web** — [Shield-breaker](#sec-autonomous-shield-breaker-cookie-gdpr-destroyer) · [Form filler](#sec-single-turn-batch-form-filler) · [Human-in-the-loop](#sec-human-in-the-loop-hil-intervention-protocol)
-- **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
+- **Memory & data** — [Cortex](#sec-lancedb-persistent-cortex-semantic-recall) · [Downloads](#sec-download-manager-cortex-harvester) · [Media download integration](#sec-media-download-integration) · [Session vault](#sec-session-cookie-jar-vault) · [Script vault](#sec-script-vault-lancedb-semantic-macro-engine) · [Timelapse recorder](#sec-timelapse-recorder)
 - **Inspection** — [Network & API streams](#sec-live-network-api-stream-interceptor) · [WebSocket & SSE](#sec-real-time-websocket-sse-interceptor)
 - **Operating it** — [System tray](#sec-system-tray-background-minimization-out-of-the-w) · [MCP tools (16 advertised · +2 decision · +3 JEV)](#sec-standardized-semantic-mcp-tools-63-advertised) · [Agent skills](#sec-agent-skills) · [REST wrappers](#sec-rest-wrappers-hb-rest)
 - **Building on it** — [Architecture lowdown](./docs/CODEBASE.md) · [Codebase & docs](#sec-codebase-directory-structure-documentation) · [Quickstart](#sec-quickstart) · [Testing](#sec-testing) · [OKF knowledge](#sec-documentation-knowledge-okf)
@@ -391,6 +391,21 @@ Hypagon Gateway features an embedded, serverless vector database (**LanceDB**) c
 
 ---
 
+<a id="sec-media-download-integration" name="sec-media-download-integration"></a>
+
+## 📥 Media download integration
+
+- **Preview before committing:** `media preview` returns the title, duration, a transcript excerpt and the poster image without downloading the media. `media transcript` returns the full captions as text, paged with `max_chars`/`cursor`.
+- **Queue, don't block:** `media download` starts a job and returns an id; `media jobs` reports percent, bytes, speed, ETA and output files; `media cancel` kills the process tree and removes the partial output.
+- **Managed binary:** the downloader is pinned in the build, verified with SHA-256, and updates itself on launch and on an interval (default 60 minutes, configurable). It runs on Electron's own Node runtime, so no extra runtime is installed.
+- **Signed-in downloads are opt-in:** off by default. A site that needs a session returns `LOGIN_REQUIRED` and raises a desktop notification; a human enables **Settings → Media → "Use browser session"** and retries. Cookies are scoped to the requested host and deleted after the run.
+- **ffmpeg when you want it:** `auto` uses a configured binary, a managed copy or `PATH`; `path` and `managed` are explicit. Managed installs are checksum-verified and not shipped in the installer.
+- **Save folder:** a picker in Settings → Media; empty keeps the app's media folder.
+
+Read [docs/MEDIA.md](./docs/MEDIA.md) for the design notes and threat model.
+
+---
+
 <a id="sec-timelapse-recorder" name="sec-timelapse-recorder"></a>
 
 ## 🎥 Timelapse Recorder
@@ -477,7 +492,7 @@ Hypagon Gateway features an embedded, serverless vector database (**LanceDB**) c
 
 ## 🔌 Consolidated Semantic MCP Tools (16 advertised · +2 decision · +3 JEV)
 
-> **Advertised surface:** 16 grouped tools, plus `drive` and `decide` when a decision model is configured, and `jev_index`, `read_section` and `search_page` when JEV page compaction is on. The old flat names remain callable by name but are hidden from `tools/list`; they are listed below as the underlying catalog.
+> **Advertised surface:** 17 grouped tools, plus `drive` and `decide` when a decision model is configured, and `jev_index`, `read_section` and `search_page` when JEV page compaction is on. The old flat names remain callable by name but are hidden from `tools/list`; they are listed below as the underlying catalog.
 >
 > **Tool manager:** Settings → Tools controls enablement, order, per-tool instructions, per-action instructions for grouped tools, and Core/Research/Automation/Full presets. The default order starts with `navigate` → `observe` → `act` → `wait_for` → `find` → `extract`.
 
@@ -497,6 +512,7 @@ Hypagon Gateway features an embedded, serverless vector database (**LanceDB**) c
 | `human_in_loop` | request/status/resolve HIL, activity/resume, notify, window and tray |
 | `collaborate` | highlight, ask, read, reply and resolve human page threads |
 | `browser_workspace` | tabs, downloads, contexts, recordings and scripts |
+| `media` | status, info, preview, transcript, download, jobs, cancel, list |
 | `shadow_iframes` | `frames`, `focus_walk` |
 | `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |
 | `memory` | recall, browsing history and bookmarks |
@@ -844,7 +860,16 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
 ## 📦 Release notes
 
 > [!NOTE]
-> **What's new in 2.0.1** — **the wrapper core moved to [`anyapi-to-mcp`](docs/ANYAPI-INTEGRATION.md), and nothing on the surface moved with it.** `hb-rest` wrappers now run through the package by default: it owns the outbound policy and the request, while IPC channels, bridge routes, MCP tool names, the `WrapRunResult` shape and the `<userData>/wrap` layout stay exactly as they were. A wrapper that uses a feature the core cannot reproduce exactly stays on the original executor for that call, so there is no file migration, and `HB_WRAP_CORE=legacy` puts the whole process back. Two deliberate differences: an oversized response is `RESPONSE_TOO_LARGE` instead of a truncated body, and a dry run reports header names with every value `<redacted>`. The same release adds `HB_USER_DATA_DIR` and `npm run dev:isolated` for a second profile, and fixes dry-run previews dropping the query string plus `BLOCKED_ADDRESS` / `DNS_LOOKUP_FAILED` collapsing into `BLOCKED_HOST`. Earlier releases are in [CHANGELOG.md](./CHANGELOG.md).
+> **What's new in 2.1.0** — **media, from preview to download.** `media preview` returns a video's
+> title, duration, transcript excerpt and poster image without downloading the media, so an agent can
+> decide whether it is worth it; `media transcript` returns the full captions as text. `media download`
+> queues a job and returns immediately — progress, bytes, speed and files come from `media jobs`, and
+> `cancel` removes the partial output. The downloader is pinned and checksum-verified in the build and
+> updates itself on launch and hourly (configurable in Settings → Media), running on Electron’s own
+> Node runtime so nothing extra is installed. Signed-in downloads are opt-in: a `LOGIN_REQUIRED` result
+> plus a desktop notification, then a human enables the browser session. ffmpeg can be detected, pointed
+> at, or installed on demand, and the save folder is a picker. See [docs/MEDIA.md](./docs/MEDIA.md) and
+> [CHANGELOG.md](./CHANGELOG.md).
 
 ---
 
