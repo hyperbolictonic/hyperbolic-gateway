@@ -390,29 +390,31 @@
 <dialog id="settings-modal" class="modal">
   <div class="modal-box w-screen max-w-none h-screen max-h-none rounded-none p-0 bg-base-300 flex flex-col">
     <div class="flex items-center justify-between gap-4 px-5 py-3 border-b border-base-100 bg-base-200">
-      <div class="flex items-center gap-4">
-        <span class="font-mono text-sm font-bold text-primary">⚙️ SETTINGS</span>
-        <div class="tabs tabs-boxed tabs-sm bg-base-100 font-mono text-[11px]">
-          <button type="button" id="settings-tab-decision" class="tab tab-active" data-settings-tab="decision">DECISION MODEL</button>
-          <button type="button" id="settings-tab-input" class="tab" data-settings-tab="input">INPUT</button>
-          <button type="button" id="settings-tab-shadow" class="tab" data-settings-tab="shadow">SHADOW WALK</button>
-          <button type="button" id="settings-tab-recording" class="tab" data-settings-tab="recording">RECORDING</button>
-          <button type="button" id="settings-tab-media" class="tab" data-settings-tab="media">MEDIA</button>
-          <button type="button" id="settings-tab-research" class="tab" data-settings-tab="research">RESEARCH</button>
-          <button type="button" id="settings-tab-wrappers" class="tab" data-settings-tab="wrappers">WRAPPERS</button>
-          <button type="button" id="settings-tab-clients" class="tab" data-settings-tab="clients">MCP CLIENTS</button>
-        <button type="button" id="settings-tab-tools" class="tab" data-settings-tab="tools">TOOLS</button>
-        <button type="button" id="settings-tab-remote" class="tab" data-settings-tab="remote">REMOTE</button>
-        <button type="button" id="settings-tab-experimental" class="tab" data-settings-tab="experimental">EXPERIMENTAL</button>
-        </div>
-      </div>
+      <span class="font-mono text-sm font-bold text-primary">⚙️ SETTINGS</span>
       <div class="flex items-center gap-2">
         <span id="settings-status-badge" class="badge badge-ghost font-mono text-xs whitespace-nowrap">checking…</span>
         <button type="button" id="settings-close-btn" class="btn btn-sm btn-ghost font-mono text-xs">CLOSE</button>
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-6 settings-scroll">
+    <!-- Two-column settings body: VS Code-style nav rail (left, scrolls on Y)
+         and the active panel (right, scrolls independently). -->
+    <div class="flex flex-1 min-h-0 settings-body">
+      <nav id="settings-nav" class="settings-nav" aria-label="Settings sections">
+        <button type="button" id="settings-tab-decision" class="settings-nav-btn tab-active font-mono" data-settings-tab="decision">DECISION MODEL</button>
+        <button type="button" id="settings-tab-input" class="settings-nav-btn font-mono" data-settings-tab="input">INPUT</button>
+        <button type="button" id="settings-tab-shadow" class="settings-nav-btn font-mono" data-settings-tab="shadow">SHADOW WALK</button>
+        <button type="button" id="settings-tab-recording" class="settings-nav-btn font-mono" data-settings-tab="recording">RECORDING</button>
+        <button type="button" id="settings-tab-media" class="settings-nav-btn font-mono" data-settings-tab="media">MEDIA</button>
+        <button type="button" id="settings-tab-research" class="settings-nav-btn font-mono" data-settings-tab="research">RESEARCH</button>
+        <button type="button" id="settings-tab-wrappers" class="settings-nav-btn font-mono" data-settings-tab="wrappers">WRAPPERS</button>
+        <button type="button" id="settings-tab-clients" class="settings-nav-btn font-mono" data-settings-tab="clients">MCP CLIENTS</button>
+        <button type="button" id="settings-tab-tools" class="settings-nav-btn font-mono" data-settings-tab="tools">TOOLS</button>
+        <button type="button" id="settings-tab-remote" class="settings-nav-btn font-mono" data-settings-tab="remote">REMOTE</button>
+        <button type="button" id="settings-tab-experimental" class="settings-nav-btn font-mono" data-settings-tab="experimental">EXPERIMENTAL</button>
+      </nav>
+
+      <div class="flex-1 min-h-0 min-w-0 overflow-y-auto p-6 settings-scroll">
       <!-- One shared, centred column: every tab starts at the same left edge
            and the leftover space is split evenly instead of piling up right. -->
       <div class="mx-auto w-full max-w-6xl">
@@ -1379,6 +1381,7 @@
           <p id="settings-experimental-status" class="font-mono text-[10px] text-base-content/50 mt-3">OFF</p>
         </div>
       </section>
+      </div>
       </div>
     </div>
   </div>
