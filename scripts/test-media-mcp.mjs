@@ -60,6 +60,29 @@ try {
       : infoPayload.error,
   );
 
+  const preview = await client.callTool({
+    name: 'media',
+    arguments: { action: 'preview', url: SAMPLE, max_chars: 300 },
+  });
+  const previewParts = preview.content ?? [];
+  const previewText = previewParts.find((part) => part.type === 'text')?.text ?? '';
+  record(
+    'preview returns metadata, a transcript excerpt and an image',
+    previewText.includes('Transcript') && previewParts.some((part) => part.type === 'image'),
+    `${previewParts.filter((part) => part.type === 'image').length} image(s)`,
+  );
+
+  const transcript = await client.callTool({
+    name: 'media',
+    arguments: { action: 'transcript', url: SAMPLE, max_chars: 200 },
+  });
+  const transcriptPayload = JSON.parse(transcript.content?.[0]?.text ?? '{}');
+  record(
+    'transcript returns text without downloading',
+    transcriptPayload.success === true && typeof transcriptPayload.text === 'string',
+    transcriptPayload.success ? `${transcriptPayload.chars} chars` : transcriptPayload.error,
+  );
+
   if (process.env.HB_MEDIA_LIVE_DOWNLOAD === '1') {
     const start = await client.callTool({
       name: 'media',

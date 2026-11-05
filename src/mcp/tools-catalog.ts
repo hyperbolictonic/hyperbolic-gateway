@@ -528,6 +528,53 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
   },
   {
+    name: 'media_preview',
+    description:
+      'Previews a video without downloading it: metadata, an excerpt of the transcript, and the poster image. Use it to decide whether a full media download is worth committing to.',
+    parameters: {
+      url: z.string().describe('Video or audio page URL'),
+      lang: z.string().optional().describe('Subtitle language code (default: first available, usually en)'),
+      max_chars: z.coerce.number().optional().default(1200).describe('Transcript excerpt length (200-8000)'),
+      thumbnail: z.coerce.boolean().optional().default(true).describe('Include the poster image'),
+    },
+    endpoint: '/media/preview',
+    payload: (args) => ({
+      url: args?.url,
+      lang: args?.lang,
+      maxChars: args?.max_chars,
+      thumbnail: args?.thumbnail !== false,
+    }),
+    format: (data) => {
+      if (!data?.media) return JSON.stringify(data, null, 2);
+      const media = data.media;
+      const lines = [`### ${media.title ?? media.id ?? 'Untitled'}`];
+      const meta = [
+        media.durationSeconds ? `${Math.floor(media.durationSeconds / 60)}:${String(media.durationSeconds % 60).padStart(2, '0')}` : null,
+        media.uploader,
+        media.extractor,
+        media.isLive ? 'live' : null,
+      ].filter(Boolean);
+      if (meta.length > 0) lines.push(meta.join(' · '));
+      if (media.subtitleLanguages?.length) lines.push(`Subtitles: ${media.subtitleLanguages.slice(0, 6).join(', ')}`);
+      else if (media.automaticCaptionLanguages?.length) lines.push(`Auto captions: ${media.automaticCaptionLanguages.slice(0, 6).join(', ')}`);
+
+      const transcript = data.transcript;
+      if (transcript) {
+        lines.push('');
+        lines.push(
+          `Transcript (${transcript.automatic ? 'auto' : 'manual'} ${transcript.language}, ${transcript.chars} of ${transcript.totalChars} chars):`,
+        );
+        lines.push(transcript.text);
+      } else {
+        lines.push('', 'No transcript available.');
+      }
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        lines.push('', `Warnings: ${data.warnings.join(', ')}`);
+      }
+      return lines.join('\n');
+    },
+  },
+  {
     name: 'read_download',
     description: 'Reads parsed markdown text from a downloaded document file (PDF, CSV, JSON, TXT).',
     parameters: {

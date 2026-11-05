@@ -10,7 +10,7 @@
  * `--exec` or anything else.
  */
 
-import { spawn } from 'node:child_process';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
 
@@ -18,7 +18,9 @@ import { isMediaBinary, ensureYtDlp, readYtDlpVersion, writableYtDlpPath, type M
 import { needsLogin } from './auth.ts';
 import { writeCookieFile } from './cookies.ts';
 import { detectFfmpeg, installManagedFfmpeg, type FfmpegInfo } from './ffmpeg.ts';
+import { fetchArtifacts, type SubtitleArtifacts } from './transcript.ts';
 import { MediaJobs, type MediaJob, type MediaJobInput, type MediaKind, type MediaQuality } from './jobs.ts';
+import { runYtDlpProcess } from './exec.ts';
 import { ytdlpRuntimeOptions } from './platform.ts';
 import { MediaSettingsStore } from './settings.ts';
 import { MediaUpdater, type MediaUpdaterOptions } from './updater.ts';
@@ -89,92 +91,42 @@ export type MediaInfoResult =
 
 export type MediaServiceError = MediaBinaryError;
 
-interface CommandResult {
-  readonly code: number | null;
-  readonly signal: NodeJS.Signals | null;
-  readonly stdout: string;
-  readonly stderr: string;
-  readonly timedOut: boolean;
-  readonly overflowed: boolean;
+export type MediaTranscriptResult =
+  | {
+      readonly ok: true;
+      readonly language: string;
+      readonly automatic: boolean;
+      readonly text: string;
+      readonly chars: number;
+      readonly totalChars: number;
+      readonly truncated: boolean;
+      readonly nextCursor: number | null;
+      readonly availableLanguages: readonly string[];
+    }
+  | { readonly ok: false; readonly code: string; readonly error: string };
+
+export interface MediaPreviewImage {
+  readonly name: string;
+  readonly mimeType: string;
+  readonly base64: string;
 }
 
-/**
- * Run the downloader once with a fixed argument list.
- *
- * A timeout or a runaway stdout kills the process. The job runner in a later
- * slice will reuse this and add tree-kill and progress parsing.
- */
-async function runYtDlp(
-  binary: string,
-  args: readonly string[],
-  options: { timeoutMs: number; maxStdoutBytes: number; env: NodeJS.ProcessEnv },
-): Promise<CommandResult> {
-  return new Promise((resolve) => {
-    const child = spawn(binary, [...args], {
-      env: options.env,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    const out: Buffer[] = [];
-    const err: Buffer[] = [];
-    let outBytes = 0;
-    let errBytes = 0;
-    let timedOut = false;
-    let overflowed = false;
-    let settled = false;
-
-    const finish = (result: CommandResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(result);
-    };
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill();
-    }, options.timeoutMs);
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      outBytes += chunk.byteLength;
-      if (outBytes > options.maxStdoutBytes) {
-        overflowed = true;
-        child.kill();
-        return;
-      }
-      out.push(chunk);
-    });
-
-    child.stderr.on('data', (chunk: Buffer) => {
-      if (errBytes >= INFO_MAX_STDERR_BYTES) return;
-      errBytes += chunk.byteLength;
-      err.push(chunk.subarray(0, Math.max(0, INFO_MAX_STDERR_BYTES - (errBytes - chunk.byteLength))));
-    });
-
-    child.on('error', (error) => {
-      finish({
-        code: null,
-        signal: null,
-        stdout: '',
-        stderr: error.message,
-        timedOut,
-        overflowed,
-      });
-    });
-
-    child.on('close', (code, signal) => {
-      finish({
-        code,
-        signal,
-        stdout: Buffer.concat(out).toString('utf8'),
-        stderr: Buffer.concat(err).toString('utf8'),
-        timedOut,
-        overflowed,
-      });
-    });
-  });
-}
+export type MediaPreviewResult =
+  | {
+      readonly ok: true;
+      readonly media: MediaInfo;
+      readonly transcript: {
+        readonly language: string;
+        readonly automatic: boolean;
+        readonly text: string;
+        readonly chars: number;
+        readonly totalChars: number;
+        readonly truncated: boolean;
+      } | null;
+      readonly warnings: readonly string[];
+      readonly images: readonly MediaPreviewImage[];
+    }
+  | { readonly ok: false; readonly code: string; readonly error: string };
 
 function warningCodes(stderr: string): string[] {
   const warnings: string[] = [];
@@ -235,6 +187,7 @@ export class MediaService {
   private lastLoginNoticeAt = 0;
   private ffmpegCache: { at: number; info: FfmpegInfo } | null = null;
   private ffmpegInstalling = false;
+  private readonly transcriptCache = new Map<string, { at: number; artifacts: SubtitleArtifacts }>();
   readonly jobs: MediaJobs;
   readonly updater: MediaUpdater;
 
@@ -365,8 +318,161 @@ export class MediaService {
     };
   }
 
-  async download(input: MediaJobInput): Promise<MediaDownloadResult> {
-    const url = typeof input?.url === 'string' ? input.url.trim() : '';
+  private pickLanguage(media: MediaInfo, requested?: string): string {
+    const explicit = (requested ?? '').trim();
+    if (explicit !== '') return explicit;
+    // Prefer English when it exists, then a manual track, then auto captions.
+    const manual = media.subtitleLanguages;
+    const auto = media.automaticCaptionLanguages;
+    const english = (codes: readonly string[]): string | undefined =>
+      codes.find((code) => code === 'en') ?? codes.find((code) => code.startsWith('en'));
+    return english(manual) ?? english(auto) ?? manual[0] ?? auto[0] ?? 'en';
+  }
+
+  private cacheArtifacts(key: string, artifacts: SubtitleArtifacts): void {
+    this.transcriptCache.set(key, { at: Date.now(), artifacts });
+    if (this.transcriptCache.size > 20) {
+      const oldest = [...this.transcriptCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+      if (oldest) this.transcriptCache.delete(oldest[0]);
+    }
+  }
+
+  private async artifactsFor(
+    url: string,
+    lang: string,
+    includeThumbnail: boolean,
+  ): Promise<
+    | { readonly ok: true; readonly artifacts: SubtitleArtifacts; readonly images: MediaPreviewImage[] }
+    | { readonly ok: false; readonly code: string; readonly error: string }
+  > {
+    const binary = await this.resolveBinary();
+    if (!isMediaBinary(binary)) return { ok: false, code: binary.code, error: binary.error };
+
+    const cookies = await this.cookieFileFor(url);
+    const dir = path.join(
+      this.rootDir,
+      '.preview',
+      `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    );
+
+    try {
+      const result = await fetchArtifacts(binary, url, dir, {
+        lang,
+        includeThumbnail,
+        ...(cookies === null ? {} : { cookiesPath: cookies.path }),
+      });
+      if (!result.ok) return result;
+
+      const images: MediaPreviewImage[] = [];
+      for (const image of result.artifacts.images) {
+        try {
+          const stat = await fsp.stat(image.path);
+          if (stat.size > 4_000_000) continue;
+          const data = await fsp.readFile(image.path);
+          images.push({ name: image.name, mimeType: image.mimeType, base64: data.toString('base64') });
+        } catch {
+          // A thumbnail that cannot be read should not fail the preview.
+        }
+      }
+
+      return { ok: true, artifacts: result.artifacts, images };
+    } finally {
+      await cookies?.cleanup();
+      await fsp.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  /**
+   * Captions as text, without downloading the media. Paged with
+   * `maxChars`/`cursor`, and cached for ten minutes per URL + language.
+   */
+  async transcript(
+    rawUrl: string,
+    options: { lang?: string; maxChars?: number; cursor?: number } = {},
+  ): Promise<MediaTranscriptResult> {
+    const info = await this.info(rawUrl);
+    if (!info.ok) return { ok: false, code: info.code, error: info.error };
+
+    const url = rawUrl.trim();
+    const lang = this.pickLanguage(info.media, options.lang);
+    const key = `${url}|${lang}`;
+    const cached = this.transcriptCache.get(key);
+    let artifacts: SubtitleArtifacts | null =
+      cached !== undefined && Date.now() - cached.at < 10 * 60_000 ? cached.artifacts : null;
+
+    if (artifacts === null) {
+      const fetched = await this.artifactsFor(url, lang, false);
+      if (!fetched.ok) return { ok: false, code: fetched.code, error: fetched.error };
+      artifacts = fetched.artifacts;
+      this.cacheArtifacts(key, artifacts);
+    }
+
+    const total = artifacts.text.length;
+    const max = Math.min(20_000, Math.max(500, Math.round(options.maxChars ?? 8_000)));
+    const cursor = Math.min(total, Math.max(0, Math.round(options.cursor ?? 0)));
+    const text = artifacts.text.slice(cursor, cursor + max);
+    const nextCursor = cursor + text.length < total ? cursor + text.length : null;
+
+    return {
+      ok: true,
+      language: artifacts.language,
+      automatic: artifacts.automatic,
+      text,
+      chars: text.length,
+      totalChars: total,
+      truncated: nextCursor !== null,
+      nextCursor,
+      availableLanguages: artifacts.availableLanguages,
+    };
+  }
+
+  /**
+   * A no-download preview: metadata, a transcript excerpt, and the poster image
+   * (returned as image content by the MCP layer).
+   */
+  async preview(
+    rawUrl: string,
+    options: { lang?: string; maxChars?: number; thumbnail?: boolean } = {},
+  ): Promise<MediaPreviewResult> {
+    const info = await this.info(rawUrl);
+    if (!info.ok) return { ok: false, code: info.code, error: info.error };
+
+    const url = rawUrl.trim();
+    const lang = this.pickLanguage(info.media, options.lang);
+    const fetched = await this.artifactsFor(url, lang, options.thumbnail !== false);
+    const warnings = [...info.warnings];
+
+    if (!fetched.ok) {
+      if (fetched.code === 'LOGIN_REQUIRED') return { ok: false, code: fetched.code, error: fetched.error };
+      warnings.push(fetched.code);
+      return { ok: true, media: info.media, transcript: null, warnings, images: [] };
+    }
+
+    if (fetched.artifacts.text !== '') this.cacheArtifacts(`${url}|${lang}`, fetched.artifacts);
+
+    const total = fetched.artifacts.text.length;
+    const text = fetched.artifacts.text.slice(0, Math.min(8_000, Math.max(200, Math.round(options.maxChars ?? 1_200))));
+
+    return {
+      ok: true,
+      media: info.media,
+      warnings,
+      transcript:
+        total === 0
+          ? null
+          : {
+              language: fetched.artifacts.language,
+              automatic: fetched.artifacts.automatic,
+              text,
+              chars: text.length,
+              totalChars: total,
+              truncated: text.length < total,
+            },
+      images: fetched.images.slice(0, 2),
+    };
+  }
+
+  async download(input: MediaJobInput): Promise<MediaDownloadResult> {    const url = typeof input?.url === 'string' ? input.url.trim() : '';
     if (url === '') return { ok: false, code: 'BAD_REQUEST', error: 'url is required' };
 
     try {
@@ -431,7 +537,7 @@ export class MediaService {
     ];
 
     try {
-      const result = await runYtDlp(binary.path, args, {
+      const result = await runYtDlpProcess(binary.path, args, {
         timeoutMs: INFO_TIMEOUT_MS,
         maxStdoutBytes: INFO_MAX_STDOUT_BYTES,
         env: runtime.env,

@@ -133,6 +133,16 @@ export const TOOL_GROUPS: ToolGroupDefinition[] = [
         description: 'Metadata for a video or audio URL: title, duration, formats, subtitle languages. Does not download.',
       },
       {
+        action: 'preview',
+        tool: 'media_preview',
+        description: 'Title, duration, a transcript excerpt and the poster image, without downloading. Use this before committing to a download.',
+      },
+      {
+        action: 'transcript',
+        endpoint: '/media/transcript',
+        description: 'Captions as plain text (lang, max_chars, cursor) without downloading the media.',
+      },
+      {
         action: 'download',
         endpoint: '/media/download',
         description: 'Queue a download (kind: video|audio, quality: best|1080|720|480|worst). Returns a job id immediately; poll it with jobs.',

@@ -298,6 +298,18 @@ async function executeCatalogTool(tool: ToolCatalogItem, args: any) {
 
     // Frame inventory: text summary plus one image per visible frame. Handled before the
     // single-image branch because an iframe result is inherently multi-image.
+    if (tool.name === 'media_preview') {
+      const text = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
+      const content: any[] = [{ type: 'text', text }];
+      const images = Array.isArray(data?.images) ? data.images : [];
+      for (const image of images) {
+        if (typeof image?.base64 !== 'string' || image.base64 === '') continue;
+        content.push({ type: 'image', data: image.base64, mimeType: image.mimeType || 'image/jpeg' });
+      }
+      logMcp(`[Tool Success] "media_preview" returning text + ${images.length} image(s)`);
+      return { content };
+    }
+
     if (tool.name === 'frames') {
       const images = Array.isArray(data?.images) ? data.images : [];
       const text = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));

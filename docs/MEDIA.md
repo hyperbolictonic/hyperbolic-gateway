@@ -1,9 +1,9 @@
 # Media capture (yt-dlp)
 
-**Status:** slice 5. `media status`, `info`, `download`, `jobs`, `cancel` and `list` work end to end;
-yt-dlp updates itself on launch and on an interval; downloads can use the browser session; and
-ffmpeg can be detected, configured or installed, with a configurable save folder. Transcription is
-the remaining slice.
+**Status:** slices 1-6 complete. `status`, `info`, `preview`, `transcript`, `download`, `jobs`,
+`cancel` and `list` work end to end; yt-dlp updates itself; downloads can use the browser session;
+ffmpeg can be detected, configured or installed; and the save folder is configurable. Cortex
+indexing of transcripts is the obvious next step.
 
 Read this before changing anything under `src/main/media/`.
 
@@ -65,7 +65,8 @@ cross-platform build.
 | `jobs` | shipped | Progress, bytes, speed, ETA, stage and output files for every job |
 | `cancel` | shipped | Kill the process tree and remove the job directory |
 | `list` | shipped | Completed downloads with files and sizes |
-| `transcript` | planned | Subtitles, manual then automatic, as text |
+| `transcript` | shipped | Captions as text (paged), without downloading |
+| `preview` | shipped | Metadata + transcript excerpt + poster image, without downloading |
 
 Downloads never block a tool call: the bridge timeout is 30 s, a download is minutes. Jobs are
 polled, the same way `record_start` returns when capture is live.
@@ -98,6 +99,25 @@ and retries. Nothing an agent calls can turn it on.
 - Never logged, never stored in job history, never returned by a tool.
 - A cookie-store failure does not fail the request; it proceeds anonymously.
 - Notifications are deduplicated to one per minute so a failing loop cannot spam the desktop.
+
+## Previewing without downloading
+
+`media preview` and `media transcript` run yt-dlp with `--skip-download`: they fetch the caption
+track and the poster image, never the media.
+
+- `preview` returns title/duration/uploader, a transcript excerpt, and the poster image. The MCP
+  layer returns the image as an `image` content block, so a vision model can look at it.
+  It is the intended first call before `media download`.
+- `transcript` returns the whole caption text, paged with `max_chars`/`cursor`.
+- Language selection: an explicit `lang` wins; otherwise English when available, then the first
+  manual track, then the first auto track.
+- VTT is reduced to plain text (timings, cue settings, tags and NOTE blocks removed, consecutive
+  auto-caption duplicates collapsed).
+- Captions are cached in memory for ten minutes per URL + language, so a preview followed by a
+  transcript fetch does not re-run yt-dlp.
+- `automatic: true` marks machine captions; expect no punctuation and informal segmentation.
+- When a video has no captions the preview still returns metadata and the thumbnail, with a
+  `NO_TRANSCRIPT` warning rather than an error.
 
 ## Security
 
@@ -186,4 +206,6 @@ Three modes, saved in Settings → Media:
   local to one download.
 - **2026-11-05** — ffmpeg is detect-or-configure-or-managed; the managed build is pinned to
   ffmpeg-static `b6.1.1` with per-asset SHA-256 and is not shipped in the installer.
+- **2026-11-05** — Preview is a first-class step: `preview` and `transcript` use `--skip-download`,
+  and the poster image travels as MCP image content so the agent can look before committing.
 - **Planned** — Hourly updater with jitter, idle gate and rollback; cookies opt-in; ffmpeg modes.

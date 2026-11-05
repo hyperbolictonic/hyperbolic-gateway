@@ -17,6 +17,7 @@ import { toNetscape } from '../src/main/media/cookie-format.ts';
 import { needsLogin } from '../src/main/media/auth.ts';
 import { normalizeMediaSettings } from '../src/main/media/settings.ts';
 import { detectFfmpeg, parseFfmpegVersion } from '../src/main/media/ffmpeg.ts';
+import { parseVtt } from '../src/main/media/transcript.ts';
 
 test('platform keys and file names match the build layout', () => {
   assert.equal(mediaPlatformKey('win32', 'x64'), 'win32-x64');
@@ -330,6 +331,32 @@ test('path mode does not silently fall back to PATH', async () => {
   );
   assert.equal(info.available, false);
   assert.match(info.error ?? '', /ffmpegPath/u);
+});
+
+test('VTT is reduced to plain text without duplicate scrolling lines', () => {
+  const vtt = [
+    'WEBVTT',
+    'Kind: captions',
+    'Language: en',
+    '',
+    'NOTE this is a note',
+    '',
+    '00:00:00.000 --> 00:00:02.000 align:start position:0%',
+    'Hello <c.colorE5E5E5>world</c>',
+    '',
+    '00:00:02.000 --> 00:00:04.000',
+    'Hello world',
+    '',
+    '00:00:04.000 --> 00:00:06.000',
+    'Next line &amp; more',
+    '',
+    '1',
+    '00:00:06.000 --> 00:00:08.000',
+    'Third &lt;cue&gt;',
+  ].join('\n');
+
+  assert.equal(parseVtt(vtt), 'Hello world\nNext line & more\nThird <cue>');
+  assert.equal(parseVtt('WEBVTT\n\n'), '');
 });
 
 test('the pinned manifest covers every supported target with a SHA-256', () => {  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts', 'media-binaries.json'), 'utf8'));

@@ -269,6 +269,36 @@ export function startHttpBridge(
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/media/transcript') {
+        if (!media) {
+          sendJson({ success: false, error: 'Media is not initialised.', code: 'MEDIA_UNAVAILABLE' }, 503);
+          return;
+        }
+        const body = await readBody();
+        const result = await media.transcript(typeof body?.url === 'string' ? body.url : '', {
+          lang: typeof body?.lang === 'string' ? body.lang : undefined,
+          maxChars: typeof body?.maxChars === 'number' ? body.maxChars : undefined,
+          cursor: typeof body?.cursor === 'number' ? body.cursor : undefined,
+        });
+        sendJson(result.ok ? { success: true, ...result } : { success: false, ...result }, result.ok ? 200 : 400);
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/media/preview') {
+        if (!media) {
+          sendJson({ success: false, error: 'Media is not initialised.', code: 'MEDIA_UNAVAILABLE' }, 503);
+          return;
+        }
+        const body = await readBody();
+        const result = await media.preview(typeof body?.url === 'string' ? body.url : '', {
+          lang: typeof body?.lang === 'string' ? body.lang : undefined,
+          maxChars: typeof body?.maxChars === 'number' ? body.maxChars : undefined,
+          thumbnail: body?.thumbnail !== false,
+        });
+        sendJson(result.ok ? { success: true, ...result } : { success: false, ...result }, result.ok ? 200 : 400);
+        return;
+      }
+
       if (pathname.startsWith('/collaboration')) {
         if (!collaboration) {
           sendJson({ success: false, error: 'Collaboration is not initialised.', code: 'COLLAB_UNAVAILABLE' }, 503);
