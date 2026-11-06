@@ -40145,6 +40145,31 @@ ${lines.join("\n")}`;
       return tabs.map((t) => `${t.isActive ? "* " : "- "}[${t.id}] ${t.isLoading ? "(loading) " : ""}"${t.title || "Untitled"}" - ${t.url}`).join("\n");
     }
   },
+  {
+    name: "browser_zoom",
+    description: 'Reads or changes the page zoom and reports the exact CSS-to-physical proportions. By default the page is fitted to the OS display scale (for example 67% on a 150% Windows display), so CSS pixels, screenshot pixels and the human view stay comparable; `mode:"native"` on the toolbar restores Windows scale for people. Actions: status (default), in, out, reset, set(factor 0.25-5). After changing zoom, re-run observe/find because viewport geometry changed. Screenshots return zoom plus coordinate_scale for mapping image pixels back to CSS px.',
+    parameters: {
+      action: external_exports.enum(["status", "in", "out", "reset", "set"]).optional().default("status").describe("Read or change the zoom (default: status)"),
+      factor: external_exports.coerce.number().min(0.25).max(5).optional().describe('Exact zoom factor for action="set" (0.25-5; 1 = CSS px at Windows scale)')
+    },
+    endpoint: "/zoom",
+    payload: (args) => {
+      const action = args?.action || "status";
+      if (action === "set" && args?.factor === void 0) {
+        throw new Error('action "set" requires a factor between 0.25 and 5.');
+      }
+      return { action, factor: args?.factor };
+    },
+    format: (data) => {
+      const zoom = data.zoom || {};
+      const css = zoom.viewport?.css || {};
+      const physical = zoom.viewport?.physical || {};
+      const pct = Math.round((zoom.factor || 0) * 100);
+      const mode = zoom.custom ? "custom" : zoom.mode === "compensate" ? `fitted to ${Math.round((zoom.displayScale || 1) * 100)}% display` : "Windows scale";
+      return `Page zoom ${pct}% (${mode})
+CSS viewport ${css.width || 0}x${css.height || 0} | physical ${physical.width || 0}x${physical.height || 0} | devicePixelRatio ${(zoom.devicePixelRatio || 1).toFixed(2)}`;
+    }
+  },
   // 5. Memory & Cortex (LanceDB)
   {
     name: "recall_memory",
@@ -40290,6 +40315,51 @@ ${lines.join("\n")}`;
       });
       return `### Downloaded Files (${dls.length})
 ${lines.join("\n")}`;
+    }
+  },
+  {
+    name: "media_preview",
+    description: "Previews a video without downloading it: metadata, an excerpt of the transcript, and the poster image. Use it to decide whether a full media download is worth committing to.",
+    parameters: {
+      url: external_exports.string().describe("Video or audio page URL"),
+      lang: external_exports.string().optional().describe("Subtitle language code (default: first available, usually en)"),
+      max_chars: external_exports.coerce.number().optional().default(1200).describe("Transcript excerpt length (200-8000)"),
+      thumbnail: external_exports.coerce.boolean().optional().default(true).describe("Include the poster image")
+    },
+    endpoint: "/media/preview",
+    payload: (args) => ({
+      url: args?.url,
+      lang: args?.lang,
+      maxChars: args?.max_chars,
+      thumbnail: args?.thumbnail !== false
+    }),
+    format: (data) => {
+      if (!data?.media) return JSON.stringify(data, null, 2);
+      const media = data.media;
+      const lines = [`### ${media.title ?? media.id ?? "Untitled"}`];
+      const meta3 = [
+        media.durationSeconds ? `${Math.floor(media.durationSeconds / 60)}:${String(media.durationSeconds % 60).padStart(2, "0")}` : null,
+        media.uploader,
+        media.extractor,
+        media.isLive ? "live" : null
+      ].filter(Boolean);
+      if (meta3.length > 0) lines.push(meta3.join(" \xB7 "));
+      if (media.subtitleLanguages?.length) lines.push(`Subtitles: ${media.subtitleLanguages.slice(0, 6).join(", ")}`);
+      else if (media.automaticCaptionLanguages?.length) lines.push(`Auto captions: ${media.automaticCaptionLanguages.slice(0, 6).join(", ")}`);
+      const transcript = data.transcript;
+      if (transcript) {
+        lines.push("");
+        lines.push(
+          `Transcript (${transcript.automatic ? "auto" : "manual"} ${transcript.language}, ${transcript.chars} of ${transcript.totalChars} chars):`
+        );
+        lines.push(transcript.text);
+      } else {
+        lines.push("", "No transcript available.");
+      }
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        lines.push("", `Warnings: ${data.warnings.join(", ")}`);
+      }
+      return lines.join("\n");
     }
   },
   {
@@ -41573,7 +41643,7 @@ ${lines.join("\n")}`;
     parameters: {},
     endpoint: "/health",
     method: "GET",
-    format: (data) => JSON.stringify({ status: data.status, version: data.version, revision: data.revision, capabilities: data.capabilities, url: data.info?.url, title: data.info?.title, window: data.window, input: data.input, lastActionAt: data.lastActionAt }, null, 2)
+    format: (data) => JSON.stringify({ status: data.status, version: data.version, revision: data.revision, capabilities: data.capabilities, url: data.info?.url, title: data.info?.title, window: data.window, input: data.input, zoom: data.zoom, lastActionAt: data.lastActionAt }, null, 2)
   },
   {
     name: "export_har",
@@ -41692,6 +41762,7 @@ var DEFAULT_TOOL_ORDER = [
   "snapshot_rendered_page",
   "press_key",
   "fill_form",
+  "browser_zoom",
   "new_tab",
   "switch_tab",
   "list_tabs",
@@ -41835,14 +41906,72 @@ var TOOL_GROUPS = [
     ]
   },
   {
+    name: "media",
+    description: "Media download integration: preview a video, queue a download, poll its progress, cancel it, and list what has been saved. Downloads run in the app and are polled with the jobs action.",
+    tier: null,
+    actions: [
+      {
+        action: "status",
+        endpoint: "/media/status",
+        method: "GET",
+        description: "Downloader binary and runtime status, capabilities, and how many jobs are queued or running.",
+        map: () => ({})
+      },
+      {
+        action: "info",
+        endpoint: "/media/info",
+        description: "Metadata for a video or audio URL: title, duration, formats, subtitle languages. Does not download."
+      },
+      {
+        action: "preview",
+        tool: "media_preview",
+        description: "Title, duration, a transcript excerpt and the poster image, without downloading. Use this before committing to a download."
+      },
+      {
+        action: "transcript",
+        endpoint: "/media/transcript",
+        description: "Captions as plain text (lang, max_chars, cursor) without downloading the media. Indexed into Cortex by default so memory recall can answer from it; pass index:false to skip."
+      },
+      {
+        action: "download",
+        endpoint: "/media/download",
+        description: "Queue a download (kind: video|audio, quality: best|1080|720|480|worst). Returns a job id immediately; poll it with jobs."
+      },
+      {
+        action: "jobs",
+        endpoint: "/media/jobs",
+        method: "GET",
+        description: "All download jobs with state, progress, bytes, speed, ETA and output files.",
+        map: () => ({})
+      },
+      {
+        action: "cancel",
+        endpoint: "/media/cancel",
+        description: "Cancel a queued or running job by id. Removes its partial output."
+      },
+      {
+        action: "list",
+        endpoint: "/media/library",
+        method: "GET",
+        description: "Completed downloads with their files and sizes.",
+        map: () => ({})
+      }
+    ]
+  },
+  {
     name: "browser_workspace",
-    description: "Stateful browser workspace: tabs, downloads, context profiles, recordings and the script vault.",
+    description: "Stateful browser workspace: tabs, page zoom and pixel proportions, downloads, context profiles, recordings and the script vault.",
     tier: null,
     actions: [
       { action: "tabs.list", tool: "list_tabs", description: "List tabs.", map: () => ({}) },
       { action: "tabs.new", tool: "new_tab", description: "Open a tab." },
       { action: "tabs.switch", tool: "switch_tab", description: "Switch tab." },
       { action: "tabs.close", tool: "close_tab", description: "Close tab." },
+      { action: "zoom.status", tool: "browser_zoom", description: "Report zoom, display scale, CSS viewport and physical viewport.", map: () => ({ action: "status" }) },
+      { action: "zoom.in", tool: "browser_zoom", description: "Step page zoom in.", map: () => ({ action: "in" }) },
+      { action: "zoom.out", tool: "browser_zoom", description: "Step page zoom out.", map: () => ({ action: "out" }) },
+      { action: "zoom.reset", tool: "browser_zoom", description: "Reset to the fitted/Windows policy base.", map: () => ({ action: "reset" }) },
+      { action: "zoom.set", tool: "browser_zoom", description: "Set an exact zoom factor (0.25-5); re-observe after changing geometry.", map: (args) => ({ action: "set", factor: args.factor }) },
       { action: "downloads.list", tool: "list_downloads", description: "List downloads.", map: () => ({}) },
       { action: "downloads.read", tool: "read_download", description: "Read a downloaded document." },
       { action: "contexts.save", tool: "context_save", description: "Save cookies/storage." },
@@ -41909,7 +42038,7 @@ var CONSOLIDATED_HIDDEN_TOOLS = /* @__PURE__ */ new Set([
 ]);
 
 // src/shared/version.ts
-var APP_VERSION = "2.0.0";
+var APP_VERSION = "2.2.0";
 
 // src/main/decide/decision-client.ts
 var import_node_fs2 = __toESM(require("node:fs"), 1);
@@ -42228,6 +42357,17 @@ async function executeCatalogTool(tool, args) {
     const endpoint = tool.endpointFor ? tool.endpointFor(args) : tool.endpoint;
     logMcp(`[HTTP Forward] ${tool.method || "POST"} ${endpoint} body: ${preview(body)}`);
     const data = await callBridge(endpoint, tool.method || "POST", body);
+    if (tool.name === "media_preview") {
+      const text2 = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
+      const content = [{ type: "text", text: text2 }];
+      const images = Array.isArray(data?.images) ? data.images : [];
+      for (const image of images) {
+        if (typeof image?.base64 !== "string" || image.base64 === "") continue;
+        content.push({ type: "image", data: image.base64, mimeType: image.mimeType || "image/jpeg" });
+      }
+      logMcp(`[Tool Success] "media_preview" returning text + ${images.length} image(s)`);
+      return { content };
+    }
     if (tool.name === "frames") {
       const images = Array.isArray(data?.images) ? data.images : [];
       const text2 = clampText(tool.format ? tool.format(data, args) : JSON.stringify(data, null, 2));
@@ -42252,10 +42392,12 @@ async function executeCatalogTool(tool, args) {
       const h = screenshot.height || 0;
       const marks = Array.isArray(data.marks) ? data.marks : [];
       const withMarks = tool.name !== "take_screenshot" || args?.marks === true;
+      const zoom = screenshot.zoom;
+      const zoomNote = zoom ? ` Page zoom ${Math.round((zoom.factor || 1) * 100)}% (${zoom.custom ? "custom" : zoom.mode}); CSS viewport ${zoom.viewport?.css?.width || 0}x${zoom.viewport?.css?.height || 0}; image/CSS scale ${Number(screenshot.coordinateScale || 1).toFixed(3)}.` : "";
       let text2;
       if (withMarks) {
         const marksTable = marks.map((m) => formatMark(m)).join("\n");
-        const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.` : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
+        const header = filePath ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.${zoomNote}` : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.${zoomNote}`;
         text2 = clampText(`${header}
 
 Interactive Elements:
@@ -42263,7 +42405,7 @@ ${marksTable}
 
 Actuate via act(mark_id, action) \uFFFD?" action defaults to "click"; "type" for inputs (text=...), "hover" for menus, "press" for keys.`);
       } else {
-        text2 = filePath ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).` : `Screenshot captured (${w}x${h}px).`;
+        text2 = filePath ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).${zoomNote}` : `Screenshot captured (${w}x${h}px).${zoomNote}`;
       }
       const content = [{ type: "text", text: text2 }];
       if (rawBase64) {

@@ -16,6 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > therefore reports `1.4.2` in `/health`. This is a deliberate, temporary deviation from strict semver; each
 > increment still gets its own Added/Fixed/Changed section here.
 
+## [2.2.0] - 2026-11-06
+
+### Added
+
+- **Display-scale compensation and page zoom.** Browsing tabs default to a fitted zoom
+  (`1 / display scale`, so 67% on a 150% Windows display) instead of inheriting Windows
+  scale. The toolbar shows the effective percentage with `-` / reset / `+`, and a
+  `FIT`/`WIN` toggle switches humans back to Windows scale; the choice persists in
+  `<userData>/zoom-settings.json`.
+- **Agent-visible proportions.** `browser_zoom` (also `browser_workspace` actions
+  `zoom.status`, `zoom.in`, `zoom.out`, `zoom.reset`, `zoom.set`) reports the mode,
+  display scale, CSS and physical viewports and device pixel ratio. Screenshots carry
+  `zoom.coordinateScale` so image pixels can be mapped back to CSS pixels.
+- Keyboard `Ctrl+=`, `Ctrl+-` and `Ctrl+0` are handled as browser zoom, not page input.
+
+### Fixed
+
+- **White window after a long packaged session, sleep or minimise.** The HUD log list grew without
+  a bound (one entry per bridge call); it is now capped at 200 rows. Native views are re-bounded and
+  invalidated on show/restore/focus, display-scale changes and OS resume, which restores a view that
+  lost its frame after sleep. Renderer crashes and unresponsive HUDs now reload automatically instead
+  of leaving a permanent white surface.
+- **Diagnostics for future white screens.** Main-process failures are appended to
+  `data/logs/main.log`: HUD/tab `render-process-gone`, GPU/utility `child-process-gone`,
+  unresponsive/responsive transitions, failed HUD loads and lost-heartbeat recoveries. A lightweight
+  HUD heartbeat reloads the shell if it stops painting while the window is visible.
+
 ## [2.1.1] - 2026-11-05
 
 ### Added

@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView } from 'electron';
+import { BrowserWindow, WebContentsView, type RenderProcessGoneDetails, type WebContents } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,12 @@ export interface TabManagerOptions {
   onViewAdded?: () => void;
   onLog?: (level: 'info' | 'warn' | 'action', message: string) => void;
   onConsoleLog?: (log: { level: string; message: string; line: number; sourceId: string; timestamp: number }) => void;
+  /** Re-apply the current page zoom after creation, navigation and tab switches. */
+  applyZoom?: (wc: WebContents) => void;
+  /** Ctrl+= / Ctrl+- / Ctrl+0, owned by the browser rather than the page. */
+  onZoomShortcut?: (action: 'in' | 'out' | 'reset') => void;
+  /** A tab renderer disappeared; the owner decides whether to reload it. */
+  onRendererGone?: (tab: TabInstance, details: RenderProcessGoneDetails) => void;
 }
 
 export class TabManager {
@@ -95,6 +101,31 @@ export class TabManager {
 
     const wc = view.webContents;
 
+    // Page zoom is an app-level policy (fit to the display scale, or Windows
+    // scale). Chromium persists zoom per origin, so re-assert it whenever a new
+    // document starts; otherwise a site that was last opened at 100% snaps back.
+    this.options.applyZoom?.(wc);
+    wc.on('did-navigate', () => this.options.applyZoom?.(wc));
+
+    // Ctrl+= / Ctrl+- / Ctrl+0 are browser shortcuts, not page content. Without
+    // this the app has no zoom path for a human, because Electron does not add
+    // Chrome's default menu accelerators.
+    wc.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown' || input.alt) return;
+      const mod = process.platform === 'darwin' ? input.meta : input.control;
+      if (!mod) return;
+      if (input.key === '+' || input.key === '=') {
+        event.preventDefault();
+        this.options.onZoomShortcut?.('in');
+      } else if (input.key === '-') {
+        event.preventDefault();
+        this.options.onZoomShortcut?.('out');
+      } else if (input.key === '0') {
+        event.preventDefault();
+        this.options.onZoomShortcut?.('reset');
+      }
+    });
+
     // Right-click: copy/paste/select-all, link and image actions, reload, inspect element.
     // A WebContentsView has no default context menu, so without this the browser is unusable
     // by hand even though every action exists in the API.
@@ -155,6 +186,7 @@ export class TabManager {
     });
 
     wc.on('did-finish-load', () => {
+      this.options.applyZoom?.(wc);
       tab.isLoading = false;
       const rawUrl = wc.getURL();
       if (rawUrl.includes('welcome.html')) {
@@ -182,6 +214,15 @@ export class TabManager {
       this.options.onLog?.('warn', `[${tab.id}] Barrier [${errorCode}]: ${errorDescription} (${validatedURL})`);
       this.options.onTabUpdated?.(tab);
       this.notifyTabsChanged();
+    });
+
+    wc.on('render-process-gone', (_event, details) => {
+      this.options.onLog?.('warn', `[${tab.id}] Renderer gone (${details.reason}, exit ${details.exitCode})`);
+      this.options.onRendererGone?.(tab, details);
+    });
+
+    wc.on('unresponsive', () => {
+      this.options.onLog?.('warn', `[${tab.id}] Renderer unresponsive: ${tab.url || 'unknown URL'}`);
     });
 
     wc.on('console-message', (event: any, ...legacyArgs: any[]) => {
@@ -235,6 +276,7 @@ export class TabManager {
 
     this.activeTabId = tabId;
     const current = this.tabs.get(tabId)!;
+    this.options.applyZoom?.(current.view.webContents);
 
     // Expand current active tab to viewport container, unless a settings
     // surface is currently covering the window.

@@ -82,6 +82,12 @@
 
       <!-- Action Utilities -->
       <div class="flex items-center gap-1">
+        <div class="join mr-1" aria-label="Page zoom">
+          <button id="zoom-out-btn" type="button" class="btn btn-sm btn-ghost join-item btn-square text-base-content/70" title="Zoom out (Ctrl+-)" aria-label="Zoom out">-</button>
+          <button id="zoom-level-btn" type="button" class="btn btn-sm btn-ghost join-item font-mono text-[10px] min-w-14" title="Reset page zoom (Ctrl+0)" aria-label="Reset page zoom">100%</button>
+          <button id="zoom-in-btn" type="button" class="btn btn-sm btn-ghost join-item btn-square text-base-content/70" title="Zoom in (Ctrl+=)" aria-label="Zoom in">+</button>
+          <button id="zoom-mode-btn" type="button" class="btn btn-sm btn-ghost join-item font-mono text-[10px] min-w-12" title="Page zoom follows the Windows display scale" aria-label="Toggle Windows display scale">FIT</button>
+        </div>
         <div class="tooltip tooltip-bottom z-50" data-tip="Cortex — recall &amp; bookmarks">
           <button id="cortex-btn" class="btn btn-sm btn-ghost btn-square text-secondary" aria-label="Cortex — semantic recall and bookmarks">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">

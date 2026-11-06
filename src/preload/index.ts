@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
+import type { ZoomMode, ZoomState } from '../shared/zoom.js';
 import type { RemoteStatus } from '../shared/remote.js';
 import type { ToolManagerResult, ToolSettings } from '../shared/tool-settings.js';
 import type { CollaborationThread, CollaborationTarget } from '../shared/collaboration.js';
@@ -50,6 +51,10 @@ export interface ElectronAPI {
   createTab: (url?: string) => Promise<TabSummary>;
   switchTab: (tabId: string) => Promise<void>;
   closeTab: (tabId?: string) => Promise<void>;
+  getZoom: () => Promise<ZoomState>;
+  setZoom: (input?: { action?: 'status' | 'in' | 'out' | 'reset'; factor?: number }) => Promise<ZoomState>;
+  setZoomMode: (mode: ZoomMode) => Promise<ZoomState>;
+  hudHeartbeat: () => void;
   recallMemory: (query: string, options?: any) => Promise<any[]>;
   getHistory: (options?: any) => Promise<any[]>;
   clearHistory: (olderThan?: string) => Promise<{ success: boolean }>;
@@ -288,6 +293,10 @@ const api: ElectronAPI = {
   createTab: (url?: string) => ipcRenderer.invoke('chassis:create-tab', url),
   switchTab: (tabId: string) => ipcRenderer.invoke('chassis:switch-tab', tabId),
   closeTab: (tabId?: string) => ipcRenderer.invoke('chassis:close-tab', tabId),
+  getZoom: () => ipcRenderer.invoke('chassis:zoom:get'),
+  setZoom: (input) => ipcRenderer.invoke('chassis:zoom:set', input || {}),
+  setZoomMode: (mode) => ipcRenderer.invoke('chassis:zoom:mode', mode),
+  hudHeartbeat: () => ipcRenderer.send('chassis:hud-heartbeat'),
 
   recallMemory: (query: string, options?: any) => ipcRenderer.invoke('cortex:recall', query, options),
   getHistory: (options?: any) => ipcRenderer.invoke('cortex:get-history', options),

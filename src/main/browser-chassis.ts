@@ -1,8 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, nativeImage, ipcMain, clipboard, session, WebContentsView, type Session, type WebContents } from 'electron';
+import { BrowserWindow, nativeImage, ipcMain, clipboard, powerMonitor, screen, session, WebContentsView, type Session, type WebContents } from 'electron';
 import type { AgentStatus, ChassisState, HarvestedConstruct, TelemetryEvent, TabSummary } from '../shared/types.js';
+import {
+  clampZoomFactor,
+  nextZoomStep,
+  type ZoomMode,
+  type ZoomSettings,
+  type ZoomState,
+} from '../shared/zoom.js';
 import { HumanizedInputSimulator } from './telemetry/input-simulator.js';
 import { loadInputProfile, saveInputProfile, type InputProfile } from './telemetry/input-profile.js';
 import { HumanActivityMonitor, humanListenerScript, SYNTHETIC_GRACE_MS, type HumanActivity } from './input/human-activity.js';
@@ -45,6 +52,7 @@ import {
 } from './shadow-walk/force-open.js';
 import { controlFactsExpression, parseControlFacts, type ControlFacts, type ControlFactsOptions } from './primitives/control-facts.js';
 import { dataPath } from './data-paths.js';
+import { logMainEvent } from './diagnostics/main-log.js';
 import { SessionVault, type SessionSnapshot } from './session/session-vault.js';
 import {
   NetworkInterceptor,
@@ -176,6 +184,14 @@ export class BrowserChassis {
   /** Monotonic page revision: bumped on navigation and every mutating action. */
   private revision = 0;
   private onCollaborationNote?: (input: { target: CollaborationTarget; text: string; tags: string[] }) => void;
+  /** Page zoom policy: fit the page to the OS display scale, or honour Windows scale. */
+  private zoomMode: ZoomMode = 'compensate';
+  /** Explicit zoom from the toolbar or an agent; null means use the policy base. */
+  private zoomOverride: number | null = null;
+  /** Global display/power listeners must be installed once, not per window. */
+  private systemViewportListenersBound = false;
+  /** Last proof that the HUD renderer is alive and painting. */
+  private hudLastHeartbeat = Date.now();
 
   private state: ChassisState = {
     currentUrl: 'about:blank',
@@ -402,11 +418,17 @@ export class BrowserChassis {
       this.state.stats.uptimeSeconds++;
       this.broadcastState();
     }, 1000);
+
+    // A renderer can stop painting without exiting. If the HUD heartbeat goes
+    // quiet while the window is visible, reload it once and repaint the views.
+    setInterval(() => this.checkHudHealth(), 5000);
   }
 
   public setWindow(win: BrowserWindow) {
     this.mainWindow = win;
+    this.hudLastHeartbeat = Date.now();
     this.hilManager.setWindow(win);
+    this.bindViewportRecovery(win);
     this.trayManager = new TrayManager({
       mainWindow: win,
       closeToTrayDefault: false,
@@ -426,6 +448,77 @@ export class BrowserChassis {
     void this.configureResearchSession();
   }
 
+  /**
+   * A packaged window can come back from minimise/sleep with its native views
+   * unpainted, which looks like a white browsing surface until the next resize.
+   * Re-assert bounds and invalidate on every transition that can lose a frame.
+   */
+  private bindViewportRecovery(win: BrowserWindow): void {
+    const reassert = () => this.reassertViewport();
+    win.on('show', reassert);
+    win.on('restore', reassert);
+    win.on('focus', reassert);
+
+    if (this.systemViewportListenersBound) return;
+    this.systemViewportListenersBound = true;
+    try {
+      powerMonitor.on('resume', () => {
+        this.hudLastHeartbeat = Date.now();
+        reassert();
+      });
+    } catch {
+      // Not available on every platform/test harness.
+    }
+    try {
+      screen.on('display-metrics-changed', () => {
+        this.applyZoomToAllTabs();
+        reassert();
+      });
+    } catch {
+      // `screen` is unavailable before app.whenReady.
+    }
+  }
+
+  public reassertViewport(): void {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    try {
+      this.positionSidebar();
+    } catch {
+      // A settings surface can temporarily hide the sidebar.
+    }
+    this.tabManager?.updateActiveTabBounds();
+    try {
+      this.mainWindow.webContents.invalidate();
+    } catch {
+      // Window is closing.
+    }
+    for (const tab of this.tabManager?.allTabs() ?? []) {
+      try {
+        if (!tab.view.webContents.isDestroyed()) tab.view.webContents.invalidate();
+      } catch {
+        // Tab closed during the sweep.
+      }
+    }
+  }
+
+  private checkHudHealth(): void {
+    const win = this.mainWindow;
+    if (!win || win.isDestroyed() || win.isMinimized() || !win.isVisible()) {
+      this.hudLastHeartbeat = Date.now();
+      return;
+    }
+    if (Date.now() - this.hudLastHeartbeat < 15_000) return;
+
+    this.hudLastHeartbeat = Date.now();
+    logMainEvent('hud-heartbeat-lost');
+    try {
+      win.webContents.reload();
+    } catch {
+      // Window is closing; nothing to recover.
+    }
+    this.reassertViewport();
+  }
+
   private setupTabManager() {
     if (!this.mainWindow) return;
 
@@ -433,6 +526,29 @@ export class BrowserChassis {
       mainWindow: this.mainWindow,
       hostProfile: this.hostProfile,
       getViewportBounds: () => this.getViewportBounds(),
+      applyZoom: (wc) => this.applyZoom(wc),
+      onZoomShortcut: (action) => {
+        this.setZoom({ action });
+      },
+      onRendererGone: (tab, details) => {
+        logMainEvent('tab-renderer-gone', {
+          tabId: tab.id,
+          url: tab.url,
+          reason: details.reason,
+          exitCode: details.exitCode,
+        });
+        if (details.reason === 'clean-exit') return;
+        setTimeout(() => {
+          const live = this.tabManager?.allTabs().find((candidate) => candidate.id === tab.id);
+          if (!live || live.view.webContents.isDestroyed()) return;
+          try {
+            live.view.webContents.reload();
+          } catch {
+            // The tab was closed while the renderer was restarting.
+          }
+          this.reassertViewport();
+        }, 600);
+      },
       onTabUpdated: (tab: TabInstance) => {
         if (tab.id === this.tabManager?.getActiveTabId()) {
           this.state.currentUrl = tab.url;
@@ -1411,7 +1527,120 @@ export class BrowserChassis {
     return this.tabManager.getTabsSummary();
   }
 
+  /** Install the persisted page-zoom policy (compensate vs Windows scale). */
+  public setZoomSettings(settings: ZoomSettings): void {
+    this.zoomMode = settings.mode === 'native' ? 'native' : 'compensate';
+    this.zoomOverride = null;
+    this.applyZoomToAllTabs();
+    this.broadcastState();
+  }
+
+  public getZoomMode(): ZoomMode {
+    return this.zoomMode;
+  }
+
+  /** Scale factor of the display containing the main window. */
+  private getDisplayScale(): number {
+    try {
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        return screen.getDisplayMatching(this.mainWindow.getBounds()).scaleFactor || 1;
+      }
+    } catch {
+      // Fall through to the primary display (window not created yet).
+    }
+    try {
+      return screen.getPrimaryDisplay().scaleFactor || 1;
+    } catch {
+      // `screen` is unavailable before `app.whenReady`; assume unscaled.
+      return 1;
+    }
+  }
+
+  private getZoomBaseFactor(): number {
+    const scale = this.getDisplayScale();
+    return this.zoomMode === 'compensate' && scale > 0 ? 1 / scale : 1;
+  }
+
+  private getEffectiveZoomFactor(): number {
+    return clampZoomFactor(this.zoomOverride ?? this.getZoomBaseFactor());
+  }
+
+  /** Report the policy plus the CSS/physical proportions the page is rendered at. */
+  public getZoomState(): ZoomState {
+    const displayScale = this.getDisplayScale();
+    const baseFactor = this.getZoomBaseFactor();
+    const factor = this.getEffectiveZoomFactor();
+    let bounds = { width: 0, height: 0 };
+    try {
+      bounds = this.getViewportBounds();
+    } catch {
+      // A hidden settings surface can leave the bounds temporarily unavailable.
+    }
+    const cssWidth = factor > 0 ? bounds.width / factor : bounds.width;
+    const cssHeight = factor > 0 ? bounds.height / factor : bounds.height;
+    return {
+      mode: this.zoomMode,
+      displayScale,
+      baseFactor,
+      factor,
+      custom: this.zoomOverride !== null,
+      devicePixelRatio: displayScale * factor,
+      viewport: {
+        css: { width: Math.round(cssWidth), height: Math.round(cssHeight) },
+        physical: {
+          width: Math.round(bounds.width * displayScale),
+          height: Math.round(bounds.height * displayScale),
+        },
+      },
+    };
+  }
+
+  private applyZoom(wc: WebContents): void {
+    try {
+      if (!wc.isDestroyed()) wc.setZoomFactor(this.getEffectiveZoomFactor());
+    } catch {
+      // A tab can be destroyed between the event and this call.
+    }
+  }
+
+  public applyZoomToAllTabs(): void {
+    for (const tab of this.tabManager?.allTabs() ?? []) this.applyZoom(tab.view.webContents);
+  }
+
+  /**
+   * Change page zoom for every tab.
+   *
+   * `mode` follows the human policy; `action` is a Chrome-like step; `factor`
+   * is an exact zoom from an agent. An explicit change overrides the policy base
+   * until `reset` or a mode switch.
+   */
+  public setZoom(input: {
+    action?: 'status' | 'in' | 'out' | 'reset';
+    factor?: number;
+    mode?: ZoomMode;
+  } = {}): ZoomState {
+    if (input.mode === 'compensate' || input.mode === 'native') {
+      this.zoomMode = input.mode;
+      this.zoomOverride = null;
+    }
+
+    if (input.factor !== undefined) {
+      this.zoomOverride = clampZoomFactor(input.factor);
+    } else if (input.action === 'reset') {
+      this.zoomOverride = null;
+    } else if (input.action === 'in' || input.action === 'out') {
+      this.zoomOverride = clampZoomFactor(nextZoomStep(this.getEffectiveZoomFactor(), input.action));
+    }
+
+    this.applyZoomToAllTabs();
+    this.broadcastState();
+    return this.getZoomState();
+  }
+
   private registerIpcHandlers() {
+    ipcMain.on('chassis:hud-heartbeat', () => {
+      this.hudLastHeartbeat = Date.now();
+    });
     ipcMain.handle('chassis:get-state', () => this.state);
     ipcMain.handle('chassis:get-latest-construct', () => this.latestConstruct);
     ipcMain.handle('chassis:get-logs', () => this.logs);
@@ -1454,6 +1683,14 @@ export class BrowserChassis {
     ipcMain.handle('chassis:create-tab', (_, url?: string) => this.createTab(url));
     ipcMain.handle('chassis:switch-tab', (_, tabId: string) => this.switchTab(tabId));
     ipcMain.handle('chassis:close-tab', (_, tabId?: string) => this.closeTab(tabId));
+
+    // Page zoom: a runtime view control. The persisted mode is written from the
+    // main process IPC handler (`chassis:zoom:mode`) so the bridge cannot change
+    // a human setting by accident.
+    ipcMain.handle('chassis:zoom:get', () => this.getZoomState());
+    ipcMain.handle('chassis:zoom:set', (_, input: { action?: 'status' | 'in' | 'out' | 'reset'; factor?: number } = {}) =>
+      this.setZoom(input),
+    );
 
     const setVisibility = (_: any, visible: boolean) => {
       this.tabManager?.setViewportVisibility(visible);
@@ -1783,6 +2020,7 @@ export class BrowserChassis {
   }
 
   private broadcastState() {
+    this.state.zoom = this.getZoomState();
     // History availability is read at broadcast time, not cached on navigation: SPAs use pushState,
     // which fires no navigation event, and a tab switch swaps the history stack under the toolbar.
     try {
@@ -2304,12 +2542,24 @@ export class BrowserChassis {
     maxWidth?: number;
     format?: 'jpeg' | 'png';
     quality?: number;
-  } = {}): Promise<{ base64Image: string; filePath: string; width: number; height: number; mimeType: string }> {
+  } = {}): Promise<{
+    base64Image: string;
+    filePath: string;
+    width: number;
+    height: number;
+    mimeType: string;
+    zoom: ZoomState;
+    nativeWidth: number;
+    nativeHeight: number;
+    coordinateScale: number;
+  }> {
     const wc = this.getActiveWebContents();
     this.addLog('action', 'MCP Directive: take_screenshot()');
 
     const bounds = this.getViewportBounds();
     const rawImage = await this.capturePageWithRetry(wc, bounds);
+    const zoom = this.getZoomState();
+    const nativeSize = rawImage.getSize();
 
     const maxWidth = opts.maxWidth !== undefined ? opts.maxWidth : 768;
     const format = opts.format || 'jpeg';
@@ -2345,6 +2595,10 @@ export class BrowserChassis {
       width: size.width,
       height: size.height,
       mimeType,
+      zoom,
+      nativeWidth: nativeSize.width,
+      nativeHeight: nativeSize.height,
+      coordinateScale: zoom.viewport.css.width > 0 ? size.width / zoom.viewport.css.width : 1,
     };
   }
 
@@ -3213,7 +3467,17 @@ export class BrowserChassis {
   }
 
   public async takeAnnotatedScreenshot(opts: { economy?: boolean; textOnly?: boolean; includeOffscreen?: boolean } = {}): Promise<{
-    screenshot: { base64Image: string; filePath: string; width: number; height: number; mimeType: string };
+    screenshot: {
+      base64Image: string;
+      filePath: string;
+      width: number;
+      height: number;
+      mimeType: string;
+      zoom: ZoomState;
+      nativeWidth: number;
+      nativeHeight: number;
+      coordinateScale: number;
+    };
     marks: MarkItem[];
   }> {
     const wc = this.getActiveWebContents();
@@ -3227,8 +3491,19 @@ export class BrowserChassis {
       const textMarks = await this.scanMarks(wc, { includeOffscreen });
       await this.marksOverlay.removeMarks(wc);
       const viewport = this.getViewportBounds();
+      const zoom = this.getZoomState();
       return {
-        screenshot: { base64Image: '', filePath: '', width: viewport.width, height: viewport.height, mimeType: 'image/png' },
+        screenshot: {
+          base64Image: '',
+          filePath: '',
+          width: viewport.width,
+          height: viewport.height,
+          mimeType: 'image/png',
+          zoom,
+          nativeWidth: viewport.width,
+          nativeHeight: viewport.height,
+          coordinateScale: zoom.viewport.css.width > 0 ? viewport.width / zoom.viewport.css.width : 1,
+        },
         marks: textMarks,
       };
     }
@@ -3245,6 +3520,8 @@ export class BrowserChassis {
 
     // 3. Immediately clean up marks from DOM
     await this.marksOverlay.removeMarks(wc);
+    const zoom = this.getZoomState();
+    const nativeSize = image.getSize();
 
     // Economy mode: downscale to max 640px wide and encode as JPEG (~10-20x smaller payload)
     const ECONOMY_MAX_WIDTH = 640;
@@ -3277,6 +3554,10 @@ export class BrowserChassis {
         width: size.width,
         height: size.height,
         mimeType,
+        zoom,
+        nativeWidth: nativeSize.width,
+        nativeHeight: nativeSize.height,
+        coordinateScale: zoom.viewport.css.width > 0 ? size.width / zoom.viewport.css.width : 1,
       },
       marks,
     };
@@ -3578,6 +3859,7 @@ export class BrowserChassis {
       'search_web',
       'deep_crawl',
       'research_topic',
+      'zoom',
     ];
   }
 }

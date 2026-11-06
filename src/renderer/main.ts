@@ -1,5 +1,6 @@
 import type { ElectronAPI } from '../preload/index.js';
 import type { ChassisState, HarvestedConstruct, TelemetryEvent } from '../shared/types.js';
+import type { ZoomState } from '../shared/zoom.js';
 import { BRAND } from '../shared/brand.js';
 import { beginRecording, finishRecording } from './recording';
 import { refreshToolsPanel } from './tools-panel';
@@ -44,6 +45,10 @@ const harvestBtn = document.getElementById('harvest-btn') as HTMLButtonElement;
 const copyConstructBtn = document.getElementById('copy-construct-btn') as HTMLButtonElement;
 const chassisVersionBadge = document.getElementById('chassis-version');
 const aboutVersion = document.getElementById('about-version');
+const zoomOutBtn = document.getElementById('zoom-out-btn') as HTMLButtonElement | null;
+const zoomInBtn = document.getElementById('zoom-in-btn') as HTMLButtonElement | null;
+const zoomLevelBtn = document.getElementById('zoom-level-btn') as HTMLButtonElement | null;
+const zoomModeBtn = document.getElementById('zoom-mode-btn') as HTMLButtonElement | null;
 
 function renderAppVersion(version: string | undefined) {
   if (!version) return;
@@ -586,6 +591,10 @@ function appendDecision(event: any) {
   const key = decisionKey(event);
   if (seenDecisions.has(key)) return;
   seenDecisions.add(key);
+  if (seenDecisions.size > 500) {
+    const oldest = seenDecisions.values().next().value;
+    if (oldest !== undefined) seenDecisions.delete(oldest);
+  }
 
   decisionCalls++;
   decisionCount.textContent = `${decisionCalls} call${decisionCalls === 1 ? '' : 's'}`;
@@ -922,7 +931,54 @@ function appendLog(log: { id: string; time: string; level: 'info' | 'warn' | 'ac
   }
 
   logsContainer.insertBefore(item, logsContainer.firstChild);
+  // A long-running packaged session emits an entry for every bridge call. Keep
+  // the HUD bounded; an unbounded DOM was a slow renderer-memory leak.
+  while (logsContainer.children.length > 200) {
+    logsContainer.lastElementChild?.remove();
+  }
 }
+
+let currentZoom: ZoomState | null = null;
+
+function renderZoom(zoom: ZoomState | null | undefined): void {
+  if (!zoom) return;
+  currentZoom = zoom;
+  const percent = Math.round(zoom.factor * 100);
+  if (zoomLevelBtn) {
+    zoomLevelBtn.textContent = `${percent}%`;
+    zoomLevelBtn.title = `Reset page zoom to the ${zoom.mode === 'compensate' ? 'fitted' : 'Windows'} default (Ctrl+0)`;
+  }
+  if (zoomModeBtn) {
+    const fitted = zoom.mode === 'compensate';
+    zoomModeBtn.textContent = fitted ? 'FIT' : 'WIN';
+    zoomModeBtn.classList.toggle('text-accent', fitted);
+    zoomModeBtn.title = fitted
+      ? `Fitted to ${Math.round(zoom.displayScale * 100)}% Windows scale (click for Windows scale)`
+      : `Matching ${Math.round(zoom.displayScale * 100)}% Windows scale (click to fit)`;
+  }
+  if (zoomOutBtn) zoomOutBtn.title = `Zoom out (Ctrl+-) - ${percent}%`;
+  if (zoomInBtn) zoomInBtn.title = `Zoom in (Ctrl+=) - ${percent}%`;
+}
+
+async function applyZoomAction(action: 'in' | 'out' | 'reset'): Promise<void> {
+  try {
+    renderZoom(await window.electronAPI?.setZoom?.({ action }));
+  } catch {
+    // A render surface can race a window reload; the next state broadcast wins.
+  }
+}
+
+zoomOutBtn?.addEventListener('click', () => void applyZoomAction('out'));
+zoomInBtn?.addEventListener('click', () => void applyZoomAction('in'));
+zoomLevelBtn?.addEventListener('click', () => void applyZoomAction('reset'));
+zoomModeBtn?.addEventListener('click', async () => {
+  const next = currentZoom?.mode === 'compensate' ? 'native' : 'compensate';
+  try {
+    renderZoom(await window.electronAPI?.setZoomMode?.(next));
+  } catch {
+    // Ignore; the next state broadcast carries the authoritative value.
+  }
+});
 
 // Update State from Electron
 function updateState(state: ChassisState) {
@@ -980,6 +1036,9 @@ function updateState(state: ChassisState) {
 
   if (state.tabs) {
     renderTabs(state.tabs);
+  }
+  if (state.zoom) {
+    renderZoom(state.zoom);
   }
 }
 
@@ -1043,8 +1102,17 @@ if (newTabBtn) {
 }
 
 // Initialize IPC listeners
+// The main process uses this as a "renderer is painting" signal. If it stops
+// while the window is visible, the HUD is reloaded instead of staying white.
+// The sidebar is a second renderer, so it must not mask a dead HUD.
+if (!SIDEBAR_MODE) {
+  window.electronAPI?.hudHeartbeat?.();
+  setInterval(() => window.electronAPI?.hudHeartbeat?.(), 3000);
+}
+
 if (window.electronAPI) {
   window.electronAPI.getState().then(updateState);
+  window.electronAPI.getZoom?.().then(renderZoom).catch(() => undefined);
   window.electronAPI.getTabs().then(renderTabs);
   window.electronAPI.getLatestConstruct().then((construct) => {
     if (construct) renderConstruct(construct);

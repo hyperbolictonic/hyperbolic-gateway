@@ -338,18 +338,22 @@ async function executeCatalogTool(tool: ToolCatalogItem, args: any) {
       const h = screenshot.height || 0;
       const marks = Array.isArray(data.marks) ? data.marks : [];
       const withMarks = tool.name !== 'take_screenshot' || args?.marks === true;
+      const zoom = screenshot.zoom;
+      const zoomNote = zoom
+        ? ` Page zoom ${Math.round((zoom.factor || 1) * 100)}% (${zoom.custom ? 'custom' : zoom.mode}); CSS viewport ${zoom.viewport?.css?.width || 0}x${zoom.viewport?.css?.height || 0}; image/CSS scale ${Number(screenshot.coordinateScale || 1).toFixed(3)}.`
+        : '';
 
       let text: string;
       if (withMarks) {
         const marksTable = marks.map((m: any) => formatMark(m)).join('\n');
         const header = filePath
-          ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.`
-          : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.`;
+          ? `Set-of-Marks Screenshot saved to ${filePath} (${w}x${h}px). ${marks.length} interactive elements detected.${zoomNote}`
+          : `Set-of-Marks text scan (viewport ${w}x${h}px, no image). ${marks.length} interactive elements detected.${zoomNote}`;
         text = clampText(`${header}\n\nInteractive Elements:\n${marksTable}\n\nActuate via act(mark_id, action) �?" action defaults to "click"; "type" for inputs (text=...), "hover" for menus, "press" for keys.`);
       } else {
         text = filePath
-          ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).`
-          : `Screenshot captured (${w}x${h}px).`;
+          ? `Screenshot captured and saved to ${filePath} (${w}x${h}px).${zoomNote}`
+          : `Screenshot captured (${w}x${h}px).${zoomNote}`;
       }
 
       const content: any[] = [{ type: 'text', text }];

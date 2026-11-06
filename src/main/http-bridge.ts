@@ -169,6 +169,7 @@ export function startHttpBridge(
           human: { paused: chassis.isHumanActive(), ...chassis.getHumanStatus() },
           metrics: summary(),
           shadowWalk: { ...shadowWalkStatus(), forceOpenArmed: chassis.forceOpenArmed() },
+          zoom: chassis.getZoomState(),
           info,
         });
         return;
@@ -996,6 +997,30 @@ export function startHttpBridge(
         else if (body.action === 'forward') result = await chassis.goForward();
         else if (body.action === 'reload') result = await chassis.reload();
         sendJson({ success: true, result });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/zoom') {
+        sendJson({ success: true, zoom: chassis.getZoomState() });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/zoom') {
+        const body = await readBody();
+        const action = body?.action === 'in' || body?.action === 'out' || body?.action === 'reset' || body?.action === 'status'
+          ? body.action
+          : 'status';
+        const factor = body?.factor !== undefined ? Number(body.factor) : undefined;
+        if (body?.action === 'set' && factor === undefined) {
+          sendJson({ success: false, error: 'action "set" requires a numeric factor.', code: 'BAD_REQUEST' }, 400);
+          return;
+        }
+        if (factor !== undefined && (!Number.isFinite(factor) || factor < 0.25 || factor > 5)) {
+          sendJson({ success: false, error: 'factor must be between 0.25 and 5.', code: 'BAD_REQUEST' }, 400);
+          return;
+        }
+        const zoom = chassis.setZoom({ action, factor });
+        sendJson({ success: true, zoom });
         return;
       }
 

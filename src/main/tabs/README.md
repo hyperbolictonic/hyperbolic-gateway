@@ -12,7 +12,9 @@ This directory contains the tabbed browsing orchestration layer, designed around
    Active tab transitions are performed by bringing the target view to the top of the view hierarchy, eliminating White/Dark flash artifacts common in legacy webview wrappers.
 3. **Popup & `target="_blank"` Trapping**:
    Hooks into `setWindowOpenHandler` and `did-create-window` to automatically catch external link popups and spawn them as managed child tabs inside the Cyberdeck tab bar instead of opening unmanaged OS windows.
-4. **Calibrated Viewport Background**:
+4. **Display-Scale Page Zoom**:
+   Applies the app-wide page-zoom policy on every new document and tab switch, with `Ctrl+=` / `Ctrl+-` / `Ctrl+0` handled as browser input. The fitted default keeps CSS pixels aligned with physical pixels on scaled displays; the toolbar can switch back to Windows scale.
+5. **Calibrated Viewport Background**:
    Initializes views with `#f4f4f5` (soft matte zinc gray), ensuring raw unstyled HTML sites (like `motherfuckingwebsite.com`) are fully legible with sharp black text without harsh pure-white screen glare.
 
 ---

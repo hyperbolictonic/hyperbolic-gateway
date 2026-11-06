@@ -12,6 +12,8 @@ import { SecretStore } from './wrap/secrets.js';
 import type { SecretCipher } from './wrap/secrets.js';
 import { WrapAuditLog } from './wrap/audit.js';
 import { ResearchSettingsStore } from './research/settings.js';
+import { ZoomSettingsStore } from './zoom/settings.js';
+import type { ZoomMode } from '../shared/zoom.js';
 import { DEFAULT_SHADOW_WALK_SETTINGS, loadShadowWalkSettings, saveShadowWalkSettings } from './shadow-walk/settings.js';
 import { attachContextMenu } from './menu/context-menu.js';
 import type { WebPageState } from '../shared/web-state.js';
@@ -26,6 +28,7 @@ import { ExperimentalSettingsStore } from './settings/experimental.js';
 import { JevSettingsStore } from './settings/jev.js';
 import { decisionStatus } from './decide/decision-client.js';
 import { dataPath } from './data-paths.js';
+import { logMainEvent } from './diagnostics/main-log.js';
 import { migrateLegacyUserData } from './migrate-user-data.js';
 import { BRAND } from '../shared/brand.js';
 import { APP_VERSION } from '../shared/version.js';
@@ -98,6 +101,19 @@ if (!gotTheLock) {
 let mainWindow: BrowserWindow | null = null;
 const chassis = new BrowserChassis();
 
+// GPU/utility process exits are invisible in the UI when they leave a window
+// unpainted. Record them so the next white-screen report has a cause.
+app.on('child-process-gone', (_event, details) => {
+  logMainEvent('child-process-gone', {
+    type: details.type,
+    reason: details.reason,
+    exitCode: details.exitCode,
+    serviceName: (details as { serviceName?: string }).serviceName,
+    name: (details as { name?: string }).name,
+  });
+  chassis.reassertViewport();
+});
+
 const configuredPort = Number(process.env.HB_BRIDGE_PORT ?? process.env.KUANG_BRIDGE_PORT);
 const bridgePort = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 4111;
 const configuredRemotePort = Number(process.env.HB_REMOTE_PORT);
@@ -167,6 +183,7 @@ function remoteDir(): string {
 }
 
 let activeResearchSettings: ResearchSettingsStore | null = null;
+let activeZoomSettings: ZoomSettingsStore | null = null;
 let activeWrapStore: WrapStore | null = null;
 let activeWrapSecrets: SecretStore | null = null;
 let activeWrapAudit: WrapAuditLog | null = null;
@@ -294,6 +311,15 @@ ipcMain.handle('wrap:audit:list', (_event, limit?: number) => {
 
 // Research / stealth settings. These affect search_web, deep_crawl, and
 // research_topic; proxy/session changes stay in main.
+ipcMain.handle('chassis:zoom:mode', (_event, mode: unknown) => {
+  const next: ZoomMode = mode === 'native' ? 'native' : 'compensate';
+  if (!activeZoomSettings) {
+    activeZoomSettings = new ZoomSettingsStore(path.join(app.getPath('userData'), 'zoom-settings.json'));
+  }
+  activeZoomSettings.savePatch({ mode: next });
+  return chassis.setZoom({ mode: next });
+});
+
 ipcMain.handle('research:settings:get', () => {
   return activeResearchSettings
     ? activeResearchSettings.load()
@@ -604,6 +630,14 @@ function resolveBrandIcon(): string | undefined {
 const brandIcon = resolveBrandIcon();
 
 async function createWindow() {
+  // Load the page-zoom policy before the first tab exists, so the initial
+  // document is rendered at the right proportions rather than resizing after
+  // load. Later windows reuse the same store and keep any manual zoom.
+  if (!activeZoomSettings) {
+    activeZoomSettings = new ZoomSettingsStore(path.join(app.getPath('userData'), 'zoom-settings.json'));
+    chassis.setZoomSettings(activeZoomSettings.get());
+  }
+
   mainWindow = new BrowserWindow({
     title: BRAND.windowTitle,
     ...(brandIcon ? { icon: brandIcon } : {}),
@@ -618,6 +652,28 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // The HUD is a renderer too. A crash used to leave a permanently white
+  // BrowserWindow with no log; record it and reload once so the window recovers.
+  const hudContents = mainWindow.webContents;
+  hudContents.on('render-process-gone', (_event, details) => {
+    logMainEvent('hud-renderer-gone', { reason: details.reason, exitCode: details.exitCode });
+    if (details.reason === 'clean-exit') return;
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try {
+          mainWindow.webContents.reload();
+        } catch {
+          // Window closed while the renderer was restarting.
+        }
+      }
+    }, 700);
+  });
+  hudContents.on('unresponsive', () => logMainEvent('hud-unresponsive'));
+  hudContents.on('responsive', () => logMainEvent('hud-responsive'));
+  hudContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
+    if (isMainFrame) logMainEvent('hud-did-fail-load', { code, description, url });
   });
 
   chassis.setWindow(mainWindow);

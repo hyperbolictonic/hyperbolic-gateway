@@ -1,3 +1,5 @@
+import type { ZoomState } from './zoom.js';
+
 export type AgentStatus = 'IDLE' | 'TRAVERSING' | 'SIMULATING_INPUT' | 'HARVESTING' | 'ERROR' | 'AWAITING_INPUT' | 'HUMAN_INPUT';
 
 export interface CursorPosition {
@@ -55,6 +57,8 @@ export interface ChassisState {
   canGoForward?: boolean;
   activeTabId?: string;
   tabs?: TabSummary[];
+  /** Page zoom policy and current CSS/physical proportions. */
+  zoom?: ZoomState;
   stats: {
     totalInteractions: number;
     tokensHarvested: number;

@@ -32,7 +32,7 @@ Start with the grouped tools, not the old flat names:
 - `devtools` — state, diff, console, network, streams, HAR, JSON query, fingerprint, health
 - `human_in_loop` — HIL, passive takeover, notifications, window and tray
 - `collaborate` — highlight/ask/read/reply/resolve human page threads
-- `browser_workspace` — tabs, downloads, contexts, recordings and scripts
+- `browser_workspace` — tabs, page zoom, downloads, contexts, recordings and scripts
 - `media` — preview, transcript, download, jobs, cancel, list
 - `shadow_iframes` — frames and closed-shadow focus
 - `research` — read, search, LLM surface/fetch, crawl, topic research, prerender
@@ -42,6 +42,30 @@ Start with the grouped tools, not the old flat names:
 
 Old flat names are hidden from `tools/list` but remain callable through
 `tools/call` for compatibility.
+
+## Zoom and pixel proportions
+
+Windows display scaling makes the same page render at different CSS sizes. The
+app defaults to **fitted** zoom: `zoom.factor = 1 / displayScale`, so CSS pixels
+map back to physical pixels. A human can switch the toolbar to **Windows scale**
+(`mode: "native"`), which renders CSS at the OS scale.
+
+Read the current proportions before mapping a screenshot or choosing a
+coordinate:
+
+```json
+{"name":"browser_workspace","arguments":{"action":"zoom.status"}}
+```
+
+`browser_zoom` (also `browser_workspace` actions `zoom.in`, `zoom.out`,
+`zoom.reset`, `zoom.set`) returns `mode`, `displayScale`, `factor`,
+`devicePixelRatio` and both CSS and physical viewports. After changing zoom,
+re-run `observe`/`find`: element geometry has changed. Screenshots carry
+`zoom.coordinateScale` (image px per CSS px), so map image coordinates back with
+`cssX = imageX / coordinateScale`.
+
+Do not confuse page zoom with visual viewport pinch zoom; `visualViewport.scale`
+stays 1 for both policies.
 
 ## Recipes
 

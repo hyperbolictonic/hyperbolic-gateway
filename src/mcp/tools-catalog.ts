@@ -377,6 +377,36 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     },
   },
 
+  {
+    name: 'browser_zoom',
+    description:
+      'Reads or changes the page zoom and reports the exact CSS-to-physical proportions. By default the page is fitted to the OS display scale (for example 67% on a 150% Windows display), so CSS pixels, screenshot pixels and the human view stay comparable; `mode:"native"` on the toolbar restores Windows scale for people. Actions: status (default), in, out, reset, set(factor 0.25-5). After changing zoom, re-run observe/find because viewport geometry changed. Screenshots return zoom plus coordinate_scale for mapping image pixels back to CSS px.',
+    parameters: {
+      action: z.enum(['status', 'in', 'out', 'reset', 'set']).optional().default('status').describe('Read or change the zoom (default: status)'),
+      factor: z.coerce.number().min(0.25).max(5).optional().describe('Exact zoom factor for action="set" (0.25-5; 1 = CSS px at Windows scale)'),
+    },
+    endpoint: '/zoom',
+    payload: (args) => {
+      const action = args?.action || 'status';
+      if (action === 'set' && args?.factor === undefined) {
+        throw new Error('action "set" requires a factor between 0.25 and 5.');
+      }
+      return { action, factor: args?.factor };
+    },
+    format: (data) => {
+      const zoom = data.zoom || {};
+      const css = zoom.viewport?.css || {};
+      const physical = zoom.viewport?.physical || {};
+      const pct = Math.round((zoom.factor || 0) * 100);
+      const mode = zoom.custom
+        ? 'custom'
+        : zoom.mode === 'compensate'
+          ? `fitted to ${Math.round((zoom.displayScale || 1) * 100)}% display`
+          : 'Windows scale';
+      return `Page zoom ${pct}% (${mode})\nCSS viewport ${css.width || 0}x${css.height || 0} | physical ${physical.width || 0}x${physical.height || 0} | devicePixelRatio ${(zoom.devicePixelRatio || 1).toFixed(2)}`;
+    },
+  },
+
   // 5. Memory & Cortex (LanceDB)
   {
     name: 'recall_memory',
@@ -1874,7 +1904,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     parameters: {},
     endpoint: '/health',
     method: 'GET',
-    format: (data) => JSON.stringify({ status: data.status, version: data.version, revision: data.revision, capabilities: data.capabilities, url: data.info?.url, title: data.info?.title, window: data.window, input: data.input, lastActionAt: data.lastActionAt }, null, 2),
+    format: (data) => JSON.stringify({ status: data.status, version: data.version, revision: data.revision, capabilities: data.capabilities, url: data.info?.url, title: data.info?.title, window: data.window, input: data.input, zoom: data.zoom, lastActionAt: data.lastActionAt }, null, 2),
   },
   {
     name: 'export_har',
@@ -2017,6 +2047,7 @@ export const DEFAULT_TOOL_ORDER: string[] = [
   'snapshot_rendered_page',
   'press_key',
   'fill_form',
+  'browser_zoom',
   'new_tab',
   'switch_tab',
   'list_tabs',

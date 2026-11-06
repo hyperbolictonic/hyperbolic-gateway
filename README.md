@@ -10,7 +10,7 @@
 > — **Dade Murphy (AKA Crash Override)**, Circa 1995
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-2.1.1-22d3ee" />
+  <img alt="version" src="https://img.shields.io/badge/version-2.2.0-22d3ee" />
   <img alt="tools" src="https://img.shields.io/badge/MCP%20tools-16%20%2B2%20optional-a3e635" />
   <img alt="resources" src="https://img.shields.io/badge/MCP%20resources-7-f472b6" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue" />
@@ -333,6 +333,7 @@ Hypagon Gateway features an embedded, serverless vector database (**LanceDB**) c
 - **Electron `WebContentsView` Isolation:** Independent navigation state, separate history stacks, and zero-flicker view swapping.
 - **Automatic Popup Trapping:** Links configured with `target="_blank"` or `window.open` are cleanly trapped into managed child tabs rather than escaping as detached OS windows.
 - **Dynamic DaisyUI 5 Tab Bar Strip:** Real-time loading spinners, active indicators, title truncations, and memory reclamation upon tab closure.
+- **Display-scale-aware page zoom:** Pages are fitted to the OS scale by default (67% on a 150% Windows display), with a `FIT`/`WIN` toggle for humans and `Ctrl+=` / `Ctrl+-` / `Ctrl+0`. `browser_zoom` reports CSS and physical viewports so agents can map screenshots and coordinates correctly.
 
 ---
 
@@ -511,7 +512,7 @@ Read [docs/MEDIA.md](./docs/MEDIA.md) for the design notes and threat model.
 | `devtools` | state, diff, console, network, streams, HAR, JSON query, fingerprint, health |
 | `human_in_loop` | request/status/resolve HIL, activity/resume, notify, window and tray |
 | `collaborate` | highlight, ask, read, reply and resolve human page threads |
-| `browser_workspace` | tabs, downloads, contexts, recordings and scripts |
+| `browser_workspace` | tabs, page zoom, downloads, contexts, recordings and scripts |
 | `media` | status, info, preview, transcript, download, jobs, cancel, list |
 | `shadow_iframes` | `frames`, `focus_walk` |
 | `research` | read, search, LLM surface/fetch, crawl, topic research, prerender |
@@ -860,11 +861,12 @@ Type-check and bundles: `npx tsc --noEmit`, `npm run build`, `npm run build:mcp`
 ## 📦 Release notes
 
 > [!NOTE]
-> **What's new in 2.1.1** — **Cortex recall for video, and a VS Code-style Settings.**
-> `media transcript` now indexes the full transcript into Cortex under the video URL, so
-> `memory recall` can answer from a video later (pass `index:false` to skip). Settings navigation
-> moved from a wrapping top tab strip to a scrollable left rail: the nav scrolls on its own, the
-> active panel scrolls independently, and narrow windows collapse the rail into a horizontal strip.
+> **What's new in 2.2.0** - **Display-scale-aware page zoom, and a resilient HUD.**
+> Pages are fitted to the OS display scale by default (67% on a 150% Windows display), with a
+> `FIT`/`WIN` toolbar toggle, `Ctrl+=` / `Ctrl+-` / `Ctrl+0`, and `browser_workspace` zoom actions
+> for agents. Screenshots now carry CSS/physical proportions. Renderer crashes, lost heartbeats and
+> post-sleep repaint failures are logged to `data/logs/main.log` and recovered automatically instead
+> of leaving a white window.
 > Earlier releases are in [CHANGELOG.md](./CHANGELOG.md).
 
 ---
